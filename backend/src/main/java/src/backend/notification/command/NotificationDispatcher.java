@@ -11,6 +11,7 @@ import src.backend.notification.domain.NotificationRetryPolicy;
 import src.backend.notification.entity.NotificationLog;
 import src.backend.notification.entity.PushState;
 import src.backend.notification.push.spec.PushMessage;
+import src.backend.notification.push.spec.PushNotAttemptedException;
 import src.backend.notification.push.spec.PushSender;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.notification.repository.NotificationSettingRepository;
@@ -89,7 +90,8 @@ public class NotificationDispatcher {
     }
 
     /**
-     * 발송하고 결과를 옮긴다 — 성공은 {@code sent}, 실패는 사유를 남긴 채 상한에 따라 갈린다.
+     * 발송하고 결과를 옮긴다 — 성공은 {@code sent}, 실패는 사유를 남긴 채 상한에 따라 갈린다. 발송기가 채널을 부르지 않고
+     * 거절했으면({@link PushNotAttemptedException}) 시도가 아니라서 횟수를 되돌리고 {@code pending} 으로 남긴다(Ruling 899 E).
      *
      * @param attempts 이번 시도까지 포함한 횟수. 읽어 둔 엔티티는 시도 기록 <b>이전</b>의 값이라
      *                 그대로 쓰면 상한 판정이 한 회차씩 늦어져 실제로는 4회를 시도한다
@@ -98,6 +100,8 @@ public class NotificationDispatcher {
         try {
             pushSender.send(PushMessage.from(target));
             notificationLogRepository.markSent(target.getId(), PushState.PENDING, PushState.SENT, now);
+        } catch (PushNotAttemptedException e) {
+            notificationLogRepository.releaseAttempt(target.getId(), PushState.PENDING, failReason(e));
         } catch (RuntimeException e) {
             PushState nextState = retryPolicy.exhausted(attempts) ? PushState.FAILED : PushState.PENDING;
             notificationLogRepository.markAttemptFailed(target.getId(), PushState.PENDING, nextState,

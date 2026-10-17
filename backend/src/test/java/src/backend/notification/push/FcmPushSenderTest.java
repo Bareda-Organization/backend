@@ -43,7 +43,6 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 
@@ -52,6 +51,7 @@ import src.backend.notification.entity.DeviceToken;
 import src.backend.notification.entity.NotificationType;
 import src.backend.notification.push.impl.FcmPushSender;
 import src.backend.notification.push.spec.PushMessage;
+import src.backend.notification.push.spec.PushNotAttemptedException;
 import src.backend.notification.repository.DeviceTokenRepository;
 
 /**
@@ -231,7 +231,7 @@ class FcmPushSenderTest {
         }
 
         assertThatThrownBy(() -> sender.send(new PushMessage(7L, NotificationType.DELAY, "지연", "본문", false)))
-                .as("서킷이 열린 뒤에는 FCM 에 가지 않고 거절한다").isInstanceOf(CallNotPermittedException.class);
+                .as("서킷이 열린 뒤에는 FCM 에 가지 않고 거절한다 — 시도가 아니라는 신호로").isInstanceOf(PushNotAttemptedException.class);
         assertThat(sendRequests).as("열린 뒤의 호출은 서버에 닿지 않는다").hasSize(5);
     }
 

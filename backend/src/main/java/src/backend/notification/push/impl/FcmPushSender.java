@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.jsonwebtoken.Jwts;
@@ -37,6 +38,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.notification.entity.DeviceToken;
 import src.backend.notification.push.spec.PushMessage;
+import src.backend.notification.push.spec.PushNotAttemptedException;
 import src.backend.notification.push.spec.PushSender;
 import src.backend.notification.repository.DeviceTokenRepository;
 
@@ -49,7 +51,7 @@ import src.backend.notification.repository.DeviceTokenRepository;
  * (R46 S-2 — 교환을 락 안에서 하면 FCM 인증 서버가 느린 동안 전 발송 스레드가 줄을 선다).
  *
  * <p><b>서킷</b>({@code resilience4j} 인스턴스 {@code fcm} — 값은 {@code placeSearch} 와 같다)은 <b>일시 장애</b>(네트워크 ·
- * 429 · 5xx · 접근 토큰 발급 실패)만 센다. 열리면 호출 없이 즉시 거절하고, 행은 {@code pending} 으로 남아 아웃박스 워커가
+ * 429 · 5xx · 접근 토큰 발급 실패)만 센다. 열리면 호출 없이 즉시 거절하고({@link PushNotAttemptedException} — 시도 횟수에 넣지 않는다), 행은 {@code pending} 으로 남아 아웃박스 워커가
  * 이어받는다. 본문·단말 문제의 4xx 는 FCM 이 멀쩡하다는 뜻이라 세지 않는다 — 잘못된 알림 하나가 전 발송을 막으면 안 된다.
  * 서킷은 FCM 호출만 감싼다 — 단말 조회·무효 토큰 해지의 DB 오류는 FCM 에 닿지 않은 실패라 밖에 둔다(BR-318).
  *
@@ -129,6 +131,8 @@ public class FcmPushSender implements PushSender {
         List<String> rejections;
         try {
             rejections = circuitBreaker.executeSupplier(() -> sendToAll(message, tokens, invalidTokenIds));
+        } catch (CallNotPermittedException e) {
+            throw new PushNotAttemptedException("FCM 차단 장치가 열려 호출하지 않았다", e);
         } finally {
             revoke(invalidTokenIds); // 다른 단말의 일시 장애로 예외가 나도 이미 확인한 무효 토큰은 해지한다
         }

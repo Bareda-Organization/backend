@@ -108,6 +108,23 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             @Param("nextState") PushState nextState, @Param("reason") String reason);
 
     /**
+     * 발송기가 채널을 부르지 않고 거절한 행의 시도 횟수를 되돌리고 사유를 남긴다(Ruling 899 E) — 상태는 {@code pending} 그대로다.
+     * 선점({@link #claim})이 이미 올린 횟수를 내리는 것이라 {@code push_attempts > 0} 조건을 둔다.
+     *
+     * @return 1 = 되돌림, 0 = 이미 {@code pending} 이 아니거나 횟수가 0
+     */
+    @AcademyScopeExempt(reason = "아웃박스 발송 상태 전이 — markSent 와 같은 축이다. 대상이 id 로 특정된 "
+            + "단건이고 학원 범위가 판정에 개입 부재")
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update NotificationLog n
+               set n.pushAttempts = n.pushAttempts - 1, n.failReason = :reason
+             where n.id = :id and n.pushState = :pending and n.pushAttempts > 0
+            """)
+    int releaseAttempt(@Param("id") Long id, @Param("pending") PushState pending, @Param("reason") String reason);
+
+    /**
      * 워커가 다시 집어야 할 후보 — {@code pending} 이고 재시도 상한에 닿지 않았으며, 아직 시도한 적이
      * 없거나 마지막 시도로부터 최소 간격이 지난 행이다.
      *
