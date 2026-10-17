@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -31,7 +32,6 @@ import jakarta.persistence.PersistenceContext;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -118,7 +118,7 @@ class StaffBusListExtensionTest {
         entityManager.flush();
         entityManager.clear();
 
-        String body = mockMvc.perform(get("/api/v1/staff/buses?size=100").header("Authorization", 토큰(academyId)))
+        String body = mockMvc.perform(get("/api/v1/staff/buses?size=100").header("Authorization", 관계자_토큰(tokenProvider, academyId)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(항목(body, busId, "route_count")).isEqualTo(2);
@@ -151,14 +151,14 @@ class StaffBusListExtensionTest {
         entityManager.flush();
         entityManager.clear();
 
-        mockMvc.perform(post("/api/v1/staff/buses").header("Authorization", 토큰(academyId))
+        mockMvc.perform(post("/api/v1/staff/buses").header("Authorization", 관계자_토큰(tokenProvider, academyId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"bus_no\":\"R48-등록\",\"plate_no\":\"12가3456\",\"capacity\":20,\"operable\":true}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.route_count").doesNotExist())
                 .andExpect(jsonPath("$.data.schedule_count").doesNotExist())
                 .andExpect(jsonPath("$.data.today_runs").doesNotExist());
-        mockMvc.perform(patch("/api/v1/staff/buses/" + busId).header("Authorization", 토큰(academyId))
+        mockMvc.perform(patch("/api/v1/staff/buses/" + busId).header("Authorization", 관계자_토큰(tokenProvider, academyId))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"operable\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.route_count").doesNotExist())
@@ -174,10 +174,5 @@ class StaffBusListExtensionTest {
 
     private OffsetDateTime at(LocalDate date, int hour) {
         return date.atTime(hour, 0).atOffset(ZoneOffset.ofHours(9));
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }
