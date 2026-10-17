@@ -21,13 +21,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 import src.backend.schedule.command.ScheduleCommandService;
-import src.backend.schedule.dto.ScheduleListRequest;
 import src.backend.schedule.dto.ScheduleRegisterRequest;
 import src.backend.schedule.dto.ScheduleResponse;
 import src.backend.schedule.dto.ScheduleUpdateRequest;
@@ -57,7 +57,7 @@ public class StaffScheduleController {
     @Operation(summary = "운행 스케줄 · 일일 회차 — 목록 (§1.8 페이징) (SCH-01)")
     @GetMapping
     public ApiResponse<PageResponse<ScheduleResponse>> list(@AuthenticationPrincipal AuthUser requester,
-            @ModelAttribute ScheduleListRequest request) {
+            @ModelAttribute PageSortRequest request) {
         return ApiResponse.ok(scheduleQueryService.list(requester, request));
     }
 

@@ -20,12 +20,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.bus.command.BusCommandService;
-import src.backend.bus.dto.BusListRequest;
 import src.backend.bus.dto.BusRegisterRequest;
 import src.backend.bus.dto.BusResponse;
 import src.backend.bus.dto.BusUpdateRequest;
 import src.backend.bus.query.BusQueryService;
 import src.backend.global.config.ApiTags;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -53,7 +53,7 @@ public class StaffBusController {
     @Operation(summary = "차량 목록 (BUS-01, A-11)")
     @GetMapping
     public ApiResponse<PageResponse<BusResponse>> list(@AuthenticationPrincipal AuthUser requester,
-            @ModelAttribute BusListRequest request) {
+            @ModelAttribute PageSortRequest request) {
         return ApiResponse.ok(busQueryService.list(requester, request));
     }
 

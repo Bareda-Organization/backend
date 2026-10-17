@@ -22,6 +22,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -30,7 +31,6 @@ import src.backend.global.security.authz.Permissions;
 import src.backend.routing.command.RouteCommandService;
 import src.backend.routing.command.RouteOptimizeService;
 import src.backend.routing.dto.RouteDetailResponse;
-import src.backend.routing.dto.RouteListRequest;
 import src.backend.routing.dto.RouteOptimizeRequest;
 import src.backend.routing.dto.RoutePathResponse;
 import src.backend.routing.dto.RouteRegisterRequest;
@@ -69,7 +69,7 @@ public class StaffRouteController {
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 목록 (§1.8 페이징) (RTE-01)")
     @GetMapping
     public ApiResponse<PageResponse<RouteResponse>> list(@AuthenticationPrincipal AuthUser requester,
-            @ModelAttribute RouteListRequest request) {
+            @ModelAttribute PageSortRequest request) {
         return ApiResponse.ok(routeQueryService.list(requester, request));
     }
 

@@ -1,16 +1,20 @@
 package src.backend.admin.dto;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import src.backend.exception.dto.EmergencyStaffItemResponse;
+import src.backend.exception.dto.EmergencyStaffItemResponse.AckedBy;
+import src.backend.exception.dto.EmergencyStaffItemResponse.Contact;
+import src.backend.exception.dto.EmergencyStaffItemResponse.Position;
+import src.backend.exception.dto.EmergencyStaffItemResponse.RaisedBy;
+
 /**
  * 메인 관리자 콘솔의 비상 알림 1건(목표 11·13, API_SPEC §5.16 상속 + §6.11 고유 3개) — {@code
- * EmergencyStaffItemResponse}(T3 소유 {@code exception.dto})와 형태를 나란히 두지 않고 이 패키지에
- * 독립 record 로 둔다. 이유는 {@code academy}(교차 학원 식별)·{@code staffAcked}·{@code
+ * EmergencyStaffItemResponse}(T3 소유 {@code exception.dto})와 바깥 record 를 따로 둔다. 이유는 {@code academy}(교차 학원 식별)·{@code staffAcked}·{@code
  * elapsedSinceRaised} 세 필드가 학원 관계자 화면에는 없는 관리자 전용 필드라, 상속·합성으로 묶으면
- * 관계자 응답이 이 필드들을 실수로 노출할 여지가 생기기 때문이다. 같은 이유로 {@code raisedBy}·
- * {@code position}·{@code contacts}·{@code ackedBy} 의 중첩 record 도 이 파일 안에 독립으로 둔다.
+ * 관계자 응답이 이 필드들을 실수로 노출할 여지가 생기기 때문이다. 중첩 record({@code raisedBy}·{@code position}·
+ * {@code contacts}·{@code ackedBy})는 두 응답이 같은 모양이라 {@code EmergencyStaffItemResponse} 의 것을 함께 쓴다.
  *
  * <p>§5.16 상속분(§6.11 이 "§5.16 항목 + 아래" 로 정의)의 판정 근거는 {@code
  * EmergencyStaffItemResponse} 자바독과 같다 — {@code raisedAt = received_at}(occurred_at 은
@@ -41,21 +45,5 @@ public record AdminEmergencyItemResponse(Long emergencyId, AcademyInfo academy, 
 
     /** 신고를 낸 학원(§6.11 고유). */
     public record AcademyInfo(Long id, String name, String contact) {
-    }
-
-    /** 발신자(§5.16 {@code raised_by} 상속) — {@code role} 은 소문자. */
-    public record RaisedBy(String name, String role, String phone) {
-    }
-
-    /** 발신 시점 위치(§5.16 {@code position} 상속) — {@code recordedAt} 근거는 Ruling 236. */
-    public record Position(BigDecimal lat, BigDecimal lng, OffsetDateTime recordedAt) {
-    }
-
-    /** 회차에 배치된 기사·동승자 연락처(§5.16 {@code contacts} 상속) — {@code role} 은 소문자. */
-    public record Contact(String name, String role, String phone) {
-    }
-
-    /** 확인한 관계자(§5.16 {@code acked_by} 상속) — 확인 전이면 {@code null}. {@code memo} 는 조치 메모(Ruling 541), 없으면 {@code null}. */
-    public record AckedBy(String name, String memo) {
     }
 }

@@ -119,8 +119,9 @@ resilience4j:
           - io.github.resilience4j.circuitbreaker.CallNotPermittedException
           - io.github.resilience4j.bulkhead.BulkheadFullException
   circuitbreaker:
-    instances:
-      geocoding:
+    # 전 인스턴스 공통값 — 인스턴스는 base-config 로 이 값을 받고 다른 값만 자기 줄에 적는다.
+    configs:
+      default:
         sliding-window-type: COUNT_BASED
         sliding-window-size: 10
         # 최소 표본을 두지 않으면 첫 호출 한 번이 실패했을 때 실패율 100%로 서킷이 즉시 열린다.
@@ -129,19 +130,16 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+    instances:
+      geocoding:
+        base-config: default
         # 격벽 거부는 공급자 장애가 아니다 — 집계에 넣으면 동시 호출이 한 번 몰린 것만으로 서킷이 열린다(mapRoute 와 같은 근거, DA-9)
         ignore-exceptions:
           - io.github.resilience4j.bulkhead.BulkheadFullException
       # 지오코딩과 값이 같으나 인스턴스를 가른다 — 네이버 Geocoding 이 죽었다고 Directions 호출까지
       # 막으면 주소 하나 때문에 노선 계산 전체가 근사값으로 떨어진다. 둘은 서로 다른 상품이다.
       mapRoute:
-        sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 10s
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
+        base-config: default
         # 실패로 세는 것은 재시도 분류(타임아웃·연결 실패·5xx, BR-208·BR-050)에 일일 한도 소진 429 를 더한 것이다
         # (Ruling 379 ⑤) — 429 는 재시도는 안 하되 서킷이 열려야 헛호출이 멈춘다. 그 밖의 4xx·"경로 없음" 은 요청
         # 데이터 탓이라 공급자가 멀쩡한데도 서킷을 열어 온디맨드 화면을 503 으로 만든다.
@@ -154,38 +152,20 @@ resilience4j:
       # 장소 검색(자동완성 보조 후보, BR-163) — 재시도는 두지 않고 서킷만 둔다. 지오코딩과 다른 상품이라
       # 인스턴스를 가른다(지역 검색이 죽었다고 주소 검증까지 막지 않는다).
       placeSearch:
-        sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 10s
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
+        base-config: default
         ignore-exceptions:
           - io.github.resilience4j.bulkhead.BulkheadFullException
-      # FCM 발송(R46 S-2) — 재시도는 아웃박스 워커가 맡으므로 서킷만 둔다. 값은 placeSearch 와 같다. 열린 동안의 발송은 행이
+      # FCM 발송(R46 S-2) — 재시도는 아웃박스 워커가 맡으므로 서킷만 둔다. 열린 동안의 발송은 행이
       # pending 으로 남아 워커(30초)가 이어받는다 — 알림이 최대 30초 늦어지는 것이 FCM 장애 중 발송 스레드 8개가 묶이는 것보다 낫다.
       fcm:
-        sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 10s
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
-      # 문자 발송(Ruling 899 F) — 값은 fcm 과 같다. 업체가 죽으면 호출 없이 거절해 요청 스레드가 업체 응답 시간만큼 묶이지 않게 한다.
+        base-config: default
+      # 문자 발송(Ruling 899 F) — 업체가 죽으면 호출 없이 거절해 요청 스레드가 업체 응답 시간만큼 묶이지 않게 한다.
       sms:
-        sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        failure-rate-threshold: 50
+        base-config: default
         # 느린 호출 규칙(Ruling 904 ③) — 문자 업체 응답은 보통 1초 안이다. 2초를 넘는 호출이 절반이면 서킷을 연다. 업체 구현의 연결·읽기 시간 상한(3초)보다
         # 짧아야 업체가 매달려도 상한에 닿기 전에 서킷이 먼저 열린다.
         slow-call-duration-threshold: 2s
         slow-call-rate-threshold: 50
-        wait-duration-in-open-state: 10s
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
     metrics:
       # 관측 목표 8행(TECH_DECISIONS §13.1) — 이 값이 없으면(기본값 false) resilience4j-spring-boot4
       # 가 만드는 지표 게시자는 CircuitBreakerRegistry 에 실제로 연결되지 않는다. 역참조로 확인한

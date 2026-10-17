@@ -23,6 +23,7 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.admin.dto.AdminEmergencyItemResponse;
+import src.backend.exception.dto.EmergencyStaffItemResponse;
 import src.backend.admin.dto.AdminEmergencyListResponse;
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.query.EmergencyStatusFilter;
@@ -156,23 +157,23 @@ public class AdminEmergencyQueryService {
                 : new AdminEmergencyItemResponse.AcademyInfo(academy.getId(), academy.getName(),
                         academy.getContact());
 
-        AdminEmergencyItemResponse.RaisedBy raisedBy = new AdminEmergencyItemResponse.RaisedBy(
+        EmergencyStaffItemResponse.RaisedBy raisedBy = new EmergencyStaffItemResponse.RaisedBy(
                 raiser == null ? null : raiser.getName(),
                 LowerCaseFormatter.lower(alert.getRaisedByRole().name()),
                 raiser == null ? null : raiser.getPhone());
 
-        AdminEmergencyItemResponse.Position position = new AdminEmergencyItemResponse.Position(alert.getLat(),
+        EmergencyStaffItemResponse.Position position = new EmergencyStaffItemResponse.Position(alert.getLat(),
                 alert.getLng(), alert.getPositionRecordedAt());
 
-        List<AdminEmergencyItemResponse.Contact> contacts = assigned == null ? List.of()
+        List<EmergencyStaffItemResponse.Contact> contacts = assigned == null ? List.of()
                 : assigned.stream()
                         .filter(v -> isLive(managersById.get(v.managerId())))
-                        .map(v -> new AdminEmergencyItemResponse.Contact(v.name(),
+                        .map(v -> new EmergencyStaffItemResponse.Contact(v.name(),
                                 LowerCaseFormatter.lower(v.role().name()), v.phone()))
                         .toList();
 
-        AdminEmergencyItemResponse.AckedBy ackedBy = acker == null ? null
-                : new AdminEmergencyItemResponse.AckedBy(acker.getName(), alert.getAckMemo());
+        EmergencyStaffItemResponse.AckedBy ackedBy = acker == null ? null
+                : new EmergencyStaffItemResponse.AckedBy(acker.getName(), alert.getAckMemo());
 
         return new AdminEmergencyItemResponse(alert.getId(), academyInfo,
                 LowerCaseFormatter.lower(alert.getType().name()), alert.getMemo(), raisedBy, alert.getRunId(),

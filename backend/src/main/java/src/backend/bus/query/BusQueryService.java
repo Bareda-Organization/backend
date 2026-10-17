@@ -13,11 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.bus.dto.BusListRequest;
 import src.backend.bus.dto.BusResponse;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.request.PageParams;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -45,7 +45,7 @@ public class BusQueryService {
     private final Clock clock;
 
     /** 소속 학원의 차량 목록(§5.12) — 범위는 토큰이 정하고 요청은 페이지 위치만 정한다. */
-    public PageResponse<BusResponse> list(AuthUser requester, BusListRequest request) {
+    public PageResponse<BusResponse> list(AuthUser requester, PageSortRequest request) {
         Page<Bus> page = busRepository.findAllByAcademyId(requester.academyId(),
                 PageParams.of(request.page(), request.size())
                         .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));

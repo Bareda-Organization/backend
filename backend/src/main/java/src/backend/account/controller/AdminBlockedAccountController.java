@@ -15,10 +15,10 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.account.command.AccountUnblockCommandService;
 import src.backend.account.dto.AccountUnblockResponse;
-import src.backend.account.dto.AdminAccountListRequest;
 import src.backend.account.dto.BlockedAccountResponse;
 import src.backend.account.query.AdminBlockedAccountQueryService;
 import src.backend.global.config.ApiTags;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
@@ -46,7 +46,7 @@ public class AdminBlockedAccountController {
     @Can(Permissions.ACCOUNT_UNBLOCK)
     @Operation(summary = "차단 계정 목록 (AUTH-06, O-03)")
     @GetMapping
-    public ApiResponse<PageResponse<BlockedAccountResponse>> list(@ModelAttribute AdminAccountListRequest request) {
+    public ApiResponse<PageResponse<BlockedAccountResponse>> list(@ModelAttribute PageSortRequest request) {
         return ApiResponse.ok(adminBlockedAccountQueryService.list(request));
     }
 
