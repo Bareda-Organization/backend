@@ -27,7 +27,7 @@ import src.backend.request.preview.spec.ApprovalPreviewCache;
  * 교체하면 되도록 {@link ApprovalPreviewCache} 뒤에 감췄다.
  *
  * <p><b>상한 500건 · 하루 만료</b>(DA-11) — 결정되지 않은 채 남는 승인 건이 힙에 쌓이지 않게 한다. 승인 1건이 결정되면
- * {@link ApprovalPreviewCache#evict} 로 지운다(결정의 몫). 2대 운영의 Redis 이전은 R59 에서 한다.
+ * {@link ApprovalPreviewCache#evict} 로 지운다(결정의 몫). 2대 운영의 Redis 이전은 이 클래스를 교체해 한다.
  */
 @Component
 @RequiredArgsConstructor

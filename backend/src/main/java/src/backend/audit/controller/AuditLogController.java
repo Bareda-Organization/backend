@@ -20,7 +20,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * 메인 관리자 콘솔의 개인정보 조회·수정 이력 조회 API(SYS-01, API_SPEC §6.13, Phase 14 T1 목표 3).
+ * 메인 관리자 콘솔의 개인정보 조회·수정 이력 조회 API(SYS-01, API_SPEC §6.13).
  *
  * <p>{@code academy_id}·{@code account_id}·{@code from}·{@code to}·{@code action} 을 {@code @RequestParam} 에
  * 손으로 적는다 — 쿼리 파라미터는 Jackson {@code SNAKE_CASE} 전략을 거치지 않아

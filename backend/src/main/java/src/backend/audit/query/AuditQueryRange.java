@@ -9,10 +9,9 @@ import src.backend.global.error.ErrorCode;
 
 /**
  * {@code GET /admin/audit-logs}·{@code /admin/login-history} 가 공유하는 {@code from}·{@code to}
- * 파싱(API_SPEC §6.13, Phase 14 T1 목표 3·4)과 기본 기간.
+ * 파싱(API_SPEC §6.13)과 기본 기간.
  *
- * <p>{@code global/request/ApiValues}(전역 공용 변환기)에 두지 않는다 — 그 클래스는 이 태스크
- * (p14-task-t1.md)의 소유 파일 목록 밖이라, 공용 클래스를 고치면 다른 좌석의 소유 경계를 넘는다.
+ * <p>{@code global/request/ApiValues}(전역 공용 변환기)에 두지 않는다 — 그 클래스는 이 태스크의 소유 파일 목록 밖이라, 공용 클래스를 고치면 다른 좌석의 소유 경계를 넘는다.
  * 또한 {@code ApiValues} 를 직접 확인한 결과 {@code OffsetDateTime} 파싱 메서드가 이미 없다(
  * {@code date()}·{@code time()} 뿐) — 이 태스크가 처음 필요로 하는 값이다.
  *

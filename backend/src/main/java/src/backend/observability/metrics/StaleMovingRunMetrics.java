@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 
-/** 어제보다 이른 운행일에 끝나지 않은 이동 중 회차 수 게이지 — {@code StaleMovingRun} 경보의 재료(R46-KFIXBE K-1, Ruling 702). */
+/** 어제보다 이른 운행일에 끝나지 않은 이동 중 회차 수 게이지 — {@code StaleMovingRun} 경보의 재료(Ruling 702). */
 @Component
 public class StaleMovingRunMetrics {
 

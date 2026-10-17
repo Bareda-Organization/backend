@@ -36,14 +36,14 @@ import src.backend.student.repository.StopRepository;
  * 메인 관리자 콘솔의 학원 1곳 실시간 관제 조회(API_SPEC §6.8, O-05, 목표 8·9).
  *
  * <p>{@code eta} 계열 값은 전부 {@code run_stop.eta} 저장값을 읽기만 한다 — 좌표·거리로 다시
- * 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재). 좌표는 T1 이 만든 공용
- * {@link RunLiveStateResolver}(§5.18·§6.8 공유, Phase 13 §2)를 그대로 쓴다 — {@code position} 은
+ * 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재). 좌표는 공용
+ * {@link RunLiveStateResolver}(§5.18·§6.8 공유)를 그대로 쓴다 — {@code position} 은
  * API_SPEC §6.8 에 선택 필드(`○`)라 Redis 값이 없거나 유실(2분 초과)이면 객체 자체를 {@code null} 로
  * 비운다(필드는 있고 값만 비는 형태로 두지 않는다). 유실이면 {@code last_seen_at} 만 채운다(Ruling
  * 250 · FEATURE_SPEC §4.16 A-14).
  *
  * <p>클래스에 {@code @Transactional} 을 두지 않는다 — Redis 좌표 읽기({@code RunPositionStore}, 최대 명령 시간 상한
- * 500ms)가 트랜잭션 안에 있으면 그 동안 DB 연결을 쥔다(R46 D #13). 저장소 호출마다 짧은 읽기 트랜잭션이 돈다.
+ * 500ms)가 트랜잭션 안에 있으면 그 동안 DB 연결을 쥔다. 저장소 호출마다 짧은 읽기 트랜잭션이 돈다.
  */
 @Service
 @RequiredArgsConstructor
@@ -68,15 +68,13 @@ public class AdminAcademyLiveQueryService {
     private final Clock clock;
 
     /**
-     * 그 학원의 <b>오늘 회차 전부</b>를 상태와 무관하게 돌려준다(R16 목표 1·2, Ruling 315) —
+     * 그 학원의 <b>오늘 회차 전부</b>를 상태와 무관하게 돌려준다(Ruling 315) —
      * {@code idle}·{@code confirmed}·{@code moving}·{@code finished} 4종이 모두 담긴다. 관제 화면이
      * 버스별 상태 목록을 그리려면 {@code moving} 만으로는 성립하지 않고, <b>운행이 끝난 차량도 목록에
      * 남아야 한다</b>(Ruling 310 사용자 확정).
      *
-     * <p>⚠ <b>날짜로 좁히는 것이 이 조회의 필수 조건이다.</b> R15 까지는
-     * {@code findAllByAcademyIdAndStatus...} 로 <b>상태만</b> 걸러 날짜 조건이 아예 없었다 —
-     * {@code moving} 이 사실상 오늘 것뿐이라 드러나지 않았을 뿐이고, 상태 조건을 빼는 순간 과거
-     * 회차 전부가 딸려 온다. {@code §5.18}({@code StaffRunLiveQueryService})이 쓰는 것과 같은 조회
+     * <p>⚠ <b>날짜로 좁히는 것이 이 조회의 필수 조건이다.</b> 날짜 조건이 없으면 상태 조건을 뺄 때
+     * 과거 회차 전부가 딸려 온다. {@code §5.18}({@code StaffRunLiveQueryService})이 쓰는 것과 같은 조회
      * 메서드를 그대로 재사용한다.
      *
      * <p>운행 전 회차는 관제용 필드가 비어서 나간다 — 노선 확정 전이라 {@code stops} 가 빈 배열

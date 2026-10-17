@@ -24,7 +24,7 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.request.ClientIp;
 
 /**
- * L3 응답 조회를 감사 트랜잭션과 분리해서 적재한다(Phase 14 T1 목표 1, Ruling 242 "조회 트랜잭션과
+ * L3 응답 조회를 감사 트랜잭션과 분리해서 적재한다(Ruling 242 "조회 트랜잭션과
  * 분리").
  *
  * <p><b>{@code REQUIRES_NEW} 를 고른 이유</b>(자바독에 근거를 남기라는 지시, Ruling 242) —
@@ -45,10 +45,10 @@ import src.backend.global.request.ClientIp;
  * 실패시킨다. 그래서 {@link TransactionTemplate} 으로 경계를 열고 그 바깥에서 잡는다. 커넥션을 얻지 못한
  * 경우({@code CannotCreateTransactionException})도 같은 {@code catch} 가 받는다.
  *
- * <p><b>반복 조회는 묶는다</b>(R46 감사 A · Ruling 445) — 같은 행위자가 같은 학생을 {@link #DATA_ACCESS_DEDUP_WINDOW}
+ * <p><b>반복 조회는 묶는다</b>(Ruling 445) — 같은 행위자가 같은 학생을 {@link #DATA_ACCESS_DEDUP_WINDOW}
  * 안에 다시 조회하면 그 학생의 행을 더 쓰지 않는다. 폴링 화면(7초마다 명단 재조회)이 하루 수만 행을 쌓지 않게
  * 하는 것이 목적이고, 판단은 <b>서버가 한다</b> — 화면이 보내는 표시로 거르면 요청을 직접 만들어 기록을 피할 수 있다.
- * 키는 <b>행위자·학생·조회한 필드 묶음</b>이고(R46 privacy · Ruling 521 — 명단 조회가 먼저 창을 열었다고 보호자 원번호 접근이 기록에서 빠지면 안 된다) 시간은 <b>마지막으로 기록한 시각</b>이다(마지막으로 본 시각이 아니다 — 그러면 계속
+ * 키는 <b>행위자·학생·조회한 필드 묶음</b>이고(Ruling 521 — 명단 조회가 먼저 창을 열었다고 보호자 원번호 접근이 기록에서 빠지면 안 된다) 시간은 <b>마지막으로 기록한 시각</b>이다(마지막으로 본 시각이 아니다 — 그러면 계속
  * 보고 있는 동안 기록이 영영 안 남는다). 명단 단위 키로 잡으면 두 번째 조회에 새로 실린 학생이 빠지므로, 명단은 새로
  * 실린 학생만 골라 {@code detail.student_ids} 에 담아 쓴다. 저장소는 메모리다 — 백엔드 인스턴스가 1개라는 배포
  * 전제(CLAUDE.md)를 따르고, 재기동 때 한 번 더 기록되는 것은 허용한다(기록이 줄어드는 쪽이 아니라 느는 쪽 오차).

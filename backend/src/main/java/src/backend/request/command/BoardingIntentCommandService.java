@@ -102,7 +102,7 @@ public class BoardingIntentCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow segment = ChangeWindowPolicy.segmentOf(run, now);
         if (segment == ChangeWindow.CLOSED) {
-            // ③구간은 탑승자 · 승하차지 행을 쥐므로 의사 행보다도 먼저 회차 행을 쥔다(R53 I1 — 회차 → 의사 → 탑승자 → 승하차지).
+            // ③구간은 탑승자 · 승하차지 행을 쥐므로 의사 행보다도 먼저 회차 행을 쥔다(회차 → 의사 → 탑승자 → 승하차지).
             runRowLock.acquire(run.getId(), run.getAcademyId());
         }
 

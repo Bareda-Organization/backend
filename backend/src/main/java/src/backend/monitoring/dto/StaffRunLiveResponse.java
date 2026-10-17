@@ -7,8 +7,8 @@ import java.util.List;
 /**
  * 전 차량 실시간 위치 응답(§5.18 {@code GET /staff/runs/live}, MON-07).
  *
- * <p>{@code status='moving'} 인 회차만 담는다 — 정본 문면과 조율자 권장(Phase 13 §4, T2 의 §6.8
- * 과 정합)이 같은 근거를 든다: WS {@code /ws/academy/{id}/live} 의 증분 방송이 이미 {@code moving}
+ * <p>{@code status='moving'} 인 회차만 담는다 — 정본 문면과 §6.8 을 맞춘 것이
+ * 같은 근거를 든다: WS {@code /ws/academy/{id}/live} 의 증분 방송이 이미 {@code moving}
  * 회차만 다루므로, 이 초기 스냅샷도 같은 대상 집합이어야 화면 진입 시 스냅샷과 이후 갱신이 어긋나지
  * 않는다.
  */

@@ -39,7 +39,7 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
             Short windowSegment, Pageable pageable);
 
     /**
-     * 한 회차에 승인된 경유지 이동 요청들(P-06, Phase 8) — 확정 배치가 그날의 승하차지를 조립할 때
+     * 한 회차에 승인된 경유지 이동 요청들(P-06) — 확정 배치가 그날의 승하차지를 조립할 때
      * "일일 변경이 요일별 주소를 이긴다" 우선순위를 적용하는 원천이다({@code RunConfirmationService}).
      * 접수 순으로 정렬해, 같은 학생이 같은 회차에 두 번 신청했을 때(② 승인이 겹치는 드문 경우) 호출부가
      * <b>나중 신청이 이긴다</b> 규칙을 "마지막 값으로 덮어쓰기"로 그대로 구현할 수 있게 한다.

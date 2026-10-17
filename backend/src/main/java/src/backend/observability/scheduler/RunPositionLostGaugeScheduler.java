@@ -29,7 +29,7 @@ import src.backend.student.query.StudentBusPositionQueryService;
  * <p>유실 판정은 관제 화면과 같은 {@link RunLiveStateResolver} 를 쓴다 — 기준이 갈리면 알럿과 화면이 서로 다른 버스를
  * 가리킨다. 출발 직후 첫 위치가 오기 전인 회차는 세지 않는다(출발 후 2분이 지나야 "미수신" 이다).
  *
- * <p>운행일이 어제보다 이른 끝나지 않은 회차는 세지 않는다({@link MovingRunWindowPolicy}, R46-KFIXBE K-1) — 위치가 없는 그
+ * <p>운행일이 어제보다 이른 끝나지 않은 회차는 세지 않는다({@link MovingRunWindowPolicy}) — 위치가 없는 그
  * 회차가 이 경보를 영구히 켜 두면 새 유실이 와도 상태가 안 바뀐다. 그 회차는 {@code StaleMovingRunGaugeScheduler} 가 따로 센다.
  */
 @Component

@@ -30,7 +30,7 @@ import src.backend.global.response.PageResponse;
 
 /**
  * 메인 관리자 콘솔의 로그인·차단 이력 조회(SYS-02, API_SPEC §6.13
- * {@code GET /admin/login-history}, Phase 14 T1 목표 4).
+ * {@code GET /admin/login-history}).
  *
  * <p>{@code result}·{@code block_event} 를 저장된 {@code action} 에서 조회 시점에 다시 계산한다
  * (ERD §3.4 · 조율자 Ruling 13) — {@code AuditLog.blockEvent} 컬럼값을 그대로 옮기지 않는 이유는

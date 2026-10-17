@@ -119,7 +119,7 @@ public class AuditLog {
      * @param actorAccountId 해제를 실행한 메인 관리자
      * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷 — 계정이 나중에 사라져도 표시값이 남아야 한다
      * @param targetAccountId 차단이 풀린 계정
-     * @param ip 해제를 요청한 관리자의 발신 IP(R46-POLISH Ruling 595) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param ip 해제를 요청한 관리자의 발신 IP(Ruling 595) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forAccountUnblock(Long academyId, Long actorAccountId, String actorLoginId,
             Long targetAccountId, String ip, OffsetDateTime occurredAt) {
@@ -137,7 +137,7 @@ public class AuditLog {
      * 관계자가 학원 사용자의 비밀번호를 초기화한 사실(API_SPEC §5.22 · Ruling 329) — {@code action=update}.
      * 강제 확정({@link #forRunForceConfirm})처럼 구별 문자열은 {@code detail.action} 에 둔다(Ruling 260).
      *
-     * @param ip 요청 발신 IP(R46-LAST Ruling 580) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param ip 요청 발신 IP(Ruling 580) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forAccountPasswordReset(Long academyId, Long actorAccountId, String actorLoginId,
             Long targetAccountId, String ip, OffsetDateTime occurredAt) {
@@ -153,7 +153,7 @@ public class AuditLog {
     }
 
     /**
-     * L3 필드가 실린 응답을 실제로 읽었을 때의 기록(SYS-01 · FEATURE_SPEC §6.3 · Phase 14 T1 목표 1).
+     * L3 필드가 실린 응답을 실제로 읽었을 때의 기록(SYS-01 · FEATURE_SPEC §6.3).
      *
      * <p>요청 1건당 1행이다(Ruling 242 잠정) — 응답에 학생이 여러 명 실려도 행을 늘리지 않는다.
      * {@code detail} 에는 {@code student_ids}(응답에 실제로 실린 학생 식별자 전부)와
@@ -163,7 +163,7 @@ public class AuditLog {
      *
      * @param targetType {@code student}·{@code run_roster} 등 Ruling 242 가 고정한 값 도메인
      * @param targetId   단일 학생 조회면 그 학생 id, 회차 명단이면 그 회차(run) id
-     * @param ip         요청 발신 IP(R46 감사 C) — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param ip         요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
      */
     public static AuditLog forDataAccessRead(Long academyId, Long actorAccountId, String actorLoginId,
             String targetType, Long targetId, Map<String, Object> detail, String ip, OffsetDateTime occurredAt) {
@@ -296,7 +296,7 @@ public class AuditLog {
     }
 
     /**
-     * 운행일이 지난 이동 중 회차의 강제 종료(API_SPEC §6.17, R47 Ruling 724) — {@link #forRunForceConfirm} 과 같은 형태로
+     * 운행일이 지난 이동 중 회차의 강제 종료(API_SPEC §6.17, Ruling 724) — {@link #forRunForceConfirm} 과 같은 형태로
      * {@code category=data_access}·{@code action=update}·{@code target_type=run} 을 재사용하고, 구별 문자열
      * {@code run.force_finish} · {@code reason} · 종료 시점에 아직 {@code boarded} 였던 탑승자 수를 {@code detail} 에 싣는다.
      *

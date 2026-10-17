@@ -7,7 +7,7 @@ import java.time.OffsetDateTime;
  *
  * <p>발행 지점은 관계자 통지가 따로 없던 두 곳뿐이다 — ① 변경 신청 {@code cancel}(§3.8)과 ②구간 취소 승인(§5.6).
  * ① 탑승 토글 OFF 는 {@link IntentChangedEvent}({@code intent_changed})가 이미 관계자에게 알리므로 같은 사건을
- * 두 번 보내지 않는다(조율자 판정 2026-09-25, PRD "오늘 안 타요" — 관계자 통지 하나, BR-110).
+ * 두 번 보내지 않는다(PRD "오늘 안 타요" — 관계자 통지 하나, BR-110).
  */
 public record AbsentRecordedEvent(Long runId, Long academyId, Long studentId, OffsetDateTime recordedAt) {
 }

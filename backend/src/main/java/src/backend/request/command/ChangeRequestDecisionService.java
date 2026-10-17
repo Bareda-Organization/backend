@@ -123,7 +123,7 @@ public class ChangeRequestDecisionService {
      */
     @Transactional
     public DecideChangeRequestResponse decide(AuthUser requester, Long approvalId, DecideChangeRequestRequest req) {
-        // 회차 행을 요청 행보다 먼저 쥔다(R53 I-1) — 운행 시작은 회차 행 → 요청 행(자동 거절) 순이라, 요청 행을 먼저 쥐고 승인에서 회차 행을
+        // 회차 행을 요청 행보다 먼저 쥔다 — 운행 시작은 회차 행 → 요청 행(자동 거절) 순이라, 요청 행을 먼저 쥐고 승인에서 회차 행을
         // 기다리면 서로를 기다리는 교착(deadlock detected)이 된다. 회차 id 는 잠금 없이 값으로만 읽는다(없거나 다른 학원이면 아래와 같은 404).
         Long runId = changeRequestRepository.findRunIdByIdAndAcademyId(approvalId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPROVAL_NOT_FOUND));
@@ -153,7 +153,7 @@ public class ChangeRequestDecisionService {
 
     /**
      * 승인 — 명단 제외(취소형)·경유지 이동(이동형) → 캐시된 재최적화 결과를 새 노선 버전으로 배포 →
-     * 기사·동승자 재배포({@code route_changed}, Phase 7 경로 재사용) + 학부모 통보.
+     * 기사·동승자 재배포({@code route_changed}, 기존 경로 재사용) + 학부모 통보.
      */
     private DecideChangeRequestResponse approve(AuthUser requester, ChangeRequest cr, Run run,
             OffsetDateTime decidedAt, String previewToken) {
@@ -202,7 +202,7 @@ public class ChangeRequestDecisionService {
         changeRequestRepository.save(cr);
         previewCache.evict(cr.getId());
 
-        // route_changed — Phase 7 이 이미 만든 경로를 재사용한다(새 발행 경로를 만들지 않는다).
+        // route_changed — 이미 있는 경로를 재사용한다(새 발행 경로를 만들지 않는다).
         eventPublisher.publishEvent(
                 new RunRouteConfirmedEvent(run.getId(), academyId, run.getBusId(), decidedAt));
         eventPublisher.publishEvent(new ChangeRequestDecidedEvent(academyId, cr.getId(), run.getId(),

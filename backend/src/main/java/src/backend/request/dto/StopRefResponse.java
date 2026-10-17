@@ -9,8 +9,7 @@ import java.math.BigDecimal;
  * 자세한 값은 이미 {@code stops_before}·{@code stops_after}(seq·eta 포함)에 있기 때문이다 — 같은 값을
  * 두 자리에 실으면 한쪽만 고쳤을 때 서로 어긋난다.
  *
- * @param lat @param lng 관계자 웹 지도가 "변한 승하차지"(삭제·순서 변경)를 다르게 표시하는 데 쓴다
- *         (R21-A 추가 지시 ②). 승하차지가 해석되지 않으면 {@code null} 이다.
+ * @param lat @param lng 관계자 웹 지도가 "변한 승하차지"(삭제·순서 변경)를 다르게 표시하는 데 쓴다. 승하차지가 해석되지 않으면 {@code null} 이다.
  */
 public record StopRefResponse(Long stopId, String stopName, BigDecimal lat, BigDecimal lng) {
 }

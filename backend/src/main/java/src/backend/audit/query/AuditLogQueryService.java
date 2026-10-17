@@ -31,8 +31,7 @@ import src.backend.global.request.PageParams;
 import src.backend.global.response.PageResponse;
 
 /**
- * 메인 관리자 콘솔의 개인정보 조회·수정 이력 조회(SYS-01, API_SPEC §6.13 {@code GET /admin/audit-logs},
- * Phase 14 T1 목표 3).
+ * 메인 관리자 콘솔의 개인정보 조회·수정 이력 조회(SYS-01, API_SPEC §6.13 {@code GET /admin/audit-logs}).
  *
  * <p>{@code sort} 는 클라이언트가 고르지 않는다 — §6.13 이 쿼리 파라미터로 나열한 것은
  * {@code academy_id}·{@code account_id}·{@code from}·{@code to}·페이징뿐이다. 최신순 고정에
@@ -61,7 +60,7 @@ public class AuditLogQueryService {
     /**
      * 개인정보 조회·수정 이력을 최신순(동률은 id 오름차순)으로 페이징해 돌려준다(§6.13).
      *
-     * @param action {@code read}·{@code update}·{@code delete} 중 하나만 보고 싶을 때(R46 감사 화면, Ruling 446).
+     * @param action {@code read}·{@code update}·{@code delete} 중 하나만 보고 싶을 때(Ruling 446).
      *               {@code null} 이면 셋 다다. 그 밖의 값은 {@code 422 VALIDATION_FAILED}
      */
     public PageResponse<AuditLogItemResponse> list(AuditQueryFilter filter, String action) {

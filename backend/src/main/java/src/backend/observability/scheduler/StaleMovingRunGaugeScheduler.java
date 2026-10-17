@@ -11,7 +11,7 @@ import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.repository.RunRepository;
 
 /**
- * {@code schoolbus.run.moving.stale} 게이지를 갱신한다(R46-KFIXBE K-1, Ruling 702) — 근접 판정·위치 유실 집계·노선 잠금이
+ * {@code schoolbus.run.moving.stale} 게이지를 갱신한다(Ruling 702) — 근접 판정·위치 유실 집계·노선 잠금이
  * 더는 집지 않는 <b>끝나지 않은 이동 중 회차</b>({@link MovingRunWindowPolicy} 범위 밖)를 사람에게 드러내는 유일한 신호다.
  * 자동으로 종료하지 않는다 — 잔류 인원이 남은 회차를 시스템이 임의로 끝내는 것은 사양(C-15) 변경이라 사람이 처리한다.
  *

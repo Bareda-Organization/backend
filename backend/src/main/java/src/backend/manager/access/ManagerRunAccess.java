@@ -16,7 +16,7 @@ import src.backend.run.repository.RunRepository;
 
 /**
  * 매니저 앱의 회차 접근 범위 판정 — "이 요청 주체는 어느 회차에 닿을 수 있는가" 를 답하는 <b>유일한
- * 지점</b>이다(API_SPEC §1.5 · §4.1~§4.3 · Phase 9 목표 16·17, {@code student.access
+ * 지점</b>이다(API_SPEC §1.5 · §4.1~§4.3, {@code student.access
  * .GuardianChildAccess} 와 같은 근거로 신설).
  *
  * <p>범위를 좁히는 축이 <b>둘</b>이다. 요청 주체 → {@link Manager}(계정 경유, 삭제 여부 포함)와
@@ -55,9 +55,8 @@ public class ManagerRunAccess {
      * 자원의 403 FORBIDDEN(배치되지 않은 회차, §1.5)" 명시, Ruling 259(b)).
      *
      * <p>배치 조회({@code assignmentRepository.findByRunIdAndManagerId}) 를 회차 조회보다 <b>먼저</b>
-     * 한다 — 이전에는 회차 조회를 앞세워 학원이 다르면 {@code 404 RUN_NOT_FOUND} 를 먼저 던졌는데,
-     * §1.11 은 이 자원군 전체를 403 하나로 명시해 그 404 분기 자체가 스펙 위반이었다(review-f3-r4
-     * #38~44). 이 순서로 바꿔도 정보가 새지 않는 것은 {@code manager} 가 이미
+     * 한다 — 회차 조회를 앞세우면 학원이 다를 때 {@code 404 RUN_NOT_FOUND} 가 먼저 나가는데,
+     * §1.11 은 이 자원군 전체를 403 하나로 명시해 그 404 분기 자체가 스펙 위반이었다. 이 순서를 써도 정보가 새지 않는 것은 {@code manager} 가 이미
      * {@link #requireManager} 로 요청 학원에 묶여 있고, 배치는 생성 시점에 매니저·회차가 같은 학원일
      * 때만 만들어지기 때문이다({@code AssignmentCommandService#place} 참고) — 그래서 이 매니저에게
      * 배치가 없다는 사실 하나만으로 "회차가 없다" · "타 학원 회차다" · "이 학원 회차인데 배치가
