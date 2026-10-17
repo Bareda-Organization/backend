@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -111,14 +112,9 @@ class EmergencyControllerTest {
     @Autowired
     private AcademyStaffRepository academyStaffRepository;
 
-
     private EmergencyFixtures fixtures() {
         return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,
                 assignmentRepository, runRepository, academyStaffRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
     }
 
     // ── goal 5 — 기사·동승자 둘 다 발신 가능 ──────────────────────────────
@@ -128,11 +124,11 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated())
@@ -160,8 +156,8 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long baselineActiveSystemAdmins = accountRepository.countByRoleAndStatusIn(Role.SYSTEM_ADMIN,
                 AccountStatus.NOTIFIABLE);
         fixtures.staffAccount(academyId, "직원1");
@@ -172,7 +168,7 @@ class EmergencyControllerTest {
         int expectedNotified = (int) (1 + baselineActiveSystemAdmins + 1);
 
         String body = mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated())
@@ -185,8 +181,8 @@ class EmergencyControllerTest {
         var data = new ObjectMapper().readTree(body).path("data");
         OffsetDateTime raisedAt = OffsetDateTime.parse(data.path("raised_at").asText());
         OffsetDateTime cancelableUntil = OffsetDateTime.parse(data.path("cancelable_until").asText());
-        assertThat(raisedAt).isEqualTo(now());
-        assertThat(cancelableUntil).isEqualTo(now().plusMinutes(1));
+        assertThat(raisedAt).isEqualTo(OffsetDateTime.now(clock));
+        assertThat(cancelableUntil).isEqualTo(OffsetDateTime.now(clock).plusMinutes(1));
     }
 
     /**
@@ -198,8 +194,8 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         Integer baseline = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM account WHERE role = 'system_admin' AND status IN ('active', 'blocked')",
                 Integer.class);
@@ -210,7 +206,7 @@ class EmergencyControllerTest {
         fixtures.rejectedSystemAdminAccount("거절관리자");
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated())
@@ -222,11 +218,11 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("vehicle_fault", null, UUID.randomUUID())))
                 .andExpect(status().isCreated());
@@ -241,12 +237,12 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         위치를_기록한다(runId, "37.560000", "126.970000");
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated());
@@ -260,12 +256,12 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         // Redis 에 아무것도 쓰지 않는다 — 안전 요구(목표 8): 캐시 미스가 발신 자체를 막으면 안 된다.
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated());
@@ -281,12 +277,12 @@ class EmergencyControllerTest {
     void 요청_좌표가_오면_캐시보다_우선해_발신_위치로_저장된다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
-        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         위치를_기록한다(runId, "37.560000", "126.970000");
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"accident\",\"client_key\":\"%s\",\"lat\":37.5,\"lng\":127.0}"
                                 .formatted(UUID.randomUUID())))
@@ -301,14 +297,14 @@ class EmergencyControllerTest {
     void 확정_전_회차에서_발신하면_409_RUN_NOT_CONFIRMED다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
-        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         entityManager.flush();
         jdbcTemplate.update("UPDATE run SET status = 'idle' WHERE id = ?", runId);
         entityManager.clear();
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isConflict())
@@ -322,9 +318,9 @@ class EmergencyControllerTest {
     void 같은_client_key_재전송은_200이고_최초_신고를_돌려준다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
-        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        String token = 토큰(driverAccountId, academyId, Role.DRIVER);
+        long runId = fixtures.confirmedRun(academyId, fixtures.bus(academyId), OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        String token = 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER);
         String body = 요청본문("accident", null, UUID.randomUUID());
 
         String first = mockMvc.perform(post(RAISE.formatted(runId)).header("Authorization", token)
@@ -347,17 +343,17 @@ class EmergencyControllerTest {
     void 다른_학원_신고에_쓰인_client_key_를_재사용하면_422이고_남의_신고를_돌려주지_않는다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
         long academyA = fixtures.academy();
-        long runA = fixtures.confirmedRun(academyA, fixtures.bus(academyA), now());
-        long driverA = fixtures.assignedManager(academyA, runA, ManagerRole.DRIVER, "기사A", now());
+        long runA = fixtures.confirmedRun(academyA, fixtures.bus(academyA), OffsetDateTime.now(clock));
+        long driverA = fixtures.assignedManager(academyA, runA, ManagerRole.DRIVER, "기사A", OffsetDateTime.now(clock));
         long academyB = fixtures.academy();
-        long runB = fixtures.confirmedRun(academyB, fixtures.bus(academyB), now());
-        long driverB = fixtures.assignedManager(academyB, runB, ManagerRole.DRIVER, "기사B", now());
+        long runB = fixtures.confirmedRun(academyB, fixtures.bus(academyB), OffsetDateTime.now(clock));
+        long driverB = fixtures.assignedManager(academyB, runB, ManagerRole.DRIVER, "기사B", OffsetDateTime.now(clock));
         UUID sharedKey = UUID.randomUUID();
 
-        mockMvc.perform(post(RAISE.formatted(runA)).header("Authorization", 토큰(driverA, academyA, Role.DRIVER))
+        mockMvc.perform(post(RAISE.formatted(runA)).header("Authorization", 토큰(tokenProvider, driverA, academyA, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON).content(요청본문("accident", null, sharedKey)))
                 .andExpect(status().isCreated());
-        mockMvc.perform(post(RAISE.formatted(runB)).header("Authorization", 토큰(driverB, academyB, Role.DRIVER))
+        mockMvc.perform(post(RAISE.formatted(runB)).header("Authorization", 토큰(tokenProvider, driverB, academyB, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON).content(요청본문("accident", null, sharedKey)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.data").doesNotExist());
@@ -369,12 +365,12 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         stringRedisTemplate.opsForValue().set("run:%d:position".formatted(runId), "{not-json");
 
         mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated());
@@ -390,14 +386,14 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         // BE-R1 목표 5 — API_SPEC §4.14 는 204 본문 없음을 요구한다. 이전에는 200 + 본문
         // canceled_at 이었다(정본과 어긋남).
         mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isNoContent())
                 .andExpect(content().bytes(new byte[0]));
 
@@ -409,13 +405,13 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
-        접수시각을_옮긴다(emergencyId, now().minusSeconds(60));
+        접수시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(60));
 
         mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isNoContent());
 
         assertThat(취소시각(emergencyId)).as("경계값(정확히 60초)은 포함이라 성공해야 한다").isNotNull();
@@ -426,13 +422,13 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
-        접수시각을_옮긴다(emergencyId, now().minusSeconds(61));
+        접수시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(61));
 
         mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("EMERGENCY_CANCEL_WINDOW_CLOSED"));
 
@@ -446,12 +442,12 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(get(LIST.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].emergency_id").value(String.valueOf(emergencyId)))
@@ -484,12 +480,12 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(get(LIST.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].emergency_id").isString());
     }
@@ -504,14 +500,14 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
-        OffsetDateTime raisedAt = now().minusSeconds(30);
+        OffsetDateTime raisedAt = OffsetDateTime.now(clock).minusSeconds(30);
         접수시각을_옮긴다(emergencyId, raisedAt);
 
         String body = mockMvc.perform(get(LIST.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -525,13 +521,13 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long otherRunId = fixtures.confirmedRun(academyId, busId, now().plusHours(1));
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long otherRunId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock).plusHours(1));
         long outsiderAccountId = fixtures.assignedManager(academyId, otherRunId,
-                ManagerRole.DRIVER, "다른회차기사", now());
+                ManagerRole.DRIVER, "다른회차기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(get(LIST.formatted(runId))
-                        .header("Authorization", 토큰(outsiderAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, outsiderAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -549,12 +545,12 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long realRunId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, realRunId, ManagerRole.DRIVER, "기사", now());
+        long realRunId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, realRunId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long nonExistentRunId = realRunId + 999_999L;
 
         mockMvc.perform(get(LIST.formatted(nonExistentRunId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -564,17 +560,17 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "확인자");
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get(LIST.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].acked").value(true))
                 .andExpect(jsonPath("$.data.items[0].acked_at").exists())
@@ -586,25 +582,21 @@ class EmergencyControllerTest {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get(LIST.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER)))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].canceled_at").exists());
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
 
     private String 요청본문(String type, String memo, UUID clientKey) {
         String memoJson = memo == null ? "null" : "\"" + memo + "\"";
@@ -615,13 +607,13 @@ class EmergencyControllerTest {
         String key = "run:%d:position".formatted(runId);
         String json = """
                 {"lat":%s,"lng":%s,"recordedAt":"%s","receivedAt":"%s","currentStopName":"정문"}"""
-                .formatted(lat, lng, now(), now());
+                .formatted(lat, lng, OffsetDateTime.now(clock), OffsetDateTime.now(clock));
         stringRedisTemplate.opsForValue().set(key, json);
     }
 
     private long 신고를_발신한다(long runId, long accountId, long academyId) throws Exception {
         String body = mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(accountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문("accident", null, UUID.randomUUID())))
                 .andExpect(status().isCreated())

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -28,7 +29,6 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.repository.ExceptionReportRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -99,15 +99,10 @@ class RunReportControllerTest {
     @Autowired
     private ExceptionReportRepository exceptionReportRepository;
 
-
     private ExceptionReportFixtures fixtures() {
         return new ExceptionReportFixtures(academyRepository, busRepository, stopRepository, studentRepository,
                 accountRepository, managerRepository, assignmentRepository, runRepository, runRiderRepository,
                 academyStaffRepository, exceptionReportRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
     }
 
     // ── goal 15 — 등록 성공 ────────────────────────────────────────────────
@@ -118,13 +113,13 @@ class RunReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"road_block\",\"memo\":\"도로 공사로 우회 중\"}"))
                 .andExpect(status().isCreated())
@@ -143,15 +138,15 @@ class RunReportControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
         long studentId = fixtures.student(academyId, "학생1");
         long runRiderId = fixtures.rider(runId, studentId, stopId);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"guardian_absent\",\"memo\":\"보호자가 정류장에 없음\",\"rider_id\":" + runRiderId + "}"))
                 .andExpect(status().isCreated())
@@ -170,18 +165,18 @@ class RunReportControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long staffAccountId = fixtures.staffAccount(academyId, "관계자1");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         String body = "{\"type\":\"road_block\",\"memo\":\"도로 공사로 우회 중\",\"client_key\":\"" + UUID.randomUUID() + "\"}";
 
         MvcResult first = mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated()).andReturn();
         MvcResult second = mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.replayed").doesNotExist()).andReturn();
@@ -201,19 +196,19 @@ class RunReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         String key = UUID.randomUUID().toString();
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"road_block\",\"memo\":\"도로 공사\",\"client_key\":\"" + key + "\"}"))
                 .andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"vehicle_issue\",\"memo\":\"고장\",\"client_key\":\"" + key + "\"}"))
                 .andExpect(status().isUnprocessableContent())
@@ -228,14 +223,14 @@ class RunReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         for (int i = 0; i < 2; i++) {
             mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                    .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                    .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"type\":\"road_block\",\"memo\":\"도로 공사\"}"))
                     .andExpect(status().isCreated());
@@ -258,16 +253,16 @@ class RunReportControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
         long studentId = fixtures.student(academyId, "혼자귀가학생");
         jdbcTemplate.update("UPDATE student SET can_go_alone = true WHERE id = ?", studentId);
         long runRiderId = fixtures.rider(runId, studentId, stopId);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"guardian_absent\",\"memo\":\"보호자가 없음\",\"rider_id\":" + runRiderId + "}"))
                 .andExpect(status().isCreated());
@@ -291,13 +286,13 @@ class RunReportControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long staffAccountId = fixtures.staffAccount(academyId, "관계자1");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"road_block\",\"memo\":\"도로 공사로 우회 중\"}"))
                 .andExpect(status().isCreated())
@@ -318,13 +313,13 @@ class RunReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"guardian_absent\",\"memo\":\"보호자가 없음\"}"))
                 .andExpect(status().isUnprocessableContent())
@@ -340,10 +335,10 @@ class RunReportControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         // 다른 회차의 라이더 — id 는 존재하지만 이 회차 소속이 아니다.
         long otherRunId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY,
@@ -352,7 +347,7 @@ class RunReportControllerTest {
         long otherRunRiderId = fixtures.rider(otherRunId, studentId, stopId);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"guardian_absent\",\"memo\":\"보호자가 없음\",\"rider_id\":" + otherRunRiderId + "}"))
                 .andExpect(status().isNotFound())
@@ -371,15 +366,15 @@ class RunReportControllerTest {
         long realAcademyId = fixtures.academy();
         long otherAcademyId = fixtures.academy();
         long busId = fixtures.bus(realAcademyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(realAcademyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(realAcademyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(realAcademyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         // 배치 조회는 통과하지만(학원으로 좁히지 않으므로), 토큰이 주장하는 academy_id 가 실제와 다르면
         // 회차 조회(findByIdAndAcademyId)가 걸러야 한다 — 그렇지 않으면 남의 학원 회차가 새는 것과 같다.
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, otherAcademyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, otherAcademyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"road_block\",\"memo\":\"도로 공사\"}"))
                 .andExpect(status().isNotFound())
@@ -394,14 +389,14 @@ class RunReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", now());
+        fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "배치된기사", OffsetDateTime.now(clock));
         long unassignedDriverAccountId = fixtures.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(unassignedDriverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, unassignedDriverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"road_block\",\"memo\":\"도로 공사\"}"))
                 .andExpect(status().isForbidden())
@@ -416,13 +411,13 @@ class RunReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/reports")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.STAFF))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\":\"road_block\",\"memo\":\"도로 공사\"}"))
                 .andExpect(status().isForbidden())
@@ -432,10 +427,6 @@ class RunReportControllerTest {
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
 
     private Integer 보고_개수(long runId) {
         Integer count = jdbcTemplate.queryForObject("SELECT count(*) FROM exception_report WHERE run_id = ?",

@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -32,7 +34,6 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -187,7 +188,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.acked_at").exists());
 
@@ -207,7 +208,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isForbidden());
 
         assertThat(확인시각(emergencyId)).as("Ruling 884 — 메인 관리자는 열람만 하고 확인은 학원 관계자만 한다").isNull();
@@ -221,9 +222,9 @@ class StaffEmergencyControllerTest {
     void 메인관리자의_학원_관계자_경로_목록_조회는_403_이고_전용_콘솔_목록은_열린다() throws Exception {
         long adminAccountId = fixtures().systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/v1/admin/emergencies").header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get("/api/v1/admin/emergencies").header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk());
     }
 
@@ -242,11 +243,11 @@ class StaffEmergencyControllerTest {
         취소시각을_옮긴다(canceled, OffsetDateTime.now());
 
         mockMvc.perform(post(ACK.formatted(canceled))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("EMERGENCY_CANCELED"));
         mockMvc.perform(post(ACK.formatted(normal))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         assertThat(확인시각(canceled)).as("취소된 신고는 확인 이력이 남지 않는다").isNull();
@@ -265,11 +266,11 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ALREADY_ACKED"));
 
@@ -292,7 +293,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"  119 신고 완료, 학부모 연락 중  \"}"))
                 .andExpect(status().isOk());
@@ -301,7 +302,7 @@ class StaffEmergencyControllerTest {
         Map<String, Object> staffItem = 항목(목록을_조회한다(staffAccountId, academyId, "status", "acked"), emergencyId);
         assertThat(((Map<String, Object>) staffItem.get("acked_by")).get("memo")).isEqualTo("119 신고 완료, 학부모 연락 중");
         String adminBody = mockMvc.perform(get("/api/v1/admin/emergencies").param("status", "acked")
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         Map<String, Object> adminItem = 항목(adminBody, emergencyId);
@@ -322,10 +323,10 @@ class StaffEmergencyControllerTest {
         long blankMemo = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(withoutBody))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
         mockMvc.perform(post(ACK.formatted(blankMemo))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"   \"}"))
                 .andExpect(status().isOk());
@@ -348,7 +349,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"%s\"}".formatted("가".repeat(201))))
                 .andExpect(status().isUnprocessableContent())
@@ -370,7 +371,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"%s\"}".formatted("가".repeat(200))))
                 .andExpect(status().isOk());
@@ -396,7 +397,7 @@ class StaffEmergencyControllerTest {
         위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), recordedAt);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         // R7 목표 1 — 기본값은 open 이라 방금 확인(ack)한 신고를 보려면 status 를 명시해야 한다.
@@ -606,7 +607,7 @@ class StaffEmergencyControllerTest {
         long staffAccountId = fixtures().staffAccount(academyId, "직원");
 
         mockMvc.perform(get(LIST).param("status", "bogus")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
@@ -649,17 +650,9 @@ class StaffEmergencyControllerTest {
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 메인관리자_토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
-    }
-
     private long 신고를_발신한다(long runId, long accountId, long academyId) throws Exception {
         String body = mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(accountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"accident\",\"memo\":null,\"client_key\":\"%s\"}"
                                 .formatted(UUID.randomUUID())))
@@ -670,7 +663,7 @@ class StaffEmergencyControllerTest {
     }
 
     private String 목록을_조회한다(long staffAccountId, long academyId) throws Exception {
-        return mockMvc.perform(get(LIST).header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        return mockMvc.perform(get(LIST).header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }
@@ -679,7 +672,7 @@ class StaffEmergencyControllerTest {
     private String 목록을_조회한다(long staffAccountId, long academyId, String paramName, String paramValue)
             throws Exception {
         return mockMvc.perform(get(LIST).param(paramName, paramValue)
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }

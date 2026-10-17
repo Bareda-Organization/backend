@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -80,7 +81,7 @@ class EmergencyListQueryCountTest {
     void 관계자_목록의_쿼리_수가_신고_수에_비례하지_않는다() throws Exception {
         EmergencyFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
-        String staffToken = 토큰(fixtures.staffAccount(academyId, "직원"), academyId, Role.STAFF);
+        String staffToken = 토큰(tokenProvider, fixtures.staffAccount(academyId, "직원"), academyId, Role.STAFF);
         신고를_발신한다(fixtures, academyId);
 
         long oneAlert = 목록_쿼리_수("/api/v1/staff/emergencies", staffToken);
@@ -120,14 +121,10 @@ class EmergencyListQueryCountTest {
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사",
                 OffsetDateTime.now());
         mockMvc.perform(post("/api/v1/runs/%d/emergency".formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"accident\",\"client_key\":\"%s\"}".formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated());
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 
     private EmergencyFixtures fixtures() {

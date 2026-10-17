@@ -3,6 +3,7 @@ package src.backend.exception.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -24,7 +25,6 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.exception.entity.ExceptionReportType;
 import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -88,15 +88,10 @@ class StaffReportControllerTest {
     @Autowired
     private ExceptionReportRepository exceptionReportRepository;
 
-
     private ExceptionReportFixtures fixtures() {
         return new ExceptionReportFixtures(academyRepository, busRepository, stopRepository, studentRepository,
                 accountRepository, managerRepository, assignmentRepository, runRepository, runRiderRepository,
                 academyStaffRepository, exceptionReportRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
     }
 
     // ── goal 16 — type 필터 ───────────────────────────────────────────────
@@ -107,16 +102,16 @@ class StaffReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
         long matching = fixtures.exceptionReport(academyId, runId, ExceptionReportType.ROAD_BLOCK, "도로 통제",
-                driverAccountId, now(), null);
+                driverAccountId, OffsetDateTime.now(clock), null);
         fixtures.exceptionReport(academyId, runId, ExceptionReportType.VEHICLE_ISSUE, "차량 문제", driverAccountId,
-                now(), null);
+                OffsetDateTime.now(clock), null);
 
         mockMvc.perform(get("/api/v1/staff/reports").param("type", "road_block")
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].report_id").value(matching))
@@ -131,18 +126,18 @@ class StaffReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId1 = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long runId2 = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now().plusHours(1),
-                now().minusMinutes(30));
-        long driverAccountId1 = fixtures.assignedManager(academyId, runId1, ManagerRole.DRIVER, "기사1", now());
-        long driverAccountId2 = fixtures.assignedManager(academyId, runId2, ManagerRole.DRIVER, "기사2", now());
+        long runId1 = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long runId2 = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock).plusHours(1),
+                OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId1 = fixtures.assignedManager(academyId, runId1, ManagerRole.DRIVER, "기사1", OffsetDateTime.now(clock));
+        long driverAccountId2 = fixtures.assignedManager(academyId, runId2, ManagerRole.DRIVER, "기사2", OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
         long matching = fixtures.exceptionReport(academyId, runId1, ExceptionReportType.ETC, "기타1",
-                driverAccountId1, now(), null);
-        fixtures.exceptionReport(academyId, runId2, ExceptionReportType.ETC, "기타2", driverAccountId2, now(), null);
+                driverAccountId1, OffsetDateTime.now(clock), null);
+        fixtures.exceptionReport(academyId, runId2, ExceptionReportType.ETC, "기타2", driverAccountId2, OffsetDateTime.now(clock), null);
 
         mockMvc.perform(get("/api/v1/staff/reports").param("run_id", String.valueOf(runId1))
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].report_id").value(matching))
@@ -157,17 +152,17 @@ class StaffReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
-        // now() 는 2030-04-01 12:00 KST 로 고정돼 있다 — 매칭은 같은 날, 비매칭은 하루 전날.
+        // OffsetDateTime.now(clock) 는 2030-04-01 12:00 KST 로 고정돼 있다 — 매칭은 같은 날, 비매칭은 하루 전날.
         long matching = fixtures.exceptionReport(academyId, runId, ExceptionReportType.ETC, "오늘 보고",
-                driverAccountId, now(), null);
+                driverAccountId, OffsetDateTime.now(clock), null);
         fixtures.exceptionReport(academyId, runId, ExceptionReportType.ETC, "어제 보고", driverAccountId,
-                now().minusDays(1), null);
+                OffsetDateTime.now(clock).minusDays(1), null);
 
         mockMvc.perform(get("/api/v1/staff/reports").param("date", "2030-04-01")
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].report_id").value(matching));
@@ -182,18 +177,18 @@ class StaffReportControllerTest {
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
         long studentId = fixtures.student(academyId, "학생1");
         long runRiderId = fixtures.rider(runId, studentId, stopId);
         fixtures.exceptionReport(academyId, runId, ExceptionReportType.GUARDIAN_ABSENT, "보호자 부재", driverAccountId,
-                now(), runRiderId);
+                OffsetDateTime.now(clock), runRiderId);
         // 비매칭 대조 — 타입이 다르면 student_name 이 없어야 한다.
-        fixtures.exceptionReport(academyId, runId, ExceptionReportType.ETC, "기타", driverAccountId, now(), null);
+        fixtures.exceptionReport(academyId, runId, ExceptionReportType.ETC, "기타", driverAccountId, OffsetDateTime.now(clock), null);
 
         mockMvc.perform(get("/api/v1/staff/reports").param("type", "guardian_absent")
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].student_name").value("학생1"))
@@ -209,14 +204,14 @@ class StaffReportControllerTest {
         ExceptionReportFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
-        fixtures.exceptionReport(academyId, runId, ExceptionReportType.ROAD_BLOCK, "도로 통제", driverAccountId, now(),
+        fixtures.exceptionReport(academyId, runId, ExceptionReportType.ROAD_BLOCK, "도로 통제", driverAccountId, OffsetDateTime.now(clock),
                 null);
 
         mockMvc.perform(get("/api/v1/staff/reports")
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].student_name").doesNotExist());
     }
@@ -231,28 +226,24 @@ class StaffReportControllerTest {
         long otherAcademyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long otherBusId = fixtures.bus(otherAcademyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long otherRunId = fixtures.confirmedRun(otherAcademyId, otherBusId, Direction.TO_ACADEMY, now(),
-                now().minusMinutes(30));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long otherRunId = fixtures.confirmedRun(otherAcademyId, otherBusId, Direction.TO_ACADEMY, OffsetDateTime.now(clock),
+                OffsetDateTime.now(clock).minusMinutes(30));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long otherDriverAccountId = fixtures.assignedManager(otherAcademyId, otherRunId, ManagerRole.DRIVER, "타학원기사",
-                now());
+                OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
         long matching = fixtures.exceptionReport(academyId, runId, ExceptionReportType.ETC, "우리 학원 보고",
-                driverAccountId, now(), null);
+                driverAccountId, OffsetDateTime.now(clock), null);
         fixtures.exceptionReport(otherAcademyId, otherRunId, ExceptionReportType.ETC, "다른 학원 보고",
-                otherDriverAccountId, now(), null);
+                otherDriverAccountId, OffsetDateTime.now(clock), null);
 
         mockMvc.perform(get("/api/v1/staff/reports")
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].report_id").value(matching));
     }
 
     // ── 호출 도우미 ──────────────────────────────────────────────────────
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
 }
