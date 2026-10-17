@@ -94,6 +94,8 @@ resilience4j:
         # 포트 예외라, 적는 순간 "일시 실패를 재시도한다"는 이 설정 자체가 무력화된다.
         ignore-exceptions:
           - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          # 격벽이 거부한 호출도 공급자에 닿지 못한 것이다 — 다시 부르면 가득 찬 칸을 세 번 두드릴 뿐이다(DA-9)
+          - io.github.resilience4j.bulkhead.BulkheadFullException
       # 지도 경로도 같은 이유로 재시도를 둔다. wait-duration 이 지오코딩보다 짧은 것은 이쪽 호출자가
       # 승인 화면에서 대기 중일 수 있기 때문이다 — 주입한 타임아웃은 1회 요청의 상한이라, 재시도가
       # 붙으면 관리자가 실제로 기다리는 시간은 그 배수가 된다(ARCHITECTURE §8.3).
@@ -127,6 +129,9 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+        # 격벽 거부는 공급자 장애가 아니다 — 집계에 넣으면 동시 호출이 한 번 몰린 것만으로 서킷이 열린다(mapRoute 와 같은 근거, DA-9)
+        ignore-exceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
       # 지오코딩과 값이 같으나 인스턴스를 가른다 — 네이버 Geocoding 이 죽었다고 Directions 호출까지
       # 막으면 주소 하나 때문에 노선 계산 전체가 근사값으로 떨어진다. 둘은 서로 다른 상품이다.
       mapRoute:
@@ -156,6 +161,8 @@ resilience4j:
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+        ignore-exceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
       # FCM 발송(R46 S-2) — 재시도는 아웃박스 워커가 맡으므로 서킷만 둔다. 값은 placeSearch 와 같다. 열린 동안의 발송은 행이
       # pending 으로 남아 워커(30초)가 이어받는다 — 알림이 최대 30초 늦어지는 것이 FCM 장애 중 발송 스레드 8개가 묶이는 것보다 낫다.
       fcm:
@@ -188,6 +195,14 @@ resilience4j:
   # 배치를 우선해 3칸 · 온디맨드 1칸으로 가른다 — 합계 4 = 아래 공급자 레이트리밋 잠정값 그대로 유지.
   bulkhead:
     instances:
+      # 지오코딩(주소 변환 · 자동완성)과 장소 검색(DA-9, Ruling 899) — 공급자가 느려질 때 요청 스레드가 줄줄이 붙들리지 않게 동시 호출을
+      # 8개로 막고, 대기 없이(0) 곧바로 거부한다. 거부는 서킷 개방과 같이 포트 예외(GeocodingUnavailableException)로 흡수된다.
+      geocoding:
+        max-concurrent-calls: 8
+        max-wait-duration: 0
+      placeSearch:
+        max-concurrent-calls: 8
+        max-wait-duration: 0
       mapRouteBatch:
         # ⚠ NCP 가 공개한 레이트리밋을 실측하지 못해 보수적으로 잡은 잠정값이다(2026-08-29,
         # 4칸 기준). 공급자 제약이라 정책 상수가 아니라 환경 인프라값이고, 실측되면 두 칸 합(4)만

@@ -14,6 +14,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 
@@ -87,6 +88,7 @@ public class NaverGeocodingClient implements GeocodingClient {
     @Override
     @CircuitBreaker(name = RESILIENCE_INSTANCE)
     @Retry(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
+    @Bulkhead(name = RESILIENCE_INSTANCE)
     public Optional<GeocodedPoint> geocode(String address) {
         GeocodeResponse response = webClient.get()
                 .uri(geocodeUri(address))
@@ -98,10 +100,13 @@ public class NaverGeocodingClient implements GeocodingClient {
         return firstAddressOf(response);
     }
 
-    /** 자동완성 — 공급자가 준 후보를 최대 {@value #CANDIDATE_LIMIT}건까지 그대로 돌려준다. */
+    /**
+     * 자동완성 — 공급자가 준 후보를 최대 {@value #CANDIDATE_LIMIT}건까지 그대로 돌려준다. <b>재시도하지 않는다</b>(DA-9) — 입력할 때마다 다시
+     * 부르는 화면이라 재시도는 느린 공급자 앞에서 호출만 늘린다. 그래서 fallback 은 {@code @CircuitBreaker} 에 둔다.
+     */
     @Override
-    @CircuitBreaker(name = RESILIENCE_INSTANCE)
-    @Retry(name = RESILIENCE_INSTANCE, fallbackMethod = "candidatesUnavailable")
+    @CircuitBreaker(name = RESILIENCE_INSTANCE, fallbackMethod = "candidatesUnavailable")
+    @Bulkhead(name = RESILIENCE_INSTANCE)
     public List<GeocodedPoint> candidates(String query) {
         GeocodeResponse response = webClient.get()
                 .uri(UriComponentsBuilder.fromUriString(baseUrl)
