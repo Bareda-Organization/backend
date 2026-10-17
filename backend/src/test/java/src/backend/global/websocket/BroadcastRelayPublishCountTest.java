@@ -39,7 +39,7 @@ import src.backend.run.event.RunStartedEvent;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * R59 S-1 — 도메인 이벤트 1건은 Redis 발행 1건이다(Ruling 900 A). 목적지마다 발행하면 위치 1건이 22번 Redis 를 지난다.
+ * S-1 — 도메인 이벤트 1건은 Redis 발행 1건이다(Ruling 900 A). 목적지마다 발행하면 위치 1건이 22번 Redis 를 지난다.
  * 발행 횟수만 보므로 게이트웨이·리스너는 진짜, 중계({@link BroadcastRelay})만 가짜다.
  */
 class BroadcastRelayPublishCountTest {

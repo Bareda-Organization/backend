@@ -47,7 +47,7 @@ import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * R59 S-1 · S-2 — 실제 Redis 를 사이에 둔 인스턴스 2대. A 가 낸 이벤트 1건은 Redis 메시지 1건이고, A · B 가 모두 그 메시지를 받아 각자 자기 구독자가 있는 목적지에만 보낸다.
+ * S-1 · S-2 — 실제 Redis 를 사이에 둔 인스턴스 2대. A 가 낸 이벤트 1건은 Redis 메시지 1건이고, A · B 가 모두 그 메시지를 받아 각자 자기 구독자가 있는 목적지에만 보낸다.
  * 인스턴스 하나 = 게이트웨이 + 중계 + 자기 구독 등록부 + 자기 송신 템플릿(가짜), 실제 연결은 공용 Redis 컨테이너다.
  */
 class BroadcastRelayRedisTest extends RedisTestContainerBase {

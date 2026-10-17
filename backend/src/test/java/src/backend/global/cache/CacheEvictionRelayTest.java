@@ -29,7 +29,7 @@ import src.backend.global.security.AccountStanding;
 import testsupport.redis.RedisTestContainerBase;
 
 /**
- * R59 S-6 — 인스턴스 A 에서 계정이 차단되면 B 의 계정 상태 캐시도 1초 안에 비워져 다음 요청이 거절된다(Ruling 900 D). 신호를 놓쳐도 만료(5초)가 상한이다.
+ * S-6 — 인스턴스 A 에서 계정이 차단되면 B 의 계정 상태 캐시도 1초 안에 비워져 다음 요청이 거절된다(Ruling 900 D). 신호를 놓쳐도 만료(5초)가 상한이다.
  * 인스턴스 하나 = 계정 상태 캐시 + 비움 중계 + 자기 Redis 연결. 두 인스턴스가 같은 가짜 계정 저장소(차단 목록)와 같은 Redis 를 본다.
  */
 class CacheEvictionRelayTest extends RedisTestContainerBase {

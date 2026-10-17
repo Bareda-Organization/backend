@@ -32,7 +32,7 @@ import testsupport.redis.RedisTestContainerBase;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * R59 S-4 — 승인 미리보기는 Redis 에 있어 인스턴스 A 가 만든 것을 B 가 결정에 쓴다(Ruling 900 C). 인스턴스 하나 = 이 캐시 객체 하나, Redis 는 둘이 같은 컨테이너를 본다.
+ * S-4 — 승인 미리보기는 Redis 에 있어 인스턴스 A 가 만든 것을 B 가 결정에 쓴다(Ruling 900 C). 인스턴스 하나 = 이 캐시 객체 하나, Redis 는 둘이 같은 컨테이너를 본다.
  * 결정 뒤 지우면 어느 쪽에서도 사라지고, 하루 만료가 걸리며, Redis 오류는 모자람(없음)으로 읽는다(K4).
  */
 class RedisApprovalPreviewCacheTest extends RedisTestContainerBase {

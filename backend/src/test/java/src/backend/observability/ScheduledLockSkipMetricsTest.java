@@ -25,7 +25,7 @@ import net.javacrumbs.shedlock.core.SimpleLock;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 /**
- * R59 S-9 — ShedLock 락을 놓쳐 건너뛴 실행은 {@code tasks.scheduled.execution} 의 {@code outcome="SUCCESS"} 로 세지 않고 {@code outcome="SKIPPED"} 로 따로 센다(Ruling 915 B).
+ * S-9 — ShedLock 락을 놓쳐 건너뛴 실행은 {@code tasks.scheduled.execution} 의 {@code outcome="SUCCESS"} 로 세지 않고 {@code outcome="SKIPPED"} 로 따로 센다(Ruling 915 B).
  * 기본 계측은 메서드가 예외 없이 돌아오면 성공으로 세는데 ShedLock 은 락을 못 얻으면 메서드를 건너뛰고 정상 반환해, 락을 가진 인스턴스가 멈춰도 다른 인스턴스의 건너뜀이
  * 성공 건수를 올려 "마지막 성공이 오래됨" 경보를 가린다.
  *

@@ -31,14 +31,14 @@ import testsupport.redis.RedisTestContainerBase;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * R59 S-5 — 경유 지점 미리보기도 Redis 에 있어 만든 인스턴스와 배포하는 인스턴스가 달라도 된다(Ruling 900 C). 만료는 그 회차의 운행일이 끝나는 시각이다.
+ * S-5 — 경유 지점 미리보기도 Redis 에 있어 만든 인스턴스와 배포하는 인스턴스가 달라도 된다(Ruling 900 C). 만료는 그 회차의 운행일이 끝나는 시각이다.
  * Redis 오류는 없음으로 읽어 배포가 기존 409 PREVIEW_STALE 로 답하게 한다(K4).
  */
 class RedisWaypointPreviewCacheTest extends RedisTestContainerBase {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
-    /** KST 2026-09-30 10:00. */
+    /** 고정 시각 — KST 오전 10시. */
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-09-30T01:00:00Z"), SEOUL);
 
     private static final LocalDate TODAY = LocalDate.of(2026, 9, 30);

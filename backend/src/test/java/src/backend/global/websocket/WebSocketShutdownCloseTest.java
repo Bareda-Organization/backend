@@ -31,7 +31,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * R59 S-11 — 인스턴스가 종료 신호를 받으면 열린 WebSocket 세션을 {@code 1012}(서비스 재시작)로 닫고, 진행 중인 요청은 끝까지 처리한다(Ruling 900 H · K5). 클라이언트는
+ * S-11 — 인스턴스가 종료 신호를 받으면 열린 WebSocket 세션을 {@code 1012}(서비스 재시작)로 닫고, 진행 중인 요청은 끝까지 처리한다(Ruling 900 H · K5). 클라이언트는
  * {@code 4403} 이외의 닫힘이면 다시 접속하므로 다른 인스턴스로 옮겨 붙는다. 순서가 핵심이다 — 세션을 닫는 일이 진행 중 요청이 끝나기 <b>전에</b> 일어나야
  * 요청을 기다리는 동안 새 메시지를 받는 세션이 남지 않는다.
  *

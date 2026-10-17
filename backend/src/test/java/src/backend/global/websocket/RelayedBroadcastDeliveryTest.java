@@ -39,7 +39,7 @@ import src.backend.observability.metrics.WebSocketPublishMetrics;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * R59 S-2 · S-3 — 중계로 받은 이벤트는 자기 구독자가 있는 목적지에만 나가고(S-2), Redis 발행이 실패하면 자기 구독자에게 직접 나간다(S-3, Ruling 900 A · B).
+ * S-2 · S-3 — 중계로 받은 이벤트는 자기 구독자가 있는 목적지에만 나가고(S-2), Redis 발행이 실패하면 자기 구독자에게 직접 나간다(S-3, Ruling 900 A · B).
  * 송신 템플릿과 구독 등록부만 가짜 · 진짜 조합이고, 실제 Redis 를 멈추지 않는다 — 발행 실패는 던지는 Redis 템플릿으로 만든다.
  */
 class RelayedBroadcastDeliveryTest {

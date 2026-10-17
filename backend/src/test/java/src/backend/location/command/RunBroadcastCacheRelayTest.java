@@ -36,7 +36,7 @@ import src.backend.location.infrastructure.RunBroadcastCache;
 import testsupport.redis.RedisTestContainerBase;
 
 /**
- * R59 S-7 — 인스턴스 A 에서 학생이 결석 처리되면 B 의 위치 방송이 그 학생 채널로 나가지 않는다(Ruling 900 D). B 는 회차의 학생 목록을 캐시에 들고 있어, 비움 신호가 안 닿으면
+ * S-7 — 인스턴스 A 에서 학생이 결석 처리되면 B 의 위치 방송이 그 학생 채널로 나가지 않는다(Ruling 900 D). B 는 회차의 학생 목록을 캐시에 들고 있어, 비움 신호가 안 닿으면
  * 결석한 학생의 학부모 지도에 다음 위치가 계속 나간다. 인스턴스 하나 = 캐시 + 비움 리스너 + 위치 방송 리스너 + 비움 중계, 같은 Redis 를 본다.
  */
 class RunBroadcastCacheRelayTest extends RedisTestContainerBase {

@@ -19,7 +19,7 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.audit.repository.AuditLogRepository;
 
 /**
- * R59 S-8 — 같은 행위자가 같은 학생을 인스턴스 A 에서 보고 10분 안에 B 에서 다시 봐도 감사 행은 1개다(Ruling 900 E). 묶기 기록이 인스턴스 메모리에 있으면 B 가 "처음 본다" 고
+ * S-8 — 같은 행위자가 같은 학생을 인스턴스 A 에서 보고 10분 안에 B 에서 다시 봐도 감사 행은 1개다(Ruling 900 E). 묶기 기록이 인스턴스 메모리에 있으면 B 가 "처음 본다" 고
  * 판단해 행이 2개가 된다. 인스턴스 하나 = {@link AuditRecorder} 객체 하나이고, 둘이 같은 Redis · 같은 DB 를 본다.
  */
 @SpringBootTest
