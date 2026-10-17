@@ -28,11 +28,11 @@ K6_PID=$!
 sleep 12
 
 PROXY_START_BEFORE="$(scale_started_at proxy)"
-# 1초마다 두 대의 세션 수를 CSV 로 남긴다 — 내려가 있는 대는 -1.
+# 1초마다 두 대의 세션 수를 CSV 로 남긴다 — scale_metric 은 지표를 못 읽으면(컨테이너가 내려가 있으면) 0 을 낸다. 판정은 내려가지 않은 쪽 열만 쓴다.
 (
     while :; do
         a=$(scale_metric backend 'schoolbus_stomp_sessions' 2>/dev/null); b=$(scale_metric backend2 'schoolbus_stomp_sessions' 2>/dev/null)
-        echo "$(python3 -c 'import time; print(int(time.time() * 1000))'),${a:--1},${b:--1}" >> "$SAMPLES"
+        echo "$(python3 -c 'import time; print(int(time.time() * 1000))'),${a},${b}" >> "$SAMPLES"
         sleep 1
     done
 ) &

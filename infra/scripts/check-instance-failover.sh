@@ -15,6 +15,8 @@ trap 'scale_down; rm -f "${K6_ERR:-}" "${RESULT:-}"' EXIT
 
 SESSIONS="${SESSIONS:-20}"
 DURATION=60
+# r59_failover.js 의 REST 가상 사용자 수(쓰기 3 + 읽기 3) — 멈추는 순간 이미 나가 있던 요청은 많아야 이 수만큼이다.
+REST_VUS=6
 now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }
 
 scale_up || { echo "스택 기동 실패" >&2; exit 2; }
@@ -49,6 +51,8 @@ echo "WebSocket 닫힘 $closes · 다시 붙음 $reopens"
 
 verdict=0
 [[ "$sent" -gt 100 ]] || { echo "BROKEN — REST 요청이 너무 적다(${sent})"; verdict=2; }
+in_flight=$((failed - after))
+[[ "$in_flight" -le "$REST_VUS" ]] || { echo "FAIL — 멈추는 순간 이미 나가 있던 실패 ${in_flight}건이 동시 요청 수(${REST_VUS})보다 많다"; verdict=1; }
 [[ "$after" -eq 0 ]] || { echo "FAIL — 멈춘 뒤에 시작한 요청 ${after}건이 실패했다"; verdict=1; }
 [[ "$s2_after" -eq "$SESSIONS" ]] || { echo "FAIL — 멈춘 대의 세션이 남은 대로 다 옮겨가지 않았다(backend2=$s2_after, 기대 $SESSIONS)"; [[ $verdict -eq 0 ]] && verdict=1; }
 [[ $verdict -eq 0 ]] && echo "PASS — 멈춘 뒤 REST 실패 0 · 세션 $SESSIONS 개 모두 남은 대에 연결"
