@@ -15,7 +15,10 @@ import java.util.concurrent.TimeUnit;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationEventPublisher;
@@ -41,6 +44,7 @@ import src.backend.run.event.RunStartedEvent;
  * 조회는 5번에서 1번으로 줄였다. 비상 방송은 트랜잭션 없이 발행돼도 나간다. 학생 채널 하나의 전송 예외가 나머지 채널 방송을 막지 않는다.
  */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class BroadcastListenerOffRequestThreadTest {
 
     private static final OffsetDateTime AT = OffsetDateTime.parse("2030-05-06T07:30:00+09:00");
@@ -85,7 +89,9 @@ class BroadcastListenerOffRequestThreadTest {
                 .doesNotContain("thread=" + requestThread);
     }
 
+    /** 먼저 돈다 — Hibernate 통계는 JVM 전체 값이라, 앞 시험이 낸 이벤트의 뒤늦은 비동기 질의(알림 발송 등)가 셈에 섞이지 않게 한다. */
     @Test
+    @Order(1)
     void 승하차_방송은_상태별_인원을_한_번에_센다() throws Exception {
         SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
         Statistics statistics = sessionFactory.getStatistics();
