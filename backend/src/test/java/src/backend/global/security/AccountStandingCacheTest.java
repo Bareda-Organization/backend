@@ -25,6 +25,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import src.backend.academy.command.StaffAccountCommandService;
+import src.backend.academy.dto.StaffAccountUpdateRequest;
 import src.backend.academy.event.StaffResignedEvent;
 import src.backend.account.command.AccountUnblockCommandService;
 import src.backend.account.repository.AccountRepository;
@@ -63,6 +65,9 @@ class AccountStandingCacheTest {
     private AccountUnblockCommandService accountUnblockCommandService;
 
     @Autowired
+    private StaffAccountCommandService staffAccountCommandService;
+
+    @Autowired
     private ApplicationEventPublisher eventPublisher;
 
     @Autowired
@@ -80,6 +85,8 @@ class AccountStandingCacheTest {
     void restore() {
         jdbcTemplate.update("UPDATE account SET status = 'active', status_before_block = NULL, blocked_at = NULL, "
                 + "block_reason = NULL, failed_attempts = 0 WHERE id = ?", PARENT_ACCOUNT);
+        jdbcTemplate.update("UPDATE academy_staff SET status = 'active' WHERE account_id = ?", STAFF_ACCOUNT);
+        accountStanding.evict(STAFF_ACCOUNT);
     }
 
     @Test
@@ -118,6 +125,19 @@ class AccountStandingCacheTest {
         mockMvc.perform(get("/api/v1/me").header("Authorization", token)).andExpect(status().isUnauthorized());
 
         accountUnblockCommandService.unblock(PARENT_ACCOUNT, STAFF_ACCOUNT);
+
+        mockMvc.perform(get("/api/v1/me").header("Authorization", token)).andExpect(status().isOk());
+    }
+
+    /** 재직 복귀는 실제 서비스 경로로 커밋한다 — 이 경로의 비움 발행이 빠지면 복귀한 관계자가 5초 동안 거절된다. */
+    @Test
+    void 재직_복귀가_커밋되면_캐시에_남은_퇴사_값이_아니라_현재_상태로_통과한다() throws Exception {
+        jdbcTemplate.update("UPDATE academy_staff SET status = 'inactive' WHERE account_id = ?", STAFF_ACCOUNT);
+        accountStanding.evict(STAFF_ACCOUNT);
+        String token = "Bearer " + tokenProvider.createAccessToken(STAFF_ACCOUNT, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
+        mockMvc.perform(get("/api/v1/me").header("Authorization", token)).andExpect(status().isUnauthorized()); // 퇴사 값이 보관된다
+
+        staffAccountCommandService.update(STAFF_ACCOUNT, new StaffAccountUpdateRequest(null, null, null, null, "active"));
 
         mockMvc.perform(get("/api/v1/me").header("Authorization", token)).andExpect(status().isOk());
     }
