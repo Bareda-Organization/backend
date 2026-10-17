@@ -3,7 +3,9 @@ package src.backend.global.websocket;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +55,8 @@ public class WebSocketBroadcastGateway {
 
     private static final String DROPPED_METRIC = "schoolbus.ws.outbound.dropped";
 
+    private static final String PUBLISH_FAILED_METRIC = "schoolbus.ws.relay.publish.failed";
+
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketPublishMetrics publishMetrics;
     @Qualifier("outboundTaskExecutor")
@@ -69,6 +73,52 @@ public class WebSocketBroadcastGateway {
     @Autowired(required = false)
     void setSimpleBrokerMessageHandler(@Qualifier("simpleBrokerMessageHandler") AbstractBrokerMessageHandler broker) {
         this.simpleBroker = broker instanceof SimpleBrokerMessageHandler simple ? simple : null;
+    }
+
+    /** 인스턴스 사이 중계 — 시험이 게이트웨이를 직접 만드는 곳이 있어 세터로 받는다. 없으면(null) 중계 없이 이 인스턴스의 구독자에게만 보낸다. */
+    private BroadcastRelay relay;
+
+    @Autowired(required = false)
+    void setRelay(BroadcastRelay relay) {
+        this.relay = relay;
+    }
+
+    /**
+     * 이벤트 1건을 목적지 전부와 함께 Redis 메시지 1건으로 내보낸다(Ruling 900 A) — 이 인스턴스도 다른 인스턴스와 똑같이 Redis 에서 받아
+     * {@link #deliverLocal} 로 자기 구독자에게 보낸다. 발행이 실패하면 이 인스턴스의 구독자에게만 직접 보내고 실패를 센다(Ruling 900 B) —
+     * 인스턴스 1대 운영은 영향이 없고, 2대 운영에서 그동안 다른 인스턴스로 가는 방송은 잃으며 클라이언트가 재접속 · 화면 복귀 때 REST 로 다시 받는다.
+     */
+    public void broadcast(String event, Long runId, OffsetDateTime occurredAt, List<BroadcastDelivery> deliveries) {
+        if (relay == null) {
+            deliverLocal(new RelayedBroadcast(event, runId, occurredAt, deliveries));
+            return;
+        }
+        try {
+            relay.publish(event, runId, occurredAt, deliveries);
+        } catch (RuntimeException e) {
+            meterRegistry.counter(PUBLISH_FAILED_METRIC, "event", event).increment();
+            log.warn("{} 방송 중계 발행 실패 — 이 인스턴스의 구독자에게만 직접 보낸다. runId={}", event, runId, e);
+            deliverLocal(new RelayedBroadcast(event, runId, occurredAt, deliveries));
+        }
+    }
+
+    /** 같은 payload 를 목적지 여러 곳에 — 발행은 1건이다. */
+    public void sendToAll(List<String> destinations, String event, Long runId, OffsetDateTime occurredAt,
+            Object payload) {
+        broadcast(event, runId, occurredAt, List.of(new BroadcastDelivery(payload, destinations)));
+    }
+
+    /**
+     * 중계로 받은(또는 발행 실패로 직접 넘긴) 이벤트를 이 인스턴스의 구독자에게 보낸다 — 목적지마다 구독 여부 · 큐 포화를 여기서 판정한다.
+     * 목적지 하나의 전송 예외는 그 목적지에서 끝낸다.
+     */
+    void deliverLocal(RelayedBroadcast broadcast) {
+        for (BroadcastDelivery delivery : broadcast.deliveries()) {
+            for (String destination : delivery.destinations()) {
+                deliverQuietly(destination, broadcast.event(), broadcast.runId(), broadcast.occurredAt(),
+                        delivery.payload());
+            }
+        }
     }
 
     /**
@@ -129,24 +179,45 @@ public class WebSocketBroadcastGateway {
      */
     public void broadcastToRunChannels(Long runId, Long academyId, List<Long> studentIds, String event,
             OffsetDateTime occurredAt, Object studentPayload, Object payload) {
-        for (Long studentId : studentIds) {
-            send(WebSocketDestinations.studentRun(studentId), event, runId, occurredAt, studentPayload);
+        List<String> controlChannels = List.of(WebSocketDestinations.managerRun(runId),
+                WebSocketDestinations.academyLive(academyId), WebSocketDestinations.ADMIN_LIVE);
+        List<String> studentChannels = studentIds.stream().map(WebSocketDestinations::studentRun).toList();
+        List<BroadcastDelivery> deliveries = new ArrayList<>();
+        if (studentPayload == payload) {
+            deliveries.add(new BroadcastDelivery(payload,
+                    Stream.concat(studentChannels.stream(), controlChannels.stream()).toList()));
+        } else {
+            if (!studentChannels.isEmpty()) {
+                deliveries.add(new BroadcastDelivery(studentPayload, studentChannels));
+            }
+            deliveries.add(new BroadcastDelivery(payload, controlChannels));
         }
-        send(WebSocketDestinations.managerRun(runId), event, runId, occurredAt, payload);
-        send(WebSocketDestinations.academyLive(academyId), event, runId, occurredAt, payload);
-        send(WebSocketDestinations.ADMIN_LIVE, event, runId, occurredAt, payload);
+        broadcast(event, runId, occurredAt, deliveries);
+    }
+
+    /** 목적지 1곳에 보낸다 — 발행은 1건이다. */
+    public void send(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {
+        sendToAll(List.of(destination), event, runId, occurredAt, payload);
     }
 
     /**
      * 목적지 하나의 전송 예외를 그 목적지에서 끝낸다 — 학생 채널 하나가 실패해도 뒤 학생 채널과 매니저 · 학원 · 관리자 채널의 방송이 이어진다.
      * 삼킨 실패는 {@code schoolbus.ws.broadcast.failed}(event 태그)로 센다. 앞에서 예외가 번지면 관제 화면이 그 이벤트를 통째로 못 받는다.
      */
-    public void send(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {
+    private void deliverQuietly(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {
         try {
             deliver(destination, event, runId, occurredAt, payload);
         } catch (RuntimeException e) {
             meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", event).increment();
             log.warn("{} 방송 실패 — runId={} destination={}", event, runId, destination, e);
+        }
+    }
+
+    /** 중계로 오는 이벤트를 이 인스턴스의 구독자에게 보내도록 등록한다. */
+    @PostConstruct
+    void subscribeToRelay() {
+        if (relay != null) {
+            relay.subscribe(this::deliverLocal);
         }
     }
 

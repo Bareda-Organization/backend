@@ -2,6 +2,7 @@ package src.backend.location.command;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -10,6 +11,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.websocket.BroadcastDelivery;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.event.RunPositionReceivedEvent;
@@ -59,16 +61,16 @@ public class PositionBroadcastListener {
 
         ParentStudentPayload parentStudentPayload = new ParentStudentPayload(event.lat(), event.lng(),
                 event.receivedAt(), event.currentStopName());
-        for (Long studentId : studentIds) {
-            gateway.send(WebSocketDestinations.studentRun(studentId), EVENT, event.runId(), event.receivedAt(),
-                    parentStudentPayload);
-        }
-
         ControlPayload controlPayload = new ControlPayload(event.lat(), event.lng(), event.receivedAt(),
                 event.currentStopName(), event.nextEta());
-        gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.receivedAt(),
-                controlPayload);
-        gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.receivedAt(), controlPayload);
+        List<BroadcastDelivery> deliveries = new ArrayList<>();
+        if (!studentIds.isEmpty()) {
+            deliveries.add(new BroadcastDelivery(parentStudentPayload,
+                    studentIds.stream().map(WebSocketDestinations::studentRun).toList()));
+        }
+        deliveries.add(new BroadcastDelivery(controlPayload,
+                List.of(WebSocketDestinations.academyLive(event.academyId()), WebSocketDestinations.ADMIN_LIVE)));
+        gateway.broadcast(EVENT, event.runId(), event.receivedAt(), deliveries);
     }
 
     /** {@code lat} · {@code lng} · {@code received_at} · {@code current_stop_name}. {@code eta} 키 자체가 없다(C-08). */

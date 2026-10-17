@@ -5,6 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import java.time.OffsetDateTime;
@@ -124,6 +126,8 @@ class BroadcastListenerOffRequestThreadTest {
             return null;
         };
         doAnswer(record).when(gateway).send(any(), any(), any(), any(), any());
+        doAnswer(record).when(gateway).sendToAll(any(), any(), any(), any(), any());
+        doAnswer(record).when(gateway).broadcast(any(), any(), any(), any());
         doAnswer(record).when(gateway).broadcastToRunChannels(any(), any(), any(), any(), any(), any());
         doAnswer(record).when(gateway).broadcastToRunChannels(any(), any(), any(), any(), any(), any(), any());
         String requestThread = Thread.currentThread().getName();
@@ -155,11 +159,11 @@ class BroadcastListenerOffRequestThreadTest {
     void 승하차_방송은_상태별_인원을_한_번에_센다() throws Exception {
         SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
         Statistics statistics = sessionFactory.getStatistics();
-        CountDownLatch broadcast = new CountDownLatch(3); // 매니저 · 학원 · 관리자 채널
+        CountDownLatch broadcast = new CountDownLatch(1); // 매니저 · 학원 · 관리자 채널을 한 번에 보낸다
         doAnswer(invocation -> {
             broadcast.countDown();
             return null;
-        }).when(gateway).send(any(), eq("rider_changed"), any(), any(), any());
+        }).when(gateway).sendToAll(any(), eq("rider_changed"), any(), any(), any());
         awaitAsyncWorkDrained(); // 앞 시험이 남긴 비동기 일(알림 발송 등)이 통계에 섞이지 않게 한다
         long before = statistics.getPrepareStatementCount();
 
@@ -188,11 +192,11 @@ class BroadcastListenerOffRequestThreadTest {
 
     @Test
     void 비상_방송_리스너는_트랜잭션_없이_발행돼도_보낸다() throws Exception {
-        CountDownLatch broadcast = new CountDownLatch(2); // 학원 · 관리자 채널
+        CountDownLatch broadcast = new CountDownLatch(1); // 학원 · 관리자 채널을 한 번에 보낸다
         doAnswer(invocation -> {
             broadcast.countDown();
             return null;
-        }).when(gateway).send(any(), eq("emergency_raised"), any(), any(), any());
+        }).when(gateway).sendToAll(any(), eq("emergency_raised"), any(), any(), any());
 
         publisher.publishEvent(new EmergencyRaisedEvent(1L, 1L, "학원", 1L, "1호차", EmergencyType.ACCIDENT,
                 new EmergencyRaisedEvent.RaisedBy("기사", "driver", "010-0000-0000"),
@@ -210,9 +214,13 @@ class BroadcastListenerOffRequestThreadTest {
 
         gateway.broadcastToRunChannels(1L, 1L, List.of(10L, 11L), "stop_arrived", AT, "payload", "payload");
 
-        verify(messagingTemplate).convertAndSend(eq(WebSocketDestinations.studentRun(11L)), any(Object.class));
-        verify(messagingTemplate).convertAndSend(eq(WebSocketDestinations.managerRun(1L)), any(Object.class));
-        assertThat(meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", "stop_arrived").count())
-                .as("삼킨 전송 실패는 실패 카운터를 정확히 1 올린다").isEqualTo(failedBefore + 1);
+        // 방송은 Redis 중계를 거쳐 받는 스레드에서 나가므로 도착을 기다린다
+        verify(messagingTemplate, timeout(AWAIT_SECONDS * 1000)).convertAndSend(eq(WebSocketDestinations.studentRun(11L)),
+                any(Object.class));
+        verify(messagingTemplate, timeout(AWAIT_SECONDS * 1000)).convertAndSend(eq(WebSocketDestinations.managerRun(1L)),
+                any(Object.class));
+        await().atMost(AWAIT_SECONDS, TimeUnit.SECONDS).untilAsserted(() ->
+                assertThat(meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", "stop_arrived").count())
+                        .as("삼킨 전송 실패는 실패 카운터를 정확히 1 올린다").isEqualTo(failedBefore + 1));
     }
 }

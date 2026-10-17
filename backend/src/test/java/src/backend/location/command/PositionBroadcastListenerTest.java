@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import src.backend.location.infrastructure.RunBroadcastCache;
 import src.backend.global.location.RunRiderDirectory;
+import src.backend.global.websocket.BroadcastDelivery;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.event.RunPositionReceivedEvent;
@@ -60,35 +61,30 @@ class PositionBroadcastListenerTest {
 
         listener.broadcast(event);
 
-        verify(gateway, never()).send(eq(WebSocketDestinations.studentRun(200L)), any(), any(), any(), any());
-
-        // 매니저 채널은 §7 채널 표에 position 이 없다 — 절대 호출되지 않아야 한다.
-        verify(gateway, never()).send(eq(WebSocketDestinations.managerRun(runId)), any(), any(), any(), any());
+        // 이벤트 1건 = 방송 1건 — 학생 채널 묶음(학부모·학생 payload)과 관제 채널 묶음(eta 포함 payload)이 한 번에 나간다.
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<List<BroadcastDelivery>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(gateway).broadcast(eq("position"), eq(runId), eq(receivedAt), captor.capture());
+        verify(gateway, never()).send(any(), any(), any(), any(), any());
         verify(gateway, never()).broadcastToRunChannels(anyLong(), anyLong(), any(), any(), any(), any());
+        List<BroadcastDelivery> deliveries = captor.getValue();
+        assertThat(deliveries).hasSize(2);
 
-        // 학부모·학생 채널 — eta 키 자체가 없어야 한다.
-        verify(gateway).send(eq(WebSocketDestinations.studentRun(studentId)), eq("position"), eq(runId),
-                eq(receivedAt), org.mockito.ArgumentMatchers.argThat(payload -> {
-                    String text = String.valueOf(payload);
-                    assertThat(text).contains("lat=37.501234").contains("lng=127.039876")
-                            .contains("receivedAt=" + receivedAt).contains("currentStopName=정문 앞")
-                            .doesNotContain("eta");
-                    return true;
-                }));
+        // 학부모·학생 채널 — eta 키 자체가 없어야 한다. 받지 않는 학생(200)·매니저 채널은 어느 묶음에도 없다.
+        BroadcastDelivery student = deliveries.get(0);
+        assertThat(student.destinations()).containsExactly(WebSocketDestinations.studentRun(studentId));
+        String studentText = String.valueOf(student.payload());
+        assertThat(studentText).contains("lat=37.501234").contains("lng=127.039876")
+                .contains("receivedAt=" + receivedAt).contains("currentStopName=정문 앞").doesNotContain("eta");
 
         // 관제 채널(academy·admin) — 같은 좌표·정차지에 다음 정차 항목의 eta 값이 그대로 실린다
         // (Ruling 232 확정). "eta=" 존재만 보면 "eta=null" 도 통과해 버려 값 자체를 요구한다.
-        verify(gateway).send(eq(WebSocketDestinations.academyLive(academyId)), eq("position"), eq(runId),
-                eq(receivedAt), org.mockito.ArgumentMatchers.argThat(payload -> {
-                    String text = String.valueOf(payload);
-                    assertThat(text).contains("currentStopName=정문 앞").contains("eta=" + nextEta);
-                    return true;
-                }));
-        verify(gateway).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("position"), eq(runId), eq(receivedAt),
-                org.mockito.ArgumentMatchers.argThat(payload -> {
-                    String text = String.valueOf(payload);
-                    assertThat(text).contains("eta=" + nextEta);
-                    return true;
-                }));
+        BroadcastDelivery control = deliveries.get(1);
+        assertThat(control.destinations()).containsExactly(WebSocketDestinations.academyLive(academyId),
+                WebSocketDestinations.ADMIN_LIVE);
+        assertThat(String.valueOf(control.payload())).contains("currentStopName=정문 앞").contains("eta=" + nextEta);
+        // 매니저 채널은 §7 채널 표에 position 이 없다 — 어느 묶음에도 들어가면 안 된다.
+        assertThat(deliveries).flatExtracting(BroadcastDelivery::destinations)
+                .doesNotContain(WebSocketDestinations.managerRun(runId), WebSocketDestinations.studentRun(200L));
     }
 }

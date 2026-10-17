@@ -38,6 +38,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import src.backend.global.websocket.BroadcastRelay;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.controller.EmergencyFixtures;
@@ -49,6 +50,7 @@ import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.web.WireJson;
 import testsupport.redis.RedisTestContainerBase;
 
 /**
@@ -106,10 +108,13 @@ class EmergencyRaisedBroadcastIntegrationTest {
     @Qualifier("broadcastListenerExecutor")
     private ThreadPoolTaskExecutor broadcastExecutor;
 
+    @Autowired
+    private BroadcastRelay broadcastRelay;
+
     /** 앞 시험이 남긴 늦은 방송이 이 시험의 목에 잡히지 않게 실행기를 비우고 시작한다. */
     @BeforeEach
     void 앞_시험의_방송을_비운다() throws InterruptedException {
-        방송이_끝날_때까지(broadcastExecutor);
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay);
         clearInvocations(messagingTemplate);
     }
 
@@ -171,10 +176,10 @@ class EmergencyRaisedBroadcastIntegrationTest {
         // (EmergencyBroadcastListenerTest 의 시험이 이미 이 사실을 고정하므로 여기서는
         // 페이로드 내용에만 집중하고 목적지 개수만 가볍게 확인한다).
         ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
-        방송이_끝날_때까지(broadcastExecutor);
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay);
         verify(messagingTemplate, times(2)).convertAndSend(anyString(), envelopeCaptor.capture());
 
-        JsonNode envelope = objectMapper.valueToTree(envelopeCaptor.getValue());
+        JsonNode envelope = WireJson.of(envelopeCaptor.getValue());
         assertThat(envelope.get("event").asText()).isEqualTo("emergency_raised");
 
         JsonNode payload = envelope.get("payload");
@@ -215,12 +220,12 @@ class EmergencyRaisedBroadcastIntegrationTest {
         // 목적지와 봉투를 짝으로 잡아 /topic/admin/live 로 나간 것만 본다 — Ruling 395
         ArgumentCaptor<String> destinationCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
-        방송이_끝날_때까지(broadcastExecutor);
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay);
         verify(messagingTemplate, times(2)).convertAndSend(destinationCaptor.capture(), envelopeCaptor.capture());
         int adminIndex = destinationCaptor.getAllValues().indexOf(WebSocketDestinations.ADMIN_LIVE);
         assertThat(adminIndex).as("관리자 채널로 방송이 나가지 않았다").isGreaterThanOrEqualTo(0);
 
-        JsonNode payload = objectMapper.valueToTree(envelopeCaptor.getAllValues().get(adminIndex)).get("payload");
+        JsonNode payload = WireJson.of(envelopeCaptor.getAllValues().get(adminIndex)).get("payload");
         assertThat(payload.get("academy_id").asLong()).isEqualTo(academyId);
         assertThat(payload.get("academy_name").asText()).isEqualTo(EmergencyFixtures.ACADEMY_NAME);
     }

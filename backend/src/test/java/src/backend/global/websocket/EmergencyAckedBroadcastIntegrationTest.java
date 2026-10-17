@@ -35,10 +35,12 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.jayway.jsonpath.JsonPath;
 
+import src.backend.global.websocket.BroadcastRelay;
 import src.backend.exception.controller.EmergencyFixtures;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import testsupport.web.WireJson;
 import testsupport.redis.RedisTestContainerBase;
 
 /**
@@ -94,10 +96,13 @@ class EmergencyAckedBroadcastIntegrationTest {
     @Qualifier("broadcastListenerExecutor")
     private ThreadPoolTaskExecutor broadcastExecutor;
 
+    @Autowired
+    private BroadcastRelay broadcastRelay;
+
     /** 앞 시험이 남긴 늦은 방송이 이 시험의 목에 잡히지 않게 실행기를 비우고 시작한다. */
     @BeforeEach
     void 앞_시험의_방송을_비운다() throws InterruptedException {
-        방송이_끝날_때까지(broadcastExecutor);
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay);
         clearInvocations(messagingTemplate);
     }
 
@@ -135,11 +140,11 @@ class EmergencyAckedBroadcastIntegrationTest {
         // (Ruling 277, 채널 audience 는 EmergencyBroadcastListenerTest 의 시험이 이미 고정
         // 하므로 여기서는 페이로드 내용에 집중한다).
         ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
-        방송이_끝날_때까지(broadcastExecutor);
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay);
         verify(messagingTemplate, times(1)).convertAndSend(eq(WebSocketDestinations.managerRun(runId)),
                 envelopeCaptor.capture());
 
-        JsonNode envelope = objectMapper.valueToTree(envelopeCaptor.getValue());
+        JsonNode envelope = WireJson.of(envelopeCaptor.getValue());
         assertThat(envelope.get("event").asText()).isEqualTo("emergency_acked");
 
         JsonNode payload = envelope.get("payload");

@@ -2,6 +2,7 @@ package testsupport.redis;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.MapPropertySource;
@@ -27,6 +28,9 @@ import org.springframework.test.context.MergedContextConfiguration;
  * 컨테이너 수명 관리 금지" 제약을 그대로 물려받는다. {@code RedisTestContainerBase} 를 상속한
  * 시험은 자기 {@code @DynamicPropertySource} 와 이 전역 장치가 같은 값을 중복으로 등록하게
  * 되는데, 값이 항상 같아(같은 컨테이너) 충돌이 아니라 약간의 중복 계산일 뿐이다.
+ *
+ * <p>인스턴스 사이 중계 채널({@code app.relay.channel-suffix})은 컨텍스트마다 다른 이름을 붙인다 — 같은 JVM 에 캐시된 다른 컨텍스트가 같은 Redis 의 방송 · 비움 신호를 받아
+ * 자기 송신 템플릿 목(mock)에 기록하면, 그 컨텍스트의 다음 시험이 남의 방송을 자기 것으로 센다.
  *
  * <p>DB(-{@code PtestDbUrl}, build.gradle)는 인자를 요구하고 인자 부재 시 실패하는 쪽을 택했는데
  * Redis 는 왜 반대(자동 주입)를 택했는가 — DB 격리는 **좌석마다 다른 이름**이 필요해 사람이
@@ -58,7 +62,8 @@ public class RedisTestContainerContextCustomizerFactory implements ContextCustom
                     "redisTestContainerIsolation",
                     Map.of(
                             "spring.data.redis.host", RedisTestContainerBase.REDIS.getHost(),
-                            "spring.data.redis.port", RedisTestContainerBase.REDIS.getMappedPort(6379))));
+                            "spring.data.redis.port", RedisTestContainerBase.REDIS.getMappedPort(6379),
+                            "app.relay.channel-suffix", ":" + UUID.randomUUID())));
         }
 
         @Override
