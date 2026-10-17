@@ -23,7 +23,7 @@ import src.backend.global.error.ErrorCode;
  * <p>이런 PK=FK 엔티티를 {@code JpaRepository.save()} 로 저장하면 식별자가 이미 채워져 있어
  * {@code SimpleJpaRepository.isNew()} 가 {@code false} 로 판정, {@code persist} 가 아니라
  * {@code merge}(행이 없으면 SELECT 후 INSERT) 경로를 탄다 — 동작은 하지만 {@code persist} 만
- * 가정하고 읽으면 오해한다. {@code Persistable<Long>} 구현 여부는 이 태스크 범위 밖이다.
+ * 가정하고 읽으면 오해한다. {@code Persistable<Long>} 구현 여부는 이 클래스가 다루지 않는다.
  */
 @Entity
 @Table(name = "academy_setting")

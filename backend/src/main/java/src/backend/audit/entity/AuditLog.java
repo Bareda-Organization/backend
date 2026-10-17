@@ -76,7 +76,7 @@ public class AuditLog {
 
     /** PostgreSQL {@code inet} 타입 — 기본 매핑(VARCHAR)으로 두면 {@code ddl-auto: validate} 가
      * "wrong column type" 으로 실패해 {@code SqlTypes.INET} 을 명시한다(엔티티 작성 규약 §4의
-     * "inet→String" 을 실측으로 보완, 이 태스크 판단). {@code SqlTypes.OTHER} 는 검증은 통과하지만
+     * "inet→String" 을 실측으로 보완).{@code SqlTypes.OTHER} 는 검증은 통과하지만
      * 저장 시 pgjdbc 가 파라미터를 {@code bytea} 로 바인딩해 실패한다 — {@code SqlTypes.INET} 이
      * 검증·저장 둘 다 만족하는 값이다(Hibernate 7.4.1 기준 실측). */
     @JdbcTypeCode(SqlTypes.INET)

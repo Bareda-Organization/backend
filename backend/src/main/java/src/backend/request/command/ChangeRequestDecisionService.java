@@ -140,7 +140,7 @@ public class ChangeRequestDecisionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
         OffsetDateTime decidedAt = OffsetDateTime.now(clock);
-        // T6 의 폴링(30초)만 믿으면 그 사이 도착한 결정이 새어 나간다 — 여기서 직접·동기로 판정한다.
+        // 자동 거절 스케줄러의 폴링(30초)만 믿으면 그 사이 도착한 결정이 새어 나간다 — 여기서 직접·동기로 판정한다.
         if (ChangeWindowPolicy.segmentOf(run, decidedAt) == ChangeWindow.CLOSED) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }

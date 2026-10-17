@@ -51,7 +51,7 @@ public class ChangeRequestAutoRejectionPersistence {
      * 대상이 없는 것이다. 어느 쪽이든 이 메서드가 할 일은 남지 않는다.
      *
      * <p>{@link ApprovalPreviewCache#evict}를 여기서 부른다 — 종결 상태로 넘어가는 3가지 경로(승인·
-     * 거절·자동거절) 중 이 경로만 T4 가 남겨 뒀던 자리다({@code ApprovalPreviewCache} javadoc 참고).
+     * 거절·자동거절)가 각자 {@code evict} 를 부른다({@code ApprovalPreviewCache} javadoc 참고).
      * 이 호출이 빠지면 자동 거절된 건의 낡은 미리보기가 캐시에 계속 남는다.
      *
      * <p>취소된 회차의 대기 요청도 알림을 보낸다(Ruling 864) — 임시 취소에는 학부모 알림이 없어(API_SPEC §9.7) 알림을 빼면 그

@@ -21,7 +21,7 @@ import src.backend.boarding.repository.RunRiderRepository;
  * 이 메서드를 직접 부른다. 이 클래스는 승하차 처리 쪽이고 호출자는 회차 시작 쪽이라 두 쪽의
  * 경계가 이 메서드 시그니처 하나다.
  *
- * <p>{@code runId} 는 호출부(T2)가 이미 {@code RunRepository.findByIdAndAcademyId} 로 학원 범위를
+ * <p>{@code runId} 는 호출부(회차 시작 커맨드)가 이미 {@code RunRepository.findByIdAndAcademyId} 로 학원 범위를
  * 확인한 값이라는 전제다 — {@link RunRiderRepository#findAllByRunId} 의 자바독과 같은 근거.
  */
 @Service

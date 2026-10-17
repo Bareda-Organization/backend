@@ -16,7 +16,7 @@ public record StaffRunLiveResponse(List<Run> runs) {
 
     /**
      * @param status 정본이 {@code moving} 만 반환한다 적어 상수처럼 보이지만, 필드로 남긴다 —
-     *               응답 형태 자체는 상태 무관하게 유지하는 편이 §6.8(T2, 전 상태 포함 가능) 소비
+     *               응답 형태 자체는 상태 무관하게 유지하는 편이 §6.8(전 상태 포함 가능) 소비
      *               코드와의 형태 대칭에 유리하다는 판단(확신 없는 지점 — 보고서 §2)
      * @param position 위치 미수신 회차는 {@code null}
      * @param currentStop·{@code nextStop} 정차 이름 문자열(승하차지 또는 강제 경유지) — id 가 아니다

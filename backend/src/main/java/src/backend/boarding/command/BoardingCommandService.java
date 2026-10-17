@@ -300,8 +300,8 @@ public class BoardingCommandService {
      * 하원 자동 종료 경계 — 방금 처리한 하차·미승차(BR-031)가 그 회차의 마지막 잔여 탑승자였는지를
      * {@link RunCompletionService} 에 위임해 묻고, 그 호출로 실제 종료됐을 때만
      * {@link RunEndedEvent} 를 발행한다. 반환값을 무시하고 매번(또는 전혀) 발행하면 알림이 잔류자가
-     * 있는 회차에도 나가거나 정작 종료된 회차에서 나가지 않는 결함이 된다 — 이 분기 자체가 T3 이
-     * 검사해야 할 갈래다(전이 로직은 여기서 구현하지 않는다).
+     * 있는 회차에도 나가거나 정작 종료된 회차에서 나가지 않는 결함이 된다 — 이 분기 자체가 검사 대상인
+     * 갈래다(전이 로직은 여기서 구현하지 않는다).
      */
     private void notifyIfRunJustEnded(Run run, OffsetDateTime now) {
         boolean justEnded = runCompletionService.completeIfAllAlighted(run, now);

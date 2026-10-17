@@ -40,9 +40,9 @@ import src.backend.student.repository.StudentRepository;
  * <p><b>행위자를 {@link SecurityContextHolder} 로 얻는다</b> — 이 저장소의 다른 모든 서비스는
  * {@link AuthUser} 를 메서드 인자로 받는데({@code @AuthenticationPrincipal} 이 컨트롤러에서 주입),
  * {@link src.backend.monitoring.controller.AdminRunRosterController#roster} 는 그 주입이 없다. 컨트롤러는
- * 이 태스크의 소유 파일 목록 밖이라 인자를 늘리려면 컨트롤러도 고쳐야 하고, 그러면
- * 감사 요건 하나가 소유 경계를 넘는다 — 대신 이 서비스 안에서 인증 컨텍스트를 직접 읽어 그 경계를
- * 지킨다. 이 저장소에 없던 접근 방식을 이 태스크가 새로 들인 것이라 여기 근거를 남긴다.
+ * 인자를 늘리려면 컨트롤러도 고쳐야 하고, 그러면 감사 요건 하나가 컨트롤러 변경까지 요구한다 —
+ * 대신 이 서비스 안에서 인증 컨텍스트를 직접 읽어 그 경계를 지킨다. 이 저장소에 없던 접근 방식이라
+ * 여기 근거를 남긴다.
  *
  * <p>{@code RosterQueryService#phonesOf} 와 판정 방식은 같지만(학생당 첫 보호자 연락처) 그 메서드가
  * {@code private} 이라 직접 재사용할 수 없어 같은 {@link

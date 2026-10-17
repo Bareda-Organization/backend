@@ -78,7 +78,7 @@ public final class RolePermissions {
                     Permissions.ROUTE_READ,
                     Permissions.DEVICE_REGISTER)
 
-            // 학원 관계자 — 자기 학원의 학생·인력·노선·가입·알림 운영 전반(어느 학원인지는 T5 학원 격리가 별도 검사)
+            // 학원 관계자 — 자기 학원의 학생·인력·노선·가입·알림 운영 전반(어느 학원인지는 학원 격리 검사가 별도로 본다)
             + grant(Role.STAFF,
                     Permissions.STUDENT_READ_BASIC,
                     Permissions.STUDENT_READ_SENSITIVE,

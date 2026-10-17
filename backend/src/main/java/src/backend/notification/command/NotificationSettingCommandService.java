@@ -28,7 +28,7 @@ import src.backend.notification.repository.NotificationSettingRepository;
  *
  * <p><b>버린 대안</b> — {@code @JsonIgnoreProperties(ignoreUnknown = false)} + 새 전역
  * {@code HttpMessageNotReadableException} 핸들러. {@code GlobalExceptionHandler} 에 그 예외
- * 핸들러가 아직 없어, 추가하면 이 앱의 <b>모든</b> JSON 바디 파싱에 영향을 준다 — 이 태스크의
+ * 핸들러가 아직 없어, 추가하면 이 앱의 <b>모든</b> JSON 바디 파싱에 영향을 준다 — 이 기능의
  * 범위(알림 설정 하나)를 넘는 횡단 변경이라 채택하지 않았다. {@code Map} 수신 + 서비스 계층 명시
  * 검증은 {@code RiderStatusUpdateRequest} 가 이미 쓰는 관례(자동 바인딩보다 서비스 계층 판정을
  * 우선)와도 같은 방향이다.

@@ -99,8 +99,8 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
      * 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다.
      *
      * <p>{@code pageable} 은 한 틱이 한 번에 집는 상한이다 — 상한 없이 전건을 집으면 마감이 몰린
-     * 틱 하나가 커넥션을 오래 붙든다({@code RunRepository} 의 확정 배치 조회와 같은 근거). T1 이 만든
-     * 시그니처에 이 파라미터를 더한 것(T6) — 기존 조건·정렬은 그대로 두고 상한만 얹었다.
+     * 틱 하나가 커넥션을 오래 붙든다({@code RunRepository} 의 확정 배치 조회와 같은 근거). 기존 시그니처에
+     * 이 파라미터를 더한 것이다 — 기존 조건·정렬은 그대로 두고 상한만 얹었다.
      */
     @AcademyScopeExempt(reason = "자동 거절 폴링은 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "학원 하나로 좁히면 나머지 학원의 도래분이 거절되지 않는다. 호출부는 자동 거절 스케줄러(T6)뿐이라는 "

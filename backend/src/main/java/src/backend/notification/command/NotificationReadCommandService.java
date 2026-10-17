@@ -22,10 +22,10 @@ import src.backend.notification.repository.NotificationLogRepository;
  *
  * <p>"중요 통지" 3종(지연·미승차·노선 변경)은 {@code FEATURE_SPEC} NTF-10(Ruling 227)이
  * 정의처다 — "읽음 처리로 acked 가 되는 종류와 미확인 배지가 세는 종류는 같은 3종". 이 서비스가 판정을
- * 들고 있는 이유는 {@link NotificationType} 이 T4 전용 파일이라 엔티티·타입 쪽에 업무 중요도 판단을
+ * 들고 있는 이유는 {@link NotificationType} 을 고치지 않으려고 엔티티·타입 쪽에 업무 중요도 판단을
  * 추가로 얹지 않기 위함이다.
  *
- * <p><b>{@code acked} 계약(T2 가 쓰고 T3 이 읽는다, Ruling 222)</b> — {@code notification_log.acked} 는
+ * <p><b>{@code acked} 계약(읽음 처리가 쓰고 관계자 알림 로그가 읽는다, Ruling 222)</b> — {@code notification_log.acked} 는
  * 모든 행에 항상 존재하는 {@code boolean}이고({@code API_SPEC §5.17} 필수 필드) 생성 시 기본값이
  * {@code false}다. {@link #markRead}가 대상 알림의 {@link NotificationType}이 {@link #IMPORTANT_TYPES}에
  * 속할 때만 {@code true}로 바꾸고 {@code acked_at}에 처리 시각을 남긴다 — 그 외 종류는 읽음 처리를

@@ -193,7 +193,7 @@ public class NotificationLog {
      * 수신 확인(NTF-10)을 남긴다 — <b>중요 통지에 한해</b> 호출자(읽음 처리 서비스)가 부른다. 어떤
      * 종류가 "중요"인지는 이 엔티티가 판단하지 않는다(USER_FLOWS §10.2 규칙4·5 — 지연·미승차·노선
      * 변경 3종). {@link #markRead} 와 마찬가지로 최초 1회만 기록해 {@code acked_at} 이 재확인으로
-     * 밀리지 않는다. 관계자 알림 로그(API_SPEC §5.17 미확인 배지, T3 담당)가 이 필드를 그대로 읽는다.
+     * 밀리지 않는다. 관계자 알림 로그(API_SPEC §5.17 미확인 배지)가 이 필드를 그대로 읽는다.
      */
     public void ack(OffsetDateTime now) {
         if (!this.acked) {

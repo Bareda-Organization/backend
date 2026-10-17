@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 /**
- * {@link RunLiveStateResolver} 의 판정 결과 — §5.18(관계자, T1)·§6.8(관리자, T2)이 공유하는 중간
+ * {@link RunLiveStateResolver} 의 판정 결과 — §5.18(관계자)·§6.8(관리자)이 공유하는 중간
  * 산출물이며 <b>응답 DTO 가 아니다</b>. 두 절의 필드 이름이 다르다(§5.18 {@code recorded_at} ·
  * §6.8 {@code received_at}, 같은 Redis 값의 서로 다른 시각 필드를 각자 문서화된 이름으로 노출하는
  * 것뿐이지 정본 불일치가 아니다) — 그래서 이 레코드는 중립적인 필드 이름만 갖고, 절 이름을 붙인

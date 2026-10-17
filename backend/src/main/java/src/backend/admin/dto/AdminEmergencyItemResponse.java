@@ -35,7 +35,7 @@ import src.backend.exception.dto.EmergencyStaffItemResponse.RaisedBy;
  * <p>타입을 {@code Duration} 이 아니라 {@code Long}(초)으로 둔다 — 이 저장소에 {@code Duration} 을
  * 응답 필드로 노출한 전례가 없고({@code StudentBusPositionQueryService} 도 내부 계산에만 쓰고
  * 응답에는 원본 시각만 싣는다), 전역 {@code ObjectMapper} 에 {@code WRITE_DURATIONS_AS_TIMESTAMPS}
- * 설정이 없어 직렬화 형태가 이 태스크 밖의 전역 설정에 암묵적으로 기댄다.
+ * 설정이 없어 직렬화 형태가 전역 ObjectMapper 설정에 암묵적으로 기댄다.
  */
 public record AdminEmergencyItemResponse(Long emergencyId, AcademyInfo academy, String type, String memo,
         RaisedBy raisedBy, Long runId, String busNo, String direction, Position position, Integer riderCount,
