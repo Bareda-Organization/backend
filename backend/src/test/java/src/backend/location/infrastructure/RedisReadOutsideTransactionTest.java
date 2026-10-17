@@ -27,8 +27,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.SeedDateClockConfig;
 
 /**
- * 위치 읽기 3종(관계자 관제 · 메인 관리자 관제 · 학부모 버스 위치)은 Redis 를 부르는 순간 DB 트랜잭션이 없다(R46
- * D #13) — Redis 응답이 늦는 동안 DB 연결을 쥐고 있지 않게 한다. {@link RunPositionStore} 를 감시해 호출 시점의
+ * 위치 읽기 3종(관계자 관제 · 메인 관리자 관제 · 학부모 버스 위치)은 Redis 를 부르는 순간 DB 트랜잭션이 없다 — Redis 응답이 늦는 동안 DB 연결을 쥐고 있지 않게 한다. {@link RunPositionStore} 를 감시해 호출 시점의
  * 트랜잭션 활성 여부를 기록한다.
  */
 @SpringBootTest

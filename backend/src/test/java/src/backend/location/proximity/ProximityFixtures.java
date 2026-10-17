@@ -41,7 +41,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 근접 알림(NTF-04, Phase 10 목표 13·15) 시험이 쓰는 실제 행 — {@code DriverRunFixtures}·
+ * 근접 알림(NTF-04) 시험이 쓰는 실제 행 — {@code DriverRunFixtures}·
  * {@code RunConfirmationFixtures} 와 같은 이유로 정상 경로의 팩토리로 쌓는다.
  *
  * <p>{@code Phase9RosterFixtures} 의 지오코딩 확정 파이프라인을 타지 않는다 — 근접 판정은 이미
@@ -135,7 +135,7 @@ public class ProximityFixtures {
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
 
-    /** 계정이 연결된 학생(R14 목표 4 — arrive 학생 본인 수신 대상 조회) — {@code DriverRunFixtures} 와 같은 형태. */
+    /** 계정이 연결된 학생(arrive 학생 본인 수신 대상 조회) — {@code DriverRunFixtures} 와 같은 형태. */
     public long studentWithAccount(long academyId, String name) {
         long studentId = student(academyId, name);
         Account account = accountRepository.save(Account.forSignup(academyId, "학생" + SEQUENCE.incrementAndGet(), "x",

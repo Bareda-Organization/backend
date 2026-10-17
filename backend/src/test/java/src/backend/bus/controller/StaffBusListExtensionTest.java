@@ -45,7 +45,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 차량 목록의 R48 확장(API_SPEC §5.12, Ruling 816) — {@code route_count}(활성 편성 수) · {@code schedule_count}(활성 스케줄 수) ·
+ * 차량 목록의 확장(API_SPEC §5.12, Ruling 816) — {@code route_count}(활성 편성 수) · {@code schedule_count}(활성 스케줄 수) ·
  * {@code today_runs[]}(오늘 미취소 회차, 출발 순). 등록·수정 응답에는 이 셋이 없다. 시계는 2030-04-01(월) 12:00 KST 로 고정이다.
  */
 @SpringBootTest

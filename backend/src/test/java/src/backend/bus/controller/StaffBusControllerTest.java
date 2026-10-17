@@ -32,13 +32,13 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * §5.12 {@code /staff/buses} — BUS-01·02·03 · A-11 (Phase 5 목표 2).
+ * §5.12 {@code /staff/buses} — BUS-01·02·03 · A-11.
  *
  * <p><b>이 클래스의 최우선 단언은 {@code student_capacity} 가 요청값이 아니라는 것</b>이다. 응답에
  * 계산식과 맞는 값이 실렸는지만 보면 <b>요청값을 그대로 되돌려준 구현</b>과 구별되지 않는다 — 그
- * 상태에서는 클라이언트가 정원을 마음대로 불려 보낼 수 있고, Phase 7 확정 배치가 그 값을 믿는다.
+ * 상태에서는 클라이언트가 정원을 마음대로 불려 보낼 수 있고, 확정 배치가 그 값을 믿는다.
  *
- * <p>정원 초과 <b>배정</b> 차단({@code 409 CAPACITY_EXCEEDED})은 여기 없다 — Phase 5 에 학생을 차량에
+ * <p>정원 초과 <b>배정</b> 차단({@code 409 CAPACITY_EXCEEDED})은 여기 없다 — 학생을 차량에
  * 배정하는 경로가 부재해(Ruling 155) 그 단언은 아무것도 검사하지 않는 채 초록이 된다.
  */
 @SpringBootTest
@@ -111,7 +111,7 @@ class StaffBusControllerTest {
      * 목표 2 ③ — 학생 정원이 0 이하가 되는 차량은 저장이 차단된다.
      *
      * <p>승무 인원 합과 <b>같은</b> 정원을 쓴다 — 경계값이라, 조건을 {@code <} 로 한 칸 넓힌 구현이
-     * 여기서만 드러난다. 이 차량이 저장되면 Phase 7 확정 배치가 0명짜리 버스를 편성한다.
+     * 여기서만 드러난다. 이 차량이 저장되면 확정 배치가 0명짜리 버스를 편성한다.
      */
     @Test
     void 정원이_기사와_동승자_수_이하인_차량_등록은_저장이_차단된다() throws Exception {
@@ -128,8 +128,8 @@ class StaffBusControllerTest {
      * 등록 요청의 {@code operable} 이 <b>실제로 저장</b>된다 — 응답만 보지 않고 목록으로 다시 읽는다.
      *
      * <p>등록과 수정은 다른 경로다. 수정 경로의 {@code operable} 만 검사하면 등록 시 그 값을 반영하는
-     * 호출을 통째로 지워도 아무 단언에도 걸리지 않는다(게이트 리뷰 A3 가 실증) — 그 상태에서는 정비
-     * 중인 차량을 운행 불가로 등록해도 운행 가능으로 들어가고, Phase 7 확정 배치가 그 차량을 편성한다.
+     * 호출을 통째로 지워도 아무 단언에도 걸리지 않는다 — 그 상태에서는 정비
+     * 중인 차량을 운행 불가로 등록해도 운행 가능으로 들어가고, 확정 배치가 그 차량을 편성한다.
      *
      * <p>목록으로 되읽는 단언이 응답 단언과 별개 축이다 — 응답만 보면 저장하지 않고 요청값을 그대로
      * 되돌려주는 구현이 통과한다.
@@ -452,8 +452,8 @@ class StaffBusControllerTest {
                 .content(body));
     }
 
-    // ⚠ 호차 이름은 **시드에 없는 값**을 쓴다 — R23 의 데모 선단(V13)이 3·4·5호차를 시드에 더해
-    // 그 번호로 등록하면 `409 DUPLICATE_BUS` 다(실제로 이 파일의 시험 3건이 그렇게 깨져 있었다).
+    // ⚠ 호차 이름은 **시드에 없는 값**을 쓴다 — 데모 선단(V13)이 3·4·5호차를 시드에 더해
+    // 그 번호로 등록하면 `409 DUPLICATE_BUS` 다.
     private long 등록된_차량_id(String token, String busNo, String plateNo, int capacity) throws Exception {
         MvcResult result = 등록한다(token,
                 "{\"bus_no\":\"%s\",\"plate_no\":\"%s\",\"capacity\":%d}".formatted(busNo, plateNo, capacity))

@@ -301,7 +301,7 @@ class StaffRouteControllerTest {
     }
 
     /**
-     * 목록 항목이 정차지 수({@code stop_count})를 싣는다(R46 FUBE · B1 #10) — 정차지가 없는 빈 편성과 채워진 편성을
+     * 목록 항목이 정차지 수({@code stop_count})를 싣는다 — 정차지가 없는 빈 편성과 채워진 편성을
      * 목록만 보고 가르는 데 쓴다. 3곳과 0곳을 함께 만들어 "모두 같은 값" 을 내는 구현을 막는다.
      */
     @Test
@@ -353,7 +353,7 @@ class StaffRouteControllerTest {
      * {@code total_count}·{@code has_next}.
      *
      * <p><b>{@code size} 를 크게 줘서 페이징을 우회하면 이 넷이 아무 단언의 대상이 되지 않는다</b>
-     * (수정 라운드 1 Important 2 · Ruling 168). 그래서 여러 쪽에 걸치도록 편성해 두고 {@code size} 를
+     * (Ruling 168). 그래서 여러 쪽에 걸치도록 편성해 두고 {@code size} 를
      * 작게 준다.
      *
      * <p>마지막 쪽에서 {@code has_next} 가 {@code false} 인 것을 함께 본다 — 첫 쪽만 보면 항상
@@ -466,10 +466,10 @@ class StaffRouteControllerTest {
 
     /**
      * 삭제한 조합은 <b>같은 조합으로 다시 편성된다</b> — 삭제가 행을 지우는 것이라 유일성 자리가
-     * 비기 때문이다(수정 라운드 1 Minor 1).
+     * 비기 때문이다.
      *
      * <p>지금은 {@code route} 에 {@code deleted_at} 이 부재해 구조적으로 성립하나, 이 저장소는 소프트
-     * 삭제가 유일성 자리를 점유한 채 남는 형태를 <b>두 번</b> 밟았다(Ruling 139 · Phase 5 이월②).
+     * 삭제가 유일성 자리를 점유한 채 남는 형태를 <b>두 번</b> 밟았다(Ruling 139).
      * 나중에 누가 {@code route} 에 소프트 삭제를 도입하면 그때 이 단언이 실패해 알린다.
      */
     @Test
@@ -484,7 +484,7 @@ class StaffRouteControllerTest {
     }
 
     /**
-     * 정차지가 없는 편성에 최적화를 불러도 오류가 아니다(수정 라운드 1 Minor 2).
+     * 정차지가 없는 편성에 최적화를 불러도 오류가 아니다.
      *
      * <p>차량·요일·방향 칸을 먼저 잡아 두고 승하차지를 나중에 채우는 조작이 실재하므로, 그 중간
      * 상태에 최적화가 닿는 것은 조작 실수이지 사고가 아니다. 거부하면 화면이 설명할 이유가 부재하다.
@@ -555,7 +555,7 @@ class StaffRouteControllerTest {
         return mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", token));
     }
 
-    // ── R48 Ruling 818·819 — 목록 쪽 크기 500 · 상세 rider_count ──────────────────────
+    // ── Ruling 818·819 — 목록 쪽 크기 500 · 상세 rider_count ──────────────────────
 
     /** size 상한은 500 이다(§5.9, §1.8 의 100 예외) — 500 은 받고 501 은 422 로 거부한다(절삭하지 않는다). */
     @Test
@@ -617,7 +617,7 @@ class StaffRouteControllerTest {
                         .formatted(busId, weekday, direction, stopIds)));
     }
 
-    // ── 승하차지 한 번에 저장(2026-09-23 사용자 지시 — 고친 뒤 저장 버튼 한 번에 반영) ─────────
+    // ── 승하차지 한 번에 저장(고친 뒤 저장 버튼 한 번에 반영) ─────────
 
     /**
      * 추가·수정·삭제·순서가 <b>한 요청</b>으로 들어가 모두 반영된다. 빠진 승하차지는 노선에서만 빠지고
@@ -701,7 +701,7 @@ class StaffRouteControllerTest {
     }
 
     /**
-     * R46-KFIXBE K-2(Ruling 703) — 노선을 편성·수정·승하차지 저장하면 그 학원 회차의 확정 실패 이력이 지워져 고친 즉시 다음 틱에 다시 시도한다
+     * Ruling 703 — 노선을 편성·수정·승하차지 저장하면 그 학원 회차의 확정 실패 이력이 지워져 고친 즉시 다음 틱에 다시 시도한다
      * (노선이 없어 영구 실패하던 회차). 다른 학원 회차는 건드리지 않는다.
      */
     @Test
@@ -741,7 +741,7 @@ class StaffRouteControllerTest {
     }
 
     /**
-     * R46-KFIXBE K-1(Ruling 701) — 끝나지 않은 채 남은 옛 회차(운행일이 어제보다 이른 {@code moving})가 그 노선 승하차지의 좌표 수정을 영구히
+     * Ruling 701 — 끝나지 않은 채 남은 옛 회차(운행일이 어제보다 이른 {@code moving})가 그 노선 승하차지의 좌표 수정을 영구히
      * 막지 않는다. 자정을 넘겨 달리는 어제 운행일 회차는 여전히 잠근다.
      */
     @Test
@@ -788,7 +788,7 @@ class StaffRouteControllerTest {
                 .andExpect(jsonPath("$.error.code").value("ROUTE_NOT_FOUND"));
     }
 
-    // ── 최적화 기준점(2026-09-23 사용자 지시 — 위경도 입력칸 제거) ─────────────────────────────
+    // ── 최적화 기준점(위경도 입력칸 제거) ─────────────────────────────
 
     /**
      * 기준점을 주지 않으면 <b>방향 규칙</b>(Ruling 190 — 등원은 첫 승차지 → 학원)으로 정한다. 그 규칙대로
@@ -813,7 +813,7 @@ class StaffRouteControllerTest {
         assertThat(정차_순서(routeId)).isEqualTo(규칙으로_정한_순서);
     }
 
-    // ── 자리 고정(2026-09-23 사용자 지시 — 특정 순서나 시점·종점을 고정) ──────────────────────
+    // ── 자리 고정(특정 순서나 시점·종점을 고정) ──────────────────────
 
     /**
      * 고정한 승하차지는 <b>지금 자리</b>를 지키고 나머지만 다시 매긴다. [4,3,2,1] 을 그냥 최적화하면

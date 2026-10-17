@@ -33,7 +33,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@link RunStopRepository#claimDeparture} 의 <b>동시성</b>(R17-T1 목표 1, Ruling 307 조건부 UPDATE
+ * {@link RunStopRepository#claimDeparture} 의 <b>동시성</b>(Ruling 307 조건부 UPDATE
  * 선점) — 스케줄러 인스턴스 2개가 같은 정차 항목의 출발을 동시에 선점해도 정확히 한 번만 성공해야
  * 한다. {@link RunStopProximityClaimConcurrencyTest} 와 검사 대상 메서드만 다르고 기법은 같다 —
  * {@code WHERE departed_at IS NULL} 조건부 UPDATE 가 행 잠금에서 경합하는 것을, 첫 스레드가 커밋을

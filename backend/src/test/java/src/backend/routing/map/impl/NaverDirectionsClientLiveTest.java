@@ -44,7 +44,7 @@ class NaverDirectionsClientLiveTest {
     /** 강남역 — 시청에서 약 10km 남동쪽이다. */
     private static final GeoPoint 강남역 = new GeoPoint(new BigDecimal("37.497900"), new BigDecimal("127.027600"));
 
-    /** 여의도 — 시청·강남역을 잇는 직선에서 크게 서쪽으로 벗어난 경유지(R17 T2 실측용). */
+    /** 여의도 — 시청·강남역을 잇는 직선에서 크게 서쪽으로 벗어난 경유지. */
     private static final GeoPoint 여의도 = new GeoPoint(new BigDecimal("37.521900"), new BigDecimal("126.924500"));
 
     @Autowired
@@ -84,7 +84,7 @@ class NaverDirectionsClientLiveTest {
     }
 
     /**
-     * R15 T1 후속 — 실 NCP 응답의 {@code path} 를 실측으로 확인한다(2026-09-19 curl 실측: 시청→강남역
+     * 실 NCP 응답의 {@code path} 를 실측으로 확인한다(curl 실측: 시청→강남역
      * 322점, code=0). 고정 응답(단위·회복 시험)만으로는 <b>실제 API 가 주는 모양 자체가 우리 가정과
      * 맞는지</b>를 검증할 수 없다 — 고정 응답과 파싱이 서로 맞아떨어져도 실물과 다르면 어떤 검사로도
      * 안 드러난다.
@@ -118,8 +118,8 @@ class NaverDirectionsClientLiveTest {
     }
 
     /**
-     * R17 T2 목표 1·2 — 실 응답에 구간별 실측값({@code summary.waypoints[]}·{@code goal})이 실제로
-     * 오는지, 그 값이 직선거리 비율 배분과 <b>다른지</b>를 함께 고정한다(2026-09-19 curl 실측 —
+     * 실 응답에 구간별 실측값({@code summary.waypoints[]}·{@code goal})이 실제로
+     * 오는지, 그 값이 직선거리 비율 배분과 <b>다른지</b>를 함께 고정한다(curl 실측 —
      * 시청→여의도→강남역 총 20,278m 중 첫 구간 실측 8,116m, 직선거리 비율 배분은 약 8,503m로
      * 387m 벌어진다. 여의도가 직선 경로에서 크게 서쪽으로 벗어난 경유지라 두 값이 우연히 같아질
      * 여지가 없다).
@@ -149,12 +149,12 @@ class NaverDirectionsClientLiveTest {
     }
 
     /**
-     * R18 A 목표 1·3 -- 실제 배차에서 흔히 나는 형태를 그대로 재현한다: 등원 origin(노선 첫
+     * 실제 배차에서 흔히 나는 형태를 그대로 재현한다: 등원 origin(노선 첫
      * 정차지 좌표)과 그 정차지 자체가 같은 좌표로 나란히 들어온다({@code RunConfirmationService} 가
      * 등원 origin 을 첫 정차지 좌표로 잡고, 그 정차지에 학생이 있으면 정차지 목록에도 같은 좌표가
      * 들어간다). 걷어내기 전에는 이 요청이 NCP 를 그대로 태우면 400
      * ({@code 출발지와 도착지가 동일합니다})으로 거절돼 노선 전체가 폴백으로 떨어졌다
-     * (2026-09-19 curl 실측). 걷어낸 뒤에는 폴백 없이, 정차지 수(3)보다 많은 좌표로 도로를 그린다.
+     * (curl 실측). 걷어낸 뒤에는 폴백 없이, 정차지 수(3)보다 많은 좌표로 도로를 그린다.
      */
     @Test
     void 등원_origin과_첫_정차지가_같은_좌표라도_폴백_없이_처리된다() {

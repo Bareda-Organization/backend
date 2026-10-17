@@ -12,8 +12,7 @@ import src.backend.routing.map.spec.RoadLeg;
 
 /**
  * {@code NaverDirectionsGateway.legsOf(List, Summary)} — NCP 가 준 구간별 실측값을 우선 쓰고,
- * 값이 없거나 개수가 안 맞을 때만 {@link StraightLineLegs#distribute} 로 대체하는 분기를 고정한다
- * (R17 T2 목표 1·2·3).
+ * 값이 없거나 개수가 안 맞을 때만 {@link StraightLineLegs#distribute} 로 대체하는 분기를 고정한다.
  *
  * <p>실 HTTP 호출 없이 {@code Summary} 를 직접 조립해 검사한다 — 파싱된 이후의 분기 로직만 여기서
  * 보고, 실 응답이 이 형태로 오는지는 {@code NaverDirectionsClientLiveTest} 가 딴다.
@@ -83,7 +82,7 @@ class NaverDirectionsGatewayLegsTest {
 
     /**
      * 경유지가 없는 2지점 요청은 {@code summary.waypoints}·{@code goal} 자체가 안 온다
-     * (2026-09-19 실 API 확인). 이때는 직선거리 비율 배분({@link StraightLineLegs#distribute})으로
+     * (실 API 확인). 이때는 직선거리 비율 배분({@link StraightLineLegs#distribute})으로
      * 대체하는데, 구간이 하나뿐이라 그 결과는 곧 총합 그대로다.
      */
     @Test
@@ -131,9 +130,9 @@ class NaverDirectionsGatewayLegsTest {
     }
 
     /**
-     * R18 A 목표 1·3 -- 인접한 두 지점이 같으면(등원 origin == 그 자리에 타는 학생의 정차지) 걷어내고,
+     * 인접한 두 지점이 같으면(등원 origin == 그 자리에 타는 학생의 정차지) 걷어내고,
      * 걷어낸 자리를 거리·시간 0 인 leg 로 되돌린다. NCP 는 이런 요청을 {@code 출발지와 도착지가
-     * 동일합니다}(400)로 거절하므로(2026-09-19 실 API 확인), 걷어내지 않으면 이 구간 하나 때문에
+     * 동일합니다}(400)로 거절하므로(실 API 확인), 걷어내지 않으면 이 구간 하나 때문에
      * 노선 전체가 폴백으로 떨어진다.
      */
     @Test

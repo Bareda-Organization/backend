@@ -54,8 +54,7 @@ import src.backend.routing.map.spec.RoadRouteRequest;
  * 도로 경로 어댑터의 보호·분할·폴백을 <b>공급자에 도달한 요청</b>으로 고정한다(§7 규칙 11).
  *
  * <p>응답만 보면 아무것도 가릴 수 없다 — 재시도가 걸린 경우와 걸리지 않은 경우, 구간을 나눠 부른
- * 경우와 상한까지만 보내고 나머지를 버린 경우가 <b>전부 같은 모양의 결과</b>를 낸다. Phase 5 가
- * 실제로 그 상태였다({@code max-attempts: 3} 인데 실 호출은 1회). 그래서 이 클래스는 공급자 자리에
+ * 경우와 상한까지만 보내고 나머지를 버린 경우가 <b>전부 같은 모양의 결과</b>를 낸다({@code max-attempts: 3} 인데 실 호출은 1회인 경우가 그 예다). 그래서 이 클래스는 공급자 자리에
  * <b>로컬 HTTP 서버</b>를 세우고 도달한 요청 수와 <b>요청마다 실린 지점 수</b>를 함께 센다.
  *
  * <p>실 네이버를 부르지 않는 이유는 판정이 네트워크·요금·NCP 계정 상태에 매달리면 그 결과가 코드에
@@ -80,7 +79,7 @@ class NaverDirectionsResilienceTest {
 
     /**
      * 격벽 상한 위로 <b>더</b> 걸 거절 호출 수 — 4가 아니라 이렇게 큰 이유는 아래 두 시험이 잡는
-     * {@code NaverDirectionsGateway.unavailable} 리플렉션 경합(2026-08-29 실측)이 <b>스레드
+     * {@code NaverDirectionsGateway.unavailable} 리플렉션 경합(실측)이 <b>스레드
      * 스케줄러의 실제 선점 여부</b>에 달려 있어, 거절 호출을 몇 개만 동시에 걸면 한산한 머신에서는
      * 경합 구간이 열리지 않고 그냥 통과하기 때문이다({@code +4} 로는 단독 실행 3회 중 1회 재현,
      * {@code +500} 으로는 5회 중 5회 재현 — 조율자 실측). 경합을 여는 것은 대기시간이 아니라
@@ -190,7 +189,7 @@ class NaverDirectionsResilienceTest {
      * <p>도달한 호출 수로 세는 이유는, 결과만 보면 재시도가 걸린 경우와 걸리지 않은 경우가 <b>똑같이
      * {@code fallbackUsed=true}</b> 라 구별할 수단이 부재하기 때문이다.
      *
-     * <p>⚠ <b>이 단언은 애스펙트 순서를 고정하지 않는다</b>(2026-08-29 실측) — {@code fallbackMethod}
+     * <p>⚠ <b>이 단언은 애스펙트 순서를 고정하지 않는다</b>(실측) — {@code fallbackMethod}
      * 를 {@code @CircuitBreaker} 쪽으로 옮겨도 폴백이 예외를 던지는 한 호출 수는 그대로 3이다.
      * 순서를 무는 것은 아래 서킷 시험의 <b>재시도 없이 실패한 호출 수</b> 단언이다.
      */
@@ -360,7 +359,7 @@ class NaverDirectionsResilienceTest {
      *
      * <p>사양에서 손으로 옮긴 리터럴을 쓴다 — 위 분할 시험은 {@code maxWaypoints} 를 그대로 되받아
      * 입력을 만들므로, 설정값이 7 로 되돌아가도 분할 로직은 여전히 성립해 <b>아무것도 잡지 못한다</b>
-     * (2026-09-13 실측 — {@code max-waypoints: 7} 로 되돌려도 분할 단언 전부 통과). 상한 값 자체가
+     * (실측 — {@code max-waypoints: 7} 로 되돌려도 분할 단언 전부 통과). 상한 값 자체가
      * 17 인지는 이 시험 하나만 본다.
      */
     @Test
@@ -374,7 +373,7 @@ class NaverDirectionsResilienceTest {
      * 목표 6(BE-R1) — 정류장 10개(출발·도착 포함 12개 지점) 경로의 외부 호출 횟수 실측.
      *
      * <p>구 상한 7 이었으면 {@code ⌈11/6⌉ = 2} 회, 신 상한 17 이면 {@code ⌈11/16⌉ = 1} 회로 줄어든다
-     * (2026-09-13 스텁 공급자로 직접 실측 — {@code max-waypoints: 7} 로 되돌려 같은 시험을 다시 돌려
+     * (스텁 공급자로 직접 실측 — {@code max-waypoints: 7} 로 되돌려 같은 시험을 다시 돌려
      * {@code PROVIDER_HITS == 2} 를 확인했고, 원복 후 이 값 {@code == 1} 을 확인했다).
      */
     @Test
@@ -449,7 +448,7 @@ class NaverDirectionsResilienceTest {
      * <p>⚠ 거절 호출을 {@link #REJECTED_CALLS_TO_RACE_THE_FALLBACK} 개나 거는 이유는 격벽 자체가
      * 아니라 <b>거절이 {@code NaverDirectionsGateway.unavailable} 로 번역되는 경로</b>를 겨냥해서다
      * — 그 경로가 리플렉션 경합으로 깨지면 이 시험은 단언 실패가 아니라
-     * {@code UndeclaredThrowableException} 으로 죽는다(2026-08-29 실측).
+     * {@code UndeclaredThrowableException} 으로 죽는다(실측).
      */
     @Test
     void 동시_호출이_상한을_넘으면_공급자에_상한만큼만_들어간다() throws Exception {
@@ -739,7 +738,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * NCP Direction 응답의 최소 형태 — 거리·시간 총합과 도로 좌표(R15 T1)를 담는다.
+     * NCP Direction 응답의 최소 형태 — 거리·시간 총합과 도로 좌표를 담는다.
      *
      * <p>⚠ {@code traoptimal} 이어야 한다({@code Ruling 276}) — {@code option} 미지정 시 NCP 의 실제
      * 응답 키가 이것이다. 이 시험이 {@code trafast} 로 남아 있던 동안은 우리 파서의 결함(존재하지
@@ -756,7 +755,7 @@ class NaverDirectionsResilienceTest {
     }
 
     /**
-     * R15 T1 목표 1 — {@code route.traoptimal[].path} 를 파싱해 좌표 개수·순서를 그대로 싣는다.
+     * {@code route.traoptimal[].path} 를 파싱해 좌표 개수·순서를 그대로 싣는다.
      *
      * <p>첫·끝 값을 각각 대조하는 것은 [경도, 위도] 를 뒤집어 읽으면(위경도 반전) 좌표가 지구 반대편
      * (바다)으로 가기 때문이다 — {@code lat}·{@code lng} 가 서로 바뀐 값도 "좌표 3개" 라는 형태는

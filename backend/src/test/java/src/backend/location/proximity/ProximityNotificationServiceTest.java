@@ -95,7 +95,7 @@ class ProximityNotificationServiceTest {
         reset(proximityJudge, confirmedRouteRepository);
         String academyIds = "(SELECT id FROM academy WHERE name = '근접알림시험학원')";
         jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE 'approaching:%'");
-        // R15-T3(Ruling 308) — BoardingNotificationListener#appendStopDeparted 가 쓰는 dedup_key.
+        // Ruling 308 — BoardingNotificationListener#appendStopDeparted 가 쓰는 dedup_key.
         jdbcTemplate.update("DELETE FROM notification_log WHERE dedup_key LIKE 'stop_departed:%'");
         jdbcTemplate.update("DELETE FROM run_position WHERE run_id IN (SELECT id FROM run WHERE academy_id IN " + academyIds + ")");
         jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
@@ -126,8 +126,8 @@ class ProximityNotificationServiceTest {
 
         ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
-        // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 목표 4 로 "parent"·
-        // "student" 로 갈린다(R14).
+        // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 "parent"·
+        // "student" 로 갈린다.
         // 학부모 몫은 보호자 계정마다 한 행이라 대상 자리가 "parent:<계정>" 이다(BR-073).
         String dedupKey = "approaching:%d:%d:%d:parent:%%".formatted(runId, stopId, studentId);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
@@ -136,13 +136,13 @@ class ProximityNotificationServiceTest {
         assertThat(rows.get(0).get("type")).isEqualTo("arrive");
         assertThat(proximityNotifiedAt(runStopId)).isNotNull();
 
-        // R13 — arrive 는 studentId 를 들고 있는 단일 학생 이벤트다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // arrive 는 studentId 를 들고 있는 단일 학생 이벤트다.
         assertThat(rows.get(0).get("student_id")).as("student_id 가 채워진다").isEqualTo(studentId);
         assertThat(rows.get(0).get("student_name")).as("student_name 이 채워진다").isEqualTo("근접학생1");
     }
 
     /**
-     * R14 목표 1·3·4 — {@code arrive} 문구에 자녀 이름이 실리고(ATT-03), 그 이름이 {@code student_name}
+     * {@code arrive} 문구에 자녀 이름이 실리고(ATT-03), 그 이름이 {@code student_name}
      * 컬럼과 같으며, 학생 본인 계정에도 별도 행이 적재된다(API_SPEC §9.7 수신자 "학부모·학생").
      */
     @Test
@@ -247,7 +247,7 @@ class ProximityNotificationServiceTest {
     }
 
     /**
-     * R51 H2 부작용 — 기사가 도착을 누르지 않은 채 다음 승하차지 도착으로 강제 출발된 정차지는 {@code arrived_at} 이 비고
+     * 부작용 — 기사가 도착을 누르지 않은 채 다음 승하차지 도착으로 강제 출발된 정차지는 {@code arrived_at} 이 비고
      * {@code departed_at} 만 있다. 그 정차지를 "다음 승하차지" 로 계속 잡으면 버스가 이미 지나친 곳을 기다리느라 그 뒤 정차지의
      * "곧 도착" 알림이 영영 나가지 않는다.
      */
@@ -278,7 +278,7 @@ class ProximityNotificationServiceTest {
         assertThat(proximityNotifiedAt(passedRunStop)).as("지나친 정차지는 판정 대상이 아니다").isNull();
     }
 
-    // ── 목표 6a(R14-T2, Ruling 307) — 출발 판정: 도착 정차지에서 100m 밖으로 이탈 ──────────
+    // ── Ruling 307 — 출발 판정: 도착 정차지에서 100m 밖으로 이탈 ──────────
 
     @Test
     void 도착_정차지에서_100m_밖으로_벗어나면_departed_at이_최초_1회_기록된다() {
@@ -356,7 +356,7 @@ class ProximityNotificationServiceTest {
         long studentId = fx.student(academyId, "출발학생1");
         fx.guardianOf(academyId, studentId, "출발보호자1", now);
         // 등원 — 승차(boarded)는 그 승하차지를 출발할 때 확정 결과로 나간다. 하원은 승차 알림이 시작 때 나가고 이 자리에서는
-        // 하차만 나간다(R51 H1).
+        // 하차만 나간다.
         long runId = fx.movingRun(academyId, busId, Direction.TO_ACADEMY, now.plusHours(1), now, now);
         long versionId = fx.confirmedRouteWithVersion(runId, now);
         long runStopId = fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
@@ -387,7 +387,7 @@ class ProximityNotificationServiceTest {
 
     /** T1 이 아직 만들지 않은 위치 계약(runId·lat·lng·recordedAt·receivedAt·currentStopName)을 직접 흉내낸다. */
     /**
-     * Redis 가 죽은 동안에도 근접 판정은 {@code run_position} 최신 행으로 한다(R46 · Ruling 624) — 그 틱을 건너뛰면 그 사이 기사가 도착
+     * Redis 가 죽은 동안에도 근접 판정은 {@code run_position} 최신 행으로 한다(Ruling 624) — 그 틱을 건너뛰면 그 사이 기사가 도착
      * 처리해 "다음 미도착" 이 넘어간 정차지는 선점 한 번 못 해 <b>도착 임박 알림이 영구히 빠진다</b>.
      */
     @Test
@@ -421,7 +421,7 @@ class ProximityNotificationServiceTest {
     }
 
     /**
-     * BR-235 · R46-LATERBE L5 — 근접·출발은 한 읽기 트랜잭션에서 같이 돌지만 판정별로 격리된다. 근접 판정이 던져도 출발 판정은
+     * BR-235 — 근접·출발은 한 읽기 트랜잭션에서 같이 돌지만 판정별로 격리된다. 근접 판정이 던져도 출발 판정은
      * 기록되고(출발 이탈 정차지의 {@code departed_at}), 출발 판정이 던져도 근접 알림은 적재된다. 실패는 판정마다 한 번씩 {@code onFailure}
      * 로 알려진다. 두 판정이 같은 위치에서 모두 걸리도록 정차지 둘(도착한 1번 · 400m 북쪽 2번)을 두고 버스를 가운데(각각 약 200m)에 둔다.
      */

@@ -29,8 +29,7 @@ import src.backend.student.repository.StudentRepository;
 import testsupport.location.ProximityJudging;
 
 /**
- * {@link ProximityNotificationService#judgeDeparture} 의 <b>선정과 거리 판정의 결합</b>(R17-T1b 공백
- * 2, Ruling 307) — {@code judgeDeparture} 는 {@link RunStopRepository#findFirstArrivedNotDeparted}
+ * {@link ProximityNotificationService#judgeDeparture} 의 <b>선정과 거리 판정의 결합</b>(Ruling 307) — {@code judgeDeparture} 는 {@link RunStopRepository#findFirstArrivedNotDeparted}
  * 가 고른 정차지의 {@code stopId} 로 좌표를 다시 조회해 그 좌표로 거리 판정을 한다. 정차지 1건짜리
  * 시험({@link ProximityNotificationServiceTest})과 저장소만 보는 선정 시험
  * ({@link RunStopDepartureSelectionTest})은 각자 따로 통과해도, 그 사이의 결합 — "고른 id 의 좌표를

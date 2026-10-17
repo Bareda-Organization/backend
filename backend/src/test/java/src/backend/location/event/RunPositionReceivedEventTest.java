@@ -8,7 +8,7 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link RunPositionReceivedEvent} 생성자 인자 순서 회귀 시험 — Phase 8 에서 같은 타입 인자 2개가
+ * {@link RunPositionReceivedEvent} 생성자 인자 순서 회귀 시험 — 같은 타입 인자 2개가
  * 뒤바뀌어 컴파일은 되고 수신자 조회가 0건이 된 사고와 같은 함정을 이 이벤트도 갖는다
  * ({@code recordedAt} · {@code receivedAt} 이 둘 다 {@code OffsetDateTime}).
  *

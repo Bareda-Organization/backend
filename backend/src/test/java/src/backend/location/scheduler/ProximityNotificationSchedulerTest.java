@@ -49,8 +49,7 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 근접 알림 배치({@link ProximityNotificationScheduler}) 수준의 검증(Phase 10 이월 ②, Phase 11
- * 목표 12·13) — {@code ProximityNotificationServiceTest} 가 회차 1건의 판정 결과(알림·문턱거리·ABSENT
+ * 근접 알림 배치({@link ProximityNotificationScheduler}) 수준의 검증 — {@code ProximityNotificationServiceTest} 가 회차 1건의 판정 결과(알림·문턱거리·ABSENT
  * 배제)를 보는 것과 달리, 이 클래스는 <b>여러 회차 중 무엇을 판정 대상으로 고르는지</b>와
  * <b>인스턴스가 2개일 때 판정을 몇 번 수행하는지</b>를 본다({@code RunConfirmationSchedulerTest} 가
  * 본보기).
@@ -187,7 +186,7 @@ class ProximityNotificationSchedulerTest {
     }
 
     /**
-     * R46-KFIXBE K-1(Ruling 701) — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 판정 대상이 아니다. 그 회차를 계속 집으면 처리할 회차가
+     * Ruling 701 — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 판정 대상이 아니다. 그 회차를 계속 집으면 처리할 회차가
      * 날마다 늘고, 어제 운행일(자정을 넘겨 달리는 회차)은 여전히 판정을 받아야 한다.
      */
     @Test
@@ -237,9 +236,8 @@ class ProximityNotificationSchedulerTest {
     }
 
     /**
-     * R46-LATERBE L5(Ruling 672) — 한 틱에서 위치는 <b>묶음당 한 번</b>({@code findAll} = Redis {@code MGET} 1회) 읽고 회차마다
-     * {@code find} 를 부르지 않으며, 판정이 걸리지 않은 묶음은 읽기 트랜잭션 <b>1개</b>만 쓴다(전에는 판정마다 트랜잭션을
-     * 열었고 R57 DA-1 이 회차마다 1개에서 묶음당 1개로 줄였다). 트랜잭션 수는 Hibernate 통계의 완료 건수 차이로 센다 — 이 틱의 전체는 운행 중 회차를
+     * Ruling 672 — 한 틱에서 위치는 <b>묶음당 한 번</b>({@code findAll} = Redis {@code MGET} 1회) 읽고 회차마다
+     * {@code find} 를 부르지 않으며, 판정이 걸리지 않은 묶음은 읽기 트랜잭션 <b>1개</b>만 쓴다. 트랜잭션 수는 Hibernate 통계의 완료 건수 차이로 센다 — 이 틱의 전체는 운행 중 회차를
      * 한 쪽(page) 읽는 조회 1건 + 묶음 읽기 1건이다.
      */
     @Test

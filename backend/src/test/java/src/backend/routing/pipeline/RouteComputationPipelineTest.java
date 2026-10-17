@@ -28,7 +28,7 @@ import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * 계산 파이프라인을 <b>실제 행</b>으로 종단 검증한다(Phase 6 목표 2 · 6) — 좌표 미확보 학생의 분리와
+ * 계산 파이프라인을 <b>실제 행</b>으로 종단 검증한다 — 좌표 미확보 학생의 분리와
  * 계산 스냅샷 4항이 한 흐름에서 함께 나오는지 본다.
  *
  * <p>둘을 한 클래스에 둔 이유는 재료가 같기 때문이다. 분리가 일어난 <b>바로 그 산출물</b>에 스냅샷이

@@ -37,7 +37,7 @@ import org.springframework.context.annotation.Import;
 import testsupport.location.ProximityJudging;
 
 /**
- * T1 실제 쓰기 → T3·T4 실제 읽기를 잇는 시험(Phase 10 게이트 리뷰 R1 Critical 정정) — {@code POST
+ * 실제 쓰기 → 실제 읽기를 잇는 시험 —{@code POST
  * /runs/{runId}/position} 이 남긴 Redis 값을 손으로 만든 JSON 이 아니라 <b>진짜 소비자 코드</b>
  * ({@link ProximityNotificationService#judgeOne}·{@code GET /students/{id}/bus-position})로 읽어
  * 확인한다.
@@ -148,8 +148,8 @@ class RunPositionCrossConsumerIntegrationTest {
         //    반환해 이 단언이 실패한다 — 그것이 이 시험이 검사하는 결함이다.
         ProximityJudging.judge(proximityNotificationService, runPositionStore, runId, academyId);
 
-        // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 목표 4 로 "parent"·
-        // "student" 로 갈린다(R14).
+        // 학생 계정을 연결하지 않아 학부모 몫만 적재된다 — dedup_key 대상 자리는 "parent"·
+        // "student" 로 갈린다.
         String dedupKey = "approaching:%d:%d:%d:parent:%%".formatted(runId, stopId, studentId);
         Integer notificationCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notification_log WHERE dedup_key LIKE ?", Integer.class, dedupKey);

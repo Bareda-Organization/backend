@@ -40,7 +40,7 @@ import src.backend.global.security.AuthUser;
  * ({@link #상대가_INSERT_에서_대기할_때까지_커밋을_미룬다()}). 신호만으로 순서를 맞추면 상대의
  * 선검사가 <b>먼저 들어간 쪽의 커밋 이후</b>에 도는 경우가 생겨, 그때는 선검사가 잡아 버려
  * <b>제약 위반 번역 경로가 한 번도 실행되지 않는다</b> — 그 상태에서는 번역을 통째로 지워도 이
- * 테스트가 초록이다(수정 라운드 1 의 음성 대조 N5b 로 실측).
+ * 테스트가 초록이다(번역을 지운 상태에서 실측).
  *
  * <p>이 클래스에 {@code @Transactional} 이 부재한 것이 요점이다 — 테스트가 트랜잭션을 하나 열고
  * 있으면 두 스레드가 그것을 공유해 "서로의 커밋을 보지 못하는" 상황 자체가 만들어지지 않는다. 대신
@@ -61,14 +61,10 @@ class BusRegistrationConcurrencyTest {
      * 스레드 하나가 상대를 기다리는 상한 — <b>정상 흐름에서는 소진되지 않는다.</b> 여기 걸리면
      * 상대가 죽었거나 DB 잠금이 안 풀린 것이라, 테스트가 매달리는 대신 실패로 드러나야 한다.
      *
-     * <p>20 → 45 로 올림(Phase 10 T1). ⚠ <b>그 인상의 근거였던 진단은 F5 S3 실측으로 반증됐다.</b>
-     * "캐시된 {@code @SpringBootTest} 컨텍스트 다수가 만드는 자원 경합이 20초 예산을 넘긴다" 였는데,
-     * 45초로 올린 뒤에도 전체 실행에서 이 시험이 예산을 다 쓰고 그대로 실패했다. 그 순간 상대는
-     * 44초 내내 {@code Lock/transactionid} 로 대기 중이었다 — 즉 느려서가 아니라 <b>폴링이 상대를
-     * 보지 못했다.</b> 원인은 폴링이 읽는 {@code pg_stat_activity} 가 트랜잭션 단위로 캐시되는 것이고
-     * (PostgreSQL {@code stats_fetch_consistency} 기본값 {@code cache}), 회차마다
-     * {@code pg_stat_clear_snapshot()} 으로 스냅숏을 버리는 것으로 고쳤다. 이 값은 이제 상대가
-     * 죽었을 때의 상한으로만 남는다.
+     * <p>폴링이 읽는 {@code pg_stat_activity} 는 트랜잭션 단위로 캐시된다(PostgreSQL
+     * {@code stats_fetch_consistency} 기본값 {@code cache}). 그래서 회차마다
+     * {@code pg_stat_clear_snapshot()} 으로 스냅숏을 버려야 상대의 {@code Lock/transactionid} 대기가 보인다.
+     * 이 값은 상대가 죽었을 때의 상한이다.
      */
     private static final long TIMEOUT_SECONDS = 45;
 

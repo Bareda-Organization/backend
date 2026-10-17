@@ -159,7 +159,7 @@ class RunPositionCommandServiceTest {
     }
 
     /**
-     * R51 Ruling 855 — 하원 최종 지점에 도착했지만 미하차 학생이 남아 종료가 보류된 회차(status 는 {@code moving} 그대로,
+     * Ruling 855 — 하원 최종 지점에 도착했지만 미하차 학생이 남아 종료가 보류된 회차(status 는 {@code moving} 그대로,
      * {@code finish_pending=true})에서도 위치 송신을 받는다. 남은 학생의 학부모가 버스 위치를 봐야 하기 때문이다.
      */
     @Test
