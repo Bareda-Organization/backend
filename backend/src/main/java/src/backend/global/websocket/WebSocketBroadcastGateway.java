@@ -27,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.observability.metrics.WebSocketPublishMetrics;
 
 /**
- * WebSocket 방송 송신을 한 곳으로 모은다(목표 4·5·6·10) — 리스너마다 {@code SimpMessagingTemplate}
+ * WebSocket 방송 송신을 한 곳으로 모은다 — 리스너마다 {@code SimpMessagingTemplate}
  * 을 직접 들고 목적지 문자열을 조립하면, 채널 4종 중 하나를 빠뜨려도 컴파일도 테스트도 걸리지 않는
  * 조용한 누락이 된다. {@code run_started}·{@code run_ended}·{@code stop_arrived} 는 감사 대상(§7)이
  * 완전히 같은 4채널(회차 배치 학생 전원의 개인 채널 + 매니저 + 학원 + 관리자)이라 그 팬아웃을

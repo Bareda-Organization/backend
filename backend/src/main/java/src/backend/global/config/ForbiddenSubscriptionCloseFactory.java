@@ -17,7 +17,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.security.WebSocketCloseCodes;
 
 /**
- * SUBSCRIBE 인가 실패의 종료 코드를 4403 으로 바꾼다(목표 7, API_SPEC §7) — Spring 은 ERROR 프레임을
+ * SUBSCRIBE 인가 실패의 종료 코드를 4403 으로 바꾼다(API_SPEC §7) — Spring 은 ERROR 프레임을
  * 보낸 뒤 {@code session.close(CloseStatus.PROTOCOL_ERROR)} 를 하드코딩해서 부른다
  * ({@code StompSubProtocolHandler#sendErrorMessage}·{@code #sendToClient} 의 finally 블록, Spring
  * 7.0.8 확인). 커스텀 {@code StompSubProtocolErrorHandler}({@link StompErrorFrameHandler})는 프레임

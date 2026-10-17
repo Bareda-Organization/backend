@@ -31,8 +31,8 @@ import src.backend.notification.repository.NotificationLogRepository;
  * 속할 때만 {@code true}로 바꾸고 {@code acked_at}에 처리 시각을 남긴다 — 그 외 종류는 읽음 처리를
  * 거쳐도 {@code acked}가 {@code false}로 남는다. {@link NotificationLog#ack}가 이미 {@code true}인
  * 행에는 다시 손대지 않아(no-op) 첫 확인 시각이 이후 재요청으로 갱신되지 않는다. 관계자 알림 로그
- * ({@code GET /staff/notifications}, §5.17 미확인 배지, T3 담당)가 이 필드를 그대로 읽으므로,
- * {@link #IMPORTANT_TYPES}를 넓히거나 좁히면 그 배지의 대상도 함께 바뀐다 — 변경 시 T3 소유 코드까지
+ * ({@code GET /staff/notifications}, §5.17 미확인 배지)가 이 필드를 그대로 읽으므로,
+ * {@link #IMPORTANT_TYPES}를 넓히거나 좁히면 그 배지의 대상도 함께 바뀐다 — 변경 시 관계자 알림 코드까지
  * 함께 확인해야 한다.
  */
 @Service

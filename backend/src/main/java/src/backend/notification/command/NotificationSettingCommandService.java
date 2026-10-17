@@ -21,7 +21,7 @@ import src.backend.notification.repository.NotificationSettingRepository;
  * 알림 설정 수정(API_SPEC §3.14 PATCH) — 학부모·학생 전용. get-or-create 는
  * {@link src.backend.notification.query.NotificationSettingQueryService} 와 같은 근거다.
  *
- * <p>요청 바디를 고정 3필드 레코드가 아니라 {@code Map<String, Boolean>} 으로 받는다 — 목표 9
+ * <p>요청 바디를 고정 3필드 레코드가 아니라 {@code Map<String, Boolean>} 으로 받는다 —
  * ("설정 대상 밖 항목 전달 시 422")가 요구하는 것은 <b>알 수 없는 키가 왔다는 사실 자체를 서비스가
  * 볼 수 있어야</b> 하는데, 고정 3필드 레코드에 자동 바인딩하면 Jackson 이 미지정 키를 조용히
  * 버려 그 사실이 아예 도달하지 않는다.

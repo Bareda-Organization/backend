@@ -68,7 +68,7 @@ public class RunStartedNotificationListener {
     private final NotificationComposer<RunStartedChildSubject> runStartedChildComposer;
 
     /**
-     * 운행 시작(목표 5, §9.7) — 관계자 전원 + 명단에 남은(absent 제외) 학생의 보호자·본인에게 적재한다. 수신자 전원을
+     * 운행 시작(§9.7) — 관계자 전원 + 명단에 남은(absent 제외) 학생의 보호자·본인에게 적재한다. 수신자 전원을
      * 모아 한 번에 적재한다({@link NotificationOutbox#appendAll}) — 회차 행 잠금 아래에서 문장 수가 수신자 수에
      * 비례하지 않게 한다.
      */
@@ -87,7 +87,7 @@ public class RunStartedNotificationListener {
 
     /**
      * 관계자 — 그 학원 재직 전원(회차의 특정 배치와 무관하다, {@link IntentNotificationListener} 와
-     * 같은 대상 규칙). 호차를 채운다(목표 5) — {@link RunStartedEvent} 는 runId 만 나르므로
+     * 같은 대상 규칙). 호차를 채운다 — {@link RunStartedEvent} 는 runId 만 나르므로
      * Run → Bus 를 한 번 더 거친다(수신자 전원이 같은 차량을 가리켜 순회 전에 한 번만 조회).
      */
     private List<NotificationDraft> draftsForStaff(RunStartedEvent event, NotificationMessage message) {
@@ -103,7 +103,7 @@ public class RunStartedNotificationListener {
                 .toList();
     }
 
-    /** 목표 5 — 학부모·학생 알림은 이미 자녀 이름이 있어 호차까지는 요구되지 않는다(정본 범위: 관계자 알림). */
+    /** 학부모·학생 알림은 이미 자녀 이름이 있어 호차까지는 요구되지 않는다(정본 범위: 관계자 알림). */
     private String busNoOf(Long runId, Long academyId) {
         return runRepository.findByIdAndAcademyId(runId, academyId)
                 .map(Run::getBusId)

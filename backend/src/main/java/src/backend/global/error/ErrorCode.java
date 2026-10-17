@@ -292,12 +292,12 @@ public enum ErrorCode {
     // 추측해도 다른 정보가 새지 않기 때문이다.
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다"),
 
-    // ── 지연 알림(F3 S1, NTF-06·M-05, API_SPEC §4.9) ───────────────────────────
+    // ── 지연 알림(NTF-06·M-05, API_SPEC §4.9) ───────────────────────────
     // 같은 회차의 직전 발신과 minutes·reason·message 가 전부 같을 때(Ruling 253) — 지연 알림은
     // 갱신 의미라 시간 상수(재요청 금지 시간)를 두지 않고, 내용이 그대로면 거부한다.
     DELAY_DUPLICATE(HttpStatus.CONFLICT, "이미 같은 내용으로 발송된 지연 알림입니다"),
 
-    // ── 강제 확정 콘솔 개입(F3 S2, API_SPEC §6.14) ─────────────────────────────
+    // ── 강제 확정 콘솔 개입(API_SPEC §6.14) ─────────────────────────────
     // 회차가 idle 이 아닐 때의 강제 확정 시도 — 409 인 이유는 RUN_ALREADY_STARTED 와 같다(권한이
     // 아니라 대상 자원의 상태가 막는다).
     RUN_NOT_IDLE(HttpStatus.CONFLICT, "idle 상태의 회차가 아닙니다"),
@@ -310,7 +310,7 @@ public enum ErrorCode {
     // 취소된 회차는 위 RUN_NOT_MOVING · RUN_CANCELED 를 그대로 쓴다. 대상 자원의 상태가 막는 것이라 409 다.
     RUN_NOT_STALE(HttpStatus.CONFLICT, "운행일이 오늘 또는 어제인 회차는 강제 종료할 수 없습니다"),
 
-    // ── 버스 간 이동(F4 S1, API_SPEC §5.8, RTE-07, Ruling 256) ──────────────────
+    // ── 버스 간 이동(API_SPEC §5.8, RTE-07, Ruling 256) ──────────────────
     // 학생이 출발 회차의 당일 명단(확정 전 예정 명단 — 요일별 주소·탑승 의사·강제 추가 기준)에
     // 없을 때. 권한이 아니라 대상 자원의 현재 상태가 막는 것이라 409 다.
     STUDENT_NOT_IN_RUN(HttpStatus.CONFLICT, "학생이 해당 회차 명단에 없습니다"),

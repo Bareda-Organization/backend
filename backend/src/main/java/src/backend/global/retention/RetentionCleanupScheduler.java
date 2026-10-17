@@ -26,7 +26,7 @@ import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 보존 정리 배치의 진입점(목표 6·7, ERD §7 · TECH_DECISIONS §12.2 · Ruling 243) — 보유 기간이 지난
+ * 보존 정리 배치의 진입점(ERD §7 · TECH_DECISIONS §12.2 · Ruling 243) — 보유 기간이 지난
  * 5개 테이블({@code notification_log} · {@code run_position} · {@code refresh_token} ·
  * {@code link_code} · {@code audit_log})의 행을 회차(배치) 단위로 나눠 지운다(Ruling 324 — {@code link_request}
  * 삭제로 5개→4개, Ruling 445 — {@code audit_log} 편입으로 4개→5개). 여기에 <b>퇴원 90일이 지난 학생의 개인정보 파기</b>
@@ -35,7 +35,7 @@ import src.backend.student.repository.StudentRepository;
  * {@code notification_log} 와 같은 14일로 지우고, 회차 종료 24시간이 지난 멱등 키를 비운다({@link IdempotencyKeyExpiry} — 승하차 이력 · 연락 기록의
  * 키 값만 비우고 행은 무기한 보존한다).
  *
- * <p><b>여기 없는 테이블은 지우지 않는 것이 이 클래스의 본체다</b>(목표 6, ERD §7.1·§7.2 무기한 보존
+ * <p><b>여기 없는 테이블은 지우지 않는 것이 이 클래스의 본체다</b>(ERD §7.1·§7.2 무기한 보존
  * 대상 — {@code rider_status_history} · {@code no_show_case} ·
  * {@code no_show_contact} · {@code exception_report} · {@code emergency_alert} · {@code route_version} ·
  * {@code run_stop}). 새 테이블을 이 배치에 넣으려면 {@link RetentionPolicy} 에 상수를 먼저 더해야
@@ -44,7 +44,7 @@ import src.backend.student.repository.StudentRepository;
  * <p><b>{@code run_position} 은 파티션 DROP, 나머지는 행 단위 DELETE</b>(Ruling 243 → Ruling 670) — 하루
  * 약 27만 행이 쌓이는 위치 이력만 일 단위 파티션이라 만료된 날의 파티션을 통째로 지운다
  * ({@link RunPositionPartitionManager#dropExpired}). 다른 테이블은 한 번의 삭제 호출을
- * {@link RetentionPolicy#BATCH_SIZE} 로 잘라 여러 회차에 나눠 지운다(목표 7) — 상한 없이 전건을 한 트랜잭션에서 지우면
+ * {@link RetentionPolicy#BATCH_SIZE} 로 잘라 여러 회차에 나눠 지운다 — 상한 없이 전건을 한 트랜잭션에서 지우면
  * 오래 쌓인 테이블에서 행 잠금을 길게 붙들어 운영 중 조회를 막는다.
  *
  * <p><b>테이블마다 개별 트랜잭션이다</b> — 조회({@code findIdsForRetentionCleanup})와 삭제
@@ -217,7 +217,7 @@ public class RetentionCleanupScheduler {
     }
 
     /**
-     * 배치 상한(목표 7)만큼씩 반복해 지운다 — 한 회차가 상한만큼 지웠으면(= 아직 남았을 수 있으면)
+     * 배치 상한만큼씩 반복해 지운다 — 한 회차가 상한만큼 지웠으면(= 아직 남았을 수 있으면)
      * 같은 틱 안에서 다음 회차로 이어가고, 상한보다 적게 지웠으면(= 다 지웠으면) 멈춘다.
      */
     private void cleanUpTable(String tableName, OffsetDateTime cutoff, int batchSize,

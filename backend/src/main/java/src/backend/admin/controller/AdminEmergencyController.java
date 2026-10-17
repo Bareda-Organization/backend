@@ -31,8 +31,8 @@ public class AdminEmergencyController {
     private final AdminEmergencyQueryService adminEmergencyQueryService;
 
     /**
-     * 전 학원 비상 알림 목록, 미확인 경과 시간 포함(목표 11) — {@code status}·{@code academy_id}
-     * 쿼리 필터(§6.11, R6 목표 3)는 프런트가 이미 보내고 있던 값이다. {@code @ModelAttribute} 가
+     * 전 학원 비상 알림 목록, 미확인 경과 시간 포함 — {@code status}·{@code academy_id}
+     * 쿼리 필터(§6.11)는 프런트가 이미 보내고 있던 값이다. {@code @ModelAttribute} 가
      * 아니라 {@code @RequestParam} 인 이유는 {@link src.backend.audit.controller.AuditLogController}
      * 와 같다 — 쿼리 파라미터는 Jackson SNAKE_CASE 전략을 거치지 않는다.
      */

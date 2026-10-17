@@ -72,7 +72,7 @@ public class AdminEmergencyQueryService {
     private static final Limit LIST_LIMIT = Limit.of(PageParams.UNPAGED_LIST_MAX);
 
     /**
-     * {@code status}·{@code academy_id} 쿼리 필터(§6.11, R6 목표 3) — 프런트(academy-web
+     * {@code status}·{@code academy_id} 쿼리 필터(§6.11) — 프런트(academy-web
      * {@code emergencies.ts})가 이미 보내고 있던 값을 서버가 그동안 무시하고 있었다(Ruling 294).
      * {@code status} 값·기본값·우선순위는 {@link EmergencyStatusFilter} 가 정의한다(§5.16 과
      * 공유, Ruling 297). {@code academy_id} 는 존재 검증을 하지 않는다 — §6.11 에러표가 "§1.11
@@ -142,7 +142,7 @@ public class AdminEmergencyQueryService {
     }
 
     /**
-     * 경과 시간(목표 11)의 종료 시점 — 취소·확인으로 이미 끝난 신고는 그 시각에서 멈춘다({@link
+     * 경과 시간의 종료 시점 — 취소·확인으로 이미 끝난 신고는 그 시각에서 멈춘다({@link
      * AdminEmergencyItemResponse} 자바독). 아직 열려 있는 신고만 {@code now} 까지 계속 흐른다.
      */
     private AdminEmergencyItemResponse toItem(EmergencyAlert alert, Academy academy, Manager raiser, Account acker,

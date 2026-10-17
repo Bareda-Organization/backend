@@ -22,7 +22,7 @@ import src.backend.student.repository.StudentRepository;
  * <p>{@code @TransactionalEventListener} 가 아니라 평범한 {@code @EventListener} 다 — 이유는
  * {@link SignupDecidedNotificationListener} 와 같다. {@link ChangeRequestDecidedEvent} 는
  * {@code ChangeRequestDecisionService.decide} 의 아직 열린 트랜잭션 안에서 발행되므로, 그 트랜잭션이
- * 실패로 롤백되면(목표 7) 이 적재도 함께 취소된다 — 승인이 실패했는데 통지만 나가는 경우가 생기지
+ * 실패로 롤백되면 이 적재도 함께 취소된다 — 승인이 실패했는데 통지만 나가는 경우가 생기지
  * 않는다.
  */
 @Component

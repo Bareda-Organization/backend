@@ -109,7 +109,7 @@ public class StaffRunLiveQueryService {
 
         // state.lat() 은 유실(stale) 이어도 마지막 값을 그대로 담아 온다(RunLiveState 자바독) —
         // null 로 지울지는 이 소비 측이 정해야 해서, 유실 판정은 stale() 로 본다. lat() != null 로
-        // 보면 목표 7(§5.19 2분 유실 시 position=null)이 항상 값을 채워 내보내는 결함이 된다.
+        // 보면 (§5.19 2분 유실 시 position=null)이 항상 값을 채워 내보내는 결함이 된다.
         StaffRunLiveResponse.Position position = state.lat() != null && !state.stale()
                 ? new StaffRunLiveResponse.Position(state.lat(), state.lng(), state.recordedAt())
                 : null;

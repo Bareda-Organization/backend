@@ -33,7 +33,7 @@ import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 
 /**
- * 메인 관리자 콘솔의 학원 1곳 실시간 관제 조회(API_SPEC §6.8, O-05, 목표 8·9).
+ * 메인 관리자 콘솔의 학원 1곳 실시간 관제 조회(API_SPEC §6.8, O-05).
  *
  * <p>{@code eta} 계열 값은 전부 {@code run_stop.eta} 저장값을 읽기만 한다 — 좌표·거리로 다시
  * 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재). 좌표는 공용

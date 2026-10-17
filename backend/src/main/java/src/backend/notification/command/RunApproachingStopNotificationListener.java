@@ -33,12 +33,12 @@ public class RunApproachingStopNotificationListener {
     /**
      * {@code dedup_key} 형태 — 대상 자리는 runId·stopId·studentId·수신자 구분(parent/student) 이다.
      * <b>시각을 넣지 않는다</b> — 최초 1회 발송의 실제 강제자는 {@code RunStopRepository
-     * #claimProximityNotice} 의 조건부 UPDATE(목표 15)이고, 이 키는 그 선점이 새더라도 같은 정차지·
+     * #claimProximityNotice} 의 조건부 UPDATE 이고, 이 키는 그 선점이 새더라도 같은 정차지·
      * 같은 학생·같은 수신자에게 두 번 적재되는 것을 막는 마지막 방어선이다. 시각을 넣으면 재판정
      * 시각마다 값이 달라져 이 방어선이 통과만 하는 장식이 된다(소비 시점 시계로
      * dedup_key 를 구성해 매번 새 값이 나온 것과 같은 실수).
      *
-     * <p>마지막 자리에 수신자 구분을 더한 것(목표 4) — 학부모·학생 두 행이 같은 runId·stopId·
+     * <p>마지막 자리에 수신자 구분을 더한 것 — 학부모·학생 두 행이 같은 runId·stopId·
      * studentId 를 공유해, 구분이 없으면 두 번째 적재가 UNIQUE(dedup_key) 위반으로 막힌다.
      */
     private static final String DEDUP_KEY_FORMAT = "approaching:%d:%d:%d:%s";
@@ -53,7 +53,7 @@ public class RunApproachingStopNotificationListener {
 
     @EventListener
     public void appendRunApproachingStop(RunApproachingStopEvent event) {
-        // 문구·student_name 컬럼이 같은 값을 쓰도록(목표 3) 한 번만 조회해 두 수신자에 그대로 재사용한다.
+        // 문구·student_name 컬럼이 같은 값을 쓰도록 한 번만 조회해 두 수신자에 그대로 재사용한다.
         String studentName = studentRepository.findById(event.studentId()).map(Student::getName).orElse(null);
         NotificationMessage message = runApproachingStopComposer.compose(new RunApproachingStopSubject(studentName));
 

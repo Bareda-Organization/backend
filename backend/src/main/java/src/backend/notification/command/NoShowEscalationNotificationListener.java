@@ -18,7 +18,7 @@ import src.backend.student.entity.Student;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 미승차 에스컬레이션 알림(목표 1, API_SPEC §4.8) 적재 — {@link BoardingNotificationListener} 와
+ * 미승차 에스컬레이션 알림(API_SPEC §4.8) 적재 — {@link BoardingNotificationListener} 와
  * 같은 형태로 도메인 이벤트를 구독해 {@link NotificationOutbox} 에만 적는다. 이벤트 발행처
  * ({@code NoShowEscalationPersistence})가 이 클래스를 직접 부르지 않는다(§7 규칙 17).
  *

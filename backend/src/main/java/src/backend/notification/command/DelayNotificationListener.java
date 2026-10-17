@@ -60,7 +60,7 @@ public class DelayNotificationListener {
     public void appendDelayNotice(DelayRequestedEvent event) {
         DelaySubject subject = new DelaySubject(event.reason(), event.minutes(), event.message());
         List<NotificationDraft> drafts = new ArrayList<>();
-        // 관계자 알림에만 호차를 채운다(목표 5, 정본 범위) — 학부모·학생 알림은 자녀 이름이 있다.
+        // 관계자 알림에만 호차를 채운다(정본 범위) — 학부모·학생 알림은 자녀 이름이 있다.
         String busNo = busNoOf(event.runId(), event.academyId());
         for (DelayNoticeRecipient recipient : event.staffRecipients()) {
             drafts.add(draft(event, recipient, Role.STAFF, delayComposer.compose(subject), null, busNo));
@@ -96,7 +96,7 @@ public class DelayNotificationListener {
                 student != null ? student.getId() : null, student != null ? student.getName() : null, busNo);
     }
 
-    /** {@link DelayRequestedEvent} 는 runId 만 나르므로 Run → Bus 를 한 번 더 거친다(목표 5). */
+    /** {@link DelayRequestedEvent} 는 runId 만 나르므로 Run → Bus 를 한 번 더 거친다. */
     private String busNoOf(Long runId, Long academyId) {
         return runRepository.findByIdAndAcademyId(runId, academyId)
                 .map(Run::getBusId)

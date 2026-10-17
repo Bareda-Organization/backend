@@ -9,7 +9,7 @@ package src.backend.global.security.authz;
  * 클래스(와 표)가 정본이다. {@code EXCEPTION_REPORT_READ} 는 §6.2 표에 신설된 권한이다 — §6.1 매트릭스는 관계자의
  * 예외 보고 조회를 이미 "조회"로 표기했으나 §6.2 권한 카탈로그에 대응 상수가 누락돼 있었다.
  *
- * <p>{@code RUN_FORCE_CONFIRM} 은 F3 S2(API_SPEC §6.14)가 신설했다 — {@code EXCEPTION_REPORT_READ}
+ * <p>{@code RUN_FORCE_CONFIRM} 은 API_SPEC §6.14 가 신설했다 — {@code EXCEPTION_REPORT_READ}
  * 때와 같은 형태로, §6.2 표에는 아직 대응 행이 없다(문서 쪽 반영은 이 클래스가 아니라 §6.2 표 소유
  * 좌석의 몫이다).
  *
@@ -141,7 +141,7 @@ public final class Permissions {
     /** 감사 · 접속 이력(SYS-01). 메인관리자. */
     public static final String AUDIT_READ = "AUDIT_READ";
 
-    /** idle 로 정체된 회차의 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 §6.2 신설). 메인관리자. */
+    /** idle 로 정체된 회차의 강제 확정 콘솔 개입(API_SPEC §6.14, §6.2 신설). 메인관리자. */
     public static final String RUN_FORCE_CONFIRM = "RUN_FORCE_CONFIRM";
 
     /**

@@ -7,7 +7,7 @@ import java.time.Period;
 import org.springframework.stereotype.Component;
 
 /**
- * 보존 정리 배치가 무엇을 언제 지우는지 정하는 <b>유일한 지점</b>(목표 6·7, TECH_DECISIONS §12.2
+ * 보존 정리 배치가 무엇을 언제 지우는지 정하는 <b>유일한 지점</b>(TECH_DECISIONS §12.2
  * "사양이 고정한 값은 코드 상수") — 보유 일수 · 배치 상한을 여기 상수로만 두고 yml 에는 두지 않는다.
  * {@code RetentionCleanupScheduler} 의 실행 주기(cron)만 yml 이 받는다.
  *
@@ -59,7 +59,7 @@ public class RetentionPolicy {
     public static final Duration IDEMPOTENCY_KEY_RETENTION = Duration.ofHours(24);
 
     /**
-     * 한 번의 삭제 호출이 지우는 행 수 상한(목표 7) — 상한 없이 전건을 한 트랜잭션에서 지우면 오래
+     * 한 번의 삭제 호출이 지우는 행 수 상한 — 상한 없이 전건을 한 트랜잭션에서 지우면 오래
      * 쌓인 테이블에서 행 잠금을 길게 붙들어 운영 중 조회를 막는다. 상한을 넘는 나머지는 스케줄러가
      * 같은 틱 안에서 반복 호출해 여러 회차로 나눠 지운다.
      */

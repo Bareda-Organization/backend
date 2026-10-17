@@ -227,7 +227,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     /**
-     * SUBSCRIBE 거부 시 종료 코드를 4403 으로 바꾸는 세션 데코레이터를 등록한다(목표 7) —
+     * SUBSCRIBE 거부 시 종료 코드를 4403 으로 바꾸는 세션 데코레이터를 등록한다 —
      * {@link ForbiddenSubscriptionCloseFactory} 참고. 세션 송신 한도(버퍼·시간)도 여기서 명시한다
      * — 미설정 시 Spring 기본값(512KB·10초)을 조용히 상속하기 때문이다(FIX-VERIFY.md §5-1).
      */

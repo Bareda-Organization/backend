@@ -3,10 +3,10 @@ package src.backend.monitoring.dto;
 import java.util.List;
 
 /**
- * 메인 관리자 콘솔의 회차별 승하차지·학생 명단(API_SPEC §6.9, O-06, 목표 10·11).
+ * 메인 관리자 콘솔의 회차별 승하차지·학생 명단(API_SPEC §6.9, O-06).
  *
  * <p>{@code photo_url} · {@code student_phone} · {@code guardian_phone} 전부 원문이다 — 마스킹하지
- * 않는다(§6.9 원문 표, 목표 10 앞항). L3 조회라 SYS-01 감사 대상이며,
+ * 않는다(§6.9 원문 표). L3 조회라 SYS-01 감사 대상이며,
  * {@link src.backend.monitoring.query.AdminRunRosterQueryService} 가 조회마다 감사 로그를 남긴다.
  */
 public record AdminRunRosterResponse(List<StopGroup> stops) {
