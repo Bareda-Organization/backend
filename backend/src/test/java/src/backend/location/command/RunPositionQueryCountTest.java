@@ -207,10 +207,15 @@ class RunPositionQueryCountTest {
         org.mockito.Mockito.clearInvocations(gateway);
 
         assertThat(직접_보내고_SQL_수를_센다(seeded)).as("결석 뒤 첫 위치 — 학생 목록 1건 더").isEqualTo(4);
-        org.mockito.Mockito.verify(gateway, org.mockito.Mockito.never()).send(
-                org.mockito.ArgumentMatchers.eq(WebSocketDestinations.studentRun(leaving)), any(), any(), any(), any());
-        org.mockito.Mockito.verify(gateway).send(org.mockito.ArgumentMatchers.eq(WebSocketDestinations.studentRun(staying)),
-                any(), any(), any(), any());
+        // 위치 1건 = 방송 1건 — 그 방송의 목적지 전부에서 결석한 학생 채널만 빠져 있어야 한다
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.List<src.backend.global.websocket.BroadcastDelivery>> deliveries =
+                org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+        org.mockito.Mockito.verify(gateway).broadcast(org.mockito.ArgumentMatchers.eq("position"),
+                org.mockito.ArgumentMatchers.eq(seeded.runId()), any(), deliveries.capture());
+        assertThat(deliveries.getValue()).flatExtracting(src.backend.global.websocket.BroadcastDelivery::destinations)
+                .doesNotContain(WebSocketDestinations.studentRun(leaving))
+                .contains(WebSocketDestinations.studentRun(staying));
         assertThat(직접_보내고_SQL_수를_센다(seeded)).as("그 다음 위치는 다시 3건").isEqualTo(3);
     }
 
