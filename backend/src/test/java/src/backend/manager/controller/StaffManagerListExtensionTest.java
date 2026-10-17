@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -30,7 +31,6 @@ import jakarta.persistence.PersistenceContext;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -176,7 +176,7 @@ class StaffManagerListExtensionTest {
         }
         for (var entry : expected.entrySet()) {
             var request = delete("/api/v1/staff/managers/" + world.managers().get(entry.getKey()))
-                    .header("Authorization", 토큰(world.academyId()));
+                    .header("Authorization", 관계자_토큰(tokenProvider, world.academyId()));
             if (entry.getValue() > 0) {
                 mockMvc.perform(request).andExpect(status().isConflict())
                         .andExpect(jsonPath("$.error.code").value("MANAGER_ASSIGNED"));
@@ -221,7 +221,7 @@ class StaffManagerListExtensionTest {
         assertThat((int) JsonPath.read(filtered, "$.data.counts.assigned_today")).as("재직 매니저 중 오늘 배치 유무별 수").isEqualTo(1);
         assertThat((int) JsonPath.read(filtered, "$.data.counts.unassigned_today")).isEqualTo(6);
         mockMvc.perform(get("/api/v1/staff/managers").param("assigned_today", "abc")
-                .header("Authorization", 토큰(world.academyId())))
+                .header("Authorization", 관계자_토큰(tokenProvider, world.academyId())))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
@@ -229,7 +229,7 @@ class StaffManagerListExtensionTest {
     // ── 도우미 ────────────────────────────────────────────────────────────
 
     private String 목록(long academyId, String query) throws Exception {
-        return mockMvc.perform(get("/api/v1/staff/managers?" + query).header("Authorization", 토큰(academyId)))
+        return mockMvc.perform(get("/api/v1/staff/managers?" + query).header("Authorization", 관계자_토큰(tokenProvider, academyId)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
@@ -245,10 +245,5 @@ class StaffManagerListExtensionTest {
 
     private OffsetDateTime at(LocalDate date, int hour) {
         return date.atTime(hour, 0).atOffset(ZoneOffset.ofHours(9));
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

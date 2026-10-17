@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import com.jayway.jsonpath.JsonPath;
@@ -216,9 +216,5 @@ class ManagerDeletionLoginTest {
                 "$.data.items[?(@.name == '%s')].request_id".formatted(name));
         assertThat(ids).as("관계자 큐에 %s 의 요청이 정확히 1건 떠야 한다", loginId).hasSize(1);
         return Long.parseLong(ids.get(0));
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
