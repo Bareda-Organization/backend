@@ -18,10 +18,12 @@ alerting:
 scrape_configs:
   # Spring Boot — /actuator 는 외부(nginx)에서 404 이지만 이 컨테이너 네트워크 안에서는 열려 있다.
   # 앱 포트(8080)가 아니라 관리 포트(8081)를 긁는다 — 앱 커넥터가 동시 연결 상한에 닿아도 지표와 `up` 이 끊기지 않는다(Ruling 740).
+  # 수집 대상은 파일로 둔다(file_sd) — 백엔드 1대 구성은 backend-targets.single.yml, 2대 구성은 docker-compose.scale.yml 이 덮는 backend-targets.scale.yml.
+  # 두 대여도 job 은 backend 하나이고 `instance` 라벨(backend:8081 · backend2:8081)만 갈린다 — 경보 규칙은 sum by (job, …) 로 합친다.
   - job_name: backend
     metrics_path: /actuator/prometheus
-    static_configs:
-      - targets: ['backend:8081']
+    file_sd_configs:
+      - files: ['/etc/prometheus/backend-targets.yml']
 
   - job_name: node
     static_configs:

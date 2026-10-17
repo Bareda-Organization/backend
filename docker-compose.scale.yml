@@ -1,0 +1,45 @@
+# 백엔드 2대 오버레이 — docker-compose.prod.yml 에 얹어 쓴다. 단독으로는 못 돈다.
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.scale.yml --env-file /opt/school-bus/.env up -d
+#
+# 이 파일이 하는 일
+#   1. backend2 를 더한다 — backend 와 같은 정의(이미지 · 환경 · 사진 볼륨 · 헬스체크)를 extends 로 그대로 쓴다.
+#   2. 두 대 모두 cpus 2 · mem_limit 3072m · stop_grace_period 35s 를 명시한다(컨테이너 1대의 크기 — Ruling 900).
+#      ⚠ 3GB 두 대 = 6GB 다. prod 의 t3.medium(4GB)에는 안 들어간다 — 호스트 메모리는 DEPLOYMENT.md §15 의 표를 본다.
+#   3. proxy 의 업스트림을 두 서버(backend · backend2)로 바꾼다 — backend-pool.scale.conf. nginx.prod.conf · WebSocket 프록시 설정은 그대로다.
+#   4. proxy 가 두 대 모두 healthy 일 때 뜬다.
+#   5. Prometheus 가 두 대를 같은 job(backend)에서 긁는다 — backend-targets.scale.yml.
+#
+# 배포는 infra/scripts/deploy.sh 가 이 파일이 있으면 두 대를 한 대씩 다시 시작한다(rolling-restart.sh · nginx 는 다시 시작하지 않는다).
+# 로컬에서 같은 구성을 띄워 확인하는 방법: infra/scripts/check-cross-instance.sh · check-instance-failover.sh · check-rolling-restart.sh.
+services:
+  backend:
+    cpus: 2
+    mem_limit: 3072m
+    stop_grace_period: 35s
+
+  backend2:
+    extends:
+      file: docker-compose.prod.yml
+      service: backend
+    cpus: 2
+    mem_limit: 3072m
+    stop_grace_period: 35s
+    # extends 는 depends_on 을 물려주지 않는다 — DB · Redis 가 준비된 뒤에 뜨도록 다시 적는다.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  proxy:
+    volumes:
+      # prod 파일의 같은 목적지(backend-pool.single.conf)를 이 파일로 바꾼다.
+      - ./infra/proxy/backend-pool.scale.conf:/etc/nginx/backend-pool.conf:ro
+    depends_on:
+      backend2:
+        condition: service_healthy
+
+  prometheus:
+    volumes:
+      - ./infra/observability/prometheus/backend-targets.scale.yml:/etc/prometheus/backend-targets.yml:ro

@@ -55,7 +55,7 @@ After startup, test APIs with Swagger UI — put the login response's `access_to
 
 **Local postgres intentionally has no persistent volume** (since 2026-07-22, so repeated Swagger testing always returns to the seed state) — after `docker compose down` (removes the containers), `docker compose up -d postgres redis` makes Flyway rebuild the schema (V1~) + QA Mock seed (`db/qa-seed` V900·V901) every time (no manual `DROP SCHEMA`/`volume rm`; `DataInitializer` was deleted 2026-07-20). `stop`/`start` (doesn't remove the containers) keeps the data — to reset you must go through `down`.
 
-**Deployment** follows `../docs/backend/infra/DEPLOYMENT.md`. Design rationale (managed-service review · blocking defects · cost): `../docs/archive/specs/2026-08-10-mvp-배포-design.md`. Production is one EC2 + `docker-compose.prod.yml`, and **there must be exactly one backend instance** (`@Scheduled` duplication · in-memory bus positions · WS sessions held locally).
+**Deployment** follows `../docs/backend/infra/DEPLOYMENT.md`. Design rationale (managed-service review · blocking defects · cost): `../docs/archive/specs/2026-08-10-mvp-배포-design.md`. Production is one EC2 + `docker-compose.prod.yml`, with 1 backend instance by default and 2 with `docker-compose.scale.yml` laid over it (`BACKEND_INSTANCES=2` in SSM; the user decides the count at deploy — two 3GB instances do not fit a 4GB host). What makes 2 safe (ShedLock for `@Scheduled`, Redis relay for WS messages, Redis-held preview caches): `docs/backend/ARCHITECTURE.md §9.5`; procedure: `DEPLOYMENT.md §15`.
 
 ## Stack / notable specifics
 
