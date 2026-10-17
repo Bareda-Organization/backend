@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -38,7 +39,6 @@ import jakarta.persistence.PersistenceContext;
 import src.backend.academy.repository.AcademyRepository;
 
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -494,7 +494,7 @@ class StaffWaypointControllerTest {
         long otherAcademyId = fixtures().academyWithCoordinates();
 
         mockMvc.perform(post("/api/v1/staff/runs/" + s.runId + "/waypoints")
-                .header("Authorization", 토큰(otherAcademyId))
+                .header("Authorization", 관계자_토큰(tokenProvider, otherAcademyId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(경유_본문("새경유로 50", "라벨", false)))
                 .andExpect(status().isNotFound())
@@ -765,7 +765,7 @@ class StaffWaypointControllerTest {
     private ResultActions 경유_요청한다(long runId, String body) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         return mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/waypoints")
-                .header("Authorization", 토큰(academyId))
+                .header("Authorization", 관계자_토큰(tokenProvider, academyId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
     }
@@ -804,13 +804,13 @@ class StaffWaypointControllerTest {
     private ResultActions 경유_삭제한다(long runId, long waypointId, boolean apply) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         String path = "/api/v1/staff/runs/" + runId + "/waypoints/" + waypointId;
-        ResultActions preview = mockMvc.perform(delete(path + "?apply=false").header("Authorization", 토큰(academyId)));
+        ResultActions preview = mockMvc.perform(delete(path + "?apply=false").header("Authorization", 관계자_토큰(tokenProvider, academyId)));
         if (!apply) {
             return preview;
         }
         String token = 미리보기_토큰(preview.andExpect(status().isOk()).andReturn());
         return mockMvc.perform(delete(path + "?apply=true&preview_token=" + token)
-                .header("Authorization", 토큰(academyId)));
+                .header("Authorization", 관계자_토큰(tokenProvider, academyId)));
     }
 
     private String 경유_본문(String address, String label, boolean apply) {
@@ -872,11 +872,6 @@ class StaffWaypointControllerTest {
     private int 미배포_행_개수(long runId) {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM waypoint WHERE run_id = ? AND applied = false",
                 Integer.class, runId);
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 
     /** 시나리오 픽스처 값 묶음. */

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -20,7 +21,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -143,7 +143,7 @@ class StaffWaypointControllerTransactionBoundaryTest {
         시나리오를_만든다();
 
         mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/waypoints")
-                .header("Authorization", 토큰(academyId))
+                .header("Authorization", 관계자_토큰(tokenProvider, academyId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(경유_본문("트랜잭션검증로 123", "트랜잭션 경계 검증")))
                 .andExpect(status().isConflict())
@@ -171,10 +171,5 @@ class StaffWaypointControllerTransactionBoundaryTest {
 
     private String 경유_본문(String address, String label) {
         return "{\"address\":\"" + address + "\",\"label\":\"" + label + "\",\"apply\":false}";
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }
