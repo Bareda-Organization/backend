@@ -75,6 +75,32 @@ public final class PhotoResizer {
     private PhotoResizer() {
     }
 
+    /** 업로드 파일의 바이트를 읽는 수단 — 서블릿 타입을 이 패키지로 끌어오지 않으려고 함수로 받는다. */
+    @FunctionalInterface
+    public interface PhotoContent {
+        byte[] read() throws IOException;
+    }
+
+    /**
+     * 줄이기 자리를 <b>얻은 뒤에</b> 파일 바이트를 읽어 줄인 사진을 돌려준다(DA-10, Ruling 899) — 자리를 기다리는 요청마다 최대 5MB 를 힙에
+     * 올려 두지 않는다. 대기 한도를 넘으면 그때 읽어 원본을 돌려준다(줄이기가 업로드를 막는 이유가 되면 안 된다).
+     */
+    public static StudentPhoto shrinkFrom(PhotoContent content) throws IOException {
+        return shrinkFrom(content, RESIZE_WAIT_LIMIT);
+    }
+
+    static StudentPhoto shrinkFrom(PhotoContent content, Duration waitLimit) throws IOException {
+        if (!acquireSlot(waitLimit)) {
+            log.warn("[photo] 줄이기 자리를 {}초 안에 얻지 못해 원본을 저장한다", waitLimit.toSeconds());
+            return StudentPhoto.of(content.read());
+        }
+        try {
+            return shrinkHoldingSlot(StudentPhoto.of(content.read()));
+        } finally {
+            RESIZE_SLOTS.release();
+        }
+    }
+
     /** 줄인 사진을 돌려준다 — 줄이지 않기로 했거나 줄이지 못했으면(자리가 안 나는 경우 포함) 받은 객체 그대로다. */
     public static StudentPhoto shrink(StudentPhoto photo) {
         return shrink(photo, RESIZE_WAIT_LIMIT);
@@ -86,12 +112,19 @@ public final class PhotoResizer {
             return photo;
         }
         try {
+            return shrinkHoldingSlot(photo);
+        } finally {
+            RESIZE_SLOTS.release();
+        }
+    }
+
+    /** 자리를 쥔 채 줄인다 — 줄이지 못하면 받은 객체 그대로다. */
+    private static StudentPhoto shrinkHoldingSlot(StudentPhoto photo) {
+        try {
             return resize(photo).orElse(photo);
         } catch (IOException | RuntimeException e) {
             log.warn("[photo] 사진을 줄이지 못해 원본을 저장한다", e);
             return photo;
-        } finally {
-            RESIZE_SLOTS.release();
         }
     }
 

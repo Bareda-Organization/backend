@@ -229,6 +229,50 @@ class PhotoResizerTest {
         assertThat(PhotoResizer.shrink(big)).as("자리가 풀리면 다시 줄인다").isNotSameAs(big);
     }
 
+    /** DA-10 — 줄이기 자리를 얻기 전에는 업로드 파일의 바이트를 읽지 않는다(자리를 기다리는 요청마다 최대 5MB 가 힙에 쌓이지 않는다). */
+    @Test
+    void 줄이기_자리가_없는_동안은_파일_바이트를_읽지_않는다() throws Exception {
+        byte[] bytes = png(2000, 1000);
+        java.util.concurrent.atomic.AtomicInteger reads = new java.util.concurrent.atomic.AtomicInteger();
+
+        PhotoResizer.RESIZE_SLOTS.acquire(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        CompletableFuture<StudentPhoto> waiting;
+        try {
+            waiting = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return PhotoResizer.shrinkFrom(() -> {
+                        reads.incrementAndGet();
+                        return bytes;
+                    }, Duration.ofSeconds(30));
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
+            Thread.sleep(200);
+            assertThat(waiting).as("자리가 없는 동안은 시작하지 않는다").isNotDone();
+            assertThat(reads.get()).as("자리를 얻기 전 바이트 읽기 횟수").isZero();
+        } finally {
+            PhotoResizer.RESIZE_SLOTS.release(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        }
+
+        assertThat(decode(waiting.get(30, TimeUnit.SECONDS)).getWidth()).isEqualTo(512);
+        assertThat(reads.get()).as("자리를 얻은 뒤 한 번만 읽는다").isEqualTo(1);
+    }
+
+    /** DA-10 — 대기 한도를 넘으면 그때서야 읽어 원본을 돌려준다(줄이기가 업로드를 막는 이유가 되면 안 된다). */
+    @Test
+    void 줄이기_자리를_못_얻으면_한도_뒤에_읽어_원본을_돌려준다() throws Exception {
+        byte[] bytes = png(2000, 1000);
+
+        PhotoResizer.RESIZE_SLOTS.acquire(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        try {
+            StudentPhoto original = PhotoResizer.shrinkFrom(() -> bytes, Duration.ofMillis(100));
+            assertThat(original.content()).isSameAs(bytes);
+        } finally {
+            PhotoResizer.RESIZE_SLOTS.release(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        }
+    }
+
     @Test
     void 줄이기_자리가_나면_기다리던_사진을_줄인다() throws Exception {
         StudentPhoto big = StudentPhoto.of(png(2000, 1000));
