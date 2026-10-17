@@ -237,6 +237,27 @@ class StompChannelAuthorizationTest {
         }
     }
 
+    /**
+     * 브로커 접두사에서 {@code /queue} · {@code /user} 를 걷어낸 뒤에도(R59 S-10) 클라이언트가 그 목적지로 {@code SEND} 하면 거부된다 — 접두사가 없어졌다고 인가 검사가
+     * 건너뛰어지면 이 목적지가 응용 목적지로 읽혀 컨트롤러 쪽으로 흘러간다.
+     */
+    @Test
+    void queue_와_user_목적지로_SEND_해도_FORBIDDEN_으로_거부된다() throws Exception {
+        for (String destination : new String[] {"/queue/anything", "/user/queue/anything", "/user/3/queue/anything"}) {
+            BlockingQueue<String> frames = new LinkedBlockingQueue<>();
+            WebSocketSession sender = open(frames);
+            try {
+                connect(sender, frames, tokenProvider.createAccessToken(3L, 2L, Role.PARENT, AccountStatus.ACTIVE));
+                sender.sendMessage(new TextMessage("SEND\ndestination:" + destination
+                        + "\ncontent-type:text/plain\n\nx" + NULL_TERMINATOR));
+
+                assertThat(take(frames)).as("%s 로 보낸 SEND", destination).startsWith("ERROR").contains("FORBIDDEN");
+            } finally {
+                sender.close();
+            }
+        }
+    }
+
     private WebSocketSession open(BlockingQueue<String> received) throws Exception {
         return new StandardWebSocketClient()
                 .execute(new FrameCollector(received), null, URI.create("ws://localhost:" + port + "/ws/location"))

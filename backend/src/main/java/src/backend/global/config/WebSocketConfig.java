@@ -32,7 +32,7 @@ import src.backend.global.websocket.OpenWebSocketSessions;
  * 실시간 위치·알림 채널(STOMP over WebSocket) 설정.
  * heartbeat(ping/pong) 간격은 사양이 정한 정책 값이 아니라 연결 유지용 운영값이라 {@link #HEARTBEAT_MS} 로 코드에 고정한다.
  * 이 브로커의 구독 채널·메시지 규격은 위치 · 실시간 전달 · 근접 알림 기능에 맞춰 설계됐다.
- * 지금 구성은 단순 브로커({@code /topic}·{@code /queue}) · 인바운드 인증 인터셉터 · 큐 상한이 있는 팬아웃 실행기 ·
+ * 지금 구성은 단순 브로커({@code /topic} 하나 — 서버가 개별 전달하는 곳이 없어 {@code /queue}·{@code /user} 접두사를 두지 않는다) · 인바운드 인증 인터셉터 · 큐 상한이 있는 팬아웃 실행기 ·
  * 세션 송신 한도와 종료 코드 데코레이터다.
  */
 @Configuration
@@ -94,12 +94,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.setApplicationDestinationPrefixes("/app");
-        // /user 프리픽스로 보낸 메시지는 세션별 목적지(/queue/**-user<sessionId>)로
-        // 재작성되어 심플 브로커를 거쳐 배달된다 — 그래서 /queue 도 브로커 프리픽스로 열어둬야 한다.
-        registry.setUserDestinationPrefix("/user");
         // 같은 세션에 같은 순서로 발행한 메시지가 뒤집혀 도착하지 않게 한다(Ruling 899 C) — 클라이언트는 화면 값보다 오래된 시각의 메시지를 버린다.
         registry.setPreservePublishOrder(true);
-        registry.enableSimpleBroker("/topic", "/queue")
+        registry.enableSimpleBroker("/topic")
                 .setHeartbeatValue(new long[]{HEARTBEAT_MS, HEARTBEAT_MS})
                 .setTaskScheduler(heartbeatScheduler());
     }
