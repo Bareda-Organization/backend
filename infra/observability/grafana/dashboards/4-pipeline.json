@@ -504,8 +504,13 @@
       "targets": [
         {
           "refId": "A",
+          "expr": "sum(schoolbus_stomp_sessions{application=\"school-bus\"})",
+          "legendFormat": "활성 세션(합계)"
+        },
+        {
+          "refId": "B",
           "expr": "schoolbus_stomp_sessions{application=\"school-bus\"}",
-          "legendFormat": "활성 세션"
+          "legendFormat": "{{instance}}"
         }
       ]
     }
