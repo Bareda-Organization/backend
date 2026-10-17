@@ -17,12 +17,13 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import src.backend.observability.metrics.WebSocketOutboundDropMetrics;
 import src.backend.observability.metrics.WebSocketPublishMetrics;
 
 /**
@@ -50,9 +51,10 @@ public class WebSocketBroadcastGateway {
     /** 과부하 때 버려도 되는 유일한 이벤트 종류(Ruling 349). */
     private static final String DROPPABLE_EVENT = "position";
 
+    private static final String DROPPED_METRIC = "schoolbus.ws.outbound.dropped";
+
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketPublishMetrics publishMetrics;
-    private final WebSocketOutboundDropMetrics dropMetrics;
     @Qualifier("outboundTaskExecutor")
     private final ThreadPoolTaskExecutor outboundTaskExecutor;
     private final Clock clock;
@@ -78,7 +80,7 @@ public class WebSocketBroadcastGateway {
             return;
         }
         if (DROPPABLE_EVENT.equals(event) && isOutboundQueueFull()) {
-            dropMetrics.recordPositionDropped();
+            meterRegistry.counter(DROPPED_METRIC, "event", DROPPABLE_EVENT).increment();
             log.warn("팬아웃 실행기 큐 포화로 위치 방송 버림 — destination={}, runId={}", destination, runId);
             return;
         }
@@ -146,5 +148,13 @@ public class WebSocketBroadcastGateway {
             meterRegistry.counter("schoolbus.ws.broadcast.failed", "event", event).increment();
             log.warn("{} 방송 실패 — runId={} destination={}", event, runId, destination, e);
         }
+    }
+
+    /** 버려진 방송이 한 번도 없어도 이름이 노출되도록 미리 등록한다(Ruling 349 로 버려지는 종류는 {@code position} 뿐이다). */
+    @PostConstruct
+    void registerMetrics() {
+        Counter.builder(DROPPED_METRIC)
+                .description("팬아웃 실행기 큐가 가득 차 버려진 방송 건수 (event 태그, Ruling 349 로 position 만 버려짐)")
+                .tag("event", DROPPABLE_EVENT).register(meterRegistry);
     }
 }

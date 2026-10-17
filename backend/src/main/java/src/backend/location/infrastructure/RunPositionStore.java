@@ -17,13 +17,15 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
-import src.backend.observability.metrics.RunPositionFallbackMetrics;
 
 /**
  * 회차 최신 좌표 저장소 — Redis 키 {@code run:{runId}:position} 을 읽고 쓰는 유일한 곳이다(BR-098 · BR-099).
@@ -58,6 +60,8 @@ public class RunPositionStore {
     private static final Duration TTL = Duration.ofMinutes(30);
 
     /** Redis 대체 조회가 거슬러 올라가는 한계 — 이보다 오래된 위치는 운행 중 회차의 "최신" 이 아니고, 구간이 있어야 읽는 일 파티션이 2개로 묶인다(DA-2). */
+    private static final String FALLBACK_METRIC = "schoolbus.position.fallback";
+
     private static final Duration FALLBACK_LOOKBACK = Duration.ofHours(24);
 
     /** 단말 시계 오차 허용(5분, BR-243)을 덮는 상한 여유 — 이보다 미래의 기록 시각은 수신 시각으로 바뀌어 저장된다. */
@@ -69,7 +73,7 @@ public class RunPositionStore {
 
     private final RunPositionRepository runPositionRepository;
 
-    private final RunPositionFallbackMetrics fallbackMetrics;
+    private final MeterRegistry meterRegistry;
 
     private final Clock clock;
 
@@ -122,7 +126,7 @@ public class RunPositionStore {
     }
 
     private Map<Long, RunPositionRedisValue> fromHistory(List<Long> runIds) {
-        fallbackMetrics.recordFallback();
+        meterRegistry.counter(FALLBACK_METRIC).increment();
         OffsetDateTime now = OffsetDateTime.now(clock);
         Map<Long, RunPositionRedisValue> positions = new HashMap<>();
         for (RunPosition row : runPositionRepository.findLatestByRunIdIn(runIds, now.minus(FALLBACK_LOOKBACK),
@@ -148,5 +152,12 @@ public class RunPositionStore {
 
     private String keyOf(Long runId) {
         return KEY_FORMAT.formatted(runId);
+    }
+
+    /** 대체가 한 번도 없는 기동 직후에도 이름이 0 으로 노출되도록 미리 등록한다(BR-167, TECH_DECISIONS §14.2). */
+    @PostConstruct
+    void registerMetrics() {
+        Counter.builder(FALLBACK_METRIC).description("Redis 장애로 최신 좌표를 DB 이력 최신 행으로 대체 조회한 횟수")
+                .register(meterRegistry);
     }
 }

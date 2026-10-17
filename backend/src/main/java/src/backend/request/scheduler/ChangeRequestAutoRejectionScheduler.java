@@ -10,10 +10,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Counter;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import src.backend.observability.metrics.ChangeRequestAutoRejectionMetrics;
 import src.backend.request.command.ChangeRequestAutoRejectionPersistence;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestStatus;
@@ -36,6 +37,8 @@ import src.backend.request.repository.ChangeRequestRepository;
 @RequiredArgsConstructor
 public class ChangeRequestAutoRejectionScheduler {
 
+    private static final String REJECTED_METRIC = "schoolbus.change_request.auto_rejected";
+
     /**
      * 한 틱이 한 번에 집는 상한(목표 6) — 상한 없이 전건을 집으면 마감이 몰린 틱 하나가 커넥션을
      * 오래 붙든다({@code ChangeRequestRepository.findByStatusAndDeadlineAtLessThanEqual} 의
@@ -48,8 +51,6 @@ public class ChangeRequestAutoRejectionScheduler {
     private final ChangeRequestAutoRejectionPersistence persistence;
 
     private final Clock clock;
-
-    private final ChangeRequestAutoRejectionMetrics metrics;
 
     private final MeterRegistry meterRegistry;
 
@@ -90,7 +91,7 @@ public class ChangeRequestAutoRejectionScheduler {
     private void autoRejectSafely(Long changeRequestId, OffsetDateTime now) {
         try {
             if (persistence.autoRejectOne(changeRequestId, now)) {
-                metrics.recordRejected();
+                meterRegistry.counter(REJECTED_METRIC).increment();
             }
         } catch (Exception e) {
             log.warn("변경 요청 {} 자동 거절 실패 — 다음 틱에 재시도한다", changeRequestId, e);
@@ -101,5 +102,11 @@ public class ChangeRequestAutoRejectionScheduler {
     /** 잡아 삼킨 건별 실패 1건(BR-064) — 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution} {@code outcome=ERROR})이 센다. */
     private void recordItemFailure() {
         meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "change-request-auto-rejection").increment();
+    }
+
+    /** 기동 직후 자동 거절이 한 번도 없어도 이름이 노출되도록 미리 등록한다. */
+    @PostConstruct
+    void registerMetrics() {
+        Counter.builder(REJECTED_METRIC).description("마감을 넘겨 자동 거절된 ②구간 변경 요청 건수").register(meterRegistry);
     }
 }

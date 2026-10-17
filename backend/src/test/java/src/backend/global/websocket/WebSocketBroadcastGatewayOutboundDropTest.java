@@ -20,7 +20,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
-import src.backend.observability.metrics.WebSocketOutboundDropMetrics;
 import src.backend.observability.metrics.WebSocketPublishMetrics;
 
 /**
@@ -50,7 +49,7 @@ class WebSocketBroadcastGatewayOutboundDropTest {
         messagingTemplate = mock(SimpMessagingTemplate.class);
         meterRegistry = new SimpleMeterRegistry();
         gateway = new WebSocketBroadcastGateway(messagingTemplate, new WebSocketPublishMetrics(meterRegistry),
-                new WebSocketOutboundDropMetrics(meterRegistry), outboundExecutor, Clock.systemUTC(), new SimpleMeterRegistry());
+                outboundExecutor, Clock.systemUTC(), meterRegistry);
 
         // 코어 스레드 1개를 오래 붙들어 두고 큐(용량 1)를 채운다 — 이후 제출은 "큐 가득 참" 상태를 본다.
         blockCoreThread = new CountDownLatch(1);
