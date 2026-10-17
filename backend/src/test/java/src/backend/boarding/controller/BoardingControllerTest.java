@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -40,7 +41,6 @@ import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.run.event.RunEndedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
@@ -145,7 +145,6 @@ class BoardingControllerTest {
 
     private BoardingCommandFixtures fixtures;
 
-
     private BoardingCommandFixtures fixtures() {
         if (fixtures == null) {
             fixtures = new BoardingCommandFixtures(academyRepository, busRepository, studentRepository,
@@ -172,7 +171,7 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk())
@@ -198,7 +197,7 @@ class BoardingControllerTest {
 
         for (Role role : new Role[] {Role.STAFF, Role.PARENT}) {
             mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                            .header("Authorization", 토큰(999_999L, academyId, role))
+                            .header("Authorization", 토큰(tokenProvider, 999_999L, academyId, role))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
                     .andExpect(status().isForbidden())
@@ -219,7 +218,7 @@ class BoardingControllerTest {
         long driverAccountId = fixtures().driverAccount(academyId);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isForbidden())
@@ -256,7 +255,7 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk())
@@ -310,7 +309,7 @@ class BoardingControllerTest {
         long riderId = fixtures().runRider(runId, studentId, stopId);
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
-        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        String escortToken = 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -372,12 +371,12 @@ class BoardingControllerTest {
         entityManager.flush();
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runA, riderA))
-                        .header("Authorization", 토큰(escortA, academyA, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortA, academyA, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk());
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runB, riderB))
-                        .header("Authorization", 토큰(escortB, academyB, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortB, academyB, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk());
@@ -403,7 +402,7 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk());
@@ -448,7 +447,7 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk())
@@ -483,7 +482,7 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("no_show", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk())
@@ -516,14 +515,14 @@ class BoardingControllerTest {
 
         String firstResponse = mockMvc
                 .perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         entityManager.flush();
 
         String secondResponse = mockMvc
                 .perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
@@ -555,14 +554,14 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody("boarded", "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isOk());
         entityManager.flush();
 
         mockMvc.perform(post(REVERT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("waiting"));
@@ -603,7 +602,7 @@ class BoardingControllerTest {
         long riderId = fixtures().runRider(runId, studentId, stopId);
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
-        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        String escortToken = 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -642,7 +641,7 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(post(REVERT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("STOP_ALREADY_DEPARTED"));
@@ -667,7 +666,7 @@ class BoardingControllerTest {
         fixtures().confirmedRunStop(runId, myStopId, now.minusMinutes(30));
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
-        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        String escortToken = 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -700,7 +699,7 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(post(REVERT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("STOP_ALREADY_DEPARTED"));
@@ -734,7 +733,7 @@ class BoardingControllerTest {
         fixtures().runRider(runId, waitingStudentId, stopId);
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
-        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        String escortToken = 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -801,7 +800,7 @@ class BoardingControllerTest {
         long riderId = fixtures().runRider(runId, studentId, stopId);
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
-        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        String escortToken = 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -858,7 +857,7 @@ class BoardingControllerTest {
         long riderB = fixtures().runRider(runId, fixtures().student(academyId, "학생-BR078-B"), stopId);
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
-        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        String escortToken = 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT);
         UUID sharedKey = UUID.randomUUID();
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderA)).header("Authorization", escortToken)
@@ -901,7 +900,7 @@ class BoardingControllerTest {
         long riderId = fixtures().runRider(runId, studentId, stopId);
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
-        String escortToken = 토큰(escortAccountId, academyId, Role.ESCORT);
+        String escortToken = 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -952,7 +951,7 @@ class BoardingControllerTest {
         entityManager.clear();
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody(targetStatus, "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isConflict())
@@ -989,7 +988,7 @@ class BoardingControllerTest {
         entityManager.clear();
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(statusUpdateBody(targetStatus, "manual", UUID.randomUUID(), now)))
                 .andExpect(status().isConflict())
@@ -1016,9 +1015,5 @@ class BoardingControllerTest {
     private String statusUpdateBody(String status, String verifyMethod, UUID clientKey, OffsetDateTime occurredAt) {
         return "{\"status\":\"%s\",\"verify_method\":\"%s\",\"client_key\":\"%s\",\"occurred_at\":\"%s\"}"
                 .formatted(status, verifyMethod, clientKey, occurredAt);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

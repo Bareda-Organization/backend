@@ -4,8 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -155,7 +156,7 @@ class StaffRosterControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/staff/runs/" + runId + "/roster").header("Authorization",
-                        토큰(staffAccountId, academyId)))
+                        토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -179,7 +180,7 @@ class StaffRosterControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/staff/runs/" + runId + "/roster").header("Authorization",
-                        토큰(staffAccountId, academyId)))
+                        토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -349,7 +350,7 @@ class StaffRosterControllerTest {
     private String 명단을_읽는다(long runId, long staffAccountId, long academyId) throws Exception {
         MvcResult result = mockMvc
                 .perform(get("/api/v1/staff/runs/" + runId + "/roster").header("Authorization",
-                        토큰(staffAccountId, academyId)))
+                        토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
         return 본문(result);
@@ -374,7 +375,7 @@ class StaffRosterControllerTest {
                 Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
 
         mockMvc.perform(get("/api/v1/staff/runs/" + otherRunId + "/roster").header("Authorization",
-                토큰(staffAccountId, myAcademyId)))
+                토큰(tokenProvider, staffAccountId, myAcademyId, Role.STAFF)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("ACADEMY_SCOPE_VIOLATION"));
     }
@@ -387,7 +388,7 @@ class StaffRosterControllerTest {
         long staffAccountId = 관계자_계정을_만든다(academyId);
 
         mockMvc.perform(get("/api/v1/staff/runs/999999999/roster").header("Authorization",
-                토큰(staffAccountId, academyId)))
+                토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
     }
@@ -431,13 +432,5 @@ class StaffRosterControllerTest {
                 .orElseThrow();
         target.markAbsent(OffsetDateTime.now());
         runRiderRepository.save(target);
-    }
-
-    private String 토큰(long accountId, long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.STAFF, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

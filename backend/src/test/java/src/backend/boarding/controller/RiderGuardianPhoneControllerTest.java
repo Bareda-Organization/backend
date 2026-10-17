@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -29,7 +29,6 @@ import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -48,6 +47,7 @@ import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
+import testsupport.auth.TestTokens;
 
 /**
  * 보호자 전화 원번호 단건 조회 {@code GET /runs/{runId}/riders/{riderId}/guardian-phone}(R46 privacy · Ruling 482·521) —
@@ -206,7 +206,7 @@ class RiderGuardianPhoneControllerTest {
         Phase9RosterFixtures.ManagerAccount other = scene.fx().manager(scene.academyId(), ManagerRole.DRIVER, "다른기사");
 
         mockMvc.perform(get(path(scene.runId(), scene.riderId()))
-                .header("Authorization", 토큰(other.accountId(), scene.academyId(), Role.DRIVER)))
+                .header("Authorization", TestTokens.토큰(tokenProvider, other.accountId(), scene.academyId(), Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
 
@@ -293,15 +293,7 @@ class RiderGuardianPhoneControllerTest {
     }
 
     private String 토큰(long accountId, long academyId) {
-        return 토큰(accountId, academyId, Role.ESCORT);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return TestTokens.토큰(tokenProvider, accountId, academyId, Role.ESCORT);
     }
 
     private record Scene(Phase9RosterFixtures fx, long academyId, long busId, long stopId, long studentId, long runId,
