@@ -1,6 +1,8 @@
 package src.backend.location.infrastructure;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +57,12 @@ public class RunPositionStore {
     /** 운행 종료 후 자연 소멸 — 이력은 {@code run_position} 이 따로 갖는다. */
     private static final Duration TTL = Duration.ofMinutes(30);
 
+    /** Redis 대체 조회가 거슬러 올라가는 한계 — 이보다 오래된 위치는 운행 중 회차의 "최신" 이 아니고, 구간이 있어야 읽는 일 파티션이 2개로 묶인다(DA-2). */
+    private static final Duration FALLBACK_LOOKBACK = Duration.ofHours(24);
+
+    /** 단말 시계 오차 허용(5분, BR-243)을 덮는 상한 여유 — 이보다 미래의 기록 시각은 수신 시각으로 바뀌어 저장된다. */
+    private static final Duration FALLBACK_LOOKAHEAD = Duration.ofMinutes(10);
+
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
     private final StringRedisTemplate stringRedisTemplate;
@@ -62,6 +70,8 @@ public class RunPositionStore {
     private final RunPositionRepository runPositionRepository;
 
     private final RunPositionFallbackMetrics fallbackMetrics;
+
+    private final Clock clock;
 
     /** Redis 가 죽으면 폴링마다 같은 실패가 난다 — 분당 한 번만 스택과 함께 남긴다(R46 S-3). */
     private final RateLimitedWarn redisReadFailure = RateLimitedWarn.perMinute(
@@ -113,8 +123,10 @@ public class RunPositionStore {
 
     private Map<Long, RunPositionRedisValue> fromHistory(List<Long> runIds) {
         fallbackMetrics.recordFallback();
+        OffsetDateTime now = OffsetDateTime.now(clock);
         Map<Long, RunPositionRedisValue> positions = new HashMap<>();
-        for (RunPosition row : runPositionRepository.findLatestByRunIdIn(runIds)) {
+        for (RunPosition row : runPositionRepository.findLatestByRunIdIn(runIds, now.minus(FALLBACK_LOOKBACK),
+                now.plus(FALLBACK_LOOKAHEAD))) {
             positions.put(row.getRunId(), new RunPositionRedisValue(row.getLat(), row.getLng(), row.getRecordedAt(),
                     row.getReceivedAt(), null));
         }

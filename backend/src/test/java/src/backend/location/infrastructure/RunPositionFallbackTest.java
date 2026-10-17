@@ -157,11 +157,11 @@ class RunPositionFallbackTest {
                 .isLessThan(Duration.ofMillis(1500));
     }
 
-    /** R3 에 옛 기록·새 기록을 심는다 — 둘 다 막 수신한 것으로 둬(2분 유실 판정 밖) 좌표가 응답에 실린다. */
+    /** R3 에 옛 기록·새 기록을 심는다 — 둘 다 막 수신한 것으로 둬(2분 유실 판정 밖) 좌표가 응답에 실린다. 기록 시각은 단말 시계 허용(5분) 안에서 현재보다 앞서게 둔다(대체 조회의 상한 구간 안 · DA-2). */
     private void 기록_두_건을_심는다() {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        positionIds.add(심는다(OLD_LAT, OLD_LNG, now.plusHours(1), now));
-        positionIds.add(심는다(NEW_LAT, NEW_LNG, now.plusHours(2), now));
+        positionIds.add(심는다(OLD_LAT, OLD_LNG, now.plusMinutes(4), now));
+        positionIds.add(심는다(NEW_LAT, NEW_LNG, now.plusMinutes(5), now));
     }
 
     private long 심는다(String lat, String lng, OffsetDateTime recordedAt, OffsetDateTime receivedAt) {

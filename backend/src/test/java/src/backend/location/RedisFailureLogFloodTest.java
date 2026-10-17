@@ -96,8 +96,8 @@ class RedisFailureLogFloodTest {
         when(redis.opsForValue()).thenReturn(operations);
         when(operations.multiGet(anyCollection())).thenThrow(new RedisConnectionFailureException("redis down"));
         RunPositionRepository history = mock(RunPositionRepository.class);
-        when(history.findLatestByRunIdIn(any())).thenReturn(List.of());
-        RunPositionStore store = new RunPositionStore(redis, history, mock(RunPositionFallbackMetrics.class));
+        when(history.findLatestByRunIdIn(any(), any(), any())).thenReturn(List.of());
+        RunPositionStore store = new RunPositionStore(redis, history, mock(RunPositionFallbackMetrics.class), Clock.systemUTC());
         collect(RunPositionStore.class);
 
         for (int i = 0; i < FAILURES; i++) {
@@ -105,7 +105,7 @@ class RedisFailureLogFloodTest {
         }
 
         assertStackLogged(1);
-        org.mockito.Mockito.verify(history, org.mockito.Mockito.times(FAILURES)).findLatestByRunIdIn(any());
+        org.mockito.Mockito.verify(history, org.mockito.Mockito.times(FAILURES)).findLatestByRunIdIn(any(), any(), any());
     }
 
     @Test
