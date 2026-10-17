@@ -37,7 +37,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * 학원 관계자·메인관리자 단말의 비상 알림 수신 범위·확인(ack) API(EXC-04, Phase 11 T2 목표 6·7·10) —
+ * 학원 관계자·메인관리자 단말의 비상 알림 수신 범위·확인(ack) API(EXC-04) —
  * {@code /staff/emergencies/{id}/ack}.
  *
  * <p>목표 6·7 은 컨트롤러가 아니라 신고 접수 시점에 {@code EmergencyNotificationListener} 가 채우는
@@ -91,7 +91,7 @@ class StaffEmergencyControllerTest {
         assertThat(알림_행수(emergencyId, staffAccountId, "staff")).as("학원 관계자는 목표 6 에 따라 항상 받아야 한다")
                 .isEqualTo(1);
 
-        // R13 — emergency 는 studentId 대신 busNo 를 채운다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 4). 실제 신고 차량의 bus_no 와
+        // emergency 는 studentId 대신 busNo 를 채운다. 실제 신고 차량의 bus_no 와
         // 일치해야 한다.
         String expectedBusNo = jdbcTemplate.queryForObject("SELECT bus_no FROM bus WHERE id = ?", String.class,
                 busId);
@@ -106,7 +106,7 @@ class StaffEmergencyControllerTest {
     }
 
     /**
-     * R51 Ruling 865 — 로그인 차단(blocked)은 로그인 보안이지 알림 중단이 아니라 차단된 메인관리자도 비상 알림 행을 받는다.
+     * Ruling 865 — 로그인 차단(blocked)은 로그인 보안이지 알림 중단이 아니라 차단된 메인관리자도 비상 알림 행을 받는다.
      * 가입 대기(pending)·거절(rejected) 메인관리자는 받지 않는다.
      */
     @Test
@@ -250,7 +250,7 @@ class StaffEmergencyControllerTest {
         assertThat(확인자(emergencyId)).as("먼저 확인한 사람의 기록이 덮어써지면 안 된다").isEqualTo(staffAccountId);
     }
 
-    // ── R46-FUFEAT ② — 확인할 때 남기는 조치 메모(Ruling 541) ────────────────
+    // ── 확인할 때 남기는 조치 메모(Ruling 541) ────────────────
 
     @Test
     @SuppressWarnings("unchecked")
@@ -352,7 +352,7 @@ class StaffEmergencyControllerTest {
         assertThat(확인메모(emergencyId)).as("200자는 상한 안이라 그대로 저장된다").hasSize(200);
     }
 
-    // ── Phase 13 목표 13 — §5.16 응답 필드 형태(정본 정합) ────────────────────
+    // ── §5.16 응답 필드 형태(정본 정합) ────────────────────
 
     @Test
     void 목록_응답은_정본이_요구하는_중첩_형태를_따른다() throws Exception {

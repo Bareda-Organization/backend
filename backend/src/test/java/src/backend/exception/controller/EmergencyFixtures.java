@@ -27,10 +27,8 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 비상 알림(EXC-04, Phase 11 T2 목표 5~11) 시험이 쓰는 실제 행 — {@code DriverRunFixtures} 와 같은
- * 이유로 정상 경로의 팩토리로 쌓는다. 이 태스크의 소유 경로(exception·admin·notification/domain/impl)
- * 밖의 픽스처를 다른 도메인의 클래스와 공유하지 않고 이 패키지에 독립으로 둔다 — 병렬 좌석이 같은
- * 파일을 동시에 건드릴 여지를 없앤다.
+ * 비상 알림(EXC-04) 시험이 쓰는 실제 행 — {@code DriverRunFixtures} 와 같은
+ * 이유로 정상 경로의 팩토리로 쌓는다. 픽스처는 다른 도메인의 클래스와 공유하지 않고 이 패키지에 독립으로 둔다.
  */
 public class EmergencyFixtures {
 
@@ -147,7 +145,7 @@ public class EmergencyFixtures {
     }
 
     /**
-     * 로그인 차단(blocked) 상태의 메인관리자 1명(R51 Ruling 865) — 차단은 로그인 보안이지 알림 중단이 아니라 비상 알림을 받는다.
+     * 로그인 차단(blocked) 상태의 메인관리자 1명(Ruling 865) — 차단은 로그인 보안이지 알림 중단이 아니라 비상 알림을 받는다.
      * 실패 누적이 차단 직전 상태까지 함께 기록해 {@code ck_account_status_before_block_pair} 를 지킨다.
      */
     public long blockedSystemAdminAccount(String name) {

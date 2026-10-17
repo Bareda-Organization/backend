@@ -53,8 +53,7 @@ import src.backend.student.repository.GuardianStudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 학부모 앱의 일일 변경 신청(P-06, API_SPEC §3.8·§3.9) — Phase 8 목표 9(③구간 전 타입 차단) ·
- * 5(②구간 회차당 1회 한도, 신청 경로) · 2(②구간 approval_requested 알림, 신청 경로).
+ * 학부모 앱의 일일 변경 신청(P-06, API_SPEC §3.8·§3.9) — ③구간 전 타입 차단 · ②구간 회차당 1회 한도(신청 경로) · ②구간 approval_requested 알림(신청 경로).
  *
  * <p>시각은 {@link FixedClockConfig} 로 고정한다({@code RunConfirmationServiceTest} 와 같은
  * 패턴) — 회차의 {@code confirm_at}·{@code depart_time} 을 이 고정 시각 기준 상대값으로 둬야
@@ -224,7 +223,7 @@ class ChangeRequestControllerTest {
                 Integer.class, academyId, "approval_requested:" + runId + ":%");
         assertThat(notified).as("관계자에게 승인 요청 알림이 적재돼야 한다").isEqualTo(1);
 
-        // R13 — ApprovalRequestedEvent 는 studentId 를 들고 있는 단일 학생 이벤트다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // ApprovalRequestedEvent 는 studentId 를 들고 있는 단일 학생 이벤트다.
         Long notifiedStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE academy_id = ? AND type = 'approval_requested' "
                         + "AND dedup_key LIKE ?",

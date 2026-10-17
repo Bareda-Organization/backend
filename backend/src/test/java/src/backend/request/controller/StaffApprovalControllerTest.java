@@ -348,7 +348,7 @@ class StaffApprovalControllerTest {
     }
 
     /**
-     * `R18-C` 목표 2·3 — 상세 응답은 노선 전체 소요시간(분, {@code Ruling 318})과 좌우 지도용 도로
+     * 상세 응답은 노선 전체 소요시간(분, {@code Ruling 318})과 좌우 지도용 도로
      * 좌표({@code Ruling 319})를 전/후로 낸다. {@code est_duration_after} 는 방금 계산한
      * {@code RouteComputation.estDurationMin()}, {@code est_duration_before} 는 확정 배치가 이미
      * 저장해 둔 {@code route_version.est_duration_min} 이다 — 새로 계산하지 않고 그대로 싣는다.
@@ -358,7 +358,7 @@ class StaffApprovalControllerTest {
         시나리오 s = 확정된_회차와_승인_대기_건을_만든다();
 
         MvcResult result = 상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId).andExpect(status().isOk())
-                // R20-A(Ruling 321) — depart_time 은 전/후로 나뉘지 않는 단일 값이다. 정확값(SERVICE_DATE
+                // Ruling 321 — depart_time 은 전/후로 나뉘지 않는 단일 값이다. 정확값(SERVICE_DATE
                 // 08:00, 확정된_회차와_승인_대기_건을_만든다 가 심은 값)으로 대조한다 — notNull 만으로는
                 // 응답이 다른 회차의 시각을 잘못 실어도 못 잡는다.
                 .andExpect(jsonPath("$.data.depart_time")
@@ -386,10 +386,9 @@ class StaffApprovalControllerTest {
 
     /**
      * 상세 응답의 재최적화 결과 본문 — 취소 대상 학생(학생2, {@code midStop})이 전/후 대조에서 실제로
-     * 빠지는지를 값으로 확인한다. 지금까지의 시험은 {@code preview_token}·호출 횟수만 봤을 뿐
-     * {@code route_preview}·{@code affected_students} 의 <b>내용</b>은 아무도 검사하지 않았다 — 계산이
-     * 비어 있거나(영향 학생 0명) 취소 대상이 빠지지 않은 채 그대로 남아도 기존 단언은 전부 통과한다
-     * (T4 게이트 리뷰 잔여 지적, 2026-08-30).
+     * 빠지는지를 값으로 확인한다. {@code preview_token}·호출 횟수만 보는 단언으로는
+     * {@code route_preview}·{@code affected_students} 의 <b>내용</b>이 검사되지 않는다 — 계산이
+     * 비어 있거나(영향 학생 0명) 취소 대상이 빠지지 않은 채 그대로 남아도 기존 단언은 전부 통과한다.
      *
      * <p>이 시나리오는 정차지 하나에 학생 한 명뿐이라(학생1={@code firstStop}·학생2={@code midStop}·
      * 학생3={@code lastStop}) 학생2 를 취소하면 {@code midStop} 잔여 인원이 0이 되어 <b>노선에서
@@ -422,8 +421,7 @@ class StaffApprovalControllerTest {
     }
 
     /**
-     * `R21-A` 추가 지시 ②(사용자 지적 — "구간별 승인의 지도에도 승하차지 표기해주고, 특히 변한
-     * 승하차지는 다르게 표시") — {@code stops_before}·{@code stops_after}·{@code removed} 가 지도에
+     * {@code stops_before}·{@code stops_after}·{@code removed} 가 지도에
      * 마커로 찍을 좌표(lat·lng)를 실제로 낸다. {@code midStop}(37.562000, 126.972000)의 값 자체로
      * 대조한다 — 존재 여부(exists)만 보면 엉뚱한 좌표가 들어가도 잡지 못한다.
      */
@@ -575,7 +573,7 @@ class StaffApprovalControllerTest {
                 .andExpect(jsonPath("$.data.preview_token").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.preview_stale").value(false))
                 .andExpect(jsonPath("$.data.route_preview").value(org.hamcrest.Matchers.nullValue()))
-                // R20-A(Ruling 321) — depart_time 은 capacity 와 같이 결정 여부와 무관하게 항상 채워진다.
+                // Ruling 321 — depart_time 은 capacity 와 같이 결정 여부와 무관하게 항상 채워진다.
                 .andExpect(jsonPath("$.data.depart_time")
                         .value(org.hamcrest.Matchers.startsWith("2030-05-05T23:00:00Z")))
                 .andExpect(jsonPath("$.data.est_time_before").value(org.hamcrest.Matchers.nullValue()))
@@ -600,7 +598,7 @@ class StaffApprovalControllerTest {
         verify(pipeline, times(0)).compute(any());
     }
 
-    // ── R48 Ruling 812 — 상세가 status·결정 정보·배치 인력을 싣는다 ─────────────────────
+    // ── Ruling 812 — 상세가 status·결정 정보·배치 인력을 싣는다 ─────────────────────
 
     /** 대기 건 상세 — {@code status=pending}, 결정 시각·결정자 둘 다 {@code null}, 배치된 기사 이름만 실리고 동승자는 {@code null}. */
     @Test

@@ -51,7 +51,7 @@ import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 비상 신고 접수는 위치 캐시(Redis)를 읽는 순간 DB 트랜잭션·연결·{@code client_key} 잠금이 없다(R46 T-5) — 비상은
+ * 비상 신고 접수는 위치 캐시(Redis)를 읽는 순간 DB 트랜잭션·연결·{@code client_key} 잠금이 없다 — 비상은
  * 가장 빨라야 하는 쓰기라 Redis 가 느려(500ms 상한) 접수가 늦어지고, 그동안 연결과 같은 키의 재전송 잠금을 쥐면 안 된다.
  * 그러면서도 Redis 가 실패하면 위치 없이 접수하는 안전 요구(BR-039)는 그대로다.
  *

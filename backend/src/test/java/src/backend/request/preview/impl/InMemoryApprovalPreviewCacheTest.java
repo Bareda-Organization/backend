@@ -16,7 +16,7 @@ import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.routing.pipeline.RouteComputation;
 
 /**
- * DA-11(Ruling 899) — 승인 미리보기 캐시는 상한 500건 · 하루 만료다(R59 에서 Redis 로 옮기기 전까지). 결정되지 않은 승인 건이 쌓여도 힙이
+ * DA-11(Ruling 899) — 승인 미리보기 캐시는 상한 500건 · 하루 만료다(Redis 로 옮기기 전까지). 결정되지 않은 승인 건이 쌓여도 힙이
  * 무한히 늘지 않는다.
  */
 class InMemoryApprovalPreviewCacheTest {

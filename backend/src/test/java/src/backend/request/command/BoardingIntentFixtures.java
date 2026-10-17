@@ -58,7 +58,7 @@ import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * 탑승 의사 토글 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}(Phase 7)와 같은 이유로 정상
+ * 탑승 의사 토글 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}와 같은 이유로 정상
  * 경로의 팩토리로 쌓는다.
  */
 public class BoardingIntentFixtures {

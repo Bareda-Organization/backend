@@ -21,11 +21,9 @@ import src.backend.global.security.JwtTokenProvider;
 /**
  * §2.10 {@code GET /me} — 전 역할 공통 본인 프로필.
  *
- * <p>{@code pending}·{@code rejected} 도 호출 가능하다는 API_SPEC 본문 그대로, Task 4 가
- * {@code MeController.me()} 에 {@code @AllowedWhenPending} 을 부착해 이 편차를 해소했다
- * (2026-08-25) — 이전에는 p2-task-2-report.md 의 부착 지침에 따라 게이트 애너테이션 없이
- * 403 {@code AUTH_PENDING} 을 반환했으나, 대기 화면이 상태를 알아야 하는 API_SPEC 본문 요구를
- * 우선해 뒤집었다(브리프 §7 goal sentence, 의도된 RED #3 GREEN 전환).
+ * <p>{@code pending}·{@code rejected} 도 호출 가능하다는 API_SPEC 본문 그대로,
+ * {@code MeController.me()} 에 {@code @AllowedWhenPending} 을 부착해 이 편차를 해소한다.
+ * 대기 화면이 상태를 알아야 하는 API_SPEC 본문 요구를 우선한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

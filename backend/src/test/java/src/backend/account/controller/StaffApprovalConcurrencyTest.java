@@ -29,7 +29,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * 관계자 승인 <b>엔드포인트</b>의 동시성(Phase 3 목표 2 ②) — 같은 학원의 관계자 가입 요청 2건이
+ * 관계자 승인 <b>엔드포인트</b>의 동시성 — 같은 학원의 관계자 가입 요청 2건이
  * {@code POST /admin/staff-signup-requests/{id}/decide} 로 겹쳐 들어오는 형태다.
  *
  * <p>{@code AcademyStaffQuotaConcurrencyTest} 와 다른 것을 본다 — 그쪽은 판정 지점

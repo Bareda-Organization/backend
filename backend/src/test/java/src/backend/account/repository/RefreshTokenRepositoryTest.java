@@ -36,7 +36,7 @@ class RefreshTokenRepositoryTest {
 
     /**
      * DB(timestamptz)는 마이크로초까지만 저장한다. Linux(CI)의 {@code OffsetDateTime.now()} 는 나노초라
-     * 저장 뒤 다시 읽은 값과 {@code isEqualTo} 가 어긋난다 — macOS 는 마이크로초라 로컬에서만 통과했다(R46-CIFIX).
+     * 저장 뒤 다시 읽은 값과 {@code isEqualTo} 가 어긋난다 — macOS 는 마이크로초라 로컬에서만 통과한다.
      */
     private static OffsetDateTime now() {
         return OffsetDateTime.now().truncatedTo(ChronoUnit.MICROS);

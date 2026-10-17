@@ -45,7 +45,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 
 /**
- * 비밀번호 해시(BCrypt)를 만들거나 대조하는 순간 이 스레드에 트랜잭션·연결·행 잠금이 없다(R46 T-3) — BCrypt 는 요청당
+ * 비밀번호 해시(BCrypt)를 만들거나 대조하는 순간 이 스레드에 트랜잭션·연결·행 잠금이 없다 — BCrypt 는 요청당
  * 수십~수백 ms 라 잠금 트랜잭션 안에 두면 그 시간만큼 연결이 묶인다. 가입 · 비밀번호 변경 · 관계자 계정 수정 ·
  * 관리자 비밀번호 초기화 · 전화번호 복구 5곳을 {@link PasswordEncoder} 감시로 확인한다.
  *

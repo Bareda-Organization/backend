@@ -62,9 +62,7 @@ import src.backend.run.repository.RunRepository;
  * 별도 클래스에 둔다).
  *
  * <p><b>이 클래스의 최우선 단언은 두 갈래다</b> — 응답 필드·호출 횟수뿐 아니라 <b>실제로 배포된
- * 노선의 내용</b>({@code run_stop} 이 취소 대상 정류장을 정말 빼고 있는지)까지 본다. Phase 8 에서
- * 세 번 반복된 사각지대(응답은 맞는데 계산 결과는 안 보는 것)를 이 태스크에서 되풀이하지 않기 위해서다
- * (인수인계 §4).
+ * 노선의 내용</b>({@code run_stop} 이 취소 대상 정류장을 정말 빼고 있는지)까지 본다. 응답은 맞는데 계산 결과는 안 보는 사각지대를 막기 위해서다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -171,7 +169,7 @@ class StaffApprovalDecideControllerTest {
                 "SELECT status FROM run_rider WHERE run_id = ? AND stop_id = ?", String.class, s.runId,
                 s.midStopId);
         assertThat(riderStatus).as("취소된 학생의 명단 상태가 absent 로 남아야 한다").isEqualTo("absent");
-        // R51 M-B2 — 취소 승인이 부여한 absent 는 사람(동승자)이 아니라 서버가 한 전이라 이력에 system 으로 남는다.
+        // 취소 승인이 부여한 absent 는 사람(동승자)이 아니라 서버가 한 전이라 이력에 system 으로 남는다.
         List<java.util.Map<String, Object>> history = jdbcTemplate.queryForList(
                 "SELECT h.from_status, h.to_status, h.actor_type, h.changed_by FROM rider_status_history h "
                         + "JOIN run_rider r ON r.id = h.run_rider_id WHERE r.run_id = ? AND r.stop_id = ?",
@@ -185,8 +183,8 @@ class StaffApprovalDecideControllerTest {
                 Integer.class, s.driverAccountId);
         assertThat(routeChangedCount).as("배치된 기사에게 route_changed 가 남아야 한다").isEqualTo(1);
 
-        // R13 — route_changed 는 studentId 대신 busNo 를 채운다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 4, 회차 전체를 가리키는
-        // 알림이라 특정 학생이 없다). 실제 배정 차량의 bus_no 와 일치해야 한다.
+        // route_changed 는 studentId 대신 busNo 를 채운다. 회차 전체를 가리키는
+        // 알림이라 특정 학생이 없다. 실제 배정 차량의 bus_no 와 일치해야 한다.
         String expectedBusNo = jdbcTemplate.queryForObject(
                 "SELECT b.bus_no FROM bus b JOIN run r ON r.bus_id = b.id WHERE r.id = ?", String.class, s.runId);
         String routeChangedBusNo = jdbcTemplate.queryForObject(
@@ -200,7 +198,7 @@ class StaffApprovalDecideControllerTest {
                 String.class, s.parentAccountId);
         assertThat(decidedBody).as("학부모에게 승인 안내가 남아야 한다").contains("승인되어 반영");
 
-        // R13 — change_decided 는 신청 학생을 studentId 로 채운다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // change_decided 는 신청 학생을 studentId 로 채운다.
         Long requestedStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM change_request WHERE id = ?", Long.class, s.approvalId);
         Long decidedStudentId = jdbcTemplate.queryForObject(
@@ -209,7 +207,7 @@ class StaffApprovalDecideControllerTest {
         assertThat(decidedStudentId).as("change_decided 의 student_id 가 신청 학생과 일치한다")
                 .isEqualTo(requestedStudentId);
 
-        // R56 Ruling 894 ⑪ — change_decided 수신자는 신청을 낸 보호자 1명뿐이다(다른 보호자 · 학생 계정으로 새지 않는다).
+        // Ruling 894 ⑪ — change_decided 수신자는 신청을 낸 보호자 1명뿐이다(다른 보호자 · 학생 계정으로 새지 않는다).
         List<Long> decidedRecipients = jdbcTemplate.queryForList(
                 "SELECT recipient_account_id FROM notification_log WHERE type = 'change_decided' AND student_id = ?",
                 Long.class, requestedStudentId);
@@ -397,7 +395,7 @@ class StaffApprovalDecideControllerTest {
                 .andExpect(jsonPath("$.error.code").value("CHANGE_WINDOW_CLOSED"));
     }
 
-    /** Ruling 870 — 출발 시각이 지났어도 운행이 시작되지 않았고 출발 + 10분 전이면 ②라 승인 처리를 받는다(이전에는 403). */
+    /** Ruling 870 — 출발 시각이 지났어도 운행이 시작되지 않았고 출발 + 10분 전이면 ②라 승인 처리를 받는다. */
     @Test
     void 출발_직후_운행_미시작이면_거절_결정을_받는다() throws Exception {
         OffsetDateTime departTime = OffsetDateTime.now(KST).minusMinutes(3);

@@ -27,7 +27,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 관계자 웹의 예외 보고 조회 API(§5.20, Phase 11 goal 16) — {@code type}·{@code date}·{@code run_id}
+ * 관계자 웹의 예외 보고 조회 API(§5.20) — {@code type}·{@code date}·{@code run_id}
  * 필터 각각 매칭·비매칭 행을 함께 심어 필터가 실제로 좁히는지 검사한다.
  */
 @SpringBootTest

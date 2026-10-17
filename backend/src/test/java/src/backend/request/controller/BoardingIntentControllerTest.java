@@ -61,15 +61,14 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 탑승 의사 토글(ATT-01·02, P-03, API_SPEC §3.6) — Phase 8 목표 1·2·5·8·9(부분).
+ * 탑승 의사 토글(ATT-01·02, P-03, API_SPEC §3.6).
  *
  * <p>3구간 판정 자체({@link src.backend.request.domain.ChangeWindowPolicy})는 별도로 이미 단위
  * 시험이 있다고 가정하지 않는다 — 이 클래스가 그 판정을 <b>엔드포인트 경유로 실제로 타는지</b>까지
  * 함께 본다. {@link RouteComputationPipeline} 을 스파이로 감싸 ①·③ 어느 경로도 이를 부르지 않음을
  * 직접 확인한다(목표 1 — Ruling 198, "재최적화는 결과이지 동기 호출이 아니다").
  *
- * <p>목표 9 는 부분이다(Ruling 195) — {@code notification_log} 적재까지만 검사하고, 웹소켓 발행은
- * Phase 10 범위라 이 클래스가 단언하지 않는다.
+ * <p>{@code notification_log} 적재까지만 검사하고, 웹소켓 발행은 이 클래스가 단언하지 않는다(Ruling 195).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -867,7 +866,7 @@ class BoardingIntentControllerTest {
                 .containsExactly("absent");
     }
 
-    // ── 목표 9(부분) — 알림 적재(푸시만, 웹소켓은 Phase 10) ──────────────────
+    // ── 알림 적재(푸시만, 웹소켓은 제외) ──────────────────
 
     /**
      * ①·②구간 모두 관계자에게 알림이 적재된다(API_SPEC §9.7, Ruling 195) — 여기서는
@@ -917,8 +916,8 @@ class BoardingIntentControllerTest {
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ? AND type = 'approval_requested' AND dedup_key LIKE ?",
                 Integer.class, staffAccountId, "approval_requested:" + approvalRunId + ":%")).isEqualTo(1);
 
-        // R13 — intent_changed·approval_requested 둘 다 studentId 를 들고 있는 단일 학생
-        // 이벤트라 관계자 수신이어도 student_id 가 채워진다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // intent_changed·approval_requested 둘 다 studentId 를 들고 있는 단일 학생
+        // 이벤트라 관계자 수신이어도 student_id 가 채워진다.
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE recipient_account_id = ? AND type = 'intent_changed' "
                         + "AND dedup_key LIKE ?",

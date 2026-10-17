@@ -33,7 +33,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 기사·동승자 단말의 현장 예외 보고 등록 API(§4.13, EXC-02·03, Phase 11 goal 15).
+ * 기사·동승자 단말의 현장 예외 보고 등록 API(§4.13, EXC-02·03).
  *
  * <p>{@code @Transactional} 을 쓴다 — {@code DriverRunControllerTest} 와 같은 근거로, 커맨드
  * 서비스의 {@code @Transactional} 은 기본 전파라 테스트 트랜잭션에 합류하고 끝나면 함께 롤백된다.
@@ -112,7 +112,7 @@ class RunReportControllerTest {
         assertThat(보고_라이더(runId)).isEqualTo(runRiderId);
     }
 
-    // ── R56 K4(Ruling 894 ⑧) — 오프라인 큐 재전송 키 ───────────────────────────
+    // ── Ruling 894 ⑧ — 오프라인 큐 재전송 키 ───────────────────────────
 
     @Test
     @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 보고 1개·관계자 알림 1건이고 두 번째는 200 으로 같은 report_id 를 돌려준다")

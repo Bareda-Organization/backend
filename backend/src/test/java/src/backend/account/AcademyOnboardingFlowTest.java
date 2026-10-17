@@ -28,7 +28,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Phase 3 목표 1 — 메인 관리자 로그인 → 학원 등록 → 관계자 가입 요청 승인 → 관계자 로그인 →
+ * 메인 관리자 로그인 → 학원 등록 → 관계자 가입 요청 승인 → 관계자 로그인 →
  * 학부모 가입 요청 승인·거절을 <b>한 흐름</b>으로 밟는다.
  *
  * <p>단계마다 시드 값을 새로 집어 오면 흐름이 아니라 독립 호출 6개다 — 그러면 "등록한 학원에 실제로
@@ -36,8 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code code} · {@code request_id})만을 뒤 단계 입력으로 넘기고, 시드는 메인 관리자 자격 하나만 쓴다.
  *
  * <p>학부모 수락에는 AUTH-11 이 요구하는 연결 대상(학생)이 필요하다. 그 학생을 <b>승인된 관계자가
- * 등록 API(STU-01)로 직접 만든다</b> — Phase 3 시점에는 그 API 가 부재해 raw INSERT 로 심었던
- * 자리이며, Phase 5 가 API 를 만들면서 실제 경로로 바꿨다(목표 10).
+ * 등록 API(STU-01)로 직접 만든다</b>.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -195,7 +194,7 @@ class AcademyOnboardingFlowTest {
     /**
      * 방금 승인된 관계자가 <b>자기 학원의 학생을 실제 등록 경로로</b> 만든다 (STU-01, §5.11).
      *
-     * <p>raw INSERT 였다가 바뀐 자리다 — Phase 3 시점에는 학생 등록 API 가 부재했다. SQL 은 <b>API 가
+     * <p>SQL 은 <b>API 가
      * 만들어 내지 못하는 상태</b>도 만들 수 있어(학원 범위를 벗어난 학생·필수 값이 빠진 학생), 그
      * 위에서 초록인 흐름은 운영에서 나올 수 없는 데이터를 검사하게 된다. 학생을 등록 API 로 만들면
      * 이 흐름이 "승인된 관계자가 곧바로 학생을 등록할 수 있는가" 까지 함께 밟는다.

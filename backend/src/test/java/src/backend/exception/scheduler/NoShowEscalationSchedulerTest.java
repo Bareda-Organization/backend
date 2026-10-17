@@ -29,8 +29,7 @@ import testsupport.clock.FixedClock20320401Config;
 import testsupport.db.NotificationInsertFailureInjector;
 
 /**
- * 미승차 에스컬레이션 폴링({@link NoShowEscalationScheduler#escalateDueNoShowCases}) 수준의 검증
- * (Phase 11 T1 목표 1) — {@code ChangeRequestAutoRejectionSchedulerTest} 와 같은 구조다.
+ * 미승차 에스컬레이션 폴링({@link NoShowEscalationScheduler#escalateDueNoShowCases}) 수준의 검증 — {@code ChangeRequestAutoRejectionSchedulerTest} 와 같은 구조다.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — 스케줄러가 건마다 별도 빈({@link NoShowEscalationPersistence}
  * 대응, {@code exception.command} 패키지)의 {@code @Transactional} 메서드를 호출하므로, 테스트 스레드에
@@ -146,7 +145,7 @@ class NoShowEscalationSchedulerTest {
                 Integer.class, staffAccountId);
         assertThat(notificationCount).as("②관계자에게 no_show_escalated 알림이 남아야 한다").isEqualTo(1);
 
-        // R13 — no_show_escalated 는 studentId 를 들고 있는 단일 학생 이벤트다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // no_show_escalated 는 studentId 를 들고 있는 단일 학생 이벤트다.
         Long expectedStudentId = jdbcTemplate.queryForObject("SELECT student_id FROM run_rider WHERE id = ?",
                 Long.class, riderId);
         Long notifiedStudentId = jdbcTemplate.queryForObject(
@@ -193,7 +192,7 @@ class NoShowEscalationSchedulerTest {
     }
 
     /**
-     * R51 L1 — 폴링이 만료된 케이스를 집은 뒤 UPDATE 하기 전에 케이스가 재개돼(미승차 되돌림 → 다시 미승차, 만료 시각이 미래로
+     * 폴링이 만료된 케이스를 집은 뒤 UPDATE 하기 전에 케이스가 재개돼(미승차 되돌림 → 다시 미승차, 만료 시각이 미래로
      * 갱신) 아직 만료 전이면 에스컬레이션하지 않는다. UPDATE 가 만료 시각을 다시 확인하지 않으면 새 대기 시간이 시작된 케이스를
      * 곧바로 관계자에게 올린다.
      */
@@ -242,9 +241,9 @@ class NoShowEscalationSchedulerTest {
     }
 
     /**
-     * Phase 11 T1 fix1 §2 — {@code findDueForEscalation} 의 {@code escalatedAt IS NULL} 필터가
+     * {@code findDueForEscalation} 의 {@code escalatedAt IS NULL} 필터가
      * 없어도 뒤쪽 조건부 UPDATE 가 정합성은 지키지만, 그 필터 자체의 목적(배치 상한 보호)은 이
-     * 시험 이전엔 검증되지 않았다(리뷰 3회차 변형이 살아남음). 이미 처리된 케이스를 배치 상한만큼
+     * 시험이 검증한다. 이미 처리된 케이스를 배치 상한만큼
      * 쌓아 두고, 그보다 늦게 만료된 새 케이스가 같은 틱에서 밀리지 않는지로 그 필터의 존재 이유를
      * 직접 확인한다.
      */

@@ -41,7 +41,7 @@ import testsupport.redis.RedisTestContainerBase;
 import org.springframework.context.annotation.Import;
 
 /**
- * 기사·동승자 단말의 비상 신고 발신·취소 API(EXC-04, Phase 11 T2 목표 5·8·9) — {@code /runs/{runId}/emergency}.
+ * 기사·동승자 단말의 비상 신고 발신·취소 API(EXC-04) — {@code /runs/{runId}/emergency}.
  *
  * <p>목표 8(위치 자동 첨부)이 실제 Redis 캐시(T1 계약, {@code run:{runId}:position})를 읽는지
  * 검증하려면 진짜 Redis 가 필요하다 — {@link RedisTestContainerBase} 를 상속하지 않아도 전역 장치
@@ -163,7 +163,7 @@ class EmergencyControllerTest {
     }
 
     /**
-     * R51 Ruling 865 — {@code notified} 는 실제로 알림이 가는 수신자 수라 차단(blocked)된 메인관리자를 센다. 가입 대기·거절은 세지
+     * Ruling 865 — {@code notified} 는 실제로 알림이 가는 수신자 수라 차단(blocked)된 메인관리자를 센다. 가입 대기·거절은 세지
      * 않는다. 시드 메인관리자 수는 시험 DB 마다 달라 만들기 전의 수신 가능 계정 수를 기준으로 삼는다.
      */
     @Test
@@ -367,8 +367,7 @@ class EmergencyControllerTest {
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
-        // BE-R1 목표 5 — API_SPEC §4.14 는 204 본문 없음을 요구한다. 이전에는 200 + 본문
-        // canceled_at 이었다(정본과 어긋남).
+        // API_SPEC §4.14 는 204 본문 없음을 요구한다.
         mockMvc.perform(delete(CANCEL.formatted(runId, emergencyId))
                         .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isNoContent())
@@ -438,8 +437,7 @@ class EmergencyControllerTest {
     }
 
     /**
-     * 목록 응답의 {@code emergency_id} 가 <b>문자열</b>인지 타입으로 고정한다(BE-R1 수정 라운드 §1.4⑤
-     * — 게이트가 직접 재현).
+     * 목록 응답의 {@code emergency_id} 가 <b>문자열</b>인지 타입으로 고정한다.
      *
      * <p><b>이 시험이 유일한 방어선이다.</b> 위 "전 필드" 시험의 {@code .value(String.valueOf(...))} 는
      * <b>타입을 가리지 않는다</b> — 필드를 {@code Long} 으로 되돌려도 그 단언은 그대로 통과한다.
@@ -470,7 +468,7 @@ class EmergencyControllerTest {
     /**
      * {@code cancelable_until} 이 <b>발신 시각 + 60초</b> 인지 값으로 고정한다(§4.15 · 취소 창 1분).
      * 위 "전 필드" 시험은 이 필드의 <b>존재</b>만 봐서, 발신 시각을 그대로 돌려주도록 바꿔도 통과했다
-     * (조율자 실측 2026-09-09). 존재 검사는 필드가 사라지는 사고만 잡고 값이 틀리는 사고는 놓친다.
+     * (실측). 존재 검사는 필드가 사라지는 사고만 잡고 값이 틀리는 사고는 놓친다.
      */
     @Test
     void 취소_가능_시각은_발신_시각의_60초_뒤다() throws Exception {

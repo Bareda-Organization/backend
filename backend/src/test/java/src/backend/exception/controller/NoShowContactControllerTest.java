@@ -41,7 +41,7 @@ import src.backend.manager.repository.ManagerRepository;
 import testsupport.clock.FixedClock20310401Config;
 
 /**
- * 미승차 연락 시도 기록(API_SPEC §4.8, Phase 11 목표 3) — {@code POST
+ * 미승차 연락 시도 기록(API_SPEC §4.8) — {@code POST
  * /runs/{runId}/riders/{riderId}/no-show-contacts}. 케이스는 {@code BoardingController} 의 no_show
  * 처리 경로를 거치지 않고 {@link NoShowCaseRepository} 로 직접 만든다({@code NoShowEscalationFixtures}
  * 와 같은 근거 — 이 컨트롤러의 관심사는 이미 존재하는 케이스에 연락 시도를 쌓는 것이지 케이스 생성
@@ -281,7 +281,7 @@ class NoShowContactControllerTest {
                 Integer.class, caseId)).as("거부됐으니 행이 생기면 안 된다").isEqualTo(0);
     }
 
-    // ── R56 K4(Ruling 894 ⑧) — 오프라인 큐 재전송 키 ─────────────────────────────
+    // ── Ruling 894 ⑧ — 오프라인 큐 재전송 키 ─────────────────────────────
 
     @Test
     @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 행은 1개이고 두 번째는 200 으로 최초 결과를 돌려준다")

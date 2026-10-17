@@ -37,7 +37,7 @@ import src.backend.student.entity.StudentProfile;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 자동 거절(Phase 8 T6) 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}(Phase 7)와 같은 이유로
+ * 자동 거절 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}와 같은 이유로
  * 정상 경로의 팩토리로 쌓는다. {@code public} 인 이유도 같다 — {@code request.scheduler} 패키지의
  * 스케줄러 시험이 이 헬퍼를 재사용해야 해서 패키지 경계를 넘긴다.
  *

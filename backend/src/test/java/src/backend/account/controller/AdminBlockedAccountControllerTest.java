@@ -164,7 +164,7 @@ class AdminBlockedAccountControllerTest {
     /**
      * 해제는 {@code audit_log} 에 {@code action='unblock'} 행을 남긴다.
      *
-     * <p>{@code §6.13 GET /admin/login-history}(Phase 14)가 이 행을 {@code block_event} 로 투영하므로,
+     * <p>{@code §6.13 GET /admin/login-history}가 이 행을 {@code block_event} 로 투영하므로,
      * 여기서 쌓지 않으면 그 화면이 성립하지 않는다. 조회 엔드포인트는 이 태스크 범위 밖이라 적재만 본다.
      */
     @Test
@@ -185,7 +185,7 @@ class AdminBlockedAccountControllerTest {
     }
 
     /**
-     * 해제 감사 행에도 처리한 관리자의 접속 IP 가 남는다(R46-POLISH Ruling 595) — {@code ERD §3.4} 는
+     * 해제 감사 행에도 처리한 관리자의 접속 IP 가 남는다(Ruling 595) — {@code ERD §3.4} 는
      * {@code category=login} 행에 IP 를 채운다고 정했고, 이 행만 비어 있었다.
      */
     @Test
