@@ -8,8 +8,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -50,8 +50,8 @@ import src.backend.global.request.ClientIp;
  * 하는 것이 목적이고, 판단은 <b>서버가 한다</b> — 화면이 보내는 표시로 거르면 요청을 직접 만들어 기록을 피할 수 있다.
  * 키는 <b>행위자·학생·조회한 필드 묶음</b>이고(Ruling 521 — 명단 조회가 먼저 창을 열었다고 보호자 원번호 접근이 기록에서 빠지면 안 된다) 시간은 <b>마지막으로 기록한 시각</b>이다(마지막으로 본 시각이 아니다 — 그러면 계속
  * 보고 있는 동안 기록이 영영 안 남는다). 명단 단위 키로 잡으면 두 번째 조회에 새로 실린 학생이 빠지므로, 명단은 새로
- * 실린 학생만 골라 {@code detail.student_ids} 에 담아 쓴다. 저장소는 메모리다 — 백엔드 인스턴스가 1개라는 배포
- * 전제(CLAUDE.md)를 따르고, 재기동 때 한 번 더 기록되는 것은 허용한다(기록이 줄어드는 쪽이 아니라 느는 쪽 오차).
+ * 실린 학생만 골라 {@code detail.student_ids} 에 담아 쓴다. 저장소는 Redis 다 — 인스턴스가 여러 대여도 같은 창을 쓰고(Ruling 900 E),
+ * Redis 오류 때 한 번 더 기록되는 것은 허용한다(기록이 줄어드는 쪽이 아니라 느는 쪽 오차).
  * 수정·삭제·로그인 기록은 이 클래스를 거치지 않으므로 묶이지 않는다.
  */
 @Service
@@ -67,8 +67,7 @@ public class AuditRecorder {
     /** {@code detail} 에서 응답에 실린 L3 필드명 목록을 담는 키 — 묶기 키의 필드 쪽이다. */
     private static final String FIELDS_KEY = "fields";
 
-    /** 묶기 기록이 이만큼 쌓이면 창이 지난 것을 치운다 — 창 안의 행위자·학생 수가 이 값을 넘을 일은 드물다. */
-    private static final int PRUNE_THRESHOLD = 10_000;
+    private static final String DEDUP_KEY_PREFIX = "schoolbus:audit-dedup:";
 
     /** 묶기 키 — 행위자·학생·<b>조회한 필드 묶음</b>. 필드가 다르면 다른 접근이라(명단의 사진·특이사항 vs 보호자 원번호) 서로를 가리지 않는다(Ruling 521). */
     private record ViewedStudent(Long actorAccountId, String studentId, String fields) {
@@ -82,14 +81,15 @@ public class AuditRecorder {
 
     private final TransactionTemplate requiresNew;
 
-    /** 행위자·학생별로 마지막에 행을 쓴 시각 — {@link #DATA_ACCESS_DEDUP_WINDOW} 가 지나면 쓸모가 없어 지운다. */
-    private final Map<ViewedStudent, Instant> lastRecordedAt = new ConcurrentHashMap<>();
+    /** 묶기 기록 저장소 — 인스턴스가 여러 대여도 같은 창을 쓰도록 Redis 에 둔다(Ruling 900 E). 값은 행을 쓴 시각(epoch ms)이다. */
+    private final StringRedisTemplate redis;
 
     public AuditRecorder(AuditLogRepository auditLogRepository, AccountRepository accountRepository, Clock clock,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager, StringRedisTemplate redis) {
         this.auditLogRepository = auditLogRepository;
         this.accountRepository = accountRepository;
         this.clock = clock;
+        this.redis = redis;
         this.requiresNew = new TransactionTemplate(transactionManager);
         this.requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -125,7 +125,6 @@ public class AuditRecorder {
     public void recordDataAccessReads(Long academyId, Long actorAccountId, String targetType,
             Map<Long, Map<String, Object>> detailByTargetId) {
         Instant now = clock.instant();
-        pruneExpired(now);
         List<ViewedStudent> claimed = new ArrayList<>();
         Map<Long, Map<String, Object>> toWrite = new LinkedHashMap<>();
         detailByTargetId.forEach((targetId, detail) -> {
@@ -151,7 +150,7 @@ public class AuditRecorder {
             });
         } catch (RuntimeException e) {
             // 못 쓴 행의 묶기 기록은 물린다 — 남겨 두면 다음 조회가 "이미 기록함" 으로 건너뛰어 기록이 영영 빠진다
-            claimed.forEach(viewed -> lastRecordedAt.remove(viewed, now));
+            claimed.forEach(this::releaseClaim);
             log.error("감사 로그 적재 실패 — 조회 자체는 정상 처리됨. targetType={}, targetIds={}, actorAccountId={}",
                     targetType, detailByTargetId.keySet(), actorAccountId, e);
         }
@@ -171,15 +170,8 @@ public class AuditRecorder {
         for (Object studentId : studentIds) {
             ViewedStudent viewed = new ViewedStudent(actorAccountId, String.valueOf(studentId),
                     String.valueOf(detail.get(FIELDS_KEY)));
-            boolean[] isNew = {false};
-            lastRecordedAt.compute(viewed, (key, last) -> {
-                if (last != null && now.isBefore(last.plus(DATA_ACCESS_DEDUP_WINDOW))) {
-                    return last;
-                }
-                isNew[0] = true;
-                return now;
-            });
-            if (isNew[0]) {
+            boolean isNew = claim(viewed, now);
+            if (isNew) {
                 fresh.add(viewed.studentId());
                 claimed.add(viewed);
             }
@@ -195,9 +187,41 @@ public class AuditRecorder {
         return narrowed;
     }
 
-    private void pruneExpired(Instant now) {
-        if (lastRecordedAt.size() > PRUNE_THRESHOLD) {
-            lastRecordedAt.values().removeIf(at -> !now.isBefore(at.plus(DATA_ACCESS_DEDUP_WINDOW)));
+    /**
+     * 이 행위자·학생·필드 묶음을 창 안에 처음 보는 조회인지 Redis 로 판정해 맡는다 — {@code SET NX EX} 한 번이라 인스턴스가 여럿이고 호출이 동시여도 정확히 하나만 참을 받는다.
+     * 키가 남아 있어도 값의 시각이 창을 넘었으면(Redis 만료와 앱 시계가 어긋날 때) 새 조회로 보고 시각을 새로 쓴다. Redis 오류는 기록하는 쪽으로 읽는다 — 행이 늘 뿐 빠지지 않는다.
+     */
+    private boolean claim(ViewedStudent viewed, Instant now) {
+        String key = keyOf(viewed);
+        String nowMillis = String.valueOf(now.toEpochMilli());
+        try {
+            if (Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(key, nowMillis, DATA_ACCESS_DEDUP_WINDOW))) {
+                return true;
+            }
+            String last = redis.opsForValue().get(key);
+            if (last != null && now.isBefore(Instant.ofEpochMilli(Long.parseLong(last)).plus(DATA_ACCESS_DEDUP_WINDOW))) {
+                return false;
+            }
+            redis.opsForValue().set(key, nowMillis, DATA_ACCESS_DEDUP_WINDOW);
+            return true;
+        } catch (RuntimeException e) {
+            log.warn("감사 묶기 기록을 Redis 에서 판정하지 못했다 — 새 조회로 보고 기록한다. actor={} student={}", viewed.actorAccountId(),
+                    viewed.studentId(), e);
+            return true;
         }
+    }
+
+    /** 행을 못 쓴 조회의 묶기 기록을 물린다. */
+    private void releaseClaim(ViewedStudent viewed) {
+        try {
+            redis.delete(keyOf(viewed));
+        } catch (RuntimeException e) {
+            log.warn("감사 묶기 기록을 되돌리지 못했다 — 창이 끝날 때까지 같은 조회가 기록에서 빠질 수 있다. actor={} student={}",
+                    viewed.actorAccountId(), viewed.studentId(), e);
+        }
+    }
+
+    private static String keyOf(ViewedStudent viewed) {
+        return DEDUP_KEY_PREFIX + viewed.actorAccountId() + ":" + viewed.studentId() + ":" + viewed.fields();
     }
 }
