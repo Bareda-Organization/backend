@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static testsupport.web.BroadcastWaits.중계가_끝날_때까지;
 import java.net.URI;
 import java.time.OffsetDateTime;
 import java.util.concurrent.BlockingQueue;
@@ -51,6 +52,9 @@ class PositionSubscriberFilterTest {
     @Autowired
     private WebSocketBroadcastGateway gateway;
 
+    @Autowired
+    private BroadcastRelay relay;
+
     @MockitoSpyBean
     private SimpMessagingTemplate messagingTemplate;
 
@@ -83,8 +87,9 @@ class PositionSubscriberFilterTest {
 
     @Test
     @DisplayName("구독자 없는 채널의 위치 방송은 직렬화·전송 자체를 하지 않는다")
-    void 구독자_없는_채널은_위치를_보내지_않는다() {
+    void 구독자_없는_채널은_위치를_보내지_않는다() throws Exception {
         gateway.send(NOT_SUBSCRIBED, "position", 7L, OffsetDateTime.now(), new Object());
+        중계가_끝날_때까지(relay); // 방송이 Redis 를 돌아 이 인스턴스에 도착한 뒤에도 전송이 없음을 본다 — 기다리지 않으면 도착 전이라 늘 통과한다
 
         verify(messagingTemplate, never()).convertAndSend(eq(NOT_SUBSCRIBED), any(Object.class));
     }

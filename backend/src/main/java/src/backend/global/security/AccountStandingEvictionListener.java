@@ -4,9 +4,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import jakarta.annotation.PostConstruct;
+
 import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.event.StaffResignedEvent;
+import src.backend.global.cache.CacheEvictionRelay;
 import src.backend.manager.event.ManagerDeletedEvent;
 
 /**
@@ -20,21 +23,35 @@ public class AccountStandingEvictionListener {
 
     private final AccountStanding accountStanding;
 
+    private final CacheEvictionRelay evictionRelay;
+
+    /** 다른 인스턴스가 이 계정을 비웠다는 신호가 오면 이 인스턴스의 항목도 비운다(Ruling 900 D). */
+    @PostConstruct
+    void listenForOtherInstances() {
+        evictionRelay.register(CacheEvictionRelay.ACCOUNT_STANDING, accountStanding::evict);
+    }
+
+    /** 이 인스턴스의 항목을 바로 비우고, 다른 인스턴스에도 알린다 — 신호를 놓쳐도 보관 시간(5초)이 상한이다. */
+    private void evictEverywhere(Long accountId) {
+        accountStanding.evict(accountId);
+        evictionRelay.publish(CacheEvictionRelay.ACCOUNT_STANDING, accountId);
+    }
+
     /** 로그인 실패 차단 · 차단 해제 · 재직 복귀. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onChanged(AccountStandingChangedEvent event) {
-        accountStanding.evict(event.accountId());
+        evictEverywhere(event.accountId());
     }
 
     /** 관계자 퇴사. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onResigned(StaffResignedEvent event) {
-        accountStanding.evict(event.accountId());
+        evictEverywhere(event.accountId());
     }
 
     /** 매니저 삭제. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onManagerDeleted(ManagerDeletedEvent event) {
-        accountStanding.evict(event.accountId());
+        evictEverywhere(event.accountId());
     }
 }

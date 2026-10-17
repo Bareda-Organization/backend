@@ -2,6 +2,7 @@ package src.backend.global.websocket;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -64,6 +65,24 @@ public class OpenWebSocketSessions implements WebSocketHandlerDecoratorFactory {
                 closed++;
             } catch (IOException | RuntimeException e) {
                 log.warn("권한이 바뀐 계정의 WebSocket 세션을 닫지 못했다 — sessionId={}", sessionId, e);
+            }
+        }
+        return closed;
+    }
+
+    /** 열린 세션을 모두 {@code 1012} 로 닫는다(서버 종료) — 닫은 세션 수를 돌려준다. 하나가 실패해도 나머지는 계속 닫는다. */
+    public int closeAllForRestart() {
+        int closed = 0;
+        for (WebSocketSession session : List.copyOf(sessions.values())) {
+            if (!session.isOpen()) {
+                continue;
+            }
+            try {
+                meterRegistry.counter("schoolbus.ws.closed", "reason", "1012").increment();
+                session.close(CloseStatus.SERVICE_RESTARTED);
+                closed++;
+            } catch (IOException | RuntimeException e) {
+                log.warn("종료 때 WebSocket 세션을 닫지 못했다 — sessionId={}", session.getId(), e);
             }
         }
         return closed;

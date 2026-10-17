@@ -200,7 +200,7 @@ class StompChannelAuthorizationTest {
     }
 
     /**
-     * BR-008 — 브로커 목적지({@code /topic/**}·{@code /queue/**}·{@code /user/**})로 온 클라이언트 SEND 는
+     * BR-008 — 브로커 목적지({@code /topic/**})로 온 클라이언트 SEND 는
      * 심플 브로커가 구독자에게 그대로 배달한다. 서버 발행분과 구별할 수단이 없으므로 SEND 자체를 거부해야
      * 한다. 구독자 쪽에 가짜 본문이 <b>도착하지 않는다</b>는 것까지 봐야 "거부 프레임만 오고 배달은 됐다" 가 갈린다.
      */
@@ -234,6 +234,27 @@ class StompChannelAuthorizationTest {
         } finally {
             subscriber.close();
             sender.close();
+        }
+    }
+
+    /**
+     * 브로커 접두사에서 {@code /queue} · {@code /user} 를 걷어낸 뒤에도(S-10) 클라이언트가 그 목적지로 {@code SEND} 하면 거부된다 — 접두사가 없어졌다고 인가 검사가
+     * 건너뛰어지면 이 목적지가 응용 목적지로 읽혀 컨트롤러 쪽으로 흘러간다.
+     */
+    @Test
+    void queue_와_user_목적지로_SEND_해도_FORBIDDEN_으로_거부된다() throws Exception {
+        for (String destination : new String[] {"/queue/anything", "/user/queue/anything", "/user/3/queue/anything"}) {
+            BlockingQueue<String> frames = new LinkedBlockingQueue<>();
+            WebSocketSession sender = open(frames);
+            try {
+                connect(sender, frames, tokenProvider.createAccessToken(3L, 2L, Role.PARENT, AccountStatus.ACTIVE));
+                sender.sendMessage(new TextMessage("SEND\ndestination:" + destination
+                        + "\ncontent-type:text/plain\n\nx" + NULL_TERMINATOR));
+
+                assertThat(take(frames)).as("%s 로 보낸 SEND", destination).startsWith("ERROR").contains("FORBIDDEN");
+            } finally {
+                sender.close();
+            }
         }
     }
 

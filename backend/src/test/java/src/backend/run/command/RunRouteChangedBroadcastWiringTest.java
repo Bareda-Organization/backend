@@ -45,6 +45,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.jayway.jsonpath.JsonPath;
 
+import src.backend.global.websocket.BroadcastRelay;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
@@ -97,6 +98,9 @@ class RunRouteChangedBroadcastWiringTest {
     private ThreadPoolTaskExecutor broadcastExecutor;
 
     @Autowired
+    private BroadcastRelay broadcastRelay;
+
+    @Autowired
     private ApplicationEventPublisher eventPublisher;
 
     @Autowired
@@ -142,7 +146,7 @@ class RunRouteChangedBroadcastWiringTest {
 
     @BeforeEach
     void setUp() throws InterruptedException {
-        방송이_끝날_때까지(broadcastExecutor); // 앞 시험이 남긴 늦은 방송이 이 시험의 목에 잡히지 않게
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay); // 앞 시험이 남긴 늦은 방송이 이 시험의 목에 잡히지 않게
         clearInvocations(messagingTemplate);
         fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
@@ -199,7 +203,7 @@ class RunRouteChangedBroadcastWiringTest {
         });
 
         // 방송이 비동기라 바로 확인하면 잘못 나가도 놓친다 — 실행기가 빌 때까지 기다린 뒤 본다
-        방송이_끝날_때까지(broadcastExecutor);
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay);
         verify(messagingTemplate, never()).convertAndSend(anyString(), any(Object.class));
     }
 
@@ -220,7 +224,7 @@ class RunRouteChangedBroadcastWiringTest {
     void 경유_지점_배포_뒤_방송된다() throws Exception {
         long academyId = 확정된_회차를_만든다();
         long runId = jdbcTemplate.queryForObject("SELECT id FROM run WHERE academy_id = ?", Long.class, academyId);
-        방송이_끝날_때까지(broadcastExecutor); // 회차를 만들며 나간 방송이 비운 뒤에 들어오지 않게
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay); // 회차를 만들며 나간 방송이 비운 뒤에 들어오지 않게
         clearInvocations(messagingTemplate);
 
         경유_지점을_배포한다(academyId, runId);
@@ -245,7 +249,7 @@ class RunRouteChangedBroadcastWiringTest {
 
     /** 지금까지 나간 방송 중 {@code route_changed} 봉투의 목적지들 — 커밋 뒤 방송은 비동기라 실행기가 빌 때까지 기다린 뒤 센다. */
     private List<String> routeChangedTargets(long runId) throws InterruptedException {
-        방송이_끝날_때까지(broadcastExecutor);
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay);
         return mockingDetails(messagingTemplate).getInvocations().stream()
                 .filter(invocation -> invocation.getMethod().getName().equals("convertAndSend")
                         && invocation.getArguments().length == 2
@@ -268,7 +272,7 @@ class RunRouteChangedBroadcastWiringTest {
         long approvalId = changeRequestRepository.save(ChangeRequest.forRequest(academyId, runId, studentId,
                 ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, parentAccountId,
                 OffsetDateTime.now())).getId();
-        방송이_끝날_때까지(broadcastExecutor);
+        방송이_끝날_때까지(broadcastExecutor, broadcastRelay);
         clearInvocations(messagingTemplate);
         return new 승인_시나리오(academyId, runId, approvalId);
     }

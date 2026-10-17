@@ -165,7 +165,7 @@ class RunPositionRedisIntegrationTest {
         Mockito.doAnswer(invocation -> {
             broadcastCalls.add(TxObservation.now());
             return invocation.callRealMethod();
-        }).when(gateway).send(eq(WebSocketDestinations.ADMIN_LIVE), any(), any(), any(), any());
+        }).when(gateway).broadcast(eq("position"), any(), any(), any());
         MovingRun moving = 움직이는_회차를_만든다();
 
         mockMvc.perform(post("/api/v1/runs/" + moving.runId() + "/position")

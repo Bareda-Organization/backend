@@ -2,6 +2,7 @@ package src.backend.boarding.command;
 
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -66,11 +67,9 @@ public class RiderChangedBroadcastListener {
 
         Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, event.status(), stopId,
                 event.changedAt(), counts, false);
-        gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.changedAt(),
-                payload);
-        gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.changedAt(),
-                payload);
-        gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.changedAt(), payload);
+        gateway.sendToAll(List.of(WebSocketDestinations.managerRun(event.runId()),
+                WebSocketDestinations.academyLive(event.academyId()), WebSocketDestinations.ADMIN_LIVE), EVENT,
+                event.runId(), event.changedAt(), payload);
     }
 
     /**
@@ -92,11 +91,9 @@ public class RiderChangedBroadcastListener {
 
         Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, "no_show", event.stopId(),
                 event.changedAt(), counts, event.stopSkipped());
-        gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.changedAt(),
-                payload);
-        gateway.send(WebSocketDestinations.academyLive(event.academyId()), EVENT, event.runId(), event.changedAt(),
-                payload);
-        gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.changedAt(), payload);
+        gateway.sendToAll(List.of(WebSocketDestinations.managerRun(event.runId()),
+                WebSocketDestinations.academyLive(event.academyId()), WebSocketDestinations.ADMIN_LIVE), EVENT,
+                event.runId(), event.changedAt(), payload);
     }
 
     /** 상태별 인원을 질의 1번으로 읽는다 — 인원이 없는 상태는 0 이다. */

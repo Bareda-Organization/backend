@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,10 +59,8 @@ class EmergencyBroadcastListenerTest {
 
         listener.broadcastRaised(event);
 
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.academyLive(academyId)), eq("emergency_raised"),
-                eq(runId), any(), any());
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("emergency_raised"), eq(runId),
-                any(), any());
+        verify(gateway, times(1)).sendToAll(eq(List.of(WebSocketDestinations.academyLive(academyId),
+                WebSocketDestinations.ADMIN_LIVE)), eq("emergency_raised"), eq(runId), any(), any());
         verify(gateway, never()).send(eq(WebSocketDestinations.managerRun(runId)), any(), any(), any(), any());
         학생_채널로는_절대_보내지_않는다();
     }
@@ -83,7 +82,7 @@ class EmergencyBroadcastListenerTest {
         listener.broadcastRaised(event);
 
         ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(gateway, times(2)).send(any(), eq("emergency_raised"), eq(runId), any(), payloadCaptor.capture());
+        verify(gateway, times(1)).sendToAll(any(), eq("emergency_raised"), eq(runId), any(), payloadCaptor.capture());
 
         ObjectMapper snakeCaseMapper = new ObjectMapper().registerModule(new JavaTimeModule())
                 .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
@@ -111,7 +110,7 @@ class EmergencyBroadcastListenerTest {
         listener.broadcastRaised(event);
 
         ArgumentCaptor<Object> payloadCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(gateway, times(2)).send(any(), eq("emergency_raised"), eq(100L), any(), payloadCaptor.capture());
+        verify(gateway, times(1)).sendToAll(any(), eq("emergency_raised"), eq(100L), any(), payloadCaptor.capture());
 
         ObjectMapper snakeCaseMapper = new ObjectMapper().registerModule(new JavaTimeModule())
                 .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
@@ -181,10 +180,8 @@ class EmergencyBroadcastListenerTest {
 
         listener.broadcastCanceled(event);
 
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.academyLive(academyId)), eq("emergency_canceled"),
-                eq(runId), any(), any());
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("emergency_canceled"), eq(runId),
-                any(), any());
+        verify(gateway, times(1)).sendToAll(eq(List.of(WebSocketDestinations.academyLive(academyId),
+                WebSocketDestinations.ADMIN_LIVE)), eq("emergency_canceled"), eq(runId), any(), any());
         verify(gateway, never()).send(eq(WebSocketDestinations.managerRun(runId)), any(), any(), any(), any());
         학생_채널로는_절대_보내지_않는다();
     }
@@ -197,6 +194,8 @@ class EmergencyBroadcastListenerTest {
     private void 학생_채널로는_절대_보내지_않는다() {
         verify(gateway, never()).send(argThat(dest -> dest != null && dest.startsWith("/topic/students/")), any(),
                 any(), any(), any());
+        verify(gateway, never()).sendToAll(argThat(dests -> dests != null
+                && dests.stream().anyMatch(dest -> dest.startsWith("/topic/students/"))), any(), any(), any(), any());
         verify(gateway, never()).broadcastToRunChannels(anyLong(), anyLong(), any(), any(), any(), any());
     }
 }

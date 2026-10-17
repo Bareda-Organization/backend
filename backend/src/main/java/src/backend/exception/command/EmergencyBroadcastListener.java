@@ -1,6 +1,7 @@
 package src.backend.exception.command;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Executor;
 
@@ -85,8 +86,8 @@ public class EmergencyBroadcastListener {
 
     private void sendToStaffAndAdmin(Long academyId, Long runId, String eventName, OffsetDateTime occurredAt,
             Object payload) {
-        gateway.send(WebSocketDestinations.academyLive(academyId), eventName, runId, occurredAt, payload);
-        gateway.send(WebSocketDestinations.ADMIN_LIVE, eventName, runId, occurredAt, payload);
+        gateway.sendToAll(List.of(WebSocketDestinations.academyLive(academyId), WebSocketDestinations.ADMIN_LIVE),
+                eventName, runId, occurredAt, payload);
     }
 
     /**

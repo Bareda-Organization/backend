@@ -110,8 +110,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     /**
      * 클라이언트 SEND 는 애플리케이션 목적지({@code /app/**})만 받는다(BR-008). 브로커 목적지
-     * ({@code /topic}·{@code /queue}·{@code /user})로 온 SEND 는 심플 브로커가 구독자에게 그대로 배달해
-     * 서버 발행분과 구별되지 않는 가짜 위치·비상 이벤트가 되므로 거부한다.
+     * ({@code /topic})로 온 SEND 는 심플 브로커가 구독자에게 그대로 배달해
+     * 서버 발행분과 구별되지 않는 가짜 위치·비상 이벤트가 되므로 거부한다. {@code /queue}·{@code /user} 는 브로커 접두사가 아니지만
+     * {@code /app} 도 아니라 같은 규칙으로 거부된다.
      */
     private void rejectBrokerSend(StompHeaderAccessor accessor) {
         String destination = accessor.getDestination();

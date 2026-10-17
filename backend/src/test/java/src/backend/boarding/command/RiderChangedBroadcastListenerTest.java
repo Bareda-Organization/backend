@@ -12,6 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -62,12 +63,9 @@ class RiderChangedBroadcastListenerTest {
         verify(gateway, never()).send(eq(WebSocketDestinations.studentRun(studentId)), any(), any(), any(), any());
         verify(gateway, never()).broadcastToRunChannels(anyLong(), anyLong(), any(), any(), any(), any());
 
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.managerRun(runId)), eq("rider_changed"), eq(runId),
-                any(), any());
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.academyLive(academyId)), eq("rider_changed"),
+        verify(gateway, times(1)).sendToAll(eq(List.of(WebSocketDestinations.managerRun(runId),
+                WebSocketDestinations.academyLive(academyId), WebSocketDestinations.ADMIN_LIVE)), eq("rider_changed"),
                 eq(runId), any(), any());
-        verify(gateway, times(1)).send(eq(WebSocketDestinations.ADMIN_LIVE), eq("rider_changed"), eq(runId), any(),
-                any());
     }
 
     @Test
@@ -90,8 +88,8 @@ class RiderChangedBroadcastListenerTest {
 
         // Payload 가 private record 라 리스너 밖에서 타입으로 잡을 수 없다 — 리플렉션 대신 record 의
         // 기본 toString() 문자열에 기대값이 실렸는지로 확인한다(페이로드 구조가 바뀌면 함께 깨지는
-        // 의도된 결합). 같은 payload 인스턴스가 3채널 전부에 실리므로 3회로 검증한다.
-        verify(gateway, times(3)).send(any(), eq("rider_changed"), eq(runId), any(), argThat(payload -> {
+        // 의도된 결합). 같은 payload 인스턴스가 3채널 전부에 실려 호출은 1회다.
+        verify(gateway, times(1)).sendToAll(any(), eq("rider_changed"), eq(runId), any(), argThat(payload -> {
             String text = String.valueOf(payload);
             assertThat(text).contains("김민성").contains("stopId=55");
             return true;

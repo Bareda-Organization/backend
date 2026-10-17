@@ -340,7 +340,7 @@ management:
           additional-path: "server:/healthz"
   metrics:
     tags:
-      # 지표에 붙는 공통 태그. 나중에 인스턴스가 늘면 여기서 구분한다.
+      # 지표에 붙는 공통 태그. 인스턴스 구분은 Prometheus 가 수집 대상마다 붙이는 instance 라벨이 맡는다.
       application: school-bus
     web:
       server:
@@ -405,9 +405,9 @@ spring:
     password: ${DB_PASSWORD}
     hikari:
       # 부하 측정(2026-09-09 §13.5)이 정한 값(BR-168) — 측정 기계(10코어)에서 정한 잠정값이다.
-      # 운영 권장 사양(4 vCPU)에서 재측정 전까지 이 값을 쓴다(Ruling 351). 백엔드는 인스턴스
-      # 1대뿐이라(위 backend 서비스 주석 — replicas 금지) 20 + 운영자 접속 여유로 postgres
-      # max_connections 기본값 100(docker-compose.prod.yml 이 별도 지정 안 함)을 넘지 않는다.
+      # 운영 권장 사양(4 vCPU)에서 재측정 전까지 이 값을 쓴다(Ruling 351). 백엔드 인스턴스당 풀이 20이라
+      # 1대면 20, 2대면 40 에 운영자 접속 여유를 더해도 postgres max_connections 기본값 100
+      # (docker-compose.prod.yml 이 별도 지정 안 함)을 넘지 않는다.
       maximum-pool-size: 20
       # 3초 — 기본 30초는 풀이 찼을 때 요청 스레드가 연결을 30초씩 기다리며 쌓인다(2026-09-09 붕괴 형태, R46 D #17).
       # 빨리 실패하면 요청은 다음 시도에서 회복하고, 알림 발송·확정 배치는 pending 행이 남아 다음 주기에 다시 집힌다.
