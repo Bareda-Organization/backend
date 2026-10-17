@@ -37,9 +37,8 @@ import src.backend.run.controller.DriverRunFixtures;
 import testsupport.clock.FixedClock20310801Config;
 
 /**
- * Phase 9 통합 좌석 — T1(로스터·노선 조회) · T2(운행 시작·종료) · T3(승하차·미승차) · T4(내비게이션)가
- * 각자 워크트리에서 {@code @MockitoBean} 이나 직접 seed 로 대체했던 서로의 실제 호출 경로를,
- * 병합된 이 워크트리에서 처음으로 진짜 배선 그대로 잇는다.
+ * 로스터·노선 조회 · 운행 시작·종료 · 승하차·미승차 · 내비게이션 네 흐름이 각자 시험에서 {@code @MockitoBean} 이나 직접 seed 로
+ * 상대 흐름의 실제 호출 경로를 대체해 왔다. 이 시험은 그 호출 경로를 진짜 배선 그대로 잇는다.
  *
  * <p>세 시험 모두 그 좌석 자신의 시험(예 {@code RunCompletionServiceTest}·{@code BoardingControllerTest}
  * ·{@code NavigationControllerTest})이 이미 검사하는 <b>내부 로직</b>은 다시 검사하지 않는다 —

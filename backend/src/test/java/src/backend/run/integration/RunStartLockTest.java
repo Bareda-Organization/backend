@@ -29,12 +29,11 @@ import src.backend.run.controller.DriverRunFixtures;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 목표 18(Phase 9 이월 ④, P9 목표 2) — 운행 시작이 노선을 실제로 잠그는가.
+ * 운행 시작이 노선을 실제로 잠그는가.
  *
  * <p>{@code ChangeRequestControllerTest} 의 목표9 시험은 이미 {@code moving} 회차에서 변경 신청이
  * {@code 403} 임을 검사하지만, 회차를 {@code jdbcTemplate.update(...)} 로 직접 {@code moving} 으로
- * 바꿔 만든다 — 즉 <b>실제 시작 경로가 잠그는지는 검사하지 않는다.</b> Phase 9 좌석은 그 시험으로
- * "기존 커버리지가 방어한다" 고 판단했으나 조율자가 채택하지 않았다(이월 사유) — 시작 처리
+ * 바꿔 만든다 — 즉 <b>실제 시작 경로가 잠그는지는 검사하지 않는다.</b> 시작 처리
  * ({@code RunStartCommandService})와 잠금 판정({@code ChangeWindowPolicy})은 서로 다른 클래스라,
  * 시작 처리가 상태 전이를 빠뜨려도 위 시험은 여전히 통과한다.
  *

@@ -29,7 +29,7 @@ import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * {@link RunRepository#confirmIfIdle} 의 <b>동시성</b>(Phase 7 목표 2) — 같은 회차를 두 스레드가
+ * {@link RunRepository#confirmIfIdle} 의 <b>동시성</b> — 같은 회차를 두 스레드가
  * 동시에 확정하려 해도 정확히 한 번만 성공해야 한다.
  *
  * <p>{@code RunGenerationConcurrencyTest} 와 같은 기법을 쓰되 대상이 다르다 — 그쪽은 INSERT-INSERT

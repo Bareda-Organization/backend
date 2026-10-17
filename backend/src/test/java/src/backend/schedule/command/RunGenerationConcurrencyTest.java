@@ -66,13 +66,12 @@ class RunGenerationConcurrencyTest {
      * 스레드 하나가 상대를 기다리는 상한 — <b>정상 흐름에서는 소진되지 않는다.</b> 여기 걸리면 상대가
      * 죽었거나 DB 잠금이 안 풀린 것이라, 테스트가 매달리는 대신 실패로 드러나야 한다.
      *
-     * <p>20 → 45 로 올림(Phase 10 T1). ⚠ <b>그 인상의 근거였던 진단은 F5 S3 실측으로 반증됐다.</b>
-     * "캐시된 {@code @SpringBootTest} 컨텍스트 다수가 만드는 자원 경합이 20초 예산을 넘긴다" 였는데,
-     * 45초로 올린 뒤에도 전체 실행에서 이 시험이 예산을 다 쓰고 그대로 실패했다. 그 순간 상대는
+     * <p>⚠ <b>진단 "캐시된 {@code @SpringBootTest} 컨텍스트 다수가 만드는 자원 경합이 20초 예산을 넘긴다"는 F5 S3 실측으로 반증됐다.</b>
+     * 예산을 45초로 늘려도 전체 실행에서 이 시험이 예산을 다 쓰고 실패했다. 그 순간 상대는
      * 44초 내내 {@code Lock/transactionid} 로 대기 중이었다 — 즉 느려서가 아니라 <b>폴링이 상대를
      * 보지 못했다.</b> 원인은 폴링이 읽는 {@code pg_stat_activity} 가 트랜잭션 단위로 캐시되는 것이고
      * (PostgreSQL {@code stats_fetch_consistency} 기본값 {@code cache}), 회차마다
-     * {@code pg_stat_clear_snapshot()} 으로 스냅숏을 버리는 것으로 고쳤다. 이 값은 이제 상대가
+     * {@code pg_stat_clear_snapshot()} 으로 스냅숏을 버려 이 캐시를 우회한다. 이 값은 상대가
      * 죽었을 때의 상한으로만 남는다.
      */
     private static final long TIMEOUT_SECONDS = 45;

@@ -33,7 +33,7 @@ import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.repository.RunRepository;
 
 /**
- * §4.1 {@code GET /manager/runs} — RUN-01·M-02·M-07, Phase 9 목표 16·17.
+ * §4.1 {@code GET /manager/runs} — RUN-01·M-02·M-07.
  *
  * <p>이 클래스의 축은 <b>배치 여부가 곧 목록 범위</b>라는 것이다({@code ManagerRunAccess} 대신
  * {@code assignment} 조회 자체가 좁힌다). 배치되지 않은 매니저가 빈 배열을 받는지(목표 17), 삭제된

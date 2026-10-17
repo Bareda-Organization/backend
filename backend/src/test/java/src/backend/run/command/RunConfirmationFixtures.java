@@ -33,7 +33,7 @@ import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * 확정 배치 시험이 쓰는 실제 행 — {@code RoutingFixtures}(Phase 6)와 같은 이유로 정상 경로의
+ * 확정 배치 시험이 쓰는 실제 행 — {@code RoutingFixtures}와 같은 이유로 정상 경로의
  * 팩토리로 쌓는다: 확정 배치가 읽어 내는 대상이 <b>정상 경로로 쌓인 데이터</b>이기 때문이다.
  *
  * <p>{@code public} 인 이유는 {@code src.backend.run.scheduler} 패키지의

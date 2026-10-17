@@ -26,7 +26,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@link StopDepartureService#forceAllRemaining}(R17-T1 목표 3, Ruling 312) — 도착·미출발 정차지가
+ * {@link StopDepartureService#forceAllRemaining}(Ruling 312) — 도착·미출발 정차지가
  * 여러 건 쌓인 채로 운행이 종료되면 <b>전부</b> 해소되는지 본다. {@code ProximityNotificationServiceTest}
  * 의 출발 판정 검사는 전부 정차지 1건짜리라, {@code forceAllRemaining} 이 반복문 첫 건만 처리하고
  * 나머지를 빠뜨려도(예: {@code return} 을 {@code for} 안에 잘못 넣는 실수) 그 결함을 잡지 못한다.

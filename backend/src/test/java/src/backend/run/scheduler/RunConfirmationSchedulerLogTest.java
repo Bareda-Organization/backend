@@ -32,8 +32,8 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * R46-KFIXBE K-2(Ruling 703) — 확정 실패 로그. 노선·학원 좌표를 사람이 고칠 때까지 같은 결과인 설정 오류({@link BusinessException})는 스택 없이
- * 한 줄이고, 예기치 못한 예외만 스택을 남기되 분당 한 번이다. 시험 전에는 실패마다 스택 약 20줄이 30초마다 찍혔다(시드 회차 4건이 13분에 스택 120줄).
+ * Ruling 703 — 확정 실패 로그. 노선·학원 좌표를 사람이 고칠 때까지 같은 결과인 설정 오류({@link BusinessException})는 스택 없이
+ * 한 줄이고, 예기치 못한 예외만 스택을 남기되 분당 한 번이다. 이 규칙이 없으면 실패마다 스택 약 20줄이 30초마다 찍힌다(시드 회차 4건이 13분에 스택 120줄, 실측).
  */
 class RunConfirmationSchedulerLogTest {
 

@@ -23,7 +23,7 @@ import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 
 /**
- * Phase 9 §4.1~§4.3·§5.4 시험이 공통으로 쓰는 확정 회차·매니저 배치·보호자 연락처 데이터 —
+ * §4.1~§4.3·§5.4 시험이 공통으로 쓰는 확정 회차·매니저 배치·보호자 연락처 데이터 —
  * {@link RunConfirmationFixtures}(회차·노선·학생) 를 그대로 감싸고, 이 네 핸들러 시험에만 필요한
  * 매니저 계정·배치·보호자 세 가지를 더한다.
  *
@@ -62,7 +62,7 @@ public class Phase9RosterFixtures {
         this.confirmationService = confirmationService;
     }
 
-    /** 시험 컨텍스트의 빈으로 Phase9RosterFixtures 를 만든다 — 시험 클래스마다 저장소를 하나씩 넘기던 생성 호출의 단일 정의. */
+    /** 시험 컨텍스트의 빈으로 Phase9RosterFixtures 를 만든다 — 생성 호출의 단일 정의. */
     public static Phase9RosterFixtures of(ApplicationContext context) {
         return new Phase9RosterFixtures(
                 RunConfirmationFixtures.of(context),

@@ -194,7 +194,7 @@ class StaffRunRouteControllerTest {
     }
 
     /**
-     * R20-A 목표(Ruling 321) — 확정 전(idle) 회차도 고정 노선(route·route_stop)만 있으면 200 이고
+     * Ruling 321 — 확정 전(idle) 회차도 고정 노선(route·route_stop)만 있으면 200 이고
      * {@code confirmed=false} 인 예정 경로를 낸다. {@code DriverRunFixtures.idleRun} 은 항상
      * {@code serviceDate=2030-04-01}(월요일) 을 쓴다({@code idleRun} javadoc 참고) — 고정 노선도 같은
      * 요일(MON)로 등록해야 매칭된다.
@@ -236,7 +236,7 @@ class StaffRunRouteControllerTest {
                 .andExpect(jsonPath("$.data.ack.escort").value(false));
     }
 
-    /** R20-A — 고정 노선도 없으면 idle 회차는 여전히 409 다(조용한 빈 값이 아니라 명시적 오류). */
+    /** 고정 노선도 없으면 idle 회차는 여전히 409 다(조용한 빈 값이 아니라 명시적 오류). */
     @Test
     @DisplayName("R20-A — idle 회차에 고정 노선도 없으면 409 RUN_NOT_CONFIRMED 다")
     void idle_회차에_고정_노선도_없으면_409다() throws Exception {

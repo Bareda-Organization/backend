@@ -39,7 +39,7 @@ import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
- * §4.3 {@code GET /runs/{runId}/route} — RUN-03·M-08·M-09·Ruling 205, Phase 9 목표 8.
+ * §4.3 {@code GET /runs/{runId}/route} — RUN-03·M-08·M-09·Ruling 205.
  *
  * <p>이 클래스의 축은 <b>{@code next_stop} 이 결번(SKIPPED) 정차지를 건너뛰고 그 다음 실제
  * 정차지를 가리키는가</b>다(목표 8) — {@code skipped_notice} 가 그 결번 사유를 함께 실어야
@@ -138,7 +138,7 @@ class RunRouteControllerTest {
 
     @Test
     void Ruling_365_운행_화면_지도용으로_확정_노선의_도로_경로와_근사_여부를_싣는다() throws Exception {
-        // R32 M1 — 기사 운행 화면 가운데 지도가 도로 경로를 그리려면 §4.3 에도 §5.19 와 같은
+        // 기사 운행 화면 가운데 지도가 도로 경로를 그리려면 §4.3 에도 §5.19 와 같은
         // road_path·fallback_used 가 있어야 한다. 없으면 앱이 정차지를 직선으로 잇게 되고, 직선은
         // 건물·강을 가로질러 기사가 실제 경로로 오인한다.
         Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);

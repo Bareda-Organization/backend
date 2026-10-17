@@ -30,7 +30,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@link StopDepartureService#forceAllRemaining} 의 <b>이벤트 발행 축</b>(R17-T1b 공백 1, Ruling 312) —
+ * {@link StopDepartureService#forceAllRemaining} 의 <b>이벤트 발행 축</b>(Ruling 312) —
  * {@link StopDepartureForceAllRemainingTest} 는 {@code departed_at} 컬럼만 보므로, 누가
  * {@link StopDepartureService#claimAndPublish} 대신 벌크 UPDATE 로 바꿔 컬럼은 채우면서
  * {@link StopDepartedEvent} 발행을 빠뜨려도(학부모 알림 누락) 잡지 못한다 — 이 클래스가 그 축을 메운다.

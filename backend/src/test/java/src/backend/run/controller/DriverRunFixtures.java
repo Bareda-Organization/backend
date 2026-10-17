@@ -55,7 +55,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 기사·동승자 운행 조작(T2, Phase 9 goal 1·2·3·5·9·10) 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}
+ * 기사·동승자 운행 조작 시험이 쓰는 실제 행 — {@code RunConfirmationFixtures}
  * ·{@code ChangeRequestAutoRejectFixtures} 와 같은 이유로 정상 경로의 팩토리로 쌓는다.
  *
  * <p>{@link ChangeRequest#deadlineAt} 을 저장 전 직접 채우는 이유는 {@code ChangeRequestAutoRejectFixtures}
@@ -216,9 +216,9 @@ public class DriverRunFixtures {
 
     /**
      * {@code confirmedRun} 과 같지만 소요 시간 추정치({@code est_duration_min})까지 지정한다
-     * (R21-B2 — "예정 도착" = {@code depart_time + est_duration_min} 계산 시험용). 기존
-     * {@code confirmedRun} 은 이 값을 항상 {@code null} 로 둬서(134곳이 그 전제로 이미 시험 중이라
-     * 건드리지 않았다) 별도 오버로드로 둔다.
+     * ("예정 도착" ={@code depart_time + est_duration_min} 계산 시험용). 기존
+     * {@code confirmedRun} 은 이 값을 항상 {@code null} 로 두고, 그 전제로 134곳이 이미 시험 중이라
+     * 건드리지 않는다. 그래서 별도 오버로드로 둔다.
      */
     public long confirmedRunWithDuration(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt, int estDurationMin) {
@@ -243,7 +243,7 @@ public class DriverRunFixtures {
         runRepository.save(run);
     }
 
-    /** {@code finished} 상태 회차 — {@link #startRun} 과 같은 이유로 종료 처리만 직접 전이한다(R21-B). */
+    /** {@code finished} 상태 회차 — {@link #startRun} 과 같은 이유로 종료 처리만 직접 전이한다. */
     public void finishRun(long runId, OffsetDateTime finishedAt) {
         Run run = runRepository.findById(runId).orElseThrow();
         run.finish(finishedAt);
@@ -284,7 +284,7 @@ public class DriverRunFixtures {
         return confirmedRouteWithVersion(runId, publishedAt, List.of(), false);
     }
 
-    /** R15 T1 목표 5 — {@code road_path}·{@code fallback_used} 를 실제로 채운 확정 노선. 반환값은 {@code route_version.id}. */
+    /** {@code road_path}·{@code fallback_used} 를 실제로 채운 확정 노선. 반환값은 {@code route_version.id}. */
     public long confirmedRouteWithVersion(long runId, OffsetDateTime publishedAt, List<GeoPoint> roadPath,
             boolean fallbackUsed) {
         confirmedRouteRepository.save(ConfirmedRoute.forRun(runId, publishedAt));

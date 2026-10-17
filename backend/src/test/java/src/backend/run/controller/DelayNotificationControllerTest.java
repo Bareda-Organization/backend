@@ -138,8 +138,8 @@ class DelayNotificationControllerTest {
                 .isEqualTo(1);
         assertThat(학부모_알림수(runId, studentId)).as("학부모도 받아야 한다").isEqualTo(1);
 
-        // R13 — 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
-        // 가리키므로 null 로 남는다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3·5).
+        // 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
+        // 가리키므로 null 로 남는다.
         Long guardianLegStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE type = 'delay' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
@@ -161,7 +161,7 @@ class DelayNotificationControllerTest {
                 Long.class, "delay:" + runId + ":staff:" + staffAccountId + ":%");
         assertThat(staffLegStudentId).as("관계자 갈래는 회차 전체를 알리므로 student_id 가 null 로 남는다").isNull();
 
-        // R14 목표 5 — 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
+        // 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
         String busNo = jdbcTemplate.queryForObject("SELECT bus_no FROM bus WHERE id = ?", String.class, busId);
         String staffLegBusNo = jdbcTemplate.queryForObject(
                 "SELECT bus_no FROM notification_log WHERE type = 'delay' AND recipient_role = 'staff' "

@@ -31,9 +31,8 @@ import src.backend.run.repository.RunTransferRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 확정 배치 오케스트레이터({@link RunConfirmationService#confirmOne})의 <b>내용물</b> 검증
- * (Phase 7 목표 1 · 5) — 스케줄러의 판정 시각 대상 선정은 {@code RunConfirmationSchedulerTest}(목표
- * 3 · 4 · 6)가 맡고, 이 클래스는 회차 1건을 직접 확정했을 때 4종 산출물이 정확한 값으로 남는지만 본다.
+ * 확정 배치 오케스트레이터({@link RunConfirmationService#confirmOne})의 <b>내용물</b> 검증 —
+ * 스케줄러의 판정 시각 대상 선정은 {@code RunConfirmationSchedulerTest}가 맡고, 이 클래스는 회차 1건을 직접 확정했을 때 4종 산출물이 정확한 값으로 남는지만 본다.
  *
  * <p>{@code @Transactional} 을 쓴다({@code RouteComputationPipelineTest} 와 같은 근거) —
  * {@link #confirmOne} 을 메인 스레드에서 직접 부르므로(스케줄러의 비동기 실행 스레드를 거치지 않는다)
@@ -115,8 +114,8 @@ class RunConfirmationServiceTest {
         assertThat(version.get("source")).isEqualTo("confirm_batch");
         assertThat(version.get("confirmed_route_id")).isEqualTo(runId);
 
-        // R15 T1 목표 4 — 확정 배치가 실제로 저장한 road_path 는 비어 있지 않다(스텁도 좌표를 만든다,
-        // 목표 7). jsonb 컬럼이라 count() 로 배열 길이를 직접 센다.
+        // 확정 배치가 실제로 저장한 road_path 는 비어 있지 않다(스텁도 좌표를 만든다).
+        // jsonb 컬럼이라 count() 로 배열 길이를 직접 센다.
         Integer roadPathLength = jdbcTemplate.queryForObject(
                 "SELECT jsonb_array_length(road_path) FROM route_version WHERE id = ?", Integer.class, versionId);
         assertThat(roadPathLength).as("배포된 노선인데 road_path 가 비어 있다").isGreaterThan(0);

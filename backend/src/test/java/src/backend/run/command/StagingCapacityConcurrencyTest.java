@@ -343,7 +343,7 @@ class StagingCapacityConcurrencyTest {
                 + "WHERE wa.student_id = ?", Long.class, studentId);
     }
 
-    /** 시험 행 이름 뒤에 붙이는 짧은 고유값 — {@code System.nanoTime()} 은 기기 가동 시간이 길면 자릿수가 늘어 {@code varchar(20)} 을 넘는다(2026-10-01 실측 · 가동 약 28시간부터). */
+    /** 시험 행 이름 뒤에 붙이는 짧은 고유값 — {@code System.nanoTime()} 은 기기 가동 시간이 길면 자릿수가 늘어 {@code varchar(20)} 을 넘는다(실측 · 가동 약 28시간부터). */
     private static String uniqueSuffix() {
         return java.util.UUID.randomUUID().toString().substring(0, 8);
     }

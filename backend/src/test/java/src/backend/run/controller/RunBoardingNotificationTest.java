@@ -33,7 +33,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 승하차 알림이 나가는 길 전부 — R51 H1(하원 시작 자동 승차분의 승차 알림) · M-B2(자동 전이의 상태 이력
+ * 승하차 알림이 나가는 길 전부 — 하원 시작 자동 승차분의 승차 알림 · M-B2(자동 전이의 상태 이력
  * {@code actor_type=system}) · H2(기사가 도착을 누르지 않은 정차지도 다음 도착·운행 종료 때 강제 출발).
  */
 @SpringBootTest
@@ -361,7 +361,7 @@ class RunBoardingNotificationTest {
         assertThat(출발시각(versionId, stop1)).isNotNull();
         assertThat(출발_통지_행수(runId, "boarding")).as("승하차지를 출발한 확정 결과(승차)가 통지된다").isEqualTo(1);
         assertThat(라이더_상태(runId, student)).as("그 뒤 학원 도착으로 자동 하차").isEqualTo("alighted");
-        // R51 M-B2 — 등원 종료의 전원 자동 하차도 서버가 한 전이라 이력에 system 으로 남는다.
+        // 등원 종료의 전원 자동 하차도 서버가 한 전이라 이력에 system 으로 남는다.
         Map<String, Object> history = jdbcTemplate.queryForMap(
                 "SELECT h.from_status, h.to_status, h.actor_type, h.changed_by FROM rider_status_history h "
                         + "JOIN run_rider r ON r.id = h.run_rider_id WHERE r.run_id = ? AND r.student_id = ?",

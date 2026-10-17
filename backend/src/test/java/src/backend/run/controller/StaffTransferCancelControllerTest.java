@@ -45,7 +45,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20260827Config;
 
 /**
- * §5.8.1 {@code DELETE /staff/transfers/{transferId}}(이동 대기 취소, Ruling 369) — R36-BE 목표 1~4·6.
+ * §5.8.1 {@code DELETE /staff/transfers/{transferId}}(이동 대기 취소, Ruling 369).
  *
  * <p>이동은 {@code StaffStudentTransferControllerTest} 와 같이 실제 §5.8 호출로 만든다 — 취소가 지우는
  * 행이 등록 경로가 실제로 쓰는 행이어야 하기 때문이다. 명단 소속은 강제 추가 1건으로 만든다.

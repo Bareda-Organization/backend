@@ -40,9 +40,8 @@ import src.backend.routing.repository.WaypointRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 기사·동승자 단말의 회차 운행 조작 API(§4.4·§4.5·§4.11) — Phase 9 T2 목표 1(±10분 창) · 2(운행 시작
- * 알림 3종) · 3(미결 변경 요청 즉시 종결) · 5(기사 전용 인가) · 9(등원 최종 지점 전원 자동 하차) ·
- * 10(하원 최종 지점 미하차 잔류 시 종료 보류)을 검증한다.
+ * 기사·동승자 단말의 회차 운행 조작 API(§4.4·§4.5·§4.11) — ±10분 창 · 운행 시작 알림 3종 · 미결 변경 요청 즉시 종결 ·
+ * 기사 전용 인가 · 등원 최종 지점 전원 자동 하차 · 하원 최종 지점 미하차 잔류 시 종료 보류를 검증한다.
  *
  * <p>{@code @Transactional} 을 쓴다({@code StaffRunControllerTest} 와 같은 근거) — 이 컨트롤러가
  * 부르는 커맨드 서비스(예 {@code ChangeRequestAutoRejectionPersistence.autoRejectOne})의
@@ -228,8 +227,8 @@ class DriverRunControllerTest {
         assertThat(알림_행수(runId, "run_started", "parent")).as("보호자 1명").isEqualTo(1);
         assertThat(알림_행수(runId, "run_started", "student")).as("계정 연결된 학생 1명").isEqualTo(1);
 
-        // R13 — 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
-        // 가리키므로 null 로 남는다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3·5).
+        // 학부모·학생 갈래는 studentId·studentName 을 채우고, 관계자 갈래는 회차 전체(다수 학생)를
+        // 가리키므로 null 로 남는다.
         Long parentLegStudentId = jdbcTemplate.queryForObject(
                 "SELECT student_id FROM notification_log WHERE type = 'run_started' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
@@ -242,7 +241,7 @@ class DriverRunControllerTest {
                 Long.class, "run_started:" + runId + ":%");
         assertThat(staffLegStudentId).as("관계자 행은 회차 전체를 알리므로 student_id 가 null 로 남는다").isNull();
 
-        // R14 목표 5 — 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
+        // 관계자 알림에도 호차가 채워진다(Run → Bus 조회).
         String busNo = jdbcTemplate.queryForObject("SELECT bus_no FROM bus WHERE id = ?", String.class, busId);
         String staffLegBusNo = jdbcTemplate.queryForObject(
                 "SELECT bus_no FROM notification_log WHERE type = 'run_started' AND recipient_role = 'staff' "
@@ -299,7 +298,7 @@ class DriverRunControllerTest {
 
     // ── goal 5 — 기사 전용 인가 ───────────────────────────────────────────
 
-    /** R52 L4 · Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 기사 전용 호출을 불러도 코드는 {@code 403 DRIVER_ONLY} 다(FORBIDDEN 이 아니다). */
+    /** Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 기사 전용 호출을 불러도 코드는 {@code 403 DRIVER_ONLY} 다(FORBIDDEN 이 아니다). */
     @Test
     @DisplayName("R52 L4 — 관계자·학부모가 기사 전용 호출(도착 처리)을 부르면 403 DRIVER_ONLY 이다")
     void 다른_역할이_기사_전용_호출을_부르면_DRIVER_ONLY_이다() throws Exception {
@@ -432,7 +431,7 @@ class DriverRunControllerTest {
         assertThat(라이더_상태(runId, student2)).isEqualTo("alighted");
         assertThat(알림_행수(runId, "alighting", "parent")).as("자동 하차 인원 수와 정확히 같아야 한다").isEqualTo(2);
 
-        // R13 — 자동 하차 alighting 도 studentId·studentName 을 채운다(docs/archive/rounds/be-rounds-r5-r14.md §8.16 목표 3).
+        // 자동 하차 alighting 도 studentId·studentName 을 채운다.
         List<Long> alightedStudentIds = jdbcTemplate.queryForList(
                 "SELECT student_id FROM notification_log WHERE type = 'alighting' AND recipient_role = 'parent' "
                         + "AND dedup_key LIKE ?",
@@ -471,7 +470,7 @@ class DriverRunControllerTest {
     }
 
     /**
-     * R51 최종 API 대조(API_SPEC §4.5 · Ruling 859) — 이미 처리된 도착의 재전송은 회차가 끝난 뒤에도 {@code 403 DUPLICATE_ARRIVE}
+     * 최종 API 대조(API_SPEC §4.5 · Ruling 859) — 이미 처리된 도착의 재전송은 회차가 끝난 뒤에도 {@code 403 DUPLICATE_ARRIVE}
      * 다. 회차를 끝내는 도착을 응답만 잃고 다시 보내거나 끝난 뒤 재생되는 앞 도착이 {@code 409 RUN_NOT_MOVING} 으로 돌아오면
      * 앱이 짝(403 + DUPLICATE_ARRIVE)만 성공으로 흡수하므로 이미 처리된 도착이 "처리 안 됨" 으로 집계된다.
      */
@@ -506,10 +505,10 @@ class DriverRunControllerTest {
     }
 
     /**
-     * R15-T3 후속(조율자 지적) — 등원 최종 지점(stop2, 마지막 승차지)에서 <b>그 지점에 배정된
+     * 등원 최종 지점(stop2, 마지막 승차지)에서 <b>그 지점에 배정된
      * 학생이</b> 도착 처리 시점에 이미 승차해 있으면, 그 정차지의 강제 출발 적용이
      * {@code alightAllBoarded} 보다 <b>먼저</b> 일어나야 한다 — 최종 지점은 다음 {@code arrive}
-     * 호출이 없어 goal7 의 일반 폴백(다음 도착 시 이전 정차지 강제)을 받지 못하는 <b>유일한
+     * 호출이 없어 일반 폴백(다음 도착 시 이전 정차지 강제)을 받지 못하는 <b>유일한
      * 정차지</b>이기 때문이다. 순서가 거꾸로면 이 학생의 확정 결과가 이미 ALIGHTED 로 바뀐 뒤라
      * "하차"로 잘못 나가고, {@code RunAutoAlightedEvent} 의 ALIGHTING 과 중복까지 된다.
      */
@@ -655,7 +654,7 @@ class DriverRunControllerTest {
         long runStop1 = fixtures.runStopForStop(versionId, stop1, 1, OffsetDateTime.now(clock));
         long runStop2 = fixtures.runStopForStop(versionId, stop2, 2, OffsetDateTime.now(clock));
 
-        // 하원이라 확정 결과는 "하차" 다 — 탑승 중(boarded)인 채 출발한 학생은 확정된 결과가 없어 알림 대상이 아니다(R51 H1).
+        // 하원이라 확정 결과는 "하차" 다 — 탑승 중(boarded)인 채 출발한 학생은 확정된 결과가 없어 알림 대상이 아니다.
         long student1 = fixtures.studentWithAccount(academyId, "학생1");
         fixtures.guardianOf(academyId, student1, "학부모1", OffsetDateTime.now(clock));
         fixtures.rider(runId, student1, stop1, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
@@ -839,7 +838,7 @@ class DriverRunControllerTest {
                 routeVersionId, stopId);
     }
 
-    /** R15-T3(Ruling 308) — 출발 처리 시각. {@code null} 이면 아직 출발 처리되지 않은 것이다. */
+    /** 출발 처리 시각(Ruling 308). {@code null} 이면 아직 출발 처리되지 않은 것이다. */
     private OffsetDateTime 출발시각(long routeVersionId, long stopId) {
         return jdbcTemplate.queryForObject(
                 "SELECT departed_at FROM run_stop WHERE route_version_id = ? AND stop_id = ?", OffsetDateTime.class,
@@ -871,7 +870,7 @@ class DriverRunControllerTest {
     }
 
     /**
-     * R15-T3(Ruling 308) — 출발 시점 통지({@code BoardingNotificationListener#appendStopDeparted})가
+     * 출발 시점 통지({@code BoardingNotificationListener#appendStopDeparted})가
      * 쓰는 {@code dedup_key} 는 {@code stop_departed:...} 형태라 {@link #알림_행수} 의 패턴과 다르다.
      * {@code runId} 는 이 회차에 배정된 계정만 걸러 좁힌다(다른 시험이 만든 행과 섞이지 않도록).
      */

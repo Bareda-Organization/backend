@@ -261,7 +261,7 @@ class NavigationControllerTest {
     }
 
     /**
-     * (IMPLEMENTATION_PLAN Phase 9 완료 조건 · 목표 21 복원분) 배치되지 않은 회차는 403 이다 —
+     * 배치되지 않은 회차는 403 이다 —
      * 없으면 배치 안 된 기사·동승자에게 남의 회차 승하차지 좌표(학생 집 근처)가 그대로 나간다.
      * 같은 학원 소속(계정 14)이라 학원 경계는 통과하되, 이 회차의 {@code assignment} 에는 없는
      * 계정으로 호출해 {@code assertAssigned} 경로만 단독으로 걸었다.
@@ -277,7 +277,7 @@ class NavigationControllerTest {
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
 
-    // ── 목표 16(Phase 9 이월 ②) — 잘못된 scope 값 ──────────────────────
+    // ── 잘못된 scope 값 ──────────────────────
 
     /**
      * {@code scope} 는 {@code next}·{@code remaining} 만 유효하다. 목록에 없는 값을 그대로 넘기면
