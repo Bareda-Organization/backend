@@ -4,8 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -22,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -60,7 +60,7 @@ class AdminAcademyConsoleFieldsTest {
                     + "('R48ADDR03', 'R48주소공백', '서울', '   ', 'active')"
     })
     void 목록의_has_address_는_주소가_있을_때만_true_다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/academies").header("Authorization", 메인관리자_토큰()).param("q", "R48ADDR"))
+        mockMvc.perform(get("/api/v1/admin/academies").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)).param("q", "R48ADDR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(3))
                 .andExpect(jsonPath("$.data.items[?(@.code == 'R48ADDR01')].has_address").value(true))
@@ -89,7 +89,7 @@ class AdminAcademyConsoleFieldsTest {
         가입요청("r48pqp", "R48PEND01", "parent", "staff", "pending");
         가입요청("r48pqo", "R48PEND02", "staff", "system_admin", "pending");
 
-        mockMvc.perform(get("/api/v1/admin/academies").header("Authorization", 메인관리자_토큰()).param("q", "R48PEND"))
+        mockMvc.perform(get("/api/v1/admin/academies").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)).param("q", "R48PEND"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.code == 'R48PEND01')].pending_signup_count").value(2))
                 .andExpect(jsonPath("$.data.items[?(@.code == 'R48PEND02')].pending_signup_count").value(1));
@@ -103,7 +103,7 @@ class AdminAcademyConsoleFieldsTest {
         가입요청("r48dtlq", "R48DTL001", "staff", "system_admin", "pending");
 
         mockMvc.perform(get("/api/v1/admin/academies/" + 학원_식별자("R48DTL001"))
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.has_address").value(false))
                 .andExpect(jsonPath("$.data.pending_signup_count").value(1));
@@ -130,14 +130,14 @@ class AdminAcademyConsoleFieldsTest {
                 + "AND role IN ('parent', 'student', 'driver', 'escort') AND status IN ('active', 'blocked')");
 
         MvcResult filtered = mockMvc.perform(get("/api/v1/admin/academies")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .param("q", "R48SUM01").param("status", "inactive").param("size", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total_count").value(1))
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andReturn();
         MvcResult unfiltered = mockMvc.perform(get("/api/v1/admin/academies")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -171,7 +171,7 @@ class AdminAcademyConsoleFieldsTest {
     })
     void 학원_상세의_staff_accounts_는_last_login_at_을_싣고_로그인한_적_없으면_null_이다() throws Exception {
         String body = 본문(mockMvc.perform(get("/api/v1/admin/academies/" + 학원_식별자("R48LL0001"))
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andReturn());
 
@@ -196,7 +196,7 @@ class AdminAcademyConsoleFieldsTest {
             "UPDATE run SET status = 'moving', confirmed_at = now(), started_at = now() WHERE id = 100 AND bus_id = 10"
     })
     void 학원_상세의_moving_bus_nos_는_운행_중_차량의_호차_이름을_중복_없이_싣는다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stats.moving_bus_count").value(2))
                 .andExpect(jsonPath("$.data.stats.moving_bus_nos.length()").value(2))
@@ -208,7 +208,7 @@ class AdminAcademyConsoleFieldsTest {
     @Test
     @Sql(statements = "UPDATE run SET service_date = service_date - 3 WHERE id = 3 AND status = 'moving'")
     void 학원_상세의_moving_bus_nos_는_끝나지_않은_옛_회차의_차량을_싣지_않는다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stats.moving_bus_count").value(0))
                 .andExpect(jsonPath("$.data.stats.moving_bus_nos.length()").value(0));
@@ -218,17 +218,13 @@ class AdminAcademyConsoleFieldsTest {
     @Test
     @Sql(statements = "UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = 3 AND status = 'moving'")
     void 학원_상세의_moving_bus_nos_는_취소된_회차의_차량을_싣지_않는다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stats.moving_bus_count").value(0))
                 .andExpect(jsonPath("$.data.stats.moving_bus_nos.length()").value(0));
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
-
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
-    }
 
     private void 학원(String code, String name) {
         jdbc.update("INSERT INTO academy (code, name, region, status) VALUES (?, ?, '서울', 'active')", code, name);
@@ -257,10 +253,5 @@ class AdminAcademyConsoleFieldsTest {
     private long 학원_식별자(String code) {
         Long id = jdbc.queryForObject("SELECT id FROM academy WHERE code = ?", Long.class, code);
         return Objects.requireNonNull(id);
-    }
-
-    /** 응답 본문을 UTF-8 로 읽는다 — 기본 인코딩으로 읽으면 한글 필드가 깨져 대조가 어긋난다. */
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

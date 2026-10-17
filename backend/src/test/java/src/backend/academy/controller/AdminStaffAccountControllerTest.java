@@ -6,8 +6,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -97,7 +98,7 @@ class AdminStaffAccountControllerTest {
     /** 목록 응답은 §1.8 봉투를 그대로 쓴다 — 항목 배열과 페이지 정보 넷을 함께 싣는다. */
     @Test
     void 관계자_계정_목록_응답은_items_와_page_size_total_count_has_next_를_함께_싣는다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/staff-accounts").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/staff-accounts").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isArray())
                 .andExpect(jsonPath("$.data.page").value(PageParams.DEFAULT_PAGE))
@@ -123,7 +124,7 @@ class AdminStaffAccountControllerTest {
                 .as("계정 수와 관계자 행 수가 같으면 이 단언은 조건이 빠진 구현도 통과시킨다")
                 .isGreaterThan(staffRows);
 
-        mockMvc.perform(get("/api/v1/admin/staff-accounts").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/staff-accounts").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total_count").value(staffRows));
     }
@@ -361,11 +362,6 @@ class AdminStaffAccountControllerTest {
     private record 관계자(long academyId, long accountId, String loginId) {
     }
 
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(SYSTEM_ADMIN_ACCOUNT_ID, null, Role.SYSTEM_ADMIN,
-                AccountStatus.ACTIVE);
-    }
-
     /**
      * 학원 1곳 + 재직 관계자 1명을 SQL 로 만든다.
      *
@@ -400,7 +396,7 @@ class AdminStaffAccountControllerTest {
 
     private org.springframework.test.web.servlet.ResultActions 수정한다(long accountId, String body) throws Exception {
         return mockMvc.perform(patch("/api/v1/admin/staff-accounts/" + accountId)
-                .header("Authorization", 메인관리자_토큰())
+                .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
     }
@@ -432,7 +428,7 @@ class AdminStaffAccountControllerTest {
 
     private String 목록_본문() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/admin/staff-accounts")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk())
                 .andReturn();
         return 본문(result);
@@ -474,9 +470,5 @@ class AdminStaffAccountControllerTest {
     private void 동기화한다() {
         entityManager.flush();
         entityManager.clear();
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
