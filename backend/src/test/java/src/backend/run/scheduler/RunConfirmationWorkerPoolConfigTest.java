@@ -37,11 +37,6 @@ class RunConfirmationWorkerPoolConfigTest {
     @Autowired
     private MeterRegistry meterRegistry;
 
-    /**
-     * 풀이 격벽보다 크면 한 틱에 도래한 회차 중 격벽을 넘는 몫은 <b>공급자에 닿지도 못하고</b> 직선 근사로
-     * 확정된다(격벽 대기 0). 2026-09-23 실측 — 풀 8 · 격벽 4 에서 데모 회차 60건 중 53건이 직선 근사였다.
-     * ARCHITECTURE §9.4 는 "계산 워커 풀 크기를 외부 지도 API 레이트리밋에 맞춤" 이다.
-     */
     /** DA-12 — 확정 실행기의 스레드 이름이 {@code run-confirm-} 이다(스레드 덤프 · 로그에서 어느 풀인지 가른다). */
     @Test
     void 확정_실행기의_스레드_이름은_run_confirm_으로_시작한다() throws Exception {
@@ -60,6 +55,11 @@ class RunConfirmationWorkerPoolConfigTest {
                 .as("스케줄러 풀 executor.pool.size").isNotNull();
     }
 
+    /**
+     * 풀이 격벽보다 크면 한 틱에 도래한 회차 중 격벽을 넘는 몫은 <b>공급자에 닿지도 못하고</b> 직선 근사로
+     * 확정된다(격벽 대기 0). 2026-09-23 실측 — 풀 8 · 격벽 4 에서 데모 회차 60건 중 53건이 직선 근사였다.
+     * ARCHITECTURE §9.4 는 "계산 워커 풀 크기를 외부 지도 API 레이트리밋에 맞춤" 이다.
+     */
     @Test
     void 풀_크기는_지도_API_격벽_상한을_넘지_않는다() {
         int bulkheadLimit = bulkheadRegistry.bulkhead("mapRouteBatch").getBulkheadConfig().getMaxConcurrentCalls();

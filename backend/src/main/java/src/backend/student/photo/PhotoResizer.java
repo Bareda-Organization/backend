@@ -82,14 +82,15 @@ public final class PhotoResizer {
     }
 
     /**
-     * 줄이기 자리를 <b>얻은 뒤에</b> 파일 바이트를 읽어 줄인 사진을 돌려준다(DA-10, Ruling 899) — 자리를 기다리는 요청마다 최대 5MB 를 힙에
+     * 크기를 먼저 확인하고 줄이기 자리를 <b>얻은 뒤에</b> 파일 바이트를 읽어 줄인 사진을 돌려준다(DA-10, Ruling 899) — 자리를 기다리는 요청마다 최대 5MB 를 힙에
      * 올려 두지 않는다. 대기 한도를 넘으면 그때 읽어 원본을 돌려준다(줄이기가 업로드를 막는 이유가 되면 안 된다).
      */
-    public static StudentPhoto shrinkFrom(PhotoContent content) throws IOException {
-        return shrinkFrom(content, RESIZE_WAIT_LIMIT);
+    public static StudentPhoto shrinkFrom(long size, PhotoContent content) throws IOException {
+        return shrinkFrom(size, content, RESIZE_WAIT_LIMIT);
     }
 
-    static StudentPhoto shrinkFrom(PhotoContent content, Duration waitLimit) throws IOException {
+    static StudentPhoto shrinkFrom(long size, PhotoContent content, Duration waitLimit) throws IOException {
+        StudentPhoto.requireSize(size); // 자리를 기다리기 전에 크기부터 — 잘못된 업로드가 자리를 차지하지 않는다
         if (!acquireSlot(waitLimit)) {
             log.warn("[photo] 줄이기 자리를 {}초 안에 얻지 못해 원본을 저장한다", waitLimit.toSeconds());
             return StudentPhoto.of(content.read());

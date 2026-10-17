@@ -93,7 +93,7 @@ public class ProjectedRosterReader {
     }
 
     /**
-     * 같은 학원 · 같은 운행일 회차 여러 개의 예정 명단을 <b>회차 수와 무관한 조회 횟수</b>로 읽는다(DA-7) — 노선 · 노선 정차지 · 요일별
+     * <b>같은 학원</b>(다르면 {@link IllegalArgumentException}) 회차 여러 개의 예정 명단을 <b>회차 수와 무관한 조회 횟수</b>로 읽는다(DA-7) — 노선 · 노선 정차지 · 요일별
      * 주소(방향별) · 탑승 의사 · 승인된 변경 · 강제 추가 · 이동을 회차 묶음으로 한 번씩 읽고 회차별로 가른 뒤 {@link #read} 와 같은
      * 규칙({@code assemble})으로 조립한다. 결과는 회차마다 {@link #read(Run)} 와 같다.
      */
@@ -102,6 +102,9 @@ public class ProjectedRosterReader {
             return Map.of();
         }
         Long academyId = runs.get(0).getAcademyId();
+        if (runs.stream().anyMatch(run -> !run.getAcademyId().equals(academyId))) {
+            throw new IllegalArgumentException("readAll 은 한 학원의 회차만 받는다");
+        }
         List<Long> runIds = runs.stream().map(Run::getId).toList();
         Map<RouteKey, Long> routeIds = routesOf(academyId, runs);
         List<Long> usedRouteIds = runs.stream().map(run -> routeIds.get(RouteKey.of(run))).filter(Objects::nonNull)

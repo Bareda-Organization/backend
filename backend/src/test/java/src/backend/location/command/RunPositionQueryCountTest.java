@@ -168,7 +168,6 @@ class RunPositionQueryCountTest {
 
         long warm = 직접_보내고_SQL_수를_센다(seeded);
 
-        System.out.println("RT-5 데워진 위치 1건 SQL 수 — " + warm);
         assertThat(warm).isLessThanOrEqualTo(3);
     }
 

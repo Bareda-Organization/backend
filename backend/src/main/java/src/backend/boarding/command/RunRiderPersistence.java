@@ -3,7 +3,6 @@ package src.backend.boarding.command;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -19,6 +18,7 @@ import src.backend.boarding.entity.RiderStatusHistory;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.common.enums.ChangeType;
 import src.backend.global.location.RunRidersChangedEvent;
 import src.backend.run.roster.ProjectedRoster;
 
@@ -34,6 +34,11 @@ public class RunRiderPersistence {
 
     /** 한 INSERT 의 행 수 상한 — 바인딩 파라미터 한도(32,767)를 행당 6개로 나눈 값 안쪽이다. */
     private static final int INSERT_CHUNK = 1000;
+
+    /** 컬럼 값은 엔티티와 같은 컨버터가 정한다 — 다중 행 INSERT 가 문자열 변환을 따로 갖지 않는다. */
+    private static final RiderStatus.Db STATUS_DB = new RiderStatus.Db();
+
+    private static final ChangeType.Db CHANGE_DB = new ChangeType.Db();
 
     private final RunRiderRepository runRiderRepository;
 
@@ -69,8 +74,8 @@ public class RunRiderPersistence {
             args.add(rider.getRunId());
             args.add(rider.getStudentId());
             args.add(rider.getStopId());
-            args.add(rider.getStatus().name().toLowerCase(Locale.ROOT));
-            args.add(rider.getChange() == null ? null : rider.getChange().name().toLowerCase(Locale.ROOT));
+            args.add(STATUS_DB.convertToDatabaseColumn(rider.getStatus()));
+            args.add(CHANGE_DB.convertToDatabaseColumn(rider.getChange()));
             args.add(rider.getChangedAt());
         }
         jdbc.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, change, changed_at) VALUES " + values,

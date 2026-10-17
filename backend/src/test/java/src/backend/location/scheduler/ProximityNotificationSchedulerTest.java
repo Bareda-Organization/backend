@@ -343,7 +343,6 @@ class ProximityNotificationSchedulerTest {
         scheduler.judgeMovingRuns();
         long withMany = statistics.getPrepareStatementCount() - before;
 
-        System.out.printf("DA-1 근접 판정 한 틱 SQL 수 — 운행 중 회차 5개 %d건 · 40개 %d건%n", withFew, withMany);
         assertThat(withMany).as("5개 %d건 · 40개 %d건", withFew, withMany).isEqualTo(withFew);
     }
 

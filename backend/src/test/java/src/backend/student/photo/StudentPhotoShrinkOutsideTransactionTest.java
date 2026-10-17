@@ -117,7 +117,7 @@ class StudentPhotoShrinkOutsideTransactionTest {
     /** 실제 줄이기를 그대로 돌리되 호출 시점의 트랜잭션 자원을 적는다. */
     private static MockedStatic<PhotoResizer> observing(List<TxObservation> observed) {
         MockedStatic<PhotoResizer> resizer = Mockito.mockStatic(PhotoResizer.class, Mockito.CALLS_REAL_METHODS);
-        resizer.when(() -> PhotoResizer.shrinkFrom(any(PhotoResizer.PhotoContent.class))).thenAnswer(invocation -> {
+        resizer.when(() -> PhotoResizer.shrinkFrom(org.mockito.ArgumentMatchers.anyLong(), any(PhotoResizer.PhotoContent.class))).thenAnswer(invocation -> {
             observed.add(TxObservation.now());
             return invocation.callRealMethod();
         });

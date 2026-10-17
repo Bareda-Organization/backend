@@ -34,6 +34,18 @@ public record StudentPhoto(String extension, byte[] content) {
     private static final int WEBP_TAG_OFFSET = 8;
 
     /**
+     * 파일 바이트를 읽기 <b>전에</b> 알 수 있는 크기만 먼저 본다 — 비었거나 상한을 넘으면 줄이기 자리를 기다리기 전에 거절한다(DA-10).
+     * 형식은 내용의 서명으로만 가르므로({@link #of}) 바이트를 읽은 뒤에 본다.
+     *
+     * @throws BusinessException 비었거나 5MB 를 넘을 때
+     */
+    public static void requireSize(long size) {
+        if (size <= 0 || size > MAX_BYTES) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+    }
+
+    /**
      * 올라온 바이트열을 검증해 사진으로 만든다 — 형식·상한 위반은 {@code 422 VALIDATION_FAILED} 다
      * (§8.5 "필수 누락 · 형식 위반").
      *

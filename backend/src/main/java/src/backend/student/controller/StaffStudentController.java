@@ -177,7 +177,7 @@ public class StaffStudentController {
             return null;
         }
         try {
-            return PhotoResizer.shrinkFrom(photo::getBytes);
+            return PhotoResizer.shrinkFrom(photo.getSize(), photo::getBytes);
         } catch (IOException e) {
             throw new UncheckedIOException("업로드된 사진을 읽지 못했습니다", e);
         }

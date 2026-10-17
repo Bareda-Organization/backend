@@ -240,7 +240,7 @@ class PhotoResizerTest {
         try {
             waiting = CompletableFuture.supplyAsync(() -> {
                 try {
-                    return PhotoResizer.shrinkFrom(() -> {
+                    return PhotoResizer.shrinkFrom(bytes.length, () -> {
                         reads.incrementAndGet();
                         return bytes;
                     }, Duration.ofSeconds(30));
@@ -259,6 +259,25 @@ class PhotoResizerTest {
         assertThat(reads.get()).as("자리를 얻은 뒤 한 번만 읽는다").isEqualTo(1);
     }
 
+    /** DA-10 — 크기가 잘못된 업로드는 자리를 기다리기 전에 거절하고 바이트를 읽지 않는다. */
+    @Test
+    void 크기가_잘못된_업로드는_자리를_기다리지_않고_거절한다() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger reads = new java.util.concurrent.atomic.AtomicInteger();
+
+        PhotoResizer.RESIZE_SLOTS.acquire(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        try {
+            long started = System.nanoTime();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> PhotoResizer.shrinkFrom(6L * 1024 * 1024, () -> {
+                reads.incrementAndGet();
+                return new byte[0];
+            }, Duration.ofSeconds(30))).isInstanceOf(src.backend.global.error.BusinessException.class);
+            assertThat(Duration.ofNanos(System.nanoTime() - started)).as("대기 없이 즉시").isLessThan(Duration.ofSeconds(2));
+            assertThat(reads.get()).isZero();
+        } finally {
+            PhotoResizer.RESIZE_SLOTS.release(PhotoResizer.MAX_CONCURRENT_RESIZES);
+        }
+    }
+
     /** DA-10 — 대기 한도를 넘으면 그때서야 읽어 원본을 돌려준다(줄이기가 업로드를 막는 이유가 되면 안 된다). */
     @Test
     void 줄이기_자리를_못_얻으면_한도_뒤에_읽어_원본을_돌려준다() throws Exception {
@@ -266,7 +285,7 @@ class PhotoResizerTest {
 
         PhotoResizer.RESIZE_SLOTS.acquire(PhotoResizer.MAX_CONCURRENT_RESIZES);
         try {
-            StudentPhoto original = PhotoResizer.shrinkFrom(() -> bytes, Duration.ofMillis(100));
+            StudentPhoto original = PhotoResizer.shrinkFrom(bytes.length, () -> bytes, Duration.ofMillis(100));
             assertThat(original.content()).isSameAs(bytes);
         } finally {
             PhotoResizer.RESIZE_SLOTS.release(PhotoResizer.MAX_CONCURRENT_RESIZES);

@@ -109,7 +109,6 @@ class WithdrawalPreviewQueryCountTest {
         }
         long withForty = 쿼리_수(staff, studentId, 40);
 
-        System.out.printf("DA-7 퇴원 미리보기 SQL 수 — 확정 전 회차 4개 %d건 · 40개 %d건%n", withFour, withForty);
         assertThat(withForty).as("4개 %d건 · 40개 %d건", withFour, withForty).isEqualTo(withFour);
     }
 
