@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -225,8 +226,8 @@ class StaffTransferCancelControllerTest {
                 routeRepository, routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository,
                 runRepository);
         long academyId = fixtures.academyWithCoordinates();
-        long fromRunId = 회차를_만든다(fixtures, academyId);
-        long toRunId = 회차를_만든다(fixtures, academyId);
+        long fromRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
+        long toRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures.student(academyId, "이동학생");
         runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, studentId,
@@ -240,12 +241,6 @@ class StaffTransferCancelControllerTest {
         return new Scene(academyId, fromRunId, toRunId, stopId, studentId, transferId);
     }
 
-    private long 회차를_만든다(RunConfirmationFixtures fixtures, long academyId) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        OffsetDateTime departTime = now.plusMinutes(31);
-        return fixtures.idleRun(academyId, fixtures.bus(academyId), now.toLocalDate(), Direction.TO_ACADEMY,
-                departTime, departTime.minusMinutes(30));
-    }
 
     /**
      * 시험 트랜잭션 안에서 JPA 변경을 DB 로 내리고 영속성 컨텍스트를 비운다 — 운영에서는 요청마다 컨텍스트가 새로
@@ -268,7 +263,7 @@ class StaffTransferCancelControllerTest {
 
     private ResultActions 이동_등록한다(Scene scene) throws Exception {
         return mockMvc.perform(post("/api/v1/staff/students/" + scene.studentId() + "/transfer")
-                .header("Authorization", 토큰(scene.academyId()))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, scene.academyId(), Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"from_run_id\":" + scene.fromRunId() + ",\"to_run_id\":" + scene.toRunId()
                         + ",\"stop_id\":" + scene.stopId() + "}"));
@@ -276,20 +271,15 @@ class StaffTransferCancelControllerTest {
 
     private ResultActions 취소한다(long transferId, long academyId) throws Exception {
         return mockMvc.perform(delete("/api/v1/staff/transfers/" + transferId)
-                .header("Authorization", 토큰(academyId)).header("X-Real-IP", CLIENT_IP));
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF)).header("X-Real-IP", CLIENT_IP));
     }
 
     /** §5.4 예정 명단의 학생 id 들 — 응답의 식별자는 JSON 문자열이다(Ruling 332). */
     private java.util.List<Long> 예정_명단_학생_id(long runId, long academyId) throws Exception {
         String json = mockMvc.perform(get("/api/v1/staff/runs/" + runId + "/roster")
-                .header("Authorization", 토큰(academyId)))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         java.util.List<String> ids = com.jayway.jsonpath.JsonPath.read(json, "$.data[*].student_id");
         return ids.stream().map(Long::valueOf).toList();
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(STAFF_ACCOUNT_ID, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

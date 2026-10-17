@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,19 +26,15 @@ import org.springframework.context.annotation.Import;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.entity.BusSeating;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.ForcedAdditionStore;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.dto.ForcedAdditionRequest;
@@ -44,9 +42,6 @@ import src.backend.run.dto.NewStudentRequest;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.geocoding.spec.GeocodedPoint;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20260826T02Config;
 
 /**
@@ -69,6 +64,9 @@ class StaffForcedAdditionControllerTest {
     private static final long STAFF_ACCOUNT_ID = 9001L;
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -84,25 +82,7 @@ class StaffForcedAdditionControllerTest {
     private Clock clock;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
     private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
 
     @Autowired
     private RunRepository runRepository;
@@ -116,8 +96,7 @@ class StaffForcedAdditionControllerTest {
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+            fixtures = RunConfirmationFixtures.of(applicationContext);
         }
         return fixtures;
     }
@@ -129,7 +108,7 @@ class StaffForcedAdditionControllerTest {
     void 출발_31분_전에는_강제_추가가_성공한다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
 
         강제_추가한다(runId, 학생_추가_본문(null, "새학생", "테스트로 100"))
                 .andExpect(status().isCreated())
@@ -142,7 +121,7 @@ class StaffForcedAdditionControllerTest {
     void 강제_추가_비고가_저장된다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
 
         강제_추가한다(runId, "{\"new_student\":{\"name\":\"새학생\"},\"address\":\"테스트로 100\",\"note\":\"오늘만 탑승\"}")
                 .andExpect(status().isCreated());
@@ -157,7 +136,7 @@ class StaffForcedAdditionControllerTest {
     void 출발_20분_전에는_403_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 20);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 20);
 
         강제_추가한다(runId, 학생_추가_본문(null, "새학생", "테스트로 100"))
                 .andExpect(status().isForbidden())
@@ -172,7 +151,7 @@ class StaffForcedAdditionControllerTest {
         long academyId = fixtures().academyWithCoordinates();
         long busId = busRepository.save(Bus.register(academyId, "정원시험", "00가0000", new BusSeating(3, 1, 1)))
                 .getId();
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
 
         강제_추가한다(runId, 학생_추가_본문(null, "학생1", "테스트로 100")).andExpect(status().isCreated());
 
@@ -186,7 +165,7 @@ class StaffForcedAdditionControllerTest {
     void 같은_학생을_같은_회차에_두_번_강제_추가하면_409_FORCED_ADDITION_ALREADY_STAGED_다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
         long studentId = fixtures().student(academyId, "기존학생");
 
         강제_추가한다(runId, 학생_추가_본문(studentId, null, "테스트로 100")).andExpect(status().isCreated());
@@ -207,7 +186,7 @@ class StaffForcedAdditionControllerTest {
         fixtures().route(academyId, busId, weekday, Direction.TO_ACADEMY, stopId);
         long studentId = fixtures().student(academyId, "명단학생");
         fixtures().verifiedAddress(studentId, stopId, weekday, Direction.TO_ACADEMY, "37.560000", "126.970000");
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
 
         강제_추가한다(runId, 학생_추가_본문(studentId, null, "테스트로 100"))
                 .andExpect(status().isCreated())
@@ -221,7 +200,7 @@ class StaffForcedAdditionControllerTest {
     void 주소_검증에_실패하면_422_이고_행이_저장되지_않는다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
 
         강제_추가한다(runId, 학생_추가_본문(null, "새학생", "번지_없는_주소"))
                 .andExpect(status().isUnprocessableContent())
@@ -241,7 +220,7 @@ class StaffForcedAdditionControllerTest {
     void 학생_지정이_둘_다면_422_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
         long studentId = fixtures().student(academyId, "기존학생");
 
         강제_추가한다(runId, 학생_추가_본문(studentId, "새학생", "테스트로 100"))
@@ -254,7 +233,7 @@ class StaffForcedAdditionControllerTest {
     void 학생_지정이_없으면_422_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
 
         강제_추가한다(runId, 학생_추가_본문(null, null, "테스트로 100"))
                 .andExpect(status().isUnprocessableContent())
@@ -266,7 +245,7 @@ class StaffForcedAdditionControllerTest {
     void 기존_학생을_강제로_추가할_수_있다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
         long studentId = fixtures().student(academyId, "기존학생");
 
         강제_추가한다(runId, 학생_추가_본문(studentId, null, "테스트로 100"))
@@ -281,7 +260,7 @@ class StaffForcedAdditionControllerTest {
     void 취소된_회차에_강제_추가하면_409_RUN_CANCELED_다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
         jdbcTemplate.update("UPDATE run SET canceled_at = now() WHERE id = ?", runId);
         entityManager.clear();
 
@@ -299,7 +278,7 @@ class StaffForcedAdditionControllerTest {
     void 판정_뒤_확정된_회차는_저장_단계에서_막힌다() {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
         Run staleRun = runRepository.findById(runId).orElseThrow();
         jdbcTemplate.update("UPDATE run SET status = 'confirmed', confirmed_at = now() WHERE id = ?", runId);
         entityManager.clear();
@@ -320,12 +299,12 @@ class StaffForcedAdditionControllerTest {
     void 다른_학원의_회차는_404_이다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
-        long runId = 회차를_만든다(academyId, busId, 31);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
 
         long otherAcademyId = fixtures().academyWithCoordinates();
 
         mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/forced-add")
-                .header("Authorization", 토큰(otherAcademyId))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, otherAcademyId, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(학생_추가_본문(null, "새학생", "테스트로 100")))
                 .andExpect(status().isNotFound())
@@ -334,17 +313,11 @@ class StaffForcedAdditionControllerTest {
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
-    private long 회차를_만든다(long academyId, long busId, int minutesBeforeDepart) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        OffsetDateTime departTime = now.plusMinutes(minutesBeforeDepart);
-        OffsetDateTime confirmAt = departTime.minusMinutes(30);
-        return fixtures().idleRun(academyId, busId, now.toLocalDate(), Direction.TO_ACADEMY, departTime, confirmAt);
-    }
 
     private ResultActions 강제_추가한다(long runId, String body) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         return mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/forced-add")
-                .header("Authorization", 토큰(academyId))
+                .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT_ID, academyId, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
     }
@@ -363,10 +336,5 @@ class StaffForcedAdditionControllerTest {
         }
         body.append("\"address\":\"").append(address).append("\"}");
         return body.toString();
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(STAFF_ACCOUNT_ID, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

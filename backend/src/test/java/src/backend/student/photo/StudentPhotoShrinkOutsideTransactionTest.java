@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -35,7 +36,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -81,7 +81,7 @@ class StudentPhotoShrinkOutsideTransactionTest {
         try (MockedStatic<PhotoResizer> resizer = observing(observed)) {
             result = mockMvc.perform(multipart(BASE).file(데이터_파트("{\"name\":\"" + NAME_PREFIX + "등록\",\"can_go_alone\":false}"))
                             .file(사진_파트(png(1600, 1200)))
-                            .header("Authorization", 관계자_토큰()))
+                            .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                     .andExpect(status().isCreated())
                     .andReturn();
         }
@@ -99,7 +99,7 @@ class StudentPhotoShrinkOutsideTransactionTest {
         try (MockedStatic<PhotoResizer> resizer = observing(observed)) {
             result = mockMvc.perform(multipart(HttpMethod.PATCH, BASE + "/" + studentId).file(데이터_파트("{}"))
                             .file(사진_파트(png(1600, 1200)))
-                            .header("Authorization", 관계자_토큰()))
+                            .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                     .andExpect(status().isOk())
                     .andReturn();
         }
@@ -126,7 +126,7 @@ class StudentPhotoShrinkOutsideTransactionTest {
 
     private long 사진_없이_등록한다(String name) throws Exception {
         MvcResult result = mockMvc.perform(multipart(BASE).file(데이터_파트("{\"name\":\"" + name + "\",\"can_go_alone\":false}"))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return Long.parseLong(JsonPath.read(응답(result), "$.data.student_id"));
@@ -149,10 +149,6 @@ class StudentPhotoShrinkOutsideTransactionTest {
 
     private MockMultipartFile 사진_파트(byte[] content) {
         return new MockMultipartFile("photo", "face.png", "image/png", content);
-    }
-
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
     }
 
     private static byte[] png(int width, int height) throws Exception {

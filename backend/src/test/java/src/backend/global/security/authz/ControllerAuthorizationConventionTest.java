@@ -53,7 +53,7 @@ class ControllerAuthorizationConventionTest {
      * 컨트롤러 애너테이션으로 중복 표현하지 않고 서비스 계층에 모았다 —
      * {@code DriverRunController} 자체의 클래스 자바독에도 같은 설계가 적혀 있다.
      * {@code ackChanges}(§4.11)는 추가로, FEATURE_SPEC §6.2 권한 카탈로그에 "기사 또는 동승자"
-     * 조합에 대응하는 전용 권한 항목이 없다({@link CanReadChangeRequest} 가 같은 이유로
+     * 조합에 대응하는 전용 권한 항목이 없다({@code @AuthenticatedOnly} 가 같은 이유로
      * {@code isAuthenticated()} 를 쓰는 것과 같은 카탈로그 공백) — 사양 밖에서 새 권한을 만들지
      * 않고 서비스 계층의 {@code assertAssignedDriverOrEscort} 에 맡긴다.
      *
@@ -320,7 +320,7 @@ class ControllerAuthorizationConventionTest {
     void authzAnnotationNames_은_실제_interface_선언만_포함한다() {
         List<String> names = authzAnnotationNames();
 
-        assertThat(names).contains("PublicEndpoint", "CanRegisterDevice", "AuthenticatedOnly")
+        assertThat(names).contains("PublicEndpoint", "Can", "AuthenticatedOnly")
                 .doesNotContain("RolePermissions", "Permissions");
     }
 

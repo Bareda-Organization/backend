@@ -9,6 +9,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.notification.command.NotificationDispatcher;
@@ -16,7 +19,6 @@ import src.backend.notification.domain.NotificationRetryPolicy;
 import src.backend.notification.entity.NotificationLog;
 import src.backend.notification.entity.PushState;
 import src.backend.notification.repository.NotificationLogRepository;
-import src.backend.observability.metrics.NotificationPushMetrics;
 
 /**
  * 아웃박스 안전망(TECH_DECISIONS §7.2 ②) — 커밋 직후 즉시 발송이 실패했거나 그 사이 앱이 죽어
@@ -31,6 +33,8 @@ import src.backend.observability.metrics.NotificationPushMetrics;
 @Component
 @RequiredArgsConstructor
 public class NotificationOutboxWorker {
+
+    private static final String PUSH_FAILURE_METRIC = "schoolbus.notification.push.failures";
 
     /**
      * 한 틱에 집는 상한 — 미발송이 쌓였을 때 한 번에 전부 읽어 힙과 발송 채널을 함께 밀어붙이는 것을
@@ -49,7 +53,7 @@ public class NotificationOutboxWorker {
 
     private final Clock clock;
 
-    private final NotificationPushMetrics pushMetrics;
+    private final MeterRegistry meterRegistry;
 
     /**
      * 미발송분을 회수해 재발송한다.
@@ -90,7 +94,7 @@ public class NotificationOutboxWorker {
                 NotificationRetryPolicy.MAX_ATTEMPTS, now.minus(NotificationRetryPolicy.MIN_RETRY_INTERVAL),
                 STALLED_REASON);
         for (int i = 0; i < moved; i++) {
-            pushMetrics.recordFailure();
+            meterRegistry.counter(PUSH_FAILURE_METRIC).increment();
         }
     }
 
@@ -103,6 +107,12 @@ public class NotificationOutboxWorker {
         notificationDispatcher.dispatch(candidate.getId());
         notificationLogRepository.findById(candidate.getId())
                 .filter(log -> log.getPushState() == PushState.FAILED)
-                .ifPresent(log -> pushMetrics.recordFailure());
+                .ifPresent(log -> meterRegistry.counter(PUSH_FAILURE_METRIC).increment());
+    }
+
+    /** 기동 직후 실패가 한 번도 없어도 이름이 노출되도록 미리 등록한다. */
+    @PostConstruct
+    void registerMetrics() {
+        Counter.builder(PUSH_FAILURE_METRIC).description("재시도를 전부 소진해 failed 로 굳은 알림 발송 건수").register(meterRegistry);
     }
 }

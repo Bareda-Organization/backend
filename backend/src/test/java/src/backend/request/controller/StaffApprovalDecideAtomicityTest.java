@@ -7,6 +7,7 @@ import static org.mockito.Mockito.reset;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -30,7 +31,6 @@ import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -290,7 +290,7 @@ class StaffApprovalDecideAtomicityTest {
 
     private String 미리보기_토큰_조회(long academyId, long approvalId) throws Exception {
         String body = mockMvc
-                .perform(get("/api/v1/staff/approvals/" + approvalId).header("Authorization", 관계자_토큰(academyId)))
+                .perform(get("/api/v1/staff/approvals/" + approvalId).header("Authorization", 관계자_토큰(tokenProvider, academyId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return JsonPath.read(body, "$.data.preview_token");
@@ -299,13 +299,8 @@ class StaffApprovalDecideAtomicityTest {
     private org.springframework.test.web.servlet.ResultActions 결정_요청(long academyId, long approvalId, String body)
             throws Exception {
         return mockMvc.perform(post("/api/v1/staff/approvals/" + approvalId + "/decide")
-                .header("Authorization", 관계자_토큰(academyId))
+                .header("Authorization", 관계자_토큰(tokenProvider, academyId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
-    }
-
-    private String 관계자_토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

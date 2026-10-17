@@ -24,7 +24,7 @@ import src.backend.global.error.ErrorCode;
  * 학원당 1명 정원({@link AcademyStaffQuota})이 붙는다.
  *
  * <p>전 학원 범위라 학원 격리 대조가 부재하다(§1.5 예외) — 열어 주는 판정은 컨트롤러의
- * {@code @CanApproveStaff} 한 곳이다.
+ * {@code @Can(Permissions.STAFF_APPROVE)} 한 곳이다.
  */
 @Service
 @RequiredArgsConstructor

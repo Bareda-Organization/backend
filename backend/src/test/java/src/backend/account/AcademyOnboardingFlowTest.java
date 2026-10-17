@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -215,9 +216,5 @@ class AcademyOnboardingFlowTest {
     private String 계정_상태(String loginId) {
         반영한다();
         return jdbcTemplate.queryForObject("SELECT status FROM account WHERE login_id = ?", String.class, loginId);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

@@ -15,7 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.TestPropertySource;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.map.spec.CallerPolicy;
 import src.backend.routing.map.spec.RoadRoute;
 import src.backend.routing.map.spec.RoadRouteRequest;

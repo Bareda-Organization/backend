@@ -20,7 +20,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 확정 노선 배포 버전 — ②구간 승인·경유 지점 지정이 확정 노선을 재최적화 후 재배포하므로, 배포 단위를

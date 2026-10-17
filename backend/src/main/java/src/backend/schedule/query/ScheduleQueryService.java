@@ -14,10 +14,10 @@ import lombok.RequiredArgsConstructor;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.request.PageParams;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.schedule.dto.ScheduleListRequest;
 import src.backend.schedule.dto.ScheduleResponse;
 import src.backend.schedule.entity.Schedule;
 import src.backend.schedule.repository.ScheduleRepository;
@@ -53,7 +53,7 @@ public class ScheduleQueryService {
     private final ScheduleRouteStopCounter routeStopCounter;
 
     /** 소속 학원의 스케줄 목록(§5.10) — 범위는 토큰이 정하고 요청은 페이지 위치만 정한다. */
-    public PageResponse<ScheduleResponse> list(AuthUser requester, ScheduleListRequest request) {
+    public PageResponse<ScheduleResponse> list(AuthUser requester, PageSortRequest request) {
         Page<Schedule> page = scheduleRepository.findAllByAcademyId(requester.academyId(),
                 PageParams.ofLarge(request.page(), request.size())
                         .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER)));

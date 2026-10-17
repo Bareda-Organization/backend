@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -34,35 +36,25 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
 import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.policy.PolicyConstants;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.command.BoardingIntentFixtures;
 import src.backend.request.event.IntentChangedEvent;
 import src.backend.request.scheduler.ChangeRequestAutoRejectionScheduler;
 import src.backend.routing.pipeline.RouteComputationPipeline;
-import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
@@ -87,6 +79,9 @@ import testsupport.clock.FixedClock20300401Config;
 class BoardingIntentControllerTest {
 
     private static final String INTENT = "/api/v1/students/%d/runs/%d/intent";
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private MockMvc mockMvc;
@@ -122,31 +117,11 @@ class BoardingIntentControllerTest {
     private StudentRepository studentRepository;
 
     @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
     private RunRepository runRepository;
 
     @Autowired
     private StopRepository stopRepository;
 
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
 
     /**
      * 목표2(롤백) 시험이 이 저장소를 스파이로 감싸 {@code requestApproval} 의 응답 조립 직전 호출을
@@ -154,12 +129,6 @@ class BoardingIntentControllerTest {
      */
     @MockitoSpyBean
     private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
 
     @Autowired
     private RouteRepository routeRepository;
@@ -178,14 +147,9 @@ class BoardingIntentControllerTest {
 
     private RunConfirmationFixtures confirmationFixtures;
 
-
     private BoardingIntentFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new BoardingIntentFixtures(academyRepository, busRepository, studentRepository,
-                    guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
-                    runRepository, stopRepository, confirmedRouteRepository, routeVersionRepository,
-                    runStopRepository, runRiderRepository, managerRepository, assignmentRepository, routeRepository,
-                    routeStopRepository, weeklyAddressRepository);
+            fixtures = BoardingIntentFixtures.of(applicationContext);
         }
         return fixtures;
     }
@@ -219,7 +183,7 @@ class BoardingIntentControllerTest {
         fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.550000", "126.960000"));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardianAccountId, academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardianAccountId, academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk())
@@ -270,7 +234,7 @@ class BoardingIntentControllerTest {
         long runId = fixtures().run(academyId, busId, now.plusHours(3), now.plusMinutes(150));
 
         mockMvc.perform(patch(INTENT.formatted(excludedStudentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk())
@@ -324,7 +288,7 @@ class BoardingIntentControllerTest {
                 academyId, runId, excludedStudentId, relocatedStop, guardian.accountId(), now);
 
         mockMvc.perform(patch(INTENT.formatted(excludedStudentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk());
@@ -359,7 +323,7 @@ class BoardingIntentControllerTest {
         fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.550000", "126.960000"));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardianAccountId, academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardianAccountId, academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk())
@@ -425,7 +389,7 @@ class BoardingIntentControllerTest {
                 .when(runRiderRepository).findByRunIdAndStudentId(runId, studentId);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().is5xxServerError());
@@ -458,7 +422,7 @@ class BoardingIntentControllerTest {
         fixtures().linkChild(guardian3.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
         fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.550000", "126.960000"));
-        String 토큰 = 토큰(guardianAccountId, academyId, Role.PARENT);
+        String 토큰 = 토큰(tokenProvider, guardianAccountId, academyId, Role.PARENT);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰)
@@ -509,7 +473,7 @@ class BoardingIntentControllerTest {
                 + "created_at) VALUES (?, ?, false, 0, 1, now())", runId, studentId);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":true}"))
                 .andExpect(status().isForbidden())
@@ -536,7 +500,7 @@ class BoardingIntentControllerTest {
         fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.554000", "126.964000"));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":true}"))
                 .andExpect(status().isOk())
@@ -565,7 +529,7 @@ class BoardingIntentControllerTest {
         long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isNotFound())
@@ -596,7 +560,7 @@ class BoardingIntentControllerTest {
         fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.551000", "126.961000"));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk())
@@ -634,7 +598,7 @@ class BoardingIntentControllerTest {
         fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk())
@@ -660,7 +624,7 @@ class BoardingIntentControllerTest {
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         fixtures().enrol(academyId, busId, studentId, stopId);
         long runStopId = fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
-        String 토큰 = 토큰(guardianAccountId, academyId, Role.PARENT);
+        String 토큰 = 토큰(tokenProvider, guardianAccountId, academyId, Role.PARENT);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰)
@@ -717,7 +681,7 @@ class BoardingIntentControllerTest {
         entityManager.clear();
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isForbidden())
@@ -747,7 +711,7 @@ class BoardingIntentControllerTest {
         long stopId = fixtures().stop(academyId, "37.562000", "126.972000");
         fixtures().enrol(academyId, busId, studentId, stopId);
         fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
-        String 토큰 = 토큰(guardian.accountId(), academyId, Role.PARENT);
+        String 토큰 = 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT);
         String off = "{\"riding\":false}";
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId)).header("Authorization", 토큰)
@@ -798,7 +762,7 @@ class BoardingIntentControllerTest {
         long stopId = fixtures().stop(academyId, "37.563000", "126.973000");
         fixtures().enrol(academyId, busId, studentId, stopId);
         fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
-        String 토큰 = 토큰(guardian.accountId(), academyId, Role.PARENT);
+        String 토큰 = 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT);
         String off = "{\"riding\":false}";
         mockMvc.perform(patch(INTENT.formatted(studentId, runId)).header("Authorization", 토큰)
                         .contentType(MediaType.APPLICATION_JSON).content(off))
@@ -846,7 +810,7 @@ class BoardingIntentControllerTest {
                 studentId);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"riding\":false}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.result").value("applied_no_reroute"))
@@ -887,7 +851,7 @@ class BoardingIntentControllerTest {
         long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, now);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk())
@@ -925,7 +889,7 @@ class BoardingIntentControllerTest {
         fixtures().enrol(academyId, busId, immediateStudentId, fixtures().stop(academyId, "37.551000", "126.961000"));
 
         mockMvc.perform(patch(INTENT.formatted(immediateStudentId, immediateRunId))
-                        .header("Authorization", 토큰(guardian5AccountId, academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian5AccountId, academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk());
@@ -938,7 +902,7 @@ class BoardingIntentControllerTest {
         fixtures().enrol(academyId, busId, approvalStudentId, fixtures().stop(academyId, "37.552000", "126.962000"));
 
         mockMvc.perform(patch(INTENT.formatted(approvalStudentId, approvalRunId))
-                        .header("Authorization", 토큰(guardian6AccountId, academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian6AccountId, academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isOk());
@@ -980,7 +944,7 @@ class BoardingIntentControllerTest {
         long runId = fixtures().run(academyId, busId, now.plusHours(2), now.plusMinutes(90));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(90007L, academyId, Role.STUDENT))
+                        .header("Authorization", 토큰(tokenProvider, 90007L, academyId, Role.STUDENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isForbidden())
@@ -1003,7 +967,7 @@ class BoardingIntentControllerTest {
         long runId = fixtures().run(academyId, busId, now.plusHours(2), now.plusMinutes(90));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian9.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian9.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isForbidden())
@@ -1032,7 +996,7 @@ class BoardingIntentControllerTest {
         long otherAcademyRunId = fixtures().run(academyB, busB, now.plusHours(2), now.plusMinutes(90));
 
         mockMvc.perform(patch(INTENT.formatted(studentId, otherAcademyRunId))
-                        .header("Authorization", 토큰(guardianAccountId, academyA, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardianAccountId, academyA, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isNotFound())
@@ -1053,7 +1017,7 @@ class BoardingIntentControllerTest {
 
         for (int i = 0; i < 2; i++) {
             mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                            .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                            .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"riding\":false}"))
                     .andExpect(status().isOk())
@@ -1079,14 +1043,10 @@ class BoardingIntentControllerTest {
         runRepository.findById(runId).orElseThrow().cancel(OffsetDateTime.now(), RunCancelSource.STAFF);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
-                        .header("Authorization", 토큰(guardian.accountId(), academyId, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"riding\":false}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

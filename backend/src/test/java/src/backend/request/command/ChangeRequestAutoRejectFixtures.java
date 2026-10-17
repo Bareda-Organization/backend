@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import src.backend.academy.entity.Academy;
@@ -147,5 +148,16 @@ public class ChangeRequestAutoRejectFixtures {
                 ChangeRequestType.CANCEL, (short) 2, requestedBy, requestedAt);
         ReflectionTestUtils.setField(request, "deadlineAt", deadlineAt);
         return changeRequestRepository.save(request).getId();
+    }
+
+    /** 이 보조가 만든 학원({@link #ACADEMY_NAME})의 자동 거절 시험 행을 외래 키 순서대로 지운다 — 시험 클래스마다 복사하던 정리의 단일 정의. */
+    public static void cleanUpMarkedRows(JdbcTemplate jdbc) {
+        String academyIds = "(SELECT id FROM academy WHERE name = '" + ACADEMY_NAME + "')";
+        jdbc.update("DELETE FROM notification_log WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM run WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM student WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM account WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM academy WHERE name = '" + ACADEMY_NAME + "'");
     }
 }

@@ -105,31 +105,18 @@ class RunConfirmationLagMetricConcurrencyTest {
 
     private RunConfirmationFixtures fixtures;
 
-
     @BeforeEach
     void setUp() {
         fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-        cleanUpMarkedRows();
+        RunConfirmationFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
     @AfterEach
     void tearDown() {
-        cleanUpMarkedRows();
+        RunConfirmationFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
-    /** {@code RunConfirmationSchedulerTest} 와 같은 정리 — 이 클래스도 실제 커밋을 남긴다. */
-    private void cleanUpMarkedRows() {
-        String academyIds = "(SELECT id FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "')";
-        jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM route WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM weekly_address WHERE student_id IN "
-                + "(SELECT id FROM student WHERE academy_id IN " + academyIds + ")");
-        jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM stop WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "'");
-    }
 
     private Timer currentTimerOrNull() {
         return registry.find(LAG_METRIC).timer();

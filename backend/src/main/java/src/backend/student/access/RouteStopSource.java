@@ -6,8 +6,8 @@ import java.util.Set;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
+import src.backend.global.location.GeoPoint;
 import src.backend.run.entity.Run;
-import src.backend.student.dto.RoadPoint;
 
 /**
  * 학생 모듈의 회차·노선 판정이 읽는 정차지·도로 좌표 포트(BR-094 · BR-162, AR-4) — {@code routing} 이 구현하고 학생 모듈은 이 인터페이스만
@@ -41,7 +41,7 @@ public interface RouteStopSource {
     }
 
     /** 확정 노선 버전의 도로 좌표(순서 있음)와 직선 근사 여부({@code fallback_used}) — 확정 전은 {@link #EMPTY}. */
-    record RoadPath(List<RoadPoint> points, boolean fallbackUsed) {
+    record RoadPath(List<GeoPoint> points, boolean fallbackUsed) {
 
         public static final RoadPath EMPTY = new RoadPath(List.of(), false);
     }

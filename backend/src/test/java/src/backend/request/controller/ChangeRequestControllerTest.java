@@ -5,8 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -31,11 +33,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -45,17 +44,12 @@ import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.RunCancelSource;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -79,6 +73,9 @@ class ChangeRequestControllerTest {
     private static final Weekday WEEKDAY = Weekday.MON;
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -95,27 +92,6 @@ class ChangeRequestControllerTest {
 
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
 
     @Autowired
     private RunRepository runRepository;
@@ -140,11 +116,9 @@ class ChangeRequestControllerTest {
 
     private ChangeRequestFixtures changeRequestFixtures;
 
-
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+            fixtures = RunConfirmationFixtures.of(applicationContext);
         }
         return fixtures;
     }
@@ -472,7 +446,7 @@ class ChangeRequestControllerTest {
         entityManager.flush();
 
         MvcResult result = mockMvc.perform(get(CHANGE_REQUESTS.formatted(studentId))
-                        .header("Authorization", 토큰(accountId, academyId)))
+                        .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(4))
                 .andExpect(jsonPath("$.data.pending_count").value(1))
@@ -483,7 +457,7 @@ class ChangeRequestControllerTest {
         // 연결 부재 자녀 — 같은 학원 보호자지만 이 학생과 연결이 없다.
         long unlinkedAccountId = changeRequestFixtures().parentWithoutLink(academyId);
         mockMvc.perform(get(CHANGE_REQUESTS.formatted(studentId))
-                        .header("Authorization", 토큰(unlinkedAccountId, academyId)))
+                        .header("Authorization", 토큰(tokenProvider, unlinkedAccountId, academyId, Role.PARENT)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
 
@@ -491,7 +465,7 @@ class ChangeRequestControllerTest {
         long otherAcademyId = fixtures().academyWithCoordinates();
         long otherAccountId = changeRequestFixtures().parentWithoutLink(otherAcademyId);
         mockMvc.perform(get(CHANGE_REQUESTS.formatted(studentId))
-                        .header("Authorization", 토큰(otherAccountId, otherAcademyId)))
+                        .header("Authorization", 토큰(tokenProvider, otherAccountId, otherAcademyId, Role.PARENT)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -517,7 +491,7 @@ class ChangeRequestControllerTest {
         }
         entityManager.flush();
 
-        mockMvc.perform(get(CHANGE_REQUESTS.formatted(studentId)).header("Authorization", 토큰(accountId, academyId)))
+        mockMvc.perform(get(CHANGE_REQUESTS.formatted(studentId)).header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(100))
                 .andExpect(jsonPath("$.data.pending_count").value(105));
@@ -586,7 +560,7 @@ class ChangeRequestControllerTest {
     private ResultActions 신청_요청(long accountId, Long academyId, long studentId, String type, long runId,
             String newAddress, String reason) throws Exception {
         return mockMvc.perform(post(CHANGE_REQUESTS.formatted(studentId))
-                .header("Authorization", 토큰(accountId, academyId))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(신청_본문(type, runId, newAddress, reason)));
     }
@@ -599,13 +573,5 @@ class ChangeRequestControllerTest {
 
     private static String 문자열_또는_null(String value) {
         return value == null ? "null" : "\"" + value + "\"";
-    }
-
-    private String 토큰(long accountId, Long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.PARENT, AccountStatus.ACTIVE);
-    }
-
-    private static String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

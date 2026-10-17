@@ -21,12 +21,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageSchedule;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.schedule.command.ScheduleCommandService;
-import src.backend.schedule.dto.ScheduleListRequest;
 import src.backend.schedule.dto.ScheduleRegisterRequest;
 import src.backend.schedule.dto.ScheduleResponse;
 import src.backend.schedule.dto.ScheduleUpdateRequest;
@@ -52,16 +53,16 @@ public class StaffScheduleController {
     private final ScheduleCommandService scheduleCommandService;
 
     /** 스케줄 목록(SCH-01, §5.10) — 비활성 스케줄도 실린다. */
-    @CanManageSchedule
+    @Can(Permissions.SCHEDULE_MANAGE)
     @Operation(summary = "운행 스케줄 · 일일 회차 — 목록 (§1.8 페이징) (SCH-01)")
     @GetMapping
     public ApiResponse<PageResponse<ScheduleResponse>> list(@AuthenticationPrincipal AuthUser requester,
-            @ModelAttribute ScheduleListRequest request) {
+            @ModelAttribute PageSortRequest request) {
         return ApiResponse.ok(scheduleQueryService.list(requester, request));
     }
 
     /** 스케줄 등록(SCH-01, §5.10) — 같은 유일성 조합이 이미 있으면 {@code 409 DUPLICATE_SCHEDULE}. */
-    @CanManageSchedule
+    @Can(Permissions.SCHEDULE_MANAGE)
     @Operation(summary = "운행 스케줄 · 일일 회차 — 등록 (SCH-01)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -71,7 +72,7 @@ public class StaffScheduleController {
     }
 
     /** 스케줄 수정(SCH-01, §5.10) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
-    @CanManageSchedule
+    @Can(Permissions.SCHEDULE_MANAGE)
     @Operation(summary = "운행 스케줄 · 일일 회차 — 수정 (SCH-01)")
     @PatchMapping("/{id}")
     public ApiResponse<ScheduleResponse> update(@AuthenticationPrincipal AuthUser requester,
@@ -80,7 +81,7 @@ public class StaffScheduleController {
     }
 
     /** 스케줄 삭제(SCH-01, §5.10) — 행을 지우고, 이미 만들어진 회차는 남는다. */
-    @CanManageSchedule
+    @Can(Permissions.SCHEDULE_MANAGE)
     @Operation(summary = "운행 스케줄 · 일일 회차 — 삭제 (SCH-01)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

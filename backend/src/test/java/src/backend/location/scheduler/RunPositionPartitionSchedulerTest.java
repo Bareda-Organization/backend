@@ -21,7 +21,6 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import src.backend.location.infrastructure.RunPositionPartitionManager;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 
 /**
  * 위치 이력 파티션 미리 만들기의 배선(R46-LATERBE B-1) — 오늘 날짜(주입된 시계 기준)부터 {@code LOOK_AHEAD_DAYS} 일 뒤까지를
@@ -36,9 +35,7 @@ class RunPositionPartitionSchedulerTest {
 
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
-    private final SchedulerHealthMetrics metrics = new SchedulerHealthMetrics(registry);
-
-    private final RunPositionPartitionScheduler scheduler = new RunPositionPartitionScheduler(manager, metrics, clock);
+    private final RunPositionPartitionScheduler scheduler = new RunPositionPartitionScheduler(manager, registry, clock);
 
     @Test
     void 매일_실행은_시계의_오늘부터_7일_뒤까지_만들도록_관리자를_부른다() {

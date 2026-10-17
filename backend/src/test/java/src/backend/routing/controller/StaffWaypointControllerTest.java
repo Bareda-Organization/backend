@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.관계자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -35,12 +37,8 @@ import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
-import src.backend.academy.repository.AcademyRepository;
 
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
-import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.authz.Permissions;
@@ -52,16 +50,11 @@ import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 import src.backend.routing.command.WaypointStore;
 import src.backend.routing.entity.Waypoint;
 import src.backend.routing.pipeline.RouteComputationPipeline;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * §5.15 {@code POST/DELETE /staff/runs/{runId}/waypoints}(RTE-10).
@@ -85,6 +78,9 @@ class StaffWaypointControllerTest {
     private static final Weekday WEEKDAY = Weekday.MON;
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @PersistenceContext
@@ -98,27 +94,6 @@ class StaffWaypointControllerTest {
 
     @Autowired
     private RunConfirmationService confirmationService;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
 
     @Autowired
     private RunRepository runRepository;
@@ -142,8 +117,7 @@ class StaffWaypointControllerTest {
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+            fixtures = RunConfirmationFixtures.of(applicationContext);
         }
         return fixtures;
     }
@@ -494,7 +468,7 @@ class StaffWaypointControllerTest {
         long otherAcademyId = fixtures().academyWithCoordinates();
 
         mockMvc.perform(post("/api/v1/staff/runs/" + s.runId + "/waypoints")
-                .header("Authorization", 토큰(otherAcademyId))
+                .header("Authorization", 관계자_토큰(tokenProvider, otherAcademyId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(경유_본문("새경유로 50", "라벨", false)))
                 .andExpect(status().isNotFound())
@@ -765,7 +739,7 @@ class StaffWaypointControllerTest {
     private ResultActions 경유_요청한다(long runId, String body) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         return mockMvc.perform(post("/api/v1/staff/runs/" + runId + "/waypoints")
-                .header("Authorization", 토큰(academyId))
+                .header("Authorization", 관계자_토큰(tokenProvider, academyId))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
     }
@@ -804,13 +778,13 @@ class StaffWaypointControllerTest {
     private ResultActions 경유_삭제한다(long runId, long waypointId, boolean apply) throws Exception {
         long academyId = jdbcTemplate.queryForObject("SELECT academy_id FROM run WHERE id = ?", Long.class, runId);
         String path = "/api/v1/staff/runs/" + runId + "/waypoints/" + waypointId;
-        ResultActions preview = mockMvc.perform(delete(path + "?apply=false").header("Authorization", 토큰(academyId)));
+        ResultActions preview = mockMvc.perform(delete(path + "?apply=false").header("Authorization", 관계자_토큰(tokenProvider, academyId)));
         if (!apply) {
             return preview;
         }
         String token = 미리보기_토큰(preview.andExpect(status().isOk()).andReturn());
         return mockMvc.perform(delete(path + "?apply=true&preview_token=" + token)
-                .header("Authorization", 토큰(academyId)));
+                .header("Authorization", 관계자_토큰(tokenProvider, academyId)));
     }
 
     private String 경유_본문(String address, String label, boolean apply) {
@@ -872,11 +846,6 @@ class StaffWaypointControllerTest {
     private int 미배포_행_개수(long runId) {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM waypoint WHERE run_id = ? AND applied = false",
                 Integer.class, runId);
-    }
-
-    private String 토큰(long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(academyId * 1000 + 1, academyId, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 
     /** 시나리오 픽스처 값 묶음. */

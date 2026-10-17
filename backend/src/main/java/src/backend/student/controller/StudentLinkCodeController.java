@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanLinkChild;
+import src.backend.global.security.authz.AuthenticatedOnly;
 import src.backend.student.command.ChildLinkCommandService;
 import src.backend.student.dto.LinkCodeIssueResponse;
 
@@ -36,7 +36,7 @@ public class StudentLinkCodeController {
     private final ChildLinkCommandService childLinkCommandService;
 
     /** ① 인증 코드 생성(S-05, §3.3) — 선행 조건이 없다(Ruling 324). */
-    @CanLinkChild
+    @AuthenticatedOnly
     @Operation(summary = "인증 코드 생성 (S-05) — 학생")
     @PostMapping("/me/link-code")
     @ResponseStatus(HttpStatus.CREATED)

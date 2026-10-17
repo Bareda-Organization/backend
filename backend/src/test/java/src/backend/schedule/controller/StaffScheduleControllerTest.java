@@ -7,8 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -408,10 +408,6 @@ class StaffScheduleControllerTest {
         return 본문(mockMvc.perform(get("/api/v1/staff/schedules?size=100" + extraQuery).header("Authorization", token))
                 .andExpect(status().isOk())
                 .andReturn());
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
     private String 관계자A_토큰() {

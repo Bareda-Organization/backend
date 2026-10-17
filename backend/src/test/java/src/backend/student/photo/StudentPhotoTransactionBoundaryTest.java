@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -155,7 +156,7 @@ class StudentPhotoTransactionBoundaryTest {
 
         mockMvc.perform(multipart(BASE).file(데이터_파트(등록_본문(name, null)))
                         .file(사진_파트(png()))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().is5xxServerError());
 
         assertThat(학생_수(name))
@@ -175,7 +176,7 @@ class StudentPhotoTransactionBoundaryTest {
         mockMvc.perform(multipart(BASE)
                         .file(데이터_파트(등록_본문(NAME_PREFIX + "롤백", "\"gender\":\"자몽\"")))
                         .file(사진_파트(png()))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent());
 
         assertThat(photoStorage.stored)
@@ -200,7 +201,7 @@ class StudentPhotoTransactionBoundaryTest {
         mockMvc.perform(multipart(HttpMethod.PATCH, BASE + "/" + studentId)
                         .file(데이터_파트("{}"))
                         .file(사진_파트(jpeg()))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
         assertThat(photoStorage.stored).hasSize(2);
@@ -231,7 +232,7 @@ class StudentPhotoTransactionBoundaryTest {
         mockMvc.perform(multipart(HttpMethod.PATCH, BASE + "/" + studentId)
                         .file(데이터_파트("{\"gender\":\"자몽\"}"))
                         .file(사진_파트(jpeg()))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent());
 
         assertThat(photoStorage.stored)
@@ -256,7 +257,7 @@ class StudentPhotoTransactionBoundaryTest {
         String 파일_주소 = photoStorage.stored.getFirst();
         assertThat(파일(파일_주소)).as("지우기 전에는 파일이 있어야 시험이 의미가 있다").exists();
 
-        mockMvc.perform(delete(BASE + "/" + studentId + "/photo").header("Authorization", 관계자_토큰()))
+        mockMvc.perform(delete(BASE + "/" + studentId + "/photo").header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isNoContent());
 
         assertThat(jdbcTemplate.queryForObject("SELECT photo_url FROM student WHERE id = ?", String.class, studentId))
@@ -271,7 +272,7 @@ class StudentPhotoTransactionBoundaryTest {
     void 사진이_없는_학생의_사진_삭제도_204_이고_감사는_남지_않는다() throws Exception {
         long studentId = 사진_없이_등록한다(NAME_PREFIX + "사진없음");
 
-        mockMvc.perform(delete(BASE + "/" + studentId + "/photo").header("Authorization", 관계자_토큰()))
+        mockMvc.perform(delete(BASE + "/" + studentId + "/photo").header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isNoContent());
 
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM audit_log WHERE target_type = 'student' "
@@ -311,7 +312,7 @@ class StudentPhotoTransactionBoundaryTest {
 
     private long 사진_없이_등록한다(String name) throws Exception {
         MvcResult result = mockMvc.perform(multipart(BASE).file(데이터_파트(등록_본문(name, null)))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return Long.parseLong(JsonPath.read(
@@ -321,7 +322,7 @@ class StudentPhotoTransactionBoundaryTest {
     private long 등록한다(String name) throws Exception {
         MvcResult result = mockMvc.perform(multipart(BASE).file(데이터_파트(등록_본문(name, null)))
                         .file(사진_파트(png()))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return Long.parseLong(JsonPath.read(
@@ -347,10 +348,6 @@ class StudentPhotoTransactionBoundaryTest {
 
     private Path 파일(String photoUrl) {
         return Path.of(photoRoot, photoUrl.substring(photoUrl.lastIndexOf('/') + 1));
-    }
-
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
     }
 
     private static byte[] png() {

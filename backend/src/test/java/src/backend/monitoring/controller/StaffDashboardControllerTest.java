@@ -6,9 +6,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -29,12 +31,6 @@ import org.springframework.context.annotation.Import;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -42,18 +38,12 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -70,25 +60,13 @@ import testsupport.clock.FixedClock20300401Config;
 class StaffDashboardControllerTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private JwtTokenProvider tokenProvider;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
 
     @Autowired
     private ManagerRepository managerRepository;
@@ -104,24 +82,6 @@ class StaffDashboardControllerTest {
 
     @Autowired
     private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
 
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
@@ -144,16 +104,6 @@ class StaffDashboardControllerTest {
      * 대시보드가 기본값으로 쓰는 "오늘"이 이 날짜와 맞아야 {@code runs[]} 가 비지 않는다.
      */
 
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
-
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     // ── 목표 1 — §5.3 필드 전부 ──────────────────────────────────────────
 
@@ -165,27 +115,27 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표1 — metrics 5종과 runs[] 14개 필드가 전부 채워진다")
     void 대시보드_응답이_정본_필드를_전부_담는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
         fx.runStopForStop(versionId, stopId, 1, departTime);
         long studentId = fx.student(academyId, "학생1");
-        fx.rider(runId, studentId, stopId, src.backend.boarding.entity.RiderStatus.WAITING, now());
-        long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", now());
-        fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", now());
+        fx.rider(runId, studentId, stopId, src.backend.boarding.entity.RiderStatus.WAITING, OffsetDateTime.now(clock));
+        long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now(clock));
+        fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", OffsetDateTime.now(clock));
         fx.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사1");
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes").header("Authorization",
-                토큰(driverAccountId, academyId, Role.DRIVER)))
+                토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk());
 
         MvcResult result = mockMvc
-                .perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.metrics.moving_buses").exists())
                 .andExpect(jsonPath("$.data.metrics.boarded").exists())
@@ -221,19 +171,19 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("BR-220 — 임시 취소된 회차는 runs[] 에서 빠지고 그 회차에만 배치된 매니저는 미배치로 센다")
     void 임시_취소된_회차는_대시보드에서_빠진다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         long liveRunId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         long canceledRunId = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fx.assignedManager(academyId, liveRunId, ManagerRole.DRIVER, "살아있는기사", now());
-        fx.assignedManager(academyId, canceledRunId, ManagerRole.ESCORT, "취소회차동승자", now());
+        fx.assignedManager(academyId, liveRunId, ManagerRole.DRIVER, "살아있는기사", OffsetDateTime.now(clock));
+        fx.assignedManager(academyId, canceledRunId, ManagerRole.ESCORT, "취소회차동승자", OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
-        runRepository.findById(canceledRunId).orElseThrow().cancel(now(), src.backend.run.entity.RunCancelSource.STAFF);
+        runRepository.findById(canceledRunId).orElseThrow().cancel(OffsetDateTime.now(clock), src.backend.run.entity.RunCancelSource.STAFF);
 
-        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(1))
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(liveRunId))
@@ -251,15 +201,15 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("R21-B 목표1·2·4 — started_at·finished_at 이 회차 진행 상태에 맞춰 채워진다")
     void 실제_출발_도착_시각이_회차_진행에_맞춰_채워진다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(
-                get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].started_at").doesNotExist())
                 .andExpect(jsonPath("$.data.runs[0].finished_at").doesNotExist());
@@ -268,7 +218,7 @@ class StaffDashboardControllerTest {
         fx.startRun(runId, startedAt);
 
         mockMvc.perform(
-                get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].started_at").exists())
                 .andExpect(jsonPath("$.data.runs[0].finished_at").doesNotExist());
@@ -277,7 +227,7 @@ class StaffDashboardControllerTest {
         fx.finishRun(runId, finishedAt);
 
         mockMvc.perform(
-                get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].started_at").exists())
                 .andExpect(jsonPath("$.data.runs[0].finished_at").exists());
@@ -293,10 +243,10 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("R21-B2 목표1 — est_arrival_time 은 depart_time + est_duration_min 이다")
     void 예정_도착_시각이_출발_시각과_소요시간의_합이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         int estDurationMin = 27;
         fx.confirmedRunWithDuration(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30), estDurationMin);
@@ -304,7 +254,7 @@ class StaffDashboardControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/staff/dashboard").header("Authorization",
-                        토큰(staffAccountId, academyId, Role.STAFF)))
+                        토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].est_arrival_time").exists())
                 .andReturn();
@@ -323,16 +273,16 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("R21-B2 목표2 — est_duration_min 이 없으면 est_arrival_time 도 null 로 견딘다")
     void 소요시간이_없으면_예정_도착_시각도_null_이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         // 기존 confirmedRun 은 est_duration_min 을 항상 null 로 둔다(DriverRunFixtures 자바독).
         fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(
-                get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].est_arrival_time").doesNotExist());
     }
@@ -341,7 +291,7 @@ class StaffDashboardControllerTest {
 
     private com.jayway.jsonpath.DocumentContext 대시보드(long staffAccountId, long academyId) throws Exception {
         return JsonPath.parse(본문(mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization",
-                        토큰(staffAccountId, academyId, Role.STAFF)))
+                        토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk()).andReturn()));
     }
 
@@ -355,23 +305,23 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — no_show_count·absent_count 는 회차별로 따로 센다")
     void 회차별_미승차_미등원_인원은_다른_회차_값과_섞이지_않는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        OffsetDateTime depart = now().plusHours(1);
+        OffsetDateTime depart = OffsetDateTime.now(clock).plusHours(1);
         long runA = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
         long runB = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, depart.plusHours(1),
                 depart.plusHours(1).minusMinutes(30));
-        fx.rider(runA, fx.student(academyId, "A1"), stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, now());
-        fx.rider(runA, fx.student(academyId, "A2"), stopId, src.backend.boarding.entity.RiderStatus.ABSENT, now());
-        fx.rider(runA, fx.student(academyId, "A3"), stopId, src.backend.boarding.entity.RiderStatus.ABSENT, now());
-        fx.rider(runA, fx.student(academyId, "A4"), stopId, src.backend.boarding.entity.RiderStatus.BOARDED, now());
+        fx.rider(runA, fx.student(academyId, "A1"), stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, OffsetDateTime.now(clock));
+        fx.rider(runA, fx.student(academyId, "A2"), stopId, src.backend.boarding.entity.RiderStatus.ABSENT, OffsetDateTime.now(clock));
+        fx.rider(runA, fx.student(academyId, "A3"), stopId, src.backend.boarding.entity.RiderStatus.ABSENT, OffsetDateTime.now(clock));
+        fx.rider(runA, fx.student(academyId, "A4"), stopId, src.backend.boarding.entity.RiderStatus.BOARDED, OffsetDateTime.now(clock));
         for (int i = 1; i <= 3; i++) {
             fx.rider(runB, fx.student(academyId, "B" + i), stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW,
-                    now());
+                    OffsetDateTime.now(clock));
         }
-        fx.rider(runB, fx.student(academyId, "B4"), stopId, src.backend.boarding.entity.RiderStatus.WAITING, now());
+        fx.rider(runB, fx.student(academyId, "B4"), stopId, src.backend.boarding.entity.RiderStatus.WAITING, OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         var dashboard = 대시보드(staffAccountId, academyId);
@@ -389,17 +339,17 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 879 — boarded_count 와 metrics.boarded 는 boarded + alighted 이고 미승차·대기는 세지 않는다")
     void 탑승_완료_인원은_승차와_하차를_합친다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        OffsetDateTime depart = now().plusHours(1);
+        OffsetDateTime depart = OffsetDateTime.now(clock).plusHours(1);
         long run = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, depart, depart.minusMinutes(30));
-        fx.rider(run, fx.student(academyId, "C1"), stopId, src.backend.boarding.entity.RiderStatus.BOARDED, now());
-        fx.rider(run, fx.student(academyId, "C2"), stopId, src.backend.boarding.entity.RiderStatus.ALIGHTED, now());
-        fx.rider(run, fx.student(academyId, "C3"), stopId, src.backend.boarding.entity.RiderStatus.ALIGHTED, now());
-        fx.rider(run, fx.student(academyId, "C4"), stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, now());
-        fx.rider(run, fx.student(academyId, "C5"), stopId, src.backend.boarding.entity.RiderStatus.WAITING, now());
+        fx.rider(run, fx.student(academyId, "C1"), stopId, src.backend.boarding.entity.RiderStatus.BOARDED, OffsetDateTime.now(clock));
+        fx.rider(run, fx.student(academyId, "C2"), stopId, src.backend.boarding.entity.RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
+        fx.rider(run, fx.student(academyId, "C3"), stopId, src.backend.boarding.entity.RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
+        fx.rider(run, fx.student(academyId, "C4"), stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, OffsetDateTime.now(clock));
+        fx.rider(run, fx.student(academyId, "C5"), stopId, src.backend.boarding.entity.RiderStatus.WAITING, OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         var dashboard = 대시보드(staffAccountId, academyId);
@@ -414,10 +364,10 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — driver_phone·escort_phone 은 원문이고 배치 전이면 null")
     void 매니저_전화는_원문이고_배치_전이면_null_이다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime depart = now().plusHours(1);
+        OffsetDateTime depart = OffsetDateTime.now(clock).plusHours(1);
         long assignedRun = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
         long emptyRun = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, depart.plusHours(1),
                 depart.plusHours(1).minusMinutes(30));
@@ -436,14 +386,14 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — delay_minutes 는 moving 만, 그 밖은 null")
     void 지연_분은_운행_중_회차에만_싣는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime depart = now().minusMinutes(30);
+        OffsetDateTime depart = OffsetDateTime.now(clock).minusMinutes(30);
         long movingRun = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
         fx.startRun(movingRun, depart.plusMinutes(6));
-        long confirmedRun = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now().plusHours(1),
-                now().plusMinutes(30));
+        long confirmedRun = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock).plusHours(1),
+                OffsetDateTime.now(clock).plusMinutes(30));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         var dashboard = 대시보드(staffAccountId, academyId);
@@ -459,10 +409,10 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — last_delay_notice 는 2건 중 뒤 알림이고 recipient_count 는 그 알림 몫만 센다")
     void 마지막_지연_알림과_수신_건수를_싣는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime depart = now().minusMinutes(40);
+        OffsetDateTime depart = OffsetDateTime.now(clock).minusMinutes(40);
         long runWithTwo = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
         fx.startRun(runWithTwo, depart);
         long runWithOne = fx.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, depart.plusMinutes(5),
@@ -472,8 +422,8 @@ class StaffDashboardControllerTest {
                 depart.minusMinutes(20));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
-        OffsetDateTime first = now().minusMinutes(10);
-        OffsetDateTime second = now().minusMinutes(5);
+        OffsetDateTime first = OffsetDateTime.now(clock).minusMinutes(10);
+        OffsetDateTime second = OffsetDateTime.now(clock).minusMinutes(5);
         delayNoticeRepository.save(src.backend.run.entity.DelayNotice.onSend(runWithTwo, staffAccountId, 5,
                 src.backend.run.entity.DelayReason.TRAFFIC, null, first));
         delayNoticeRepository.save(src.backend.run.entity.DelayNotice.onSend(runWithTwo, staffAccountId, 10,
@@ -501,18 +451,18 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — 실제 지연 알림 API 가 적재한 건수가 recipient_count 와 같다")
     void 실제_지연_알림이_적재한_건수가_수신_건수다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime depart = now().minusMinutes(20);
+        OffsetDateTime depart = OffsetDateTime.now(clock).minusMinutes(20);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
         fx.confirmedRouteWithVersion(runId, depart.minusMinutes(40));
         fx.startRun(runId, depart);
-        long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1"); // 학원당 재직 관계자는 1명이다
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/delay")
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"minutes\":10,\"reason\":\"traffic\"}"))
                 .andExpect(status().isCreated());
@@ -531,18 +481,18 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("Ruling 810 — no_show_cases[] 의 call_attempts·last_contact_result")
     void 미승차_케이스는_연락_시도_수와_마지막_결과를_싣는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        OffsetDateTime depart = now().minusMinutes(20);
+        OffsetDateTime depart = OffsetDateTime.now(clock).minusMinutes(20);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
         fx.startRun(runId, depart);
         long contacted = fx.student(academyId, "연락한학생");
         long untouched = fx.student(academyId, "연락전학생");
-        long riderContacted = fx.rider(runId, contacted, stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, now());
-        long riderUntouched = fx.rider(runId, untouched, stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, now());
-        OffsetDateTime started = now().minusMinutes(2);
+        long riderContacted = fx.rider(runId, contacted, stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, OffsetDateTime.now(clock));
+        long riderUntouched = fx.rider(runId, untouched, stopId, src.backend.boarding.entity.RiderStatus.NO_SHOW, OffsetDateTime.now(clock));
+        OffsetDateTime started = OffsetDateTime.now(clock).minusMinutes(2);
         long caseContacted = noShowCaseRepository.save(src.backend.exception.entity.NoShowCase.forRunRider(
                 riderContacted, started, started.plusMinutes(3), started)).getId();
         noShowCaseRepository.save(src.backend.exception.entity.NoShowCase.forRunRider(riderUntouched, started,
@@ -572,7 +522,7 @@ class StaffDashboardControllerTest {
         Manager manager = managerRepository.save(Manager.register(academyId,
                 new src.backend.manager.entity.ManagerProfile(name, phone, role, null)));
         assignmentRepository.save(src.backend.manager.entity.Assignment.uponAssignment(runId, manager.getId(), role,
-                now(), null));
+                OffsetDateTime.now(clock), null));
     }
 
     /** 지연 알림 1건이 적재하는 알림 행 {@code count} 개 — 실제 리스너와 같은 {@code dedup_key} 모양·{@code created_at}(= 발신 시각)이다. */
@@ -600,19 +550,19 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표8 — 소프트 삭제된 미배치 매니저는 unassigned_managers 에 잡히지 않는다")
     void 소프트_삭제된_매니저는_unassigned_managers_에_잡히지_않는다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         fx.unassignedManager(academyId, ManagerRole.DRIVER, "미배치기사1");
         long deletedAccountId = fx.unassignedManager(academyId, ManagerRole.DRIVER, "삭제될기사");
         Manager deletedManager = managerRepository.findByAccountId(deletedAccountId).orElseThrow();
-        deletedManager.delete(now());
+        deletedManager.delete(OffsetDateTime.now(clock));
         managerRepository.save(deletedManager);
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
-        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.metrics.unassigned_managers")
                         .value(1));
@@ -627,28 +577,28 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표2 — 대시보드 run_id 로 기존 명단 API 를 호출하면 §5.4 필드가 전부 있다")
     void 대시보드_run_id_로_기존_명단_API_를_검증한다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
         fx.runStopForStop(versionId, stopId, 1, departTime);
         long studentId = fx.student(academyId, "학생1");
-        fx.rider(runId, studentId, stopId, src.backend.boarding.entity.RiderStatus.WAITING, now());
-        fx.guardianOf(academyId, studentId, "보호자1", now());
+        fx.rider(runId, studentId, stopId, src.backend.boarding.entity.RiderStatus.WAITING, OffsetDateTime.now(clock));
+        fx.guardianOf(academyId, studentId, "보호자1", OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         MvcResult dashboard = mockMvc
-                .perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
         Long dashboardRunId = Long.parseLong(JsonPath.read(본문(dashboard), "$.data.runs[0].run_id"));
         assertThat(dashboardRunId).isEqualTo(runId);
 
         mockMvc.perform(get("/api/v1/staff/runs/" + dashboardRunId + "/roster").header("Authorization",
-                토큰(staffAccountId, academyId, Role.STAFF)))
+                토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].student_id").exists())
                 .andExpect(jsonPath("$.data[0].name").exists())
@@ -672,27 +622,27 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표3 — 실제 승하차 PATCH 로 boarded_count 가 반영되고 미승차는 해소되면 제외된다")
     void 실제_승하차_처리가_대시보드에_반영된다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        OffsetDateTime departTime = now().minusMinutes(10);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(10);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        fx.startRun(runId, now());
+        fx.startRun(runId, OffsetDateTime.now(clock));
         long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
         fx.runStopForStop(versionId, stopId, 1, departTime);
         long boardedStudentId = fx.student(academyId, "탑승학생");
         long noShowStudentId = fx.student(academyId, "미승차학생");
         long boardedRiderId = fx.rider(runId, boardedStudentId, stopId,
-                src.backend.boarding.entity.RiderStatus.WAITING, now());
+                src.backend.boarding.entity.RiderStatus.WAITING, OffsetDateTime.now(clock));
         long noShowRiderId = fx.rider(runId, noShowStudentId, stopId,
-                src.backend.boarding.entity.RiderStatus.WAITING, now());
-        long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", now());
+                src.backend.boarding.entity.RiderStatus.WAITING, OffsetDateTime.now(clock));
+        long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         // 실제 승하차 처리 — PATCH 로 boarded 반영(완료 기준 3).
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + boardedRiderId)
-                .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"status": "boarded", "verify_method": "manual", "client_key": "%s"}
@@ -701,14 +651,14 @@ class StaffDashboardControllerTest {
 
         // 실제 미승차 처리 — no_show 로 전이시켜 NoShowCase 를 실제로 생성.
         mockMvc.perform(patch("/api/v1/runs/" + runId + "/riders/" + noShowRiderId)
-                .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"status": "no_show", "verify_method": "manual", "client_key": "%s"}
                         """.formatted(UUID.randomUUID())))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].boarded_count").value(1))
                 .andExpect(jsonPath("$.data.metrics.boarded").value(1))
@@ -719,14 +669,14 @@ class StaffDashboardControllerTest {
 
         // 실제 연락 시도(응답함)로 해소 — 실제 POST .../no-show-contacts.
         mockMvc.perform(post("/api/v1/runs/" + runId + "/riders/" + noShowRiderId + "/no-show-contacts")
-                .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"attempt_type": "call", "result": "answered"}
                         """))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].no_show_cases", org.hamcrest.Matchers.hasSize(0)));
     }
@@ -751,22 +701,22 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표4뒷항 — 재배포 후 ack_driver·ack_escort 가 false 로 되돌아간다")
     void 재배포_후_ack_이_리셋된다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
-        long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", now());
-        long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", now());
+        long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now(clock));
+        long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes").header("Authorization",
-                토큰(driverAccountId, academyId, Role.DRIVER))).andExpect(status().isOk());
+                토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))).andExpect(status().isOk());
         mockMvc.perform(post("/api/v1/runs/" + runId + "/ack-changes").header("Authorization",
-                토큰(escortAccountId, academyId, Role.ESCORT))).andExpect(status().isOk());
+                토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))).andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].ack_driver").value(true))
                 .andExpect(jsonPath("$.data.runs[0].ack_escort").value(true));
@@ -774,11 +724,11 @@ class StaffDashboardControllerTest {
         // 재배포 — confirmed_route 는 이미 있으니 새 RouteVersion(버전 2)만 저장하고
         // currentVersionId 를 갈아치운다(위 javadoc 의 판단 근거 참고).
         RouteVersion redeployedVersion = routeVersionRepository.save(RouteVersion.forConfirmedRoute(runId, 2,
-                RouteVersionSource.CONFIRM_BATCH, 30, new BigDecimal("10.00"), now(), "fp-" + runId + "-v2",
-                "engine-v1", Map.of(), false, List.of(), null, now()));
+                RouteVersionSource.CONFIRM_BATCH, 30, new BigDecimal("10.00"), OffsetDateTime.now(clock), "fp-" + runId + "-v2",
+                "engine-v1", Map.of(), false, List.of(), null, OffsetDateTime.now(clock)));
         confirmedRouteRepository.assignCurrentVersion(runId, redeployedVersion.getId());
 
-        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].ack_driver").value(false))
                 .andExpect(jsonPath("$.data.runs[0].ack_escort").value(false));
@@ -797,10 +747,10 @@ class StaffDashboardControllerTest {
     @Test
     @DisplayName("목표5 — 타 학원 회차는 대시보드에 없고 그 회차 명단 조회는 403 이다")
     void 타_학원_회차는_보이지_않고_명단_조회는_실패한다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long myAcademyId = fx.academy();
         long myBusId = fx.bus(myAcademyId);
-        OffsetDateTime departTime = now().plusHours(1);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         long myRunId = fx.confirmedRun(myAcademyId, myBusId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
         long staffAccountId = fx.staffAccount(myAcademyId, "관계자1");
@@ -811,7 +761,7 @@ class StaffDashboardControllerTest {
                 departTime.minusMinutes(30));
 
         MvcResult result = mockMvc
-                .perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(staffAccountId, myAcademyId, Role.STAFF)))
+                .perform(get("/api/v1/staff/dashboard").header("Authorization", 토큰(tokenProvider, staffAccountId, myAcademyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
         // run_id 는 문자열로 나간다(API_SPEC §1.1, Ruling 332) — Long 인 myRunId·otherRunId 와
@@ -821,16 +771,8 @@ class StaffDashboardControllerTest {
         assertThat(runIds).contains(myRunId).doesNotContain(otherRunId);
 
         mockMvc.perform(get("/api/v1/staff/runs/" + otherRunId + "/roster").header("Authorization",
-                토큰(staffAccountId, myAcademyId, Role.STAFF)))
+                토큰(tokenProvider, staffAccountId, myAcademyId, Role.STAFF)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("ACADEMY_SCOPE_VIOLATION"));
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

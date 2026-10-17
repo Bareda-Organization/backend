@@ -10,11 +10,11 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import src.backend.exception.event.EmergencyAckedEvent;
 import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.event.EmergencyRaisedEvent;
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 
@@ -32,7 +32,6 @@ import src.backend.global.websocket.WebSocketDestinations;
  * 반영된다" 를 만족하는 자리가 여기다. 접수·취소는 발신자 자신이 이미 그 REST 응답으로 결과를
  * 아는 동작이라 자신의 채널에 다시 쏠 필요가 없다.
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class EmergencyBroadcastListener {
@@ -52,64 +51,42 @@ public class EmergencyBroadcastListener {
     /** 비상 신고 접수를 관계자·관리자 채널에만 방송한다(학생 채널 제외). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastRaised(EmergencyRaisedEvent event) {
-        broadcastExecutor.execute(() -> deliverEmergencyRaisedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(RAISED_EVENT, event.runId(), () -> deliverEmergencyRaisedEvent(event)));
     }
 
     private void deliverEmergencyRaisedEvent(EmergencyRaisedEvent event) {
-        try {
-            RaisedPayload payload = new RaisedPayload(event.emergencyId(), event.academyId(), event.academyName(),
-                    event.type().name().toLowerCase(Locale.ROOT), event.busNo(), event.raisedBy(), event.position(), event.riderCount(), event.raisedAt());
-            sendToStaffAndAdmin(event.academyId(), event.runId(), RAISED_EVENT, event.raisedAt(), payload);
-        } catch (RuntimeException e) {
-            log.warn("emergency_raised 방송 실패 — runId={}", event.runId(), e);
-        }
+        RaisedPayload payload = new RaisedPayload(event.emergencyId(), event.academyId(), event.academyName(),
+                event.type().name().toLowerCase(Locale.ROOT), event.busNo(), event.raisedBy(), event.position(), event.riderCount(), event.raisedAt());
+        sendToStaffAndAdmin(event.academyId(), event.runId(), RAISED_EVENT, event.raisedAt(), payload);
     }
 
     /** 비상 신고 확인을 발신자가 보는 매니저 채널에만 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastAcked(EmergencyAckedEvent event) {
-        broadcastExecutor.execute(() -> deliverEmergencyAckedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(ACKED_EVENT, event.runId(), () -> deliverEmergencyAckedEvent(event)));
     }
 
     private void deliverEmergencyAckedEvent(EmergencyAckedEvent event) {
-        try {
-            AckedPayload payload = new AckedPayload(event.emergencyId(), event.ackedByName(), event.ackedAt());
-            gateway.send(WebSocketDestinations.managerRun(event.runId()), ACKED_EVENT, event.runId(), event.ackedAt(),
-                    payload);
-        } catch (RuntimeException e) {
-            log.warn("emergency_acked 방송 실패 — runId={}", event.runId(), e);
-        }
+        AckedPayload payload = new AckedPayload(event.emergencyId(), event.ackedByName(), event.ackedAt());
+        gateway.send(WebSocketDestinations.managerRun(event.runId()), ACKED_EVENT, event.runId(), event.ackedAt(),
+                payload);
     }
 
     /** 비상 신고 취소를 관계자·관리자 채널에만 방송한다(학생 채널 제외). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastCanceled(EmergencyCanceledEvent event) {
-        broadcastExecutor.execute(() -> deliverEmergencyCanceledEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(CANCELED_EVENT, event.runId(), () -> deliverEmergencyCanceledEvent(event)));
     }
 
     private void deliverEmergencyCanceledEvent(EmergencyCanceledEvent event) {
-        try {
-            CanceledPayload payload = new CanceledPayload(event.emergencyId(), event.busNo(), event.canceledAt());
-            sendToStaffAndAdmin(event.academyId(), event.runId(), CANCELED_EVENT, event.canceledAt(), payload);
-        } catch (RuntimeException e) {
-            log.warn("emergency_canceled 방송 실패 — runId={}", event.runId(), e);
-        }
+        CanceledPayload payload = new CanceledPayload(event.emergencyId(), event.busNo(), event.canceledAt());
+        sendToStaffAndAdmin(event.academyId(), event.runId(), CANCELED_EVENT, event.canceledAt(), payload);
     }
 
     private void sendToStaffAndAdmin(Long academyId, Long runId, String eventName, OffsetDateTime occurredAt,
             Object payload) {
-        sendQuietly(WebSocketDestinations.academyLive(academyId), eventName, runId, occurredAt, payload);
-        sendQuietly(WebSocketDestinations.ADMIN_LIVE, eventName, runId, occurredAt, payload);
-    }
-
-    /** 비상은 안전 사안이라 채널 하나의 송신 실패가 다음 채널의 방송을 막지 않게 채널마다 격리한다(BR-353). */
-    private void sendQuietly(String destination, String eventName, Long runId, OffsetDateTime occurredAt,
-            Object payload) {
-        try {
-            gateway.send(destination, eventName, runId, occurredAt, payload);
-        } catch (RuntimeException e) {
-            log.warn("{} 방송 실패 — runId={} destination={}", eventName, runId, destination, e);
-        }
+        gateway.send(WebSocketDestinations.academyLive(academyId), eventName, runId, occurredAt, payload);
+        gateway.send(WebSocketDestinations.ADMIN_LIVE, eventName, runId, occurredAt, payload);
     }
 
     /**

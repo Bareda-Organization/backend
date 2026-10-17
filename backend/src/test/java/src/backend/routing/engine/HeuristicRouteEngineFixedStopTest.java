@@ -11,7 +11,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 import src.backend.global.common.enums.Direction;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.impl.HeuristicRouteEngine;
 import src.backend.routing.engine.spec.FixedStop;
 import src.backend.routing.engine.spec.OrderableStop;

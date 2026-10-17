@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
@@ -36,7 +38,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20260826Config;
@@ -128,7 +129,7 @@ class StaffStudentControllerTest {
 
         long studentId = 등록한다(body);
 
-        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.address").doesNotExist())
                 .andExpect(jsonPath("$.data.guardians.length()").value(0));
@@ -139,7 +140,7 @@ class StaffStudentControllerTest {
     void 보호자가_연결된_학생의_목록_응답에_보호자_계정의_전화번호가_실린다() throws Exception {
         String phone = 보호자_계정_연락처();
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF))
                         .param("q", 시드_학생_이름(SEED_SIBLING_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(SEED_SIBLING_1)))
@@ -158,11 +159,11 @@ class StaffStudentControllerTest {
         String 계정_번호 = 보호자_계정_연락처();
         mockMvc.perform(수정_요청(SEED_SIBLING_1, """
                         {"guardians":[{"guardian_id":"1","phone":"010-1000-7777"}]}""")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
         entityManager.flush();
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF))
                         .param("q", 시드_학생_이름(SEED_SIBLING_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].guardian_phone").value("010-1000-7777"));
@@ -179,7 +180,7 @@ class StaffStudentControllerTest {
     void 계정이_연결되지_않은_학생의_보호자_연락처는_null_이다() throws Exception {
         long studentId = 등록한다(등록_본문("P5T1미연결학생", null));
 
-        String body = mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1미연결학생"))
+        String body = mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "P5T1미연결학생"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(studentId)))
                 .andExpect(jsonPath("$.data.items[0].guardian_phone").value((Object) null))
@@ -198,7 +199,7 @@ class StaffStudentControllerTest {
     void 보호자가_연결되지_않은_학생의_guardian_count_는_0이다() throws Exception {
         long studentId = 등록한다(등록_본문("P5T1보호자수0", null));
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1보호자수0"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "P5T1보호자수0"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(studentId)))
                 .andExpect(jsonPath("$.data.items[0].guardian_count").value(0));
@@ -212,7 +213,7 @@ class StaffStudentControllerTest {
     void 보호자가_2명_연결된_학생의_guardian_count_는_2다() throws Exception {
         연결한다(SEED_SIBLING_1, 보호자_식별자(SeedFixtures.PARENT_A2_LOGIN_ID), "now() - interval '1 hour'");
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF))
                         .param("q", 시드_학생_이름(SEED_SIBLING_1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].student_id").value(String.valueOf(SEED_SIBLING_1)))
@@ -225,11 +226,11 @@ class StaffStudentControllerTest {
      */
     @Test
     void 목록은_학생_본인_계정이_연결됐는지만_알린다() throws Exception {
-        String 연결된_학생 = mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "이하늘"))
+        String 연결된_학생 = mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "이하늘"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].account_linked").value(true))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "김철수"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "김철수"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].account_linked").value(false));
         assertThat(연결된_학생).as("목록은 학생 본인 계정의 식별자를 싣지 않는다").doesNotContain("\"account_id\"");
@@ -245,11 +246,11 @@ class StaffStudentControllerTest {
     void 다른_학원의_학생을_상세_조회하면_404_STUDENT_NOT_FOUND_이다() throws Exception {
         long academyBStudentId = 학원_B_시드_학생();
 
-        mockMvc.perform(get(BASE + "/" + academyBStudentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(get(BASE + "/" + academyBStudentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
 
-        mockMvc.perform(get(BASE + "/" + academyBStudentId).header("Authorization", 관계자_토큰(ACADEMY_B)))
+        mockMvc.perform(get(BASE + "/" + academyBStudentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_B, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.student_id").value(String.valueOf(academyBStudentId)));
     }
@@ -263,12 +264,12 @@ class StaffStudentControllerTest {
     void 다른_학원의_학생은_목록에_등장하지_않는다() throws Exception {
         long academyBStudentId = 학원_B_시드_학생();
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("size", "100"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("size", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(academyBStudentId))
                         .isEmpty());
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_B)).param("size", "100"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_B, Role.STAFF)).param("size", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(academyBStudentId))
                         .isNotEmpty());
@@ -291,7 +292,7 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(수정_요청(academyBStudentId, """
                                 {"name":"P5T1남의학원수정","note":"침입","can_go_alone":true}""")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
 
@@ -315,7 +316,7 @@ class StaffStudentControllerTest {
     void 다른_학원의_학생을_퇴원_처리하면_404_STUDENT_NOT_FOUND_이다() throws Exception {
         long academyBStudentId = 학원_B_시드_학생();
 
-        mockMvc.perform(delete(BASE + "/" + academyBStudentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(delete(BASE + "/" + academyBStudentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
 
@@ -331,7 +332,7 @@ class StaffStudentControllerTest {
     void 퇴원_처리하면_deleted_at_이_채워지고_목록에서_빠진다() throws Exception {
         long studentId = 등록한다(등록_본문("P5T1퇴원대상", null));
 
-        mockMvc.perform(delete(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(delete(BASE + "/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.student_id").value(String.valueOf(studentId)))
                 .andExpect(jsonPath("$.data.deleted_at").isNotEmpty());
@@ -346,7 +347,7 @@ class StaffStudentControllerTest {
                 .as("deleted_at 이 채워져야 한다")
                 .isNotNull();
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1퇴원대상"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "P5T1퇴원대상"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty())
                 .andExpect(jsonPath("$.data.total_count").value(0));
@@ -368,7 +369,7 @@ class StaffStudentControllerTest {
         long studentId = 등록한다(등록_본문("P5T1퇴원시각", null));
 
         MvcResult result = mockMvc.perform(delete(BASE + "/" + studentId)
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -392,7 +393,7 @@ class StaffStudentControllerTest {
         등록한다(등록_본문("P5T1페이징학생나", null));
         등록한다(등록_본문("P5T1페이징학생다", null));
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF))
                         .param("q", "P5T1페이징학생").param("size", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(2))
@@ -400,7 +401,7 @@ class StaffStudentControllerTest {
                 .andExpect(jsonPath("$.data.total_count").value(3))
                 .andExpect(jsonPath("$.data.has_next").value(true));
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF))
                         .param("q", "P5T1페이징학생").param("size", "2").param("page", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
@@ -439,7 +440,7 @@ class StaffStudentControllerTest {
         연결한다(studentId, 보호자_식별자(SeedFixtures.PARENT_A1_LOGIN_ID), "now()");
         연결한다(studentId, 보호자_식별자(SeedFixtures.PARENT_A2_LOGIN_ID), "now() - interval '1 hour'");
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1보호자둘"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "P5T1보호자둘"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].guardian_phone")
                         .value(계정_연락처(SeedFixtures.PARENT_A2_LOGIN_ID)));
@@ -459,7 +460,7 @@ class StaffStudentControllerTest {
         연결한다(studentId, 보호자_식별자(SeedFixtures.PARENT_A1_LOGIN_ID), sameMoment);
         연결한다(studentId, 보호자_식별자(SeedFixtures.PARENT_A2_LOGIN_ID), sameMoment);
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1동시연결"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "P5T1동시연결"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].guardian_phone")
                         .value(계정_연락처(SeedFixtures.PARENT_A1_LOGIN_ID)));
@@ -478,7 +479,7 @@ class StaffStudentControllerTest {
         연결한다(studentId, 보호자_식별자(SeedFixtures.PARENT_A1_LOGIN_ID), "now()");
         연결한다(studentId, 보호자_식별자(SeedFixtures.PARENT_A2_LOGIN_ID), "now()");
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "P5T1중복계수"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "P5T1중복계수"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total_count").value(1))
                 .andExpect(jsonPath("$.data.items.length()").value(1));
@@ -489,13 +490,13 @@ class StaffStudentControllerTest {
     void 퇴원한_학생을_상세_조회하면_404_STUDENT_NOT_FOUND_이다() throws Exception {
         long studentId = 등록한다(등록_본문("P5T1퇴원상세", null));
 
-        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(delete(BASE + "/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
     }
@@ -511,16 +512,16 @@ class StaffStudentControllerTest {
         long studentId = 등록한다("""
                 {"name":"P5T1특이사항","can_go_alone":true,"note":"땅콩 알레르기"}""");
 
-        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(jsonPath("$.data.note").value("땅콩 알레르기"))
                 .andExpect(jsonPath("$.data.can_go_alone").value(true));
 
         mockMvc.perform(수정_요청(studentId, """
                                 {"note":"보호자 동행 필요","can_go_alone":false}""")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(get(BASE + "/" + studentId).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(jsonPath("$.data.note").value("보호자 동행 필요"))
                 .andExpect(jsonPath("$.data.can_go_alone").value(false));
     }
@@ -536,7 +537,7 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(수정_요청(studentId, """
                         {"gender":null,"birth_date":null,"student_phone":null}""")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
         entityManager.flush();
 
@@ -555,7 +556,7 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(수정_요청(studentId, """
                         {"student_phone":"","gender":"","grade":"","class_name":"","note":""}""")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
         entityManager.flush();
 
@@ -571,7 +572,7 @@ class StaffStudentControllerTest {
     void 필수_항목을_null_이나_빈_문자열로_보내면_422_이고_바뀌지_않는다(String body) throws Exception {
         long studentId = 등록한다(선택_항목_전부);
 
-        mockMvc.perform(수정_요청(studentId, body).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(수정_요청(studentId, body).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         entityManager.flush();
@@ -586,7 +587,7 @@ class StaffStudentControllerTest {
         long studentId = 등록한다(선택_항목_전부);
 
         mockMvc.perform(수정_요청(studentId, "{\"note\":\"" + "가".repeat(201) + "\"}")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent());
     }
 
@@ -601,7 +602,7 @@ class StaffStudentControllerTest {
         long 찾을_학생 = 등록한다(등록_본문("P5T1검색가나다", null));
         long 안_찾을_학생 = 등록한다(등록_본문("P5T1검색라마바", null));
 
-        mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A)).param("q", "가나다"))
+        mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).param("q", "가나다"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(찾을_학생)).isNotEmpty())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(안_찾을_학생)).isEmpty());
@@ -640,7 +641,7 @@ class StaffStudentControllerTest {
     void 학생_응답의_student_id_는_JSON_문자열이다() throws Exception {
         long studentId = 등록한다(등록_본문("P5T1식별자타입", null));
 
-        MvcResult 목록 = mockMvc.perform(get(BASE).header("Authorization", 관계자_토큰(ACADEMY_A))
+        MvcResult 목록 = mockMvc.perform(get(BASE).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF))
                         .param("q", "P5T1식별자타입"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -649,7 +650,7 @@ class StaffStudentControllerTest {
                 .isInstanceOf(String.class);
 
         MvcResult 상세 = mockMvc.perform(get(BASE + "/" + studentId)
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
         assertThat((Object) JsonPath.read(본문(상세), "$.data.student_id"))
@@ -657,7 +658,7 @@ class StaffStudentControllerTest {
                 .isInstanceOf(String.class);
 
         MvcResult 퇴원 = mockMvc.perform(delete(BASE + "/" + studentId)
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
         assertThat((Object) JsonPath.read(본문(퇴원), "$.data.student_id"))
@@ -668,7 +669,7 @@ class StaffStudentControllerTest {
     // ── 도우미 ────────────────────────────────────────────────────────────
 
     private List<String> 이름_목록(String query) throws Exception {
-        MvcResult result = mockMvc.perform(get(BASE + "?" + query).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        MvcResult result = mockMvc.perform(get(BASE + "?" + query).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(본문(result), "$.data.items[*].name");
@@ -677,14 +678,10 @@ class StaffStudentControllerTest {
     /** {@code q} 를 URL 인코딩 걱정 없이 그대로 보낸다({@code %} 가 든 검색어) — 이름만 돌려받는다. */
     private List<String> 이름_목록_검색(String q) throws Exception {
         MvcResult result = mockMvc.perform(get(BASE).param("q", q).param("size", "100")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(본문(result), "$.data.items[*].name");
-    }
-
-    private String 관계자_토큰(Long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(1L, academyId, Role.STAFF, AccountStatus.ACTIVE);
     }
 
     private String 등록_본문(String name, String note) {
@@ -694,7 +691,7 @@ class StaffStudentControllerTest {
 
     private long 등록한다(String body) throws Exception {
         MvcResult result = mockMvc.perform(multipart(BASE).file(데이터_파트(body))
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return Long.parseLong(JsonPath.read(본문(result), "$.data.student_id"));
@@ -709,7 +706,7 @@ class StaffStudentControllerTest {
     /** 상세는 연결된 보호자를 전부(이름·연락처) 싣는다 — 형제(시드 학생 1·2)는 같은 보호자 1명을 공유한다. */
     @Test
     void 상세는_연결된_보호자의_이름과_연락처를_싣는다() throws Exception {
-        mockMvc.perform(get(BASE + "/" + SEED_SIBLING_1).header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(get(BASE + "/" + SEED_SIBLING_1).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.guardians.length()").value(1))
                 .andExpect(jsonPath("$.data.guardians[0].guardian_id").value("1"))
@@ -727,12 +724,12 @@ class StaffStudentControllerTest {
     void 보호자_연락처를_고치면_그_보호자의_모든_자녀에_반영된다() throws Exception {
         mockMvc.perform(수정_요청(SEED_SIBLING_1, """
                         {"guardians":[{"guardian_id":"1","phone":"010-5555-0101"}]}""")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.guardians[0].phone").value("010-5555-0101"));
         entityManager.flush();
 
-        mockMvc.perform(get(BASE + "/2").header("Authorization", 관계자_토큰(ACADEMY_A)))
+        mockMvc.perform(get(BASE + "/2").header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(jsonPath("$.data.guardians[0].phone").value("010-5555-0101"));
     }
 
@@ -743,7 +740,7 @@ class StaffStudentControllerTest {
 
         mockMvc.perform(수정_요청(SEED_SIBLING_1, """
                         {"guardians":[{"guardian_id":"2","phone":"010-5555-0202"}]}""")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         entityManager.flush();
@@ -757,7 +754,7 @@ class StaffStudentControllerTest {
     void 보호자_연락처_형식이_틀리면_422_다() throws Exception {
         mockMvc.perform(수정_요청(SEED_SIBLING_1, """
                         {"guardians":[{"guardian_id":"1","phone":"전화 없음"}]}""")
-                        .header("Authorization", 관계자_토큰(ACADEMY_A)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent());
     }
 
@@ -767,10 +764,6 @@ class StaffStudentControllerTest {
 
     private MockMultipartHttpServletRequestBuilder 수정_요청(long studentId, String json) {
         return multipart(HttpMethod.PATCH, BASE + "/" + studentId).file(데이터_파트(json));
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
     private String 보호자_계정_연락처() {

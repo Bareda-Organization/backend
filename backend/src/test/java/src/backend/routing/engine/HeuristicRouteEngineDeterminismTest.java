@@ -13,7 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import src.backend.global.common.enums.Direction;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.impl.HeuristicRouteEngine;
 import src.backend.routing.engine.spec.OrderableStop;
 import src.backend.routing.engine.spec.RouteEngine;

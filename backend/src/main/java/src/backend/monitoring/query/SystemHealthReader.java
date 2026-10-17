@@ -7,7 +7,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
@@ -21,7 +20,6 @@ import org.springframework.boot.health.contributor.Status;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
@@ -75,7 +73,7 @@ class SystemHealthReader {
 
     private final RunLiveStateResolver runLiveStateResolver;
 
-    private final SchedulerHealthMetrics schedulerHealthMetrics;
+    private final RunConfirmationScheduler runConfirmationScheduler;
 
     private final NotificationBacklogReader notificationBacklogReader;
 
@@ -121,12 +119,7 @@ class SystemHealthReader {
     }
 
     private HealthCell confirmBatch() {
-        Optional<Duration> sinceLastSuccess = schedulerHealthMetrics
-                .sinceLastSuccess(SchedulerHealthMetrics.nameOf(RunConfirmationScheduler.class));
-        if (sinceLastSuccess.isEmpty()) {
-            return new HealthCell(CONFIRM_BATCH, DOWN, "확정 배치 실행 기록 없음");
-        }
-        Duration age = sinceLastSuccess.get();
+        Duration age = runConfirmationScheduler.sinceLastSuccess();
         return age.compareTo(CONFIRM_BATCH_LIMIT) <= 0 ? new HealthCell(CONFIRM_BATCH, OK, null)
                 : new HealthCell(CONFIRM_BATCH, DOWN, "확정 배치 마지막 실행 " + age.toMinutes() + "분 전");
     }

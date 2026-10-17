@@ -1,6 +1,6 @@
 package src.backend.routing.engine.impl;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.RouteOrderInput;
 
 /**

@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.RouteEngine;
 import src.backend.routing.engine.spec.RouteOrderInput;
 import src.backend.routing.engine.spec.StopOrder;

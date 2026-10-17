@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,8 +39,6 @@ import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.location.scheduler.ProximityNotificationScheduler;
-import src.backend.observability.metrics.RunPositionFallbackMetrics;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
@@ -97,7 +96,7 @@ class RedisFailureLogFloodTest {
         when(operations.multiGet(anyCollection())).thenThrow(new RedisConnectionFailureException("redis down"));
         RunPositionRepository history = mock(RunPositionRepository.class);
         when(history.findLatestByRunIdIn(any(), any(), any())).thenReturn(List.of());
-        RunPositionStore store = new RunPositionStore(redis, history, mock(RunPositionFallbackMetrics.class), Clock.systemUTC());
+        RunPositionStore store = new RunPositionStore(redis, history, new SimpleMeterRegistry(), Clock.systemUTC());
         collect(RunPositionStore.class);
 
         for (int i = 0; i < FAILURES; i++) {
@@ -129,7 +128,7 @@ class RedisFailureLogFloodTest {
             return null;
         }).when(service).judgeRun(any(), any(), any(), any(), any());
         ProximityNotificationScheduler scheduler = new ProximityNotificationScheduler(runRepository,
-                new MovingRunWindowPolicy(Clock.systemUTC()), service, store, mock(SchedulerHealthMetrics.class));
+                new MovingRunWindowPolicy(Clock.systemUTC()), service, store, new SimpleMeterRegistry());
         collect(ProximityNotificationScheduler.class);
 
         for (int i = 0; i < FAILURES; i++) {

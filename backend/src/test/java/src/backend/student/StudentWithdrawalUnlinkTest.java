@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -22,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20260826Config;
@@ -109,7 +109,7 @@ class StudentWithdrawalUnlinkTest {
         퇴원시킨다(SIBLING_1_ID);
 
         mockMvc.perform(get("/api/v1/me/students")
-                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, Role.PARENT)))
+                        .header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_1_ID)).isEmpty())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_2_ID))
@@ -137,7 +137,7 @@ class StudentWithdrawalUnlinkTest {
 
     private void 퇴원시킨다(long studentId) throws Exception {
         mockMvc.perform(delete("/api/v1/staff/students/" + studentId)
-                        .header("Authorization", 토큰(2L, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, 2L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
         entityManager.flush();
     }
@@ -151,9 +151,5 @@ class StudentWithdrawalUnlinkTest {
     private long 보호자_식별자() {
         return jdbcTemplate.queryForObject("SELECT id FROM guardian WHERE account_id = ?", Long.class,
                 GUARDIAN_SIBLINGS_ACCOUNT);
-    }
-
-    private String 토큰(long accountId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, ACADEMY_A, role, AccountStatus.ACTIVE);
     }
 }

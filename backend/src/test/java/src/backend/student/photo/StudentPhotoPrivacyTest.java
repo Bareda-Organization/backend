@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 
@@ -21,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -88,7 +88,7 @@ class StudentPhotoPrivacyTest {
     @Test
     void 관계자_상세_응답에는_photo_url_이_있다() throws Exception {
         mockMvc.perform(get(STAFF_STUDENT + SIBLING_1_ID)
-                        .header("Authorization", 토큰(1L, ACADEMY_A, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.photo_url").value(PHOTO_URL));
     }
@@ -96,7 +96,7 @@ class StudentPhotoPrivacyTest {
     @Test
     void 학부모_자녀_목록_응답에는_photo_url_이_부재한다() throws Exception {
         mockMvc.perform(get(CHILDREN)
-                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
+                        .header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_1_ID))
                         .isNotEmpty())
@@ -112,7 +112,7 @@ class StudentPhotoPrivacyTest {
         String code = 연결_코드를_받는다();
 
         mockMvc.perform(post(LINK)
-                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"code\":\"%s\"}".formatted(code)))
                 .andExpect(status().isCreated())
@@ -123,7 +123,7 @@ class StudentPhotoPrivacyTest {
     /** 학생 본인 앱의 프로필(§2.10) — 자기 사진도 앱 응답 대상이 아니다. */
     @Test
     void 학생_본인_프로필_응답에는_photo_url_이_부재한다() throws Exception {
-        mockMvc.perform(get(ME).header("Authorization", 토큰(STUDENT_A4_ACCOUNT, ACADEMY_A, Role.STUDENT)))
+        mockMvc.perform(get(ME).header("Authorization", 토큰(tokenProvider, STUDENT_A4_ACCOUNT, ACADEMY_A, Role.STUDENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.student_id").value(String.valueOf(STUDENT_A4_ID)))
                 .andExpect(jsonPath("$.data.photo_url").doesNotExist());
@@ -134,13 +134,9 @@ class StudentPhotoPrivacyTest {
     /** 연결 2단계 중 앞 하나를 밟아 코드를 얻는다 — 이 클래스가 검사하는 것은 둘째 단계의 응답뿐이다. */
     private String 연결_코드를_받는다() throws Exception {
         MvcResult issued = mockMvc.perform(post(LINK_CODE)
-                        .header("Authorization", 토큰(STUDENT_A4_ACCOUNT, ACADEMY_A, Role.STUDENT)))
+                        .header("Authorization", 토큰(tokenProvider, STUDENT_A4_ACCOUNT, ACADEMY_A, Role.STUDENT)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(issued.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.data.code");
-    }
-
-    private String 토큰(long accountId, Long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

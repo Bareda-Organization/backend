@@ -22,6 +22,7 @@ import src.backend.account.entity.SignupRequestStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.global.security.authz.Permissions;
 
 /** {@link SignupRequest} 영속성 접근. */
 public interface SignupRequestRepository extends JpaRepository<SignupRequest, Long> {
@@ -86,7 +87,7 @@ public interface SignupRequestRepository extends JpaRepository<SignupRequest, Lo
      * 메인 관리자가 보는 관계자 가입 요청 목록(API_SPEC §6.4) — 전 학원 범위다.
      */
     @AcademyScopeExempt(reason = "§6.4 메인 관리자 콘솔의 전 학원 조회(ARCHITECTURE §6.2 격리 예외) — 좁힐 학원이 부재. "
-            + "호출부가 @CanApproveStaff 로 메인 관리자에게만 열린 경로에서만 부른다는 전제 — 관계자 경로에서 부르면 "
+            + "호출부가 @Can(Permissions.STAFF_APPROVE) 로 메인 관리자에게만 열린 경로에서만 부른다는 전제 — 관계자 경로에서 부르면 "
             + "타 학원 지원자의 이름·연락처가 그대로 샌다")
     Page<SignupRequest> findAllByApproverTypeAndStatus(ApproverType approverType, SignupRequestStatus status,
             Pageable pageable);

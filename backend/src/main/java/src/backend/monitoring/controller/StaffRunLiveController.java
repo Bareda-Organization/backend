@@ -13,7 +13,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanMonitorAcademy;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.monitoring.dto.StaffRunLiveResponse;
 import src.backend.monitoring.query.StaffRunLiveQueryService;
 
@@ -33,7 +34,7 @@ public class StaffRunLiveController {
     private final StaffRunLiveQueryService staffRunLiveQueryService;
 
     /** 오늘 운행 중({@code status=moving}) 회차의 위치·진행도·지연 스냅샷. */
-    @CanMonitorAcademy
+    @Can(Permissions.MONITOR_ACADEMY)
     @Operation(summary = "전 차량 실시간 위치 (MON-07, A-14)")
     @GetMapping
     public ApiResponse<StaffRunLiveResponse> live(@AuthenticationPrincipal AuthUser requester) {

@@ -20,6 +20,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
  * <p>{@code hasAuthority(...)} 가 아니라 {@code isAuthenticated()} 를 쓴다 — 권한 카탈로그
  * ({@link Permissions})에는 "인증 여부"에 대응하는 항목이 없다(전 역할 공통이라 구분할 권한
  * 자체가 없는 것이 이 애너테이션이 존재하는 이유다).
+ *
+ * <p>역할은 갈리는데 카탈로그에 대응 항목이 없는 엔드포인트(자녀 연결 · 변경 요청 조회 · 회차 비상
+ * 목록 · 학생 버스 위치 · 주소 변경 등)도 같은 식을 쓴다. 권한 카탈로그(FEATURE_SPEC §6.2)는 사양
+ * 정본이고 {@code RolePermissionsTest} 가 역할별 집합을 그 표와 대조하므로, 여기서 권한을 지어내지
+ * 않는다. 역할 좁힘은 {@code *.access} 계층의 자원 해석(예: {@code GuardianChildAccess})이 하고,
+ * 컨트롤러에 역할 문자열을 적는 길은 {@code ControllerAuthorizationConventionTest} 가 막는다.
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

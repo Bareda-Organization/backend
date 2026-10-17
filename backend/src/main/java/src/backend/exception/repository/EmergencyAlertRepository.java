@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.global.persistence.AcademyCount;
+import src.backend.global.security.authz.Permissions;
 
 /** {@link EmergencyAlert} 영속성 접근(EXC-04, Phase 11 T2). */
 public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, Long> {
@@ -114,7 +115,7 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
      * 여러 학원을 한 목록에서 보기 위한 것이다.
      */
     @AcademyScopeExempt(reason = "§6.x 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
-            + "예외를 여는 판정은 컨트롤러의 @CanMonitorAll 하나다(AcademyStaffRepository#findStaffAccountsForConsole 과 같은 형태)")
+            + "예외를 여는 판정은 컨트롤러의 @Can(Permissions.MONITOR_ALL) 하나다(AcademyStaffRepository#findStaffAccountsForConsole 과 같은 형태)")
     @Query(SELECT_BY_STATE + " ORDER BY a.receivedAt DESC")
     List<EmergencyAlert> findAllByState(@Param("state") String state, Limit limit);
 

@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.OffsetDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.notification.entity.NotificationSetting;
@@ -65,10 +65,6 @@ class NotificationSettingControllerTest {
                 "010-7000-0002", null, Role.STAFF)).getId();
     }
 
-    private String 토큰(long accountId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, 1L, role, AccountStatus.ACTIVE);
-    }
-
     // ── 목표7 — 조회: 설정 행이 없어도 기본값(전부 on)을 돌려준다(저장은 하지 않는다, BR-096) ─────
 
     @Test
@@ -77,7 +73,7 @@ class NotificationSettingControllerTest {
         long accountId = parentAccount();
         assertThat(notificationSettingRepository.findById(accountId)).as("사전 조건 — 설정 행이 없다").isEmpty();
 
-        mockMvc.perform(get(NOTIFICATION_SETTINGS).header("Authorization", 토큰(accountId, Role.PARENT)))
+        mockMvc.perform(get(NOTIFICATION_SETTINGS).header("Authorization", 토큰(tokenProvider, accountId, 1L, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.arrive").value(true))
                 .andExpect(jsonPath("$.data.boarding").value(true))
@@ -93,7 +89,7 @@ class NotificationSettingControllerTest {
     @DisplayName("목표7 — PATCH 로 바꾼 값이 그 응답과 다음 GET 조회 모두에 반영된다")
     void PATCH_로_바꾼_값이_다음_조회에도_반영된다() throws Exception {
         long accountId = parentAccount();
-        String token = 토큰(accountId, Role.PARENT);
+        String token = 토큰(tokenProvider, accountId, 1L, Role.PARENT);
 
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -121,7 +117,7 @@ class NotificationSettingControllerTest {
         long accountId = accountRepository.save(Account.forSignup(1L, loginId, "{noop}password", "학생",
                 "010-7000-0003", null, Role.STUDENT)).getId();
 
-        String token = 토큰(accountId, Role.STUDENT);
+        String token = 토큰(tokenProvider, accountId, 1L, Role.STUDENT);
 
         mockMvc.perform(get(NOTIFICATION_SETTINGS).header("Authorization", token))
                 .andExpect(status().isOk())
@@ -144,7 +140,7 @@ class NotificationSettingControllerTest {
     @DisplayName("목표9 — 설정 대상 밖 항목(delay)을 섞어 PATCH 하면 422 VALIDATION_FAILED 이고 값은 바뀌지 않는다")
     void 설정_대상_밖_항목을_PATCH_하면_422_VALIDATION_FAILED_이다() throws Exception {
         long accountId = parentAccount();
-        String token = 토큰(accountId, Role.PARENT);
+        String token = 토큰(tokenProvider, accountId, 1L, Role.PARENT);
 
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -164,7 +160,7 @@ class NotificationSettingControllerTest {
     @DisplayName("Ruling 869 — 한 항목만 PATCH 하면 그 항목만 바뀌고 나머지는 그대로다")
     void 한_항목만_PATCH_하면_나머지는_그대로다() throws Exception {
         long accountId = parentAccount();
-        String token = 토큰(accountId, Role.PARENT);
+        String token = 토큰(tokenProvider, accountId, 1L, Role.PARENT);
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
@@ -188,7 +184,7 @@ class NotificationSettingControllerTest {
     @DisplayName("Ruling 869 — 아무 항목도 없는 PATCH 는 200 이고 값은 그대로다")
     void 빈_본문_PATCH_는_200_이고_값은_그대로다() throws Exception {
         long accountId = parentAccount();
-        String token = 토큰(accountId, Role.PARENT);
+        String token = 토큰(tokenProvider, accountId, 1L, Role.PARENT);
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
@@ -208,7 +204,7 @@ class NotificationSettingControllerTest {
     @DisplayName("Ruling 869 — null 로 보낸 항목은 유지된다")
     void null_항목은_유지된다() throws Exception {
         long accountId = parentAccount();
-        String token = 토큰(accountId, Role.PARENT);
+        String token = 토큰(tokenProvider, accountId, 1L, Role.PARENT);
         mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
@@ -228,7 +224,7 @@ class NotificationSettingControllerTest {
     void 대상_안_3개_항목만_PATCH_하면_200_이다() throws Exception {
         long accountId = parentAccount();
 
-        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", 토큰(accountId, Role.PARENT))
+        mockMvc.perform(patch(NOTIFICATION_SETTINGS).header("Authorization", 토큰(tokenProvider, accountId, 1L, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"arrive\":true,\"boarding\":false,\"no_show\":true}"))
                 .andExpect(status().isOk())
@@ -244,7 +240,7 @@ class NotificationSettingControllerTest {
     @DisplayName("STAFF 계정으로 조회·수정하면 403 FORBIDDEN 이다")
     void STAFF_는_403_FORBIDDEN_이다() throws Exception {
         long accountId = staffAccount();
-        String token = 토큰(accountId, Role.STAFF);
+        String token = 토큰(tokenProvider, accountId, 1L, Role.STAFF);
 
         mockMvc.perform(get(NOTIFICATION_SETTINGS).header("Authorization", token))
                 .andExpect(status().isForbidden())

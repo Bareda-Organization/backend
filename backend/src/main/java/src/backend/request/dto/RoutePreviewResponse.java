@@ -2,7 +2,7 @@ package src.backend.request.dto;
 
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 재최적화 결과 미리보기(API_SPEC §5.5 상세) — 승인 전 노선의 전/후 대조.

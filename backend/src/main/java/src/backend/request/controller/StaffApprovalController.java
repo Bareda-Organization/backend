@@ -21,7 +21,8 @@ import src.backend.global.request.ApiValues;
 import src.backend.global.request.PageParams;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanApproveChange;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.request.command.ChangeRequestDecisionService;
 import src.backend.request.dto.ApprovalDetailResponse;
 import src.backend.request.dto.ApprovalListResponse;
@@ -58,7 +59,7 @@ public class StaffApprovalController {
      * ({@code PENDING})과 쿼리 값(소문자 {@code pending})의 표기가 다르므로 문자열로 받아 직접
      * 변환한다.
      */
-    @CanApproveChange
+    @Can(Permissions.CHANGE_APPROVE)
     @Operation(summary = "30분 안쪽 변경 승인 대기 목록·상세 (REQ-04·05, A-05)")
     @GetMapping
     public ApiResponse<ApprovalListResponse> list(@AuthenticationPrincipal AuthUser requester,
@@ -73,7 +74,7 @@ public class StaffApprovalController {
      *
      * @throws src.backend.global.error.BusinessException {@code 404 APPROVAL_NOT_FOUND}(대상 없음 · 다른 학원 소속 포함)
      */
-    @CanApproveChange
+    @Can(Permissions.CHANGE_APPROVE)
     @Operation(summary = "30분 안쪽 변경 승인 상세 (REQ-04·05, A-05)")
     @GetMapping("/{id}")
     public ApiResponse<ApprovalDetailResponse> detail(@AuthenticationPrincipal AuthUser requester,
@@ -92,7 +93,7 @@ public class StaffApprovalController {
      *                                                     {@code 409 PREVIEW_STALE} ·
      *                                                     {@code 422 VALIDATION_FAILED}
      */
-    @CanApproveChange
+    @Can(Permissions.CHANGE_APPROVE)
     @Operation(summary = "승인 / 거절 (REQ-04, A-05)")
     @PostMapping("/{id}/decide")
     public ApiResponse<DecideChangeRequestResponse> decide(@AuthenticationPrincipal AuthUser requester,

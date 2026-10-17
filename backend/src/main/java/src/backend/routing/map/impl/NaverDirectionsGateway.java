@@ -23,7 +23,7 @@ import io.netty.channel.ChannelOption;
 import lombok.extern.slf4j.Slf4j;
 import reactor.netty.http.client.HttpClient;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.map.spec.MapRouteUnavailableException;
 import src.backend.routing.map.spec.RoadLeg;
 

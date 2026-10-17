@@ -12,34 +12,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -63,6 +49,9 @@ import testsupport.clock.FixedClock20300401Config;
 class RunStartLockTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -74,82 +63,24 @@ class RunStartLockTest {
     @Autowired
     private Clock clock;
 
-    @Autowired
-    private AcademyRepository academyRepository;
 
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private src.backend.boarding.repository.RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
-
-
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
 
     @Test
     @DisplayName("목표18 — 실제 시작 호출로 moving 이 된 회차는, 그 직후 학부모의 변경 신청이 403 CHANGE_WINDOW_CLOSED 다")
     void 실제_시작_직후_변경_신청이_잠긴다() throws Exception {
-        long academyId = fixtures().academy();
-        long busId = fixtures().bus(academyId);
-        long studentId = fixtures().student(academyId, "학생1");
-        long parentAccountId = fixtures().guardianOf(academyId, studentId, "학부모", now());
+        long academyId = DriverRunFixtures.of(applicationContext).academy();
+        long busId = DriverRunFixtures.of(applicationContext).bus(academyId);
+        long studentId = DriverRunFixtures.of(applicationContext).student(academyId, "학생1");
+        long parentAccountId = DriverRunFixtures.of(applicationContext).guardianOf(academyId, studentId, "학부모", OffsetDateTime.now(clock));
 
         // 출발 5분 전 — RunStartWindowPolicy 의 ±10분 창 안이라 실제 시작이 성공해야 한다.
-        OffsetDateTime departTime = now().plusMinutes(5);
-        long runId = fixtures().confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(5);
+        long runId = DriverRunFixtures.of(applicationContext).confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        long driverAccountId = fixtures().assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = DriverRunFixtures.of(applicationContext).assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         // 변경 신청은 그 자녀의 대상 회차만 받는다(BR-084) — 확정 명단에 학생을 둔다.
-        fixtures().rider(runId, studentId, fixtures().stop(academyId, "37.560000", "126.970000"), RiderStatus.WAITING,
-                now());
+        DriverRunFixtures.of(applicationContext).rider(runId, studentId, DriverRunFixtures.of(applicationContext).stop(academyId, "37.560000", "126.970000"), RiderStatus.WAITING,
+                OffsetDateTime.now(clock));
 
         // 실제 시작 경로 — jdbcTemplate 로 상태를 직접 바꾸지 않는다.
         mockMvc.perform(post("/api/v1/runs/" + runId + "/start")

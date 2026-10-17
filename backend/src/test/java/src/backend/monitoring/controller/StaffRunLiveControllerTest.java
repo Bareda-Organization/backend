@@ -5,9 +5,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,28 +31,11 @@ import tools.jackson.databind.json.JsonMapper;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
@@ -69,6 +54,9 @@ import org.springframework.context.annotation.Import;
 class StaffRunLiveControllerTest {
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -85,54 +73,6 @@ class StaffRunLiveControllerTest {
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
-
 
     private final List<Long> academyIds = new ArrayList<>();
 
@@ -140,16 +80,6 @@ class StaffRunLiveControllerTest {
      * 다른 테스트의 최신 좌표까지 지운다(§0 병렬 실행 시 공유 자원 오염 방지). */
     private final List<Long> runIdsForRedisCleanup = new ArrayList<>();
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
 
     @AfterEach
     void 뒷정리한다() {
@@ -189,21 +119,21 @@ class StaffRunLiveControllerTest {
     @Test
     @DisplayName("목표6 — moving 회차만 담고 §5.18 필드가 전부 채워진다")
     void moving_회차만_담고_필드가_전부_채워진다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
 
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long movingRunId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
         runIdsForRedisCleanup.add(movingRunId);
-        fx.startRun(movingRunId, now());
+        fx.startRun(movingRunId, OffsetDateTime.now(clock));
         long versionId = fx.confirmedRouteWithVersion(movingRunId, departTime.minusMinutes(40));
         fx.runStopForStop(versionId, stopId, 1, departTime);
-        long driverAccountId = fx.assignedManager(academyId, movingRunId, ManagerRole.DRIVER, "기사1", now());
-        fx.assignedManager(academyId, movingRunId, ManagerRole.ESCORT, "동승자1", now());
+        long driverAccountId = fx.assignedManager(academyId, movingRunId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now(clock));
+        fx.assignedManager(academyId, movingRunId, ManagerRole.ESCORT, "동승자1", OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
         // 정차 중(idle) 회차 — moving 필터에서 반드시 빠져야 한다(목표 6).
@@ -214,15 +144,15 @@ class StaffRunLiveControllerTest {
         BigDecimal lng = new BigDecimal("127.001000");
         String body = """
                 {"lat": %s, "lng": %s, "recorded_at": "%s"}
-                """.formatted(lat, lng, now().minusSeconds(2));
+                """.formatted(lat, lng, OffsetDateTime.now(clock).minusSeconds(2));
         mockMvc.perform(post("/api/v1/runs/" + movingRunId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
                 .andExpect(status().isNoContent());
 
         MvcResult result = mockMvc
-                .perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs", org.hamcrest.Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(movingRunId))
@@ -261,24 +191,24 @@ class StaffRunLiveControllerTest {
     @Test
     @DisplayName("목표7 — 2분 이상 유실이면 position=null, last_seen_at 은 채워진다")
     void 유실_2분_이상이면_position_이_null_이고_last_seen_at_은_채워진다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         runIdsForRedisCleanup.add(runId);
-        fx.startRun(runId, now());
-        fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", now());
+        fx.startRun(runId, OffsetDateTime.now(clock));
+        fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
-        OffsetDateTime staleReceivedAt = now().minusMinutes(3);
+        OffsetDateTime staleReceivedAt = OffsetDateTime.now(clock).minusMinutes(3);
         String staleValue = JSON_MAPPER.writeValueAsString(new src.backend.location.dto.RunPositionRedisValue(
-                new BigDecimal("37.500000"), new BigDecimal("127.000000"), now().minusMinutes(3), staleReceivedAt,
+                new BigDecimal("37.500000"), new BigDecimal("127.000000"), OffsetDateTime.now(clock).minusMinutes(3), staleReceivedAt,
                 null));
         stringRedisTemplate.opsForValue().set("run:" + runId + ":position", staleValue);
 
-        mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].position").doesNotExist())
                 .andExpect(jsonPath("$.data.runs[0].last_seen_at").exists());
@@ -291,21 +221,21 @@ class StaffRunLiveControllerTest {
     @Test
     @DisplayName("BR-002 — 다음 정차가 학원 항목이면 next_stop 에 학원 이름이 나온다")
     void 다음_정차가_학원_항목이면_학원_이름이_나온다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        fx.startRun(runId, now());
+        fx.startRun(runId, OffsetDateTime.now(clock));
         long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
         long runStopId = fx.runStopForStop(versionId, stopId, 1, departTime);
         fx.runStopForDestination(versionId, 2);
         jdbcTemplate.update("UPDATE run_stop SET arrived_at = now() WHERE id = ?", runStopId);
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
-        mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].next_stop").value(DriverRunFixtures.ACADEMY_NAME));
     }
@@ -318,14 +248,14 @@ class StaffRunLiveControllerTest {
     @Test
     @DisplayName("BR-351 — 현재·다음 정차가 강제 경유지이면 이름은 경유지 label 이다")
     void 현재_다음_정차가_강제_경유지이면_경유지_label_이_나온다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
-        fx.startRun(runId, now());
+        fx.startRun(runId, OffsetDateTime.now(clock));
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
         long versionId = fx.confirmedRouteWithVersion(runId, departTime.minusMinutes(40));
         long stopRunStopId = fx.runStopForStop(versionId, stopId, 1, departTime);
@@ -336,7 +266,7 @@ class StaffRunLiveControllerTest {
         long waypointRunStopId = fx.runStopForWaypoint(versionId, waypointId, 2);
         fx.runStopForDestination(versionId, 3);
         jdbcTemplate.update("UPDATE run_stop SET arrived_at = now() WHERE id = ?", stopRunStopId);
-        String token = 토큰(staffAccountId, academyId, Role.STAFF);
+        String token = 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF);
 
         mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", token))
                 .andExpect(status().isOk())
@@ -348,13 +278,5 @@ class StaffRunLiveControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].current_stop").value("임시집결지"))
                 .andExpect(jsonPath("$.data.runs[0].next_stop").value(DriverRunFixtures.ACADEMY_NAME));
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

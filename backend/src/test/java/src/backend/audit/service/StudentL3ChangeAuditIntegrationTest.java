@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -82,7 +83,7 @@ class StudentL3ChangeAuditIntegrationTest {
     void L3_필드를_고치면_update_1행에_고친_필드명만_남긴다() throws Exception {
         mockMvc.perform(multipart(HttpMethod.PATCH, "/api/v1/staff/students/" + SIBLING_1_ID)
                         .file(데이터("{\"note\":\"감사대상 특이사항\"}"))
-                        .header("Authorization", 관계자_토큰()).header("X-Real-IP", "203.0.113.21"))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)).header("X-Real-IP", "203.0.113.21"))
                 .andExpect(status().isOk());
 
         List<AuditLog> rows = 대상_행(AuditAction.UPDATE, SIBLING_1_ID);
@@ -98,7 +99,7 @@ class StudentL3ChangeAuditIntegrationTest {
     void L3_가_아닌_필드만_고치면_update_행이_없다() throws Exception {
         mockMvc.perform(multipart(HttpMethod.PATCH, "/api/v1/staff/students/" + SIBLING_1_ID)
                         .file(데이터("{\"class_name\":\"C반\"}"))
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
         assertThat(대상_행(AuditAction.UPDATE, SIBLING_1_ID)).isEmpty();
@@ -106,7 +107,7 @@ class StudentL3ChangeAuditIntegrationTest {
 
     @Test
     void 퇴원하면_delete_1행을_남긴다() throws Exception {
-        mockMvc.perform(delete("/api/v1/staff/students/" + SIBLING_1_ID).header("Authorization", 관계자_토큰())
+        mockMvc.perform(delete("/api/v1/staff/students/" + SIBLING_1_ID).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF))
                         .header("X-Real-IP", "203.0.113.22"))
                 .andExpect(status().isOk());
 
@@ -128,9 +129,5 @@ class StudentL3ChangeAuditIntegrationTest {
 
     private MockMultipartFile 데이터(String json) {
         return new MockMultipartFile("data", "", "application/json", json.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
     }
 }

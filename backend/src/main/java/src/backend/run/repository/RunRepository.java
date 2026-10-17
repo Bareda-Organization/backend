@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.global.security.authz.Permissions;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunStatus;
@@ -195,7 +196,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * {@code limit} 은 목록 상한이다({@code PageParams#UNPAGED_LIST_MAX}) — 오래된 회차부터 자르므로 처리하면 다음 회차가 올라온다.
      */
     @AcademyScopeExempt(reason = "메인 관리자 콘솔의 끝나지 않은 이동 중 회차 목록(AdminStaleMovingRunQueryService)은 전 학원 대상 조회라 "
-            + "좁힐 학원이 부재하다 — countStaleMoving 과 같은 근거. 호출부는 @CanMonitorAll 로 보호되는 그 서비스뿐이라는 전제")
+            + "좁힐 학원이 부재하다 — countStaleMoving 과 같은 근거. 호출부는 @Can(Permissions.MONITOR_ALL) 로 보호되는 그 서비스뿐이라는 전제")
     @Query("SELECT r.id AS runId, r.academyId AS academyId, a.name AS academyName, a.contact AS academyContact, r.serviceDate AS serviceDate, "
             + "r.direction AS direction, b.busNo AS busNo, r.startedAt AS startedAt, r.finishPending AS finishPending, "
             + "(SELECT COUNT(rr) FROM RunRider rr WHERE rr.runId = r.id "
@@ -216,7 +217,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @AcademyScopeExempt(reason = "메인 관리자 콘솔이 목록(findStaleMoving)에서 고른 run.id 하나를 조건부로 닫는 단건 호출이다 — "
-            + "그 목록이 이미 전 학원 대상이라 이 시점에 학원을 다시 물을 근거가 없다. 호출부는 @CanForceFinishRun 으로 보호되는 "
+            + "그 목록이 이미 전 학원 대상이라 이 시점에 학원을 다시 물을 근거가 없다. 호출부는 @Can(Permissions.RUN_FORCE_FINISH) 으로 보호되는 "
             + "RunForceFinishCommandService 뿐이라는 전제")
     @Query("UPDATE Run r SET r.status = src.backend.run.entity.RunStatus.FINISHED, r.finishedAt = :finishedAt, "
             + "r.finishPending = false WHERE r.id = :id AND " + STALE_MOVING)
@@ -365,7 +366,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 쓰는 이유는 {@link #countDelayedByAcademy} 와 같다({@code ix_run_status_confirm_at} 의 {@code status = 'idle'} 부분 조건).
      */
     @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15)가 전 학원을 학원별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
-            + "호출부는 @CanMonitorAll 로 보호되는 AdminRunAttentionQueryService 뿐이라는 전제 — 요청 경로에서 학원 권한으로 "
+            + "호출부는 @Can(Permissions.MONITOR_ALL) 로 보호되는 AdminRunAttentionQueryService 뿐이라는 전제 — 요청 경로에서 학원 권한으로 "
             + "부르면 이 예외가 우회로가 된다(findDueForConfirmation 과 같은 근거)")
     @Query("SELECT r.academyId AS academyId, COUNT(r) AS runCount FROM Run r "
             + "WHERE r.serviceDate = :today AND r.canceledAt IS NULL "

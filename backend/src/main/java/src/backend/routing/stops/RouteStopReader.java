@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
+import src.backend.global.location.GeoPoint;
 import src.backend.run.entity.Run;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
@@ -23,7 +24,6 @@ import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.student.access.RouteStopSource;
-import src.backend.student.dto.RoadPoint;
 
 /**
  * 고정 노선·확정 노선의 정차지 순서 읽기 전용 조회 — {@code student} 모듈이 정한 포트({@link RouteStopSource})의 구현이다. 학생 모듈의
@@ -82,7 +82,7 @@ public class RouteStopReader implements RouteStopSource {
         return confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
                 .flatMap(routeVersionRepository::findById)
                 .map(version -> new RoadPath(version.getRoadPath() == null ? List.of()
-                        : version.getRoadPath().stream().map(point -> new RoadPoint(point.lat(), point.lng())).toList(),
+                        : version.getRoadPath().stream().map(point -> new GeoPoint(point.lat(), point.lng())).toList(),
                         version.isFallbackUsed()))
                 .orElse(RoadPath.EMPTY);
     }

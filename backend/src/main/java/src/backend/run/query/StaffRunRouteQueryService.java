@@ -20,7 +20,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.dto.StaffAssignmentAckView;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteVersion;

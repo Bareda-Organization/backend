@@ -17,7 +17,7 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.observability.metrics.RunConfirmationMetrics;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.entity.RouteVersionSource;

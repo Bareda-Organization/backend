@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 요청 본문이 실어 보내는 좌표 한 점(API_SPEC §5.9).

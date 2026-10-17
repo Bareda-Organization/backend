@@ -1,7 +1,7 @@
 package src.backend.run.domain;
 
 import src.backend.global.common.enums.Direction;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 회차의 원점·목적지 좌표(Ruling 190) — 반대쪽 끝은 언제나 노선의 첫/마지막 정차지다: 등원은

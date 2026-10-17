@@ -11,6 +11,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -20,7 +21,6 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.RefreshTokenRowsMetrics;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
@@ -89,7 +89,7 @@ public class RetentionCleanupScheduler {
 
     private final Clock clock;
 
-    private final SchedulerHealthMetrics schedulerHealthMetrics;
+    private final MeterRegistry meterRegistry;
 
     private final RefreshTokenRowsMetrics refreshTokenRowsMetrics;
 
@@ -147,7 +147,7 @@ public class RetentionCleanupScheduler {
                 purged = ids.isEmpty() ? 0 : studentAnonymizationService.anonymize(ids);
                 total += purged;
                 for (int skipped = fetched - purged; skipped > 0; skipped--) {
-                    schedulerHealthMetrics.recordItemFailure(getClass());
+                    recordItemFailure();
                 }
             } while (fetched == ANONYMIZATION_BATCH_SIZE && purged > 0);
             if (total > 0) {
@@ -155,7 +155,7 @@ public class RetentionCleanupScheduler {
             }
         } catch (Exception e) {
             log.warn("보존 정리 실패 — student_anonymization (다음 틱에 재시도)", e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
     }
 
@@ -168,7 +168,7 @@ public class RetentionCleanupScheduler {
             }
         } catch (Exception e) {
             log.warn("보존 정리 실패 — client_key (다음 틱에 재시도)", e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
     }
 
@@ -182,7 +182,7 @@ public class RetentionCleanupScheduler {
             refreshTokenRowsMetrics.update(refreshTokenRepository.countAllRows());
         } catch (Exception e) {
             log.warn("refresh_token 행 수를 세지 못했다 — 게이지는 이전 값 그대로", e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
     }
 
@@ -195,7 +195,7 @@ public class RetentionCleanupScheduler {
             runPositionPartitionManager.dropExpired(cutoff);
         } catch (Exception e) {
             log.warn("보존 정리 실패 — run_position (다음 틱에 재시도)", e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
     }
 
@@ -212,7 +212,7 @@ public class RetentionCleanupScheduler {
             cleanUpTable(tableName, cutoff, batchSize, finder, deleter);
         } catch (Exception e) {
             log.warn("보존 정리 실패 — {} (다음 틱에 재시도)", tableName, e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
     }
 
@@ -239,5 +239,10 @@ public class RetentionCleanupScheduler {
         if (totalDeleted > 0) {
             log.info("보존 정리 — {} {}행 처리", tableName, totalDeleted);
         }
+    }
+
+    /** 잡아 삼킨 건별 실패 1건(BR-064) — 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution} {@code outcome=ERROR})이 센다. */
+    private void recordItemFailure() {
+        meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "retention-cleanup").increment();
     }
 }

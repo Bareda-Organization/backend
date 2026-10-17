@@ -3,7 +3,7 @@ package src.backend.run.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.run.dto.RunRouteResponse.RouteStop;
 
 /**

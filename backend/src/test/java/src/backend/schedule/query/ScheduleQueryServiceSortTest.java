@@ -18,8 +18,8 @@ import org.springframework.data.domain.Sort;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.security.AuthUser;
-import src.backend.schedule.dto.ScheduleListRequest;
 import src.backend.schedule.repository.ScheduleRepository;
 
 /**
@@ -42,7 +42,7 @@ class ScheduleQueryServiceSortTest {
 
     @Test
     void 기본_정렬은_요일_시각_뒤에_id_오름차순을_붙인다() {
-        Sort sort = sentSortFor(new ScheduleListRequest(0, 20, null));
+        Sort sort = sentSortFor(new PageSortRequest(0, 20, null));
 
         assertThat(sort.toList()).extracting(Sort.Order::getProperty)
                 .containsExactly("weekdayOrder", "departTime", "id");
@@ -51,13 +51,13 @@ class ScheduleQueryServiceSortTest {
 
     @Test
     void 정렬을_줘도_마지막에_id_오름차순이_붙는다() {
-        Sort sort = sentSortFor(new ScheduleListRequest(0, 20, "weekday:asc"));
+        Sort sort = sentSortFor(new PageSortRequest(0, 20, "weekday:asc"));
 
         assertThat(sort.toList()).extracting(Sort.Order::getProperty).containsExactly("weekdayOrder", "id");
         assertThat(sort.getOrderFor("id").getDirection()).isEqualTo(Sort.Direction.ASC);
     }
 
-    private Sort sentSortFor(ScheduleListRequest request) {
+    private Sort sentSortFor(PageSortRequest request) {
         when(scheduleRepository.findAllByAcademyId(eq(1L), any(Pageable.class))).thenReturn(Page.empty());
         ScheduleQueryService service = new ScheduleQueryService(scheduleRepository, busRepository, routeStopCounter);
 

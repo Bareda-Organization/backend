@@ -11,11 +11,11 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.event.RunStartedEvent;
@@ -31,7 +31,6 @@ import src.backend.run.event.RunStartedEvent;
  * <p>커밋 뒤 방송 리스너는 전부 방송 실패를 WARN 한 줄로 기록하고 삼킨다(BR-207) — 삼키지 않아도 응답은 바뀌지 않지만
  * 스프링이 {@code afterCompletion} 오류 스택으로 남긴다(2026-09-30 F8 관측).
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class RunStartedBroadcastListener {
@@ -49,24 +48,20 @@ public class RunStartedBroadcastListener {
     /** 운행 시작을 학생·매니저·학원·관리자 채널 4종 전부에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunStartedEvent event) {
-        broadcastExecutor.execute(() -> deliverRunStartedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(EVENT, event.runId(), () -> deliverRunStartedEvent(event)));
     }
 
     private void deliverRunStartedEvent(RunStartedEvent event) {
-        try {
-            List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
-                    // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
-                    .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
-                    .map(RunRider::getStudentId)
-                    .distinct()
-                    .toList();
-            String runStatus = RunStatus.MOVING.name().toLowerCase(Locale.ROOT);
-            gateway.broadcastToRunChannels(event.runId(), event.academyId(), studentIds, EVENT, event.startedAt(),
-                    new StudentPayload(runStatus, event.startedAt()),
-                    new Payload(runStatus, event.startedAt(), event.autoBoardedCount()));
-        } catch (RuntimeException e) {
-            log.warn("run_started 방송 실패 — runId={}", event.runId(), e);
-        }
+        List<Long> studentIds = runRiderRepository.findAllByRunId(event.runId()).stream()
+                // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
+                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
+                .map(RunRider::getStudentId)
+                .distinct()
+                .toList();
+        String runStatus = RunStatus.MOVING.name().toLowerCase(Locale.ROOT);
+        gateway.broadcastToRunChannels(event.runId(), event.academyId(), studentIds, EVENT, event.startedAt(),
+                new StudentPayload(runStatus, event.startedAt()),
+                new Payload(runStatus, event.startedAt(), event.autoBoardedCount()));
     }
 
     /**

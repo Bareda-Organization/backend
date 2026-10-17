@@ -18,17 +18,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
@@ -36,19 +33,9 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * BR-041 — 운행 시작·종료 전이의 동시성(§7 규칙 3). 조회한 상태로 판정하고 변경 감지로 쓰면, 서로의
@@ -62,22 +49,9 @@ class RunTransitionConcurrencyTest {
 
     private static final long TIMEOUT_SECONDS = 30;
 
-    @Autowired private AcademyRepository academyRepository;
-    @Autowired private BusRepository busRepository;
-    @Autowired private StopRepository stopRepository;
-    @Autowired private StudentRepository studentRepository;
-    @Autowired private AccountRepository accountRepository;
-    @Autowired private ManagerRepository managerRepository;
-    @Autowired private AssignmentRepository assignmentRepository;
+    @Autowired private ApplicationContext applicationContext;
     @Autowired private RunRepository runRepository;
-    @Autowired private ConfirmedRouteRepository confirmedRouteRepository;
-    @Autowired private RouteVersionRepository routeVersionRepository;
-    @Autowired private RunStopRepository runStopRepository;
     @Autowired private RunRiderRepository runRiderRepository;
-    @Autowired private AcademyStaffRepository academyStaffRepository;
-    @Autowired private GuardianRepository guardianRepository;
-    @Autowired private GuardianStudentRepository guardianStudentRepository;
-    @Autowired private ChangeRequestRepository changeRequestRepository;
     @Autowired private RunCompletionService runCompletionService;
     @Autowired private RunStartCommandService runStartCommandService;
     @Autowired private PlatformTransactionManager transactionManager;
@@ -85,12 +59,6 @@ class RunTransitionConcurrencyTest {
 
     private final List<Long> academyIds = new ArrayList<>();
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     @AfterEach
     void 뒷정리한다() {
@@ -115,7 +83,7 @@ class RunTransitionConcurrencyTest {
     @Test
     @DisplayName("BR-041 — 종료 보류 회차의 마지막 두 명이 동시에 하차해도 운행이 끝난다")
     void 마지막_두_명이_동시에_하차해도_운행이_끝난다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);
@@ -150,7 +118,7 @@ class RunTransitionConcurrencyTest {
     @Test
     @DisplayName("BR-041 — 같은 회차의 시작 요청 두 건이 겹쳐도 한 건만 시작되고 나머지는 409 다")
     void 시작_요청_두_건이_겹쳐도_한_건만_시작된다() throws Exception {
-        DriverRunFixtures fx = fixtures();
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
         academyIds.add(academyId);
         long busId = fx.bus(academyId);

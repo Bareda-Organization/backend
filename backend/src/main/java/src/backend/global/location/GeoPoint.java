@@ -1,13 +1,14 @@
-package src.backend.routing.domain;
+package src.backend.global.location;
 
 import java.math.BigDecimal;
 
 /**
- * 노선 계산이 다루는 좌표 한 점 — 포트 3종과 파이프라인이 공유하는 유일한 좌표 타입이다.
+ * 모듈 공용 좌표 한 점 — 노선 계산(포트 3종 · 파이프라인) · 근접 알림 · 승인 미리보기 · 학생 노선 응답({@code roadPath})이 함께 쓰는 유일한 좌표 타입이다. 모듈마다
+ * 따로 좌표 타입을 두면 거리식이 복제돼 가까운 점 판정이 갈라지고 위경도 범위 검사가 빠지므로 한 곳에 둔다.
  *
  * <p>{@code double} 이 아니라 {@link BigDecimal} 인 이유는 ERD 의 좌표 컬럼이 전부
  * {@code numeric(9,6)} 이기 때문이다. {@code double} 로 받으면 저장 시 반올림이 일어나 같은
- * 좌표가 조회에서 안 맞는다.
+ * 좌표가 조회에서 안 맞는다. JSON 모양은 {@code {lat, lng}} 이다.
  */
 public record GeoPoint(BigDecimal lat, BigDecimal lng) {
 

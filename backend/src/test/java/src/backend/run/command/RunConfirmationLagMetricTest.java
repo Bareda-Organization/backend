@@ -13,24 +13,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -56,31 +49,10 @@ class RunConfirmationLagMetricTest {
     private static final String LAG_METRIC = "schoolbus.run.confirmation.lag";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private RunConfirmationService confirmationService;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
-
-    @Autowired
-    private RunRepository runRepository;
 
     @Autowired
     private Clock clock;
@@ -93,8 +65,7 @@ class RunConfirmationLagMetricTest {
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+            fixtures = RunConfirmationFixtures.of(applicationContext);
         }
         return fixtures;
     }

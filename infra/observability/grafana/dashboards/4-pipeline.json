@@ -130,8 +130,8 @@
     {
       "id": 2,
       "type": "timeseries",
-      "title": "스케줄러 마지막 성공 후 경과",
-      "description": "각 스케줄러가 마지막으로 성공 실행을 마친 뒤 지난 시간(초). 스케줄러마다 주기가 달라(location-simulation 3초· connection-loss 10초·approach-no-show 15초·sos-escalation 30초) 패널 전체에 단일 임계값을 걸면 짧은 주기 스케줄러의 정지를 놓치거나 긴 주기 스케줄러를 오탐하게 된다. 그래서 패널을 나누는 대신 필드 오버라이드로 시리즈(스케줄러)별 임계값을 따로 걸었다 — 각자 주기의 6배를 노랑, 20배를 빨강으로 잡았다(sos-escalation 은 노랑 180초·빨강 600초). ⚠ 한계: 스케줄러 4개는 모두 메서드 내부에서 예외를 잡아 삼키므로 실패해도 메서드 자체는 정상 반환한다 — 이 게이지는 \"돌고는 있다\"만 보여줄 뿐, 내부 판정이 실패했는지는 알려주지 않는다. green 이어도 실질 동작은 실패했을 수 있으므로 아래 실패율 패널과 로그를 함께 봐야 한다.",
+      "title": "스케줄러 성공 실행 수 (5분)",
+      "description": "스프링 기본 계측(tasks.scheduled.execution)의 outcome=SUCCESS 실행 횟수(스케줄러 클래스별, 5분 창). 값이 0 이 되면 그 스케줄러가 5분 넘게 성공하지 못한 것이다 — 주기가 5분보다 긴 작업(보존 정리 · 파티션 · 일일 회차 생성)은 0 이 정상이다. 내부에서 잡아 삼킨 실패는 오른쪽 패널의 건별 실패 카운터가 센다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -174,7 +174,7 @@
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "area"
+              "mode": "off"
             }
           },
           "mappings": [],
@@ -184,129 +184,12 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           },
-          "unit": "s"
+          "unit": "none"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "location-simulation"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 18
-                    },
-                    {
-                      "color": "red",
-                      "value": 60
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "connection-loss"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 60
-                    },
-                    {
-                      "color": "red",
-                      "value": 200
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "approach-no-show"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 90
-                    },
-                    {
-                      "color": "red",
-                      "value": 300
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "sos-escalation"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 180
-                    },
-                    {
-                      "color": "red",
-                      "value": 600
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "legend": {
@@ -327,8 +210,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "schoolbus_scheduler_last_success_age_seconds{application=\"school-bus\"}",
-          "legendFormat": "{{scheduler}}"
+          "expr": "sum by (code_namespace) (increase(tasks_scheduled_execution_seconds_count{application=\"school-bus\",outcome=\"SUCCESS\"}[5m]))",
+          "legendFormat": "{{code_namespace}}"
         }
       ]
     },
@@ -336,7 +219,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "스케줄러 실패율",
-      "description": "스케줄러 실행이 예외로 실패한 비율(초당, 스케줄러별). 위 경과 패널의 한계 때문에 이 값이 0이어도 안심할 수 없다 — 스케줄러 내부에서 잡아 삼킨 실패는 여기 잡히지 않고, 메서드 밖으로 던져진(uncaught) 예외만 집계된다. 0이 아니면 반복적인 uncaught 실패가 있다는 뜻이므로 로그를 바로 봐야 한다.",
+      "description": "스케줄러 실행이 예외로 끝난 비율(초당, 스케줄러 클래스별, 스프링 기본 계측 outcome=ERROR)과, 스케줄러가 잡아 삼킨 건별 실패(schoolbus.scheduler.failures)의 비율. 0 이 아니면 로그를 바로 본다.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -419,8 +302,13 @@
       "targets": [
         {
           "refId": "A",
+          "expr": "sum by (code_namespace) (rate(tasks_scheduled_execution_seconds_count{application=\"school-bus\",outcome=\"ERROR\"}[5m]))",
+          "legendFormat": "{{code_namespace}} (실행 실패)"
+        },
+        {
+          "refId": "B",
           "expr": "rate(schoolbus_scheduler_failures_total{application=\"school-bus\"}[5m])",
-          "legendFormat": "{{scheduler}}"
+          "legendFormat": "{{scheduler}} (건별 실패)"
         }
       ]
     },

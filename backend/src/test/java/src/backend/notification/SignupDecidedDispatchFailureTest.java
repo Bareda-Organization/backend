@@ -3,6 +3,7 @@ package src.backend.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Duration;
 import java.util.List;
@@ -21,7 +22,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.notification.push.spec.PushMessage;
@@ -150,14 +150,9 @@ class SignupDecidedDispatchFailureTest {
                 "P4T1실패" + suffix, phone, "parent", "staff");
     }
 
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(SignupDecidedFixture.SEED_STAFF_ACCOUNT,
-                SignupDecidedFixture.SEED_ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
-    }
-
     private org.springframework.test.web.servlet.ResultActions 수락한다(long requestId) throws Exception {
         return mockMvc.perform(post("/api/v1/staff/signup-requests/" + requestId + "/decide")
-                .header("Authorization", 관계자_토큰())
+                .header("Authorization", 토큰(tokenProvider, SignupDecidedFixture.SEED_STAFF_ACCOUNT, SignupDecidedFixture.SEED_ACADEMY_A, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"accept": true, "link": {"student_ids": [%d]}}
@@ -166,7 +161,7 @@ class SignupDecidedDispatchFailureTest {
 
     private org.springframework.test.web.servlet.ResultActions 거절한다(long requestId) throws Exception {
         return mockMvc.perform(post("/api/v1/staff/signup-requests/" + requestId + "/decide")
-                .header("Authorization", 관계자_토큰())
+                .header("Authorization", 토큰(tokenProvider, SignupDecidedFixture.SEED_STAFF_ACCOUNT, SignupDecidedFixture.SEED_ACADEMY_A, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"accept\": false, \"reject_reason\": \"제출 서류가 부족합니다\"}"));
     }

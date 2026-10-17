@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import src.backend.academy.entity.Academy;
@@ -33,7 +34,7 @@ import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestSource;
 import src.backend.request.entity.ChangeRequestType;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RouteVersionSource;
@@ -123,6 +124,27 @@ public class DriverRunFixtures {
         this.guardianRepository = guardianRepository;
         this.guardianStudentRepository = guardianStudentRepository;
         this.changeRequestRepository = changeRequestRepository;
+    }
+
+    /** 시험 컨텍스트의 빈으로 DriverRunFixtures 를 만든다 — 시험 클래스마다 저장소를 하나씩 넘기던 생성 호출의 단일 정의. */
+    public static DriverRunFixtures of(ApplicationContext context) {
+        return new DriverRunFixtures(
+                context.getBean(AcademyRepository.class),
+                context.getBean(BusRepository.class),
+                context.getBean(StopRepository.class),
+                context.getBean(StudentRepository.class),
+                context.getBean(AccountRepository.class),
+                context.getBean(ManagerRepository.class),
+                context.getBean(AssignmentRepository.class),
+                context.getBean(RunRepository.class),
+                context.getBean(ConfirmedRouteRepository.class),
+                context.getBean(RouteVersionRepository.class),
+                context.getBean(RunStopRepository.class),
+                context.getBean(RunRiderRepository.class),
+                context.getBean(AcademyStaffRepository.class),
+                context.getBean(GuardianRepository.class),
+                context.getBean(GuardianStudentRepository.class),
+                context.getBean(ChangeRequestRepository.class));
     }
 
     public long academy() {

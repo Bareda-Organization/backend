@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,29 +24,13 @@ import org.springframework.context.annotation.Import;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -64,6 +50,9 @@ class DelayNotificationControllerTest {
     private static final String DELAY = "/api/v1/runs/%d/delay";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -79,86 +68,31 @@ class DelayNotificationControllerTest {
     private EntityManager entityManager;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
     private RunStopRepository runStopRepository;
 
-    @Autowired
-    private RunRiderRepository runRiderRepository;
 
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
-
-
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
 
     // ── goal 1 — 엔드포인트 전체 행동 ─────────────────────────────────────
 
     @Test
     @DisplayName("목표1 — 배치된 동승자의 정상 신고는 201 이고 세 수신 갈래 모두 발신되며 이력이 저장된다")
     void 정상_신고는_성공하고_이력이_저장된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
         fixtures.staffAccount(academyId, "관계자1");
         long studentId = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.guardianOf(academyId, studentId, "학부모1", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now());
-        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, studentId, "학부모1", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock));
+        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated())
@@ -175,22 +109,22 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표1 — 관계자·학생 갈래도 notification_log 에 실제로 적재된다(응답 불린만이 아니라 행 자체)")
     void 관계자와_학생도_notification_log_에_실제로_적재된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "관계자1");
         long studentId = fixtures.studentWithAccount(academyId, "학생1");
-        fixtures.guardianOf(academyId, studentId, "학부모1", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now());
-        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, studentId, "학부모1", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock));
+        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
@@ -239,15 +173,15 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표1 ESCORT_ONLY — 기사가 신고하면 403 ESCORT_ONLY 이고 이력이 남지 않는다")
     void 기사는_신고할_수_없다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isForbidden())
@@ -259,16 +193,16 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표1 FORBIDDEN — 같은 학원 동승자이지만 이 회차에 배치되지 않으면 403 FORBIDDEN(ESCORT_ONLY 아님)")
     void 배치되지_않은_같은_학원_동승자는_FORBIDDEN_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "배치된동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "배치된동승자", OffsetDateTime.now(clock));
         long unassignedEscortId = fixtures.unassignedManager(academyId, ManagerRole.ESCORT, "미배치동승자");
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(unassignedEscortId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, unassignedEscortId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isForbidden())
@@ -290,7 +224,7 @@ class DelayNotificationControllerTest {
     @DisplayName("목표1 FORBIDDEN — 존재하지 않는 회차는 배치 조회가 먼저 걸려 404 가 아니라 403 이다")
     void 존재하지_않는_회차는_FORBIDDEN_이다() throws Exception {
         mockMvc.perform(post(DELAY.formatted(999_999_999L))
-                        .header("Authorization", 토큰(1L, 1L, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, 1L, 1L, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isForbidden())
@@ -300,14 +234,14 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표1 RUN_NOT_MOVING — 아직 시작하지 않은(confirmed) 회차는 409 다")
     void 시작하지_않은_회차는_RUN_NOT_MOVING_이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isConflict())
@@ -317,15 +251,15 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표1 급소 — minutes 가 5의 배수가 아니면 422 VALIDATION_FAILED 다")
     void minutes_가_5의_배수가_아니면_422_다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(7, "traffic", null)))
                 .andExpect(status().isUnprocessableContent())
@@ -337,15 +271,15 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표1 급소 — 정의되지 않은 reason 문자열은 422 VALIDATION_FAILED 다")
     void 정의되지_않은_reason_은_422_다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "typhoon", null)))
                 .andExpect(status().isUnprocessableContent())
@@ -358,15 +292,15 @@ class DelayNotificationControllerTest {
     @DisplayName("목표1 — minutes 가 아예 없으면(빈 검증 단계) 422 다 — GlobalExceptionHandler 가 "
             + "MethodArgumentNotValidException 도 VALIDATION_FAILED 로 합류시킨다")
     void minutes_가_없으면_422_다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"traffic\"}"))
                 .andExpect(status().isUnprocessableContent())
@@ -376,15 +310,15 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표1 — reason 이 빈 문자열이면(빈 검증 단계) 422 다")
     void reason_이_빈_문자열이면_422_다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "", null)))
                 .andExpect(status().isUnprocessableContent())
@@ -396,29 +330,29 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표2-a — 이미 지난(도착 완료) 정류장의 학생은 수신 대상에서 빠진다")
     void 이미_지난_정류장의_학생은_제외된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopPast = fixtures.stop(academyId, "37.560000", "126.970000");
         long stopFuture = fixtures.stop(academyId, "37.570000", "126.980000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long pastRunStopId = fixtures.runStopForStop(versionId, stopPast, 1, now());
-        fixtures.runStopForStop(versionId, stopFuture, 2, now());
-        markArrived(pastRunStopId, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long pastRunStopId = fixtures.runStopForStop(versionId, stopPast, 1, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopFuture, 2, OffsetDateTime.now(clock));
+        markArrived(pastRunStopId, OffsetDateTime.now(clock));
 
         long pastStudentId = fixtures.studentWithAccount(academyId, "지난정류장학생");
-        fixtures.guardianOf(academyId, pastStudentId, "지난정류장학부모", now());
-        fixtures.rider(runId, pastStudentId, stopPast, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, pastStudentId, "지난정류장학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, pastStudentId, stopPast, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         long futureStudentId = fixtures.studentWithAccount(academyId, "다음정류장학생");
-        fixtures.guardianOf(academyId, futureStudentId, "다음정류장학부모", now());
-        fixtures.rider(runId, futureStudentId, stopFuture, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, futureStudentId, "다음정류장학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, futureStudentId, stopFuture, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
@@ -431,32 +365,32 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("R51 H2 부작용 — 도착 없이 강제 출발된(departed_at 만 있는) 정류장의 학생도 이미 지나친 곳이라 수신 대상에서 빠진다")
     void 도착_없이_강제_출발된_정류장의_학생은_제외된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopPassed = fixtures.stop(academyId, "37.560000", "126.970000");
         long stopFuture = fixtures.stop(academyId, "37.570000", "126.980000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        long passedRunStopId = fixtures.runStopForStop(versionId, stopPassed, 1, now());
-        fixtures.runStopForStop(versionId, stopFuture, 2, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        long passedRunStopId = fixtures.runStopForStop(versionId, stopPassed, 1, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopFuture, 2, OffsetDateTime.now(clock));
         // 엔티티에는 출발 세터가 없다 — SQL 로 쓰고 영속성 컨텍스트를 비워 서비스가 DB 값을 다시 읽게 한다.
         entityManager.flush();
-        jdbcTemplate.update("UPDATE run_stop SET departed_at = ? WHERE id = ?", now(), passedRunStopId);
+        jdbcTemplate.update("UPDATE run_stop SET departed_at = ? WHERE id = ?", OffsetDateTime.now(clock), passedRunStopId);
         entityManager.clear();
 
         long passedStudentId = fixtures.studentWithAccount(academyId, "강제출발정류장학생");
-        fixtures.guardianOf(academyId, passedStudentId, "강제출발정류장학부모", now());
-        fixtures.rider(runId, passedStudentId, stopPassed, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, passedStudentId, "강제출발정류장학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, passedStudentId, stopPassed, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         long futureStudentId = fixtures.studentWithAccount(academyId, "아직정류장학생");
-        fixtures.guardianOf(academyId, futureStudentId, "아직정류장학부모", now());
-        fixtures.rider(runId, futureStudentId, stopFuture, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, futureStudentId, "아직정류장학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, futureStudentId, stopFuture, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
@@ -469,26 +403,26 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표2-b — 이미 탑승한(BOARDED) 학생은 수신 대상에서 빠진다")
     void 이미_탑승한_학생은_제외된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock));
 
         long boardedStudentId = fixtures.studentWithAccount(academyId, "탑승학생");
-        fixtures.guardianOf(academyId, boardedStudentId, "탑승학부모", now());
-        fixtures.rider(runId, boardedStudentId, stopId, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, boardedStudentId, "탑승학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, boardedStudentId, stopId, RiderStatus.BOARDED, OffsetDateTime.now(clock));
 
         long waitingStudentId = fixtures.studentWithAccount(academyId, "대기학생");
-        fixtures.guardianOf(academyId, waitingStudentId, "대기학부모", now());
-        fixtures.rider(runId, waitingStudentId, stopId, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, waitingStudentId, "대기학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, waitingStudentId, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
@@ -501,27 +435,27 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("R51 856 — 하원은 아직 하차하지 않은(탑승 중) 학생의 학부모·학생이 받고, 이미 하차한 학생·대기 학생은 받지 않는다")
     void 하원_지연은_탑승_중인_학생만_받는다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock));
         long onBus = fixtures.studentWithAccount(academyId, "탑승중");
-        fixtures.guardianOf(academyId, onBus, "탑승중학부모", now());
-        fixtures.rider(runId, onBus, stopId, RiderStatus.BOARDED, now());
+        fixtures.guardianOf(academyId, onBus, "탑승중학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, onBus, stopId, RiderStatus.BOARDED, OffsetDateTime.now(clock));
         long gotOff = fixtures.studentWithAccount(academyId, "하차");
-        fixtures.guardianOf(academyId, gotOff, "하차학부모", now());
-        fixtures.rider(runId, gotOff, stopId, RiderStatus.ALIGHTED, now());
+        fixtures.guardianOf(academyId, gotOff, "하차학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, gotOff, stopId, RiderStatus.ALIGHTED, OffsetDateTime.now(clock));
         long waiting = fixtures.studentWithAccount(academyId, "대기");
-        fixtures.guardianOf(academyId, waiting, "대기학부모", now());
-        fixtures.rider(runId, waiting, stopId, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, waiting, "대기학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, waiting, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated())
@@ -537,22 +471,22 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("R51 M-B1 — 보호자가 둘인 학생은 보호자 전원이 지연 알림을 받는다")
     void 지연_알림은_학생의_보호자_전원에게_간다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock));
         long studentId = fixtures.studentWithAccount(academyId, "학생");
-        long first = fixtures.guardianOf(academyId, studentId, "엄마", now());
-        long second = fixtures.guardianOf(academyId, studentId, "아빠", now().plusSeconds(1));
-        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, now());
+        long first = fixtures.guardianOf(academyId, studentId, "엄마", OffsetDateTime.now(clock));
+        long second = fixtures.guardianOf(academyId, studentId, "아빠", OffsetDateTime.now(clock).plusSeconds(1));
+        fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
@@ -568,26 +502,26 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표2-c — 결석 처리된(ABSENT) 학생은 수신 대상에서 빠진다")
     void 결석_처리된_학생은_제외된다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock));
 
         long absentStudentId = fixtures.studentWithAccount(academyId, "결석학생");
-        fixtures.guardianOf(academyId, absentStudentId, "결석학부모", now());
-        fixtures.rider(runId, absentStudentId, stopId, RiderStatus.ABSENT, now());
+        fixtures.guardianOf(academyId, absentStudentId, "결석학부모", OffsetDateTime.now(clock));
+        fixtures.rider(runId, absentStudentId, stopId, RiderStatus.ABSENT, OffsetDateTime.now(clock));
 
         long waitingStudentId = fixtures.studentWithAccount(academyId, "대기학생2");
-        fixtures.guardianOf(academyId, waitingStudentId, "대기학부모2", now());
-        fixtures.rider(runId, waitingStudentId, stopId, RiderStatus.WAITING, now());
+        fixtures.guardianOf(academyId, waitingStudentId, "대기학부모2", OffsetDateTime.now(clock));
+        fixtures.rider(runId, waitingStudentId, stopId, RiderStatus.WAITING, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
@@ -602,22 +536,22 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표3-a — 직전 신고와 minutes·reason·message 가 전부 같으면 409 DELAY_DUPLICATE 다")
     void 완전히_같은_내용의_재신고는_409_다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isConflict())
@@ -630,22 +564,22 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표3-b — minutes 만 달라도 새 신고로 처리된다")
     void minutes_만_다르면_새_신고다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(15, "traffic", null)))
                 .andExpect(status().isCreated());
@@ -657,22 +591,22 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표3-c — reason 만 달라도 새 신고로 처리된다")
     void reason_만_다르면_새_신고다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "weather", null)))
                 .andExpect(status().isCreated());
@@ -684,22 +618,22 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표3-d — message 만 달라도(둘 다 채워짐) 새 신고로 처리된다")
     void message_만_다르면_새_신고다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", "곧 도착합니다")))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", "조금 더 걸립니다")))
                 .andExpect(status().isCreated());
@@ -711,22 +645,22 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표3-e — message 가 둘 다 같은 값으로 채워져 있어도 나머지가 같으면 409 다(동치 비교가 null 전용이 아님)")
     void message_가_같은_값이어도_나머지가_같으면_중복이다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", "같은문구")))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", "같은문구")))
                 .andExpect(status().isConflict())
@@ -739,22 +673,22 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표3-f — message 가 null 에서 채워진 값으로 바뀌면(그 반대도) 다른 신고로 처리된다")
     void message_유무가_다르면_새_신고다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", "문구가 생겼다")))
                 .andExpect(status().isCreated());
@@ -766,29 +700,29 @@ class DelayNotificationControllerTest {
     @Test
     @DisplayName("목표3-g — message 가 빈 문자열·공백뿐·null 이면 전부 같은 신고로 취급돼 두 번째부터 409 다")
     void message_가_빈_문자열_공백_null_이면_전부_동치다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now(), now().minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
-        fixtures.confirmedRouteWithVersion(runId, now());
+        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
+        fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", "")))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", "  ")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("DELAY_DUPLICATE"));
 
         mockMvc.perform(post(DELAY.formatted(runId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(요청본문(10, "traffic", null)))
                 .andExpect(status().isConflict())
@@ -801,10 +735,6 @@ class DelayNotificationControllerTest {
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
 
     private String 요청본문(int minutes, String reason, String message) {
         String messageJson = message == null ? "null" : "\"" + message + "\"";

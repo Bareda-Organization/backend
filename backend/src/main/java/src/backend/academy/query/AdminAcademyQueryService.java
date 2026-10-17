@@ -49,7 +49,7 @@ import src.backend.run.repository.RunRepository;
  *
  * <p>학원 격리의 예외 구역이다(§1.5) — {@code /admin/**} 는 전 학원 범위이고, 어느 학원인지는 토큰이
  * 아니라 경로 파라미터가 정한다. 그래서 이 서비스에는 호출자의 소속 학원을 보는 자리가 부재하며,
- * 전 학원 범위를 허용하는 판정은 컨트롤러의 {@code @CanManageAcademy} 하나로 끝난다.
+ * 전 학원 범위를 허용하는 판정은 컨트롤러의 {@code @Can(Permissions.ACADEMY_MANAGE)} 하나로 끝난다.
  */
 @Service
 @RequiredArgsConstructor

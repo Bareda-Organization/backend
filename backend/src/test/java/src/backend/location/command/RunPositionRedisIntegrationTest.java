@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -20,6 +21,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -29,12 +31,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import tools.jackson.databind.json.JsonMapper;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -43,18 +39,7 @@ import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.dto.RunPositionRedisValue;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
@@ -73,6 +58,9 @@ import org.springframework.context.annotation.Import;
 @AutoConfigureMockMvc
 @Import(FixedClock20300401Config.class)
 class RunPositionRedisIntegrationTest {
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private MockMvc mockMvc;
@@ -99,64 +87,10 @@ class RunPositionRedisIntegrationTest {
     /** T1 이 실제로 쓰는 것과 같은 기본(camelCase) 네이밍 — {@code RunPositionRedisListener} 참고. */
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
-
 
     /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 좌석·다른 테스트의 행을 건드리지 않는다). */
     private final List<Long> academyIds = new ArrayList<>();
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
 
     private OffsetDateTime now() {
         return OffsetDateTime.now(clock);
@@ -196,7 +130,7 @@ class RunPositionRedisIntegrationTest {
                 """.formatted(lat, lng, recordedAt);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
                 .andExpect(status().isNoContent());
@@ -236,7 +170,7 @@ class RunPositionRedisIntegrationTest {
         MovingRun moving = 움직이는_회차를_만든다();
 
         mockMvc.perform(post("/api/v1/runs/" + moving.runId() + "/position")
-                .header("Authorization", 토큰(moving.driverAccountId(), moving.academyId(), Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, moving.driverAccountId(), moving.academyId(), Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
@@ -269,7 +203,7 @@ class RunPositionRedisIntegrationTest {
 
     /** 운행 중 회차와 배치 기사를 만든다 — 실제 커밋을 남기므로 학원 id 를 뒷정리 대상에 등록한다. */
     private MovingRun 움직이는_회차를_만든다() {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         academyIds.add(academyId);
         long busId = fixtures.bus(academyId);
@@ -279,9 +213,5 @@ class RunPositionRedisIntegrationTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         return new MovingRun(academyId, runId, driverAccountId);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

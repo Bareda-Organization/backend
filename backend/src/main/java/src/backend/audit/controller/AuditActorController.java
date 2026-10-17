@@ -16,7 +16,8 @@ import src.backend.audit.dto.AuditActorResponse;
 import src.backend.audit.query.AuditActorQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
-import src.backend.global.security.authz.CanReadAudit;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /** 감사 화면의 행위자 찾기 API(API_SPEC §6.13 {@code GET /admin/audit-actors}, R46 감사 · Ruling 447). */
 @Tag(name = ApiTags.ADMIN)
@@ -28,7 +29,7 @@ public class AuditActorController {
     private final AuditActorQueryService auditActorQueryService;
 
     /** 이름 또는 로그인 아이디에 {@code q} 가 들어 있는 계정을 최대 20건 돌려준다. */
-    @CanReadAudit
+    @Can(Permissions.AUDIT_READ)
     @Operation(summary = "감사 화면 행위자 찾기 (SYS-01)")
     @GetMapping
     public ApiResponse<AuditActorsResponse> search(@RequestParam(name = "q", required = false) String q) {

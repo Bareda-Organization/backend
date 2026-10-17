@@ -14,7 +14,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanMonitorRunRoute;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.run.dto.StaffRunRouteResponse;
 import src.backend.run.query.StaffRunRouteQueryService;
 
@@ -22,8 +23,8 @@ import src.backend.run.query.StaffRunRouteQueryService;
  * 관계자 웹의 확정 노선 조회(API_SPEC §5.19 {@code GET /staff/runs/{runId}/route}, RTE-02, F1 S3
  * 목표 11).
  *
- * <p>매니저용 {@code RunRouteController}(§4.3, {@code @CanReadRoute})와 분리한다 — 권한이 다르다
- * (매니저는 자기 배치 회차만, 관계자·메인 관리자는 {@link CanMonitorRunRoute} 로 학원 전체를 본다). 경로 접두는
+ * <p>매니저용 {@code RunRouteController}(§4.3, {@code @Can(Permissions.ROUTE_READ)})와 분리한다 — 권한이 다르다
+ * (매니저는 자기 배치 회차만, 관계자·메인 관리자는 {@code @Can({Permissions.MONITOR_ACADEMY, Permissions.MONITOR_ALL})} 로 학원 전체를 본다). 경로 접두는
  * {@code StaffRosterController}(§5.4 {@code /staff/runs/{runId}/roster})와 같은 계열이라 재사용한다.
  */
 @Tag(name = ApiTags.STAFF)
@@ -35,7 +36,7 @@ public class StaffRunRouteController {
     private final StaffRunRouteQueryService staffRunRouteQueryService;
 
     /** {@code GET /staff/runs/{runId}/route}(§5.19) — 관계자용 확정·예정 노선 조회. */
-    @CanMonitorRunRoute
+    @Can({Permissions.MONITOR_ACADEMY, Permissions.MONITOR_ALL})
     @Operation(summary = "확정 노선 조회 — 관계자용 (RTE-02, A-03·A-08·A-15)")
     @GetMapping("/{runId}/route")
     public ApiResponse<StaffRunRouteResponse> route(@AuthenticationPrincipal AuthUser requester,

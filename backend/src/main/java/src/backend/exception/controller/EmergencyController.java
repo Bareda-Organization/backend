@@ -27,8 +27,9 @@ import src.backend.exception.query.EmergencyRunQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanRaiseEmergency;
-import src.backend.global.security.authz.CanReadRunEmergencies;
+import src.backend.global.security.authz.AuthenticatedOnly;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 기사·동승자 단말의 비상 신고 발신·취소 API(EXC-04, Phase 11 T2 목표 5·8·9) —
@@ -46,7 +47,7 @@ public class EmergencyController {
     private final EmergencyRunQueryService emergencyRunQueryService;
 
     /** 비상 신고 접수(목표 5·8) — 최초 접수는 201, 재전송은 최초 접수 결과를 200 으로 돌려준다(§1.7, BR-137). */
-    @CanRaiseEmergency
+    @Can(Permissions.EMERGENCY_RAISE)
     @Operation(summary = "비상 알림 발신·취소 (EXC-04, M-15)")
     @PostMapping("/{runId}/emergency")
     public ResponseEntity<ApiResponse<EmergencyRaiseResponse>> raise(@AuthenticationPrincipal AuthUser requester,
@@ -57,7 +58,7 @@ public class EmergencyController {
     }
 
     /** 발신 1분 이내 취소(목표 9) — §4.14 가 요구하는 대로 본문 없이 204 만 돌려준다. */
-    @CanRaiseEmergency
+    @Can(Permissions.EMERGENCY_RAISE)
     @Operation(summary = "비상 알림 취소 (EXC-04, M-15)")
     @DeleteMapping("/{runId}/emergency/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -67,7 +68,7 @@ public class EmergencyController {
     }
 
     /** 발신한 비상 알림의 처리 상태 조회(§4.15) — 확인·취소 여부를 발신자 자신이 다시 확인한다. */
-    @CanReadRunEmergencies
+    @AuthenticatedOnly
     @Operation(summary = "발신한 비상 알림의 처리 상태 조회 (EXC-04, M-15)")
     @GetMapping("/{runId}/emergencies")
     public ApiResponse<RunEmergencyListResponse> emergencies(@AuthenticationPrincipal AuthUser requester,

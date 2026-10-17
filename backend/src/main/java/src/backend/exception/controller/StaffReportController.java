@@ -20,7 +20,8 @@ import src.backend.exception.query.ExceptionReportQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadReport;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 관계자 웹의 예외 보고 조회·처리 표시 API(API_SPEC §5.20).
@@ -41,7 +42,7 @@ public class StaffReportController {
     private final ExceptionReportCommandService exceptionReportCommandService;
 
     /** 예외 보고 목록(§5.20 목록) — 전부 선택적 필터, 페이지네이션 없음. */
-    @CanReadReport
+    @Can(Permissions.EXCEPTION_REPORT_READ)
     @Operation(summary = "예외 보고 조회 (EXC-02 · EXC-03, M-14)")
     @GetMapping
     public ApiResponse<StaffReportListResponse> list(@AuthenticationPrincipal AuthUser requester,
@@ -53,7 +54,7 @@ public class StaffReportController {
     }
 
     /** 예외 보고 처리 표시(§5.20, Ruling 814) — 본문 없음, 이미 처리된 보고에는 바꾸지 않고 그대로 200. */
-    @CanReadReport
+    @Can(Permissions.EXCEPTION_REPORT_READ)
     @Operation(summary = "예외 보고 처리 표시 (EXC-03, M-14)")
     @PostMapping("/{id}/handle")
     public ApiResponse<StaffReportItemResponse> handle(@AuthenticationPrincipal AuthUser requester,

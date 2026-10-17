@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -24,7 +25,6 @@ import com.jayway.jsonpath.JsonPath;
 
 import jakarta.persistence.EntityManagerFactory;
 
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -103,7 +103,7 @@ class StaffStudentListExtensionTest {
 
     @Test
     void filter_가_허용_값_밖이면_422_다() throws Exception {
-        mockMvc.perform(get(BASE).param("filter", "unknown").header("Authorization", 토큰()))
+        mockMvc.perform(get(BASE).param("filter", "unknown").header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
@@ -159,7 +159,7 @@ class StaffStudentListExtensionTest {
         assertThat(classNames(목록("q=R56SP&size=100"))).contains(" 고등 심화반 ");
         // get(String) 은 URI 템플릿이라 공백을 미리 인코딩하면 이중 인코딩된다 — param() 으로 원문 값을 넘긴다
         String body = mockMvc.perform(get(BASE).param("q", "R56SP").param("class_name", " 고등 심화반 ")
-                        .param("size", "100").header("Authorization", 토큰()))
+                        .param("size", "100").header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         assertThat(JsonPath.<List<String>>read(body, "$.data.items[*].name")).containsExactly("R56SP공백반");
     }
@@ -201,7 +201,7 @@ class StaffStudentListExtensionTest {
     }
 
     private String 목록(String query) throws Exception {
-        MvcResult result = mockMvc.perform(get(BASE + "?" + query).header("Authorization", 토큰()))
+        MvcResult result = mockMvc.perform(get(BASE + "?" + query).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk()).andReturn();
         return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
@@ -227,11 +227,7 @@ class StaffStudentListExtensionTest {
     private long 쿼리_수(String query) throws Exception {
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         statistics.clear();
-        mockMvc.perform(get(BASE + "?" + query).header("Authorization", 토큰())).andExpect(status().isOk());
+        mockMvc.perform(get(BASE + "?" + query).header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF))).andExpect(status().isOk());
         return statistics.getPrepareStatementCount();
-    }
-
-    private String 토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
     }
 }

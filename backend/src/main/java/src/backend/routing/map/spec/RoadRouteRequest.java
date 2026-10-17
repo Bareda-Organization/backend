@@ -3,7 +3,7 @@ package src.backend.routing.map.spec;
 import java.time.Duration;
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 도로 경로 요청 — {@code points} 는 출발지 → 정차지들 → 도착지 순으로 <b>이미 정렬돼 있다</b>.

@@ -16,7 +16,8 @@ import src.backend.audit.query.AuditQueryFilter;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
-import src.backend.global.security.authz.CanReadAudit;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 메인 관리자 콘솔의 개인정보 조회·수정 이력 조회 API(SYS-01, API_SPEC §6.13, Phase 14 T1 목표 3).
@@ -35,7 +36,7 @@ public class AuditLogController {
     private final AuditLogQueryService auditLogQueryService;
 
     /** 개인정보 조회·수정 이력을 필터·페이징으로 조회한다(§6.13). */
-    @CanReadAudit
+    @Can(Permissions.AUDIT_READ)
     @Operation(summary = "감사 로그 조회 (SYS-01)")
     @GetMapping
     public ApiResponse<PageResponse<AuditLogItemResponse>> list(

@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,21 +32,14 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.request.PageParams;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.event.RunEndedEvent;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -69,6 +65,9 @@ class AdminStaleMovingRunControllerTest {
     private static final String REASON_BODY = "{\"reason\":\"운행일이 지난 채 끝나지 않아 콘솔에서 종료\"}";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -90,24 +89,6 @@ class AdminStaleMovingRunControllerTest {
     private AcademyRepository academyRepository;
 
     @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
-
-    @Autowired
     private RunRepository runRepository;
 
     @Autowired
@@ -117,8 +98,7 @@ class AdminStaleMovingRunControllerTest {
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+            fixtures = RunConfirmationFixtures.of(applicationContext);
         }
         return fixtures;
     }
@@ -158,16 +138,8 @@ class AdminStaleMovingRunControllerTest {
         return jdbcTemplate.queryForObject("SELECT status FROM run WHERE id = ?", String.class, runId);
     }
 
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
-    }
-
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(2L, 1L, Role.STAFF, AccountStatus.ACTIVE);
-    }
-
     private List<Long> listedRunIds() throws Exception {
-        String body = mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰()))
+        String body = mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         com.jayway.jsonpath.DocumentContext json = com.jayway.jsonpath.JsonPath.parse(body);
@@ -221,7 +193,7 @@ class AdminStaleMovingRunControllerTest {
         jdbcTemplate.update("UPDATE run SET finish_pending = true WHERE id = ?", runId);
         riders(academyId, runId, RiderStatus.BOARDED, RiderStatus.BOARDED, RiderStatus.ALIGHTED, RiderStatus.WAITING);
 
-        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.run_id == %d)].boarded_count".formatted(runId)).value(2))
                 .andExpect(jsonPath("$.data.items[?(@.run_id == %d)].academy_id".formatted(runId)).value(String.valueOf(academyId)))
@@ -246,7 +218,7 @@ class AdminStaleMovingRunControllerTest {
         long registeredRun = staleRun(withContact);
         long unregisteredRun = staleRun(withoutContact);
 
-        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.run_id == %d)].academy_contact".formatted(registeredRun))
                         .value("032-123-4567"))
@@ -275,7 +247,7 @@ class AdminStaleMovingRunControllerTest {
         riders(academyId, runId, RiderStatus.BOARDED, RiderStatus.WAITING);
 
         mockMvc.perform(post(FORCE_FINISH.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰()).header("X-Real-IP", "203.0.113.24")
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L)).header("X-Real-IP", "203.0.113.24")
                         .contentType(MediaType.APPLICATION_JSON).content(REASON_BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.run_id").value(runId))
@@ -322,7 +294,7 @@ class AdminStaleMovingRunControllerTest {
 
         for (long runId : new long[] {yesterday, today}) {
             mockMvc.perform(post(FORCE_FINISH.formatted(runId))
-                            .header("Authorization", 메인관리자_토큰())
+                            .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                             .contentType(MediaType.APPLICATION_JSON).content(REASON_BODY))
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.error.code").value("RUN_NOT_STALE"));
@@ -342,19 +314,19 @@ class AdminStaleMovingRunControllerTest {
 
         for (long runId : new long[] {idle, finished}) {
             mockMvc.perform(post(FORCE_FINISH.formatted(runId))
-                            .header("Authorization", 메인관리자_토큰())
+                            .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                             .contentType(MediaType.APPLICATION_JSON).content(REASON_BODY))
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.error.code").value("RUN_NOT_MOVING"));
         }
         mockMvc.perform(post(FORCE_FINISH.formatted(canceled))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON).content(REASON_BODY))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_CANCELED"));
         assertThat(runStatus(canceled)).isEqualTo("moving");
         mockMvc.perform(post(FORCE_FINISH.formatted(Long.MAX_VALUE))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON).content(REASON_BODY))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
@@ -369,7 +341,7 @@ class AdminStaleMovingRunControllerTest {
         long runId = staleRun(fixtures().academyWithCoordinates());
 
         mockMvc.perform(post(FORCE_FINISH.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"   \"}"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
@@ -382,7 +354,7 @@ class AdminStaleMovingRunControllerTest {
         long runId = staleRun(fixtures().academyWithCoordinates());
 
         mockMvc.perform(post(FORCE_FINISH.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"%s\"}".formatted("가".repeat(201))))
                 .andExpect(status().isUnprocessableContent())
@@ -390,7 +362,7 @@ class AdminStaleMovingRunControllerTest {
         assertThat(runStatus(runId)).as("거절된 요청은 회차를 바꾸지 않는다").isEqualTo("moving");
 
         mockMvc.perform(post(FORCE_FINISH.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"%s\"}".formatted("가".repeat(200))))
                 .andExpect(status().isOk());
@@ -402,9 +374,9 @@ class AdminStaleMovingRunControllerTest {
     void 메인_관리자_외에는_403_이다() throws Exception {
         long runId = staleRun(fixtures().academyWithCoordinates());
 
-        mockMvc.perform(get(LIST).header("Authorization", 관계자_토큰())).andExpect(status().isForbidden());
+        mockMvc.perform(get(LIST).header("Authorization", 토큰(tokenProvider, 2L, 1L, Role.STAFF))).andExpect(status().isForbidden());
         mockMvc.perform(post(FORCE_FINISH.formatted(runId))
-                        .header("Authorization", 관계자_토큰())
+                        .header("Authorization", 토큰(tokenProvider, 2L, 1L, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON).content(REASON_BODY))
                 .andExpect(status().isForbidden());
         assertThat(runStatus(runId)).isEqualTo("moving");

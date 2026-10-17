@@ -3,7 +3,7 @@ package src.backend.run.dto;
 import java.math.BigDecimal;
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 매니저 앱의 실시간 노선(API_SPEC §4.3 {@code GET /runs/{runId}/route}, RUN-03·M-08·M-09,

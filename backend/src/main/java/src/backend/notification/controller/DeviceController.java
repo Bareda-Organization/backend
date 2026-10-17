@@ -19,7 +19,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanRegisterDevice;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.global.security.gate.AllowedWhenPending;
 import src.backend.notification.command.DeviceCommandService;
 import src.backend.notification.dto.DeviceRegisterRequest;
@@ -27,7 +28,7 @@ import src.backend.notification.dto.DeviceRegisterResponse;
 
 /**
  * 푸시 단말 등록·해지(API_SPEC §2.11). {@code pending} 계정도 대기 중 알림을 받을 단말을 등록해야
- * 해 {@code @AllowedWhenPending} 을 인가 축({@code @CanRegisterDevice})과 함께 붙인다 — 두 축은
+ * 해 {@code @AllowedWhenPending} 을 인가 축({@code @Can(Permissions.DEVICE_REGISTER)})과 함께 붙인다 — 두 축은
  * 겸하지 않되 한 핸들러가 각 축에서 하나씩 갖는 것은 허용된다(SignupController 선례, Task 4).
  */
 @Tag(name = ApiTags.AUTH)
@@ -38,7 +39,7 @@ public class DeviceController {
     private final DeviceCommandService deviceCommandService;
 
     /** 단말 등록(§2.11) — 같은 {@code (account, device)} 행이 있으면 지우고 새로 만든다(행 대체). */
-    @CanRegisterDevice
+    @Can(Permissions.DEVICE_REGISTER)
     @AllowedWhenPending
     @Operation(summary = "푸시 수신 단말 등록·해지 (NTF-12)")
     @PostMapping("/me/devices")
@@ -49,7 +50,7 @@ public class DeviceController {
     }
 
     /** 단말 해지(§2.11) — 대상이 없거나 본인 소유가 아니어도 조용히 204(멱등). */
-    @CanRegisterDevice
+    @Can(Permissions.DEVICE_REGISTER)
     @AllowedWhenPending
     @Operation(summary = "푸시 수신 단말 해지 (NTF-12)")
     @DeleteMapping("/me/devices/{token}")

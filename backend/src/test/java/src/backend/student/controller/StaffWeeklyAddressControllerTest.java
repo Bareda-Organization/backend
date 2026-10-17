@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,7 @@ class StaffWeeklyAddressControllerTest {
 
     @Test
     void 같은_학원_학생의_요일별_주소를_요일_방향_순으로_돌려준다() throws Exception {
-        mockMvc.perform(get(url(SeedFixtures.STUDENT_SIBLING_1_ID)).header("Authorization", 관계자_토큰(ACTOR_1)))
+        mockMvc.perform(get(url(SeedFixtures.STUDENT_SIBLING_1_ID)).header("Authorization", 토큰(tokenProvider, ACTOR_1, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.entries[0].weekday").value("mon"))
                 .andExpect(jsonPath("$.data.entries[0].direction").value("to_academy"))
@@ -69,7 +70,7 @@ class StaffWeeklyAddressControllerTest {
 
     @Test
     void 조회하면_L3_조회_감사_행이_학생_기준으로_1건_남는다() throws Exception {
-        mockMvc.perform(get(url(SeedFixtures.STUDENT_SIBLING_2_ID)).header("Authorization", 관계자_토큰(ACTOR_2)))
+        mockMvc.perform(get(url(SeedFixtures.STUDENT_SIBLING_2_ID)).header("Authorization", 토큰(tokenProvider, ACTOR_2, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
         assertThat(jdbcTemplate.queryForObject(
@@ -84,7 +85,7 @@ class StaffWeeklyAddressControllerTest {
     @Test
     void 같은_학생을_10분_안에_다시_조회해도_감사_행이_늘지_않는다() throws Exception {
         for (int i = 0; i < 2; i++) {
-            mockMvc.perform(get(url(SeedFixtures.STUDENT_UNLINKED_ID)).header("Authorization", 관계자_토큰(ACTOR_3)))
+            mockMvc.perform(get(url(SeedFixtures.STUDENT_UNLINKED_ID)).header("Authorization", 토큰(tokenProvider, ACTOR_3, ACADEMY_A, Role.STAFF)))
                     .andExpect(status().isOk());
         }
 
@@ -95,7 +96,7 @@ class StaffWeeklyAddressControllerTest {
 
     @Test
     void 다른_학원_학생은_404_이고_감사_행도_남기지_않는다() throws Exception {
-        mockMvc.perform(get(url(ACADEMY_B_STUDENT)).header("Authorization", 관계자_토큰(ACTOR_4)))
+        mockMvc.perform(get(url(ACADEMY_B_STUDENT)).header("Authorization", 토큰(tokenProvider, ACTOR_4, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
 
@@ -112,7 +113,7 @@ class StaffWeeklyAddressControllerTest {
         jdbcTemplate.update("insert into weekly_address (student_id, weekday, direction, address, lat, lng, verified, "
                 + "updated_at) values (?, 'mon', 'to_academy', '서울시 퇴원 1', 37.5, 127.0, true, now())", withdrawnId);
         try {
-            mockMvc.perform(get(url(String.valueOf(withdrawnId))).header("Authorization", 관계자_토큰(ACTOR_5)))
+            mockMvc.perform(get(url(String.valueOf(withdrawnId))).header("Authorization", 토큰(tokenProvider, ACTOR_5, ACADEMY_A, Role.STAFF)))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
 
@@ -135,9 +136,5 @@ class StaffWeeklyAddressControllerTest {
 
     private static String url(String studentId) {
         return "/api/v1/staff/students/" + studentId + "/weekly-address";
-    }
-
-    private String 관계자_토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
     }
 }

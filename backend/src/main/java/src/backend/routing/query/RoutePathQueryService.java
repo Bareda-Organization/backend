@@ -19,7 +19,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.dto.RoutePathResponse;
 import src.backend.routing.dto.RouteStopResponse;
 import src.backend.routing.entity.Route;

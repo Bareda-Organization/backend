@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -20,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.notification.controller.NotificationLogFixtures;
@@ -82,12 +82,12 @@ class Phase12AckBoundaryTest {
 
         // 중요 통지(지연) 1건 — 이것만 읽음 처리로 acked 가 된다.
         long delayId = logs.notification(academyId, parentId, "보호자1", Role.PARENT, null, null,
-                NotificationType.DELAY, "지연 안내", "출발이 지연됩니다", false, now(), now(), null);
+                NotificationType.DELAY, "지연 안내", "출발이 지연됩니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
         미확인_배지(staffId, academyId, 1);
 
         mockMvc.perform(patch("/api/v1/notifications/" + delayId + "/read")
-                .header("Authorization", 토큰(parentId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, parentId, academyId, Role.PARENT)))
                 .andExpect(status().isNoContent());
 
         미확인_배지(staffId, academyId, 0);
@@ -104,18 +104,18 @@ class Phase12AckBoundaryTest {
         // 승차·하차·도착은 읽음 처리를 거쳐도 acked 가 남지 않는 종류다. 배지가 이들을 세면
         // 영원히 0 이 되지 않는다 — Ruling 227 이 잡은 결함의 형태다.
         logs.notification(academyId, parentId, "보호자2", Role.PARENT, null, null, NotificationType.BOARDING,
-                "승차 안내", "승차했습니다", false, now(), now(), null);
+                "승차 안내", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
         logs.notification(academyId, parentId, "보호자2", Role.PARENT, null, null, NotificationType.ALIGHTING,
-                "하차 안내", "하차했습니다", false, now(), now(), null);
+                "하차 안내", "하차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
         logs.notification(academyId, parentId, "보호자2", Role.PARENT, null, null, NotificationType.ARRIVE,
-                "도착 안내", "곧 도착합니다", false, now(), now(), null);
+                "도착 안내", "곧 도착합니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
         미확인_배지(staffId, academyId, 0);
     }
 
     private void 미확인_배지(long staffAccountId, long academyId, int 기대값) throws Exception {
         mockMvc.perform(get("/api/v1/staff/notifications")
-                .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.unacked_count").value(기대값));
     }
@@ -127,13 +127,5 @@ class Phase12AckBoundaryTest {
     private StaffNotificationFixtures staffFixtures() {
         return new StaffNotificationFixtures(academyRepository, accountRepository, academyStaffRepository,
                 notificationLogRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

@@ -91,7 +91,7 @@ public final class AccountStatusGateEndpoints {
      * 5개 목록에는 없다 — 승인된 계정의 기능이라 근거가 앞 Phase 들과 같다(Ruling 145 와 같은 근거).
      * <p>Phase 13 T1 이 2개를 더했다 — 관계자 웹 운행 대시보드 {@code GET /staff/dashboard}(§5.3)와
      * 전 차량 실시간 위치 스냅샷 {@code GET /staff/runs/live}(§5.18), 둘 다 권한 "학원 관계자"
-     * ({@code @CanMonitorAcademy}) — 관계자 관리 화면이라 근거가 앞 Phase 들과 같다(Ruling 145 와
+     * ({@code @Can(Permissions.MONITOR_ACADEMY)}) — 관계자 관리 화면이라 근거가 앞 Phase 들과 같다(Ruling 145 와
      * 같은 근거).
      *
      * <p>Phase 13 T2 가 2개를 더했다 — 메인관리자 콘솔의 학원 1곳 실시간 관제 {@code GET
@@ -104,10 +104,10 @@ public final class AccountStatusGateEndpoints {
      * 콘솔 화면이라 대기·거절 계정에는 근거가 부재하다(Ruling 145 와 같은 근거).
      *
      * <p>R46 감사 화면이 1개를 더했다 — 행위자 찾기 {@code GET /admin/audit-actors}(§6.13, 권한 "메인관리자",
-     * {@code @CanReadAudit}) — 같은 감사 콘솔의 부속 조회라 근거가 같다(Ruling 145 와 같은 근거).
+     * {@code @Can(Permissions.AUDIT_READ)}) — 같은 감사 콘솔의 부속 조회라 근거가 같다(Ruling 145 와 같은 근거).
      *
      * <p>F1 S3 가 1개를 더했다 — 관계자 웹 확정 노선 조회 {@code GET
-     * /staff/runs/{runId}/route}(§5.19, RTE-02, 권한 "학원 관계자", {@code @CanMonitorAcademy}) —
+     * /staff/runs/{runId}/route}(§5.19, RTE-02, 권한 "학원 관계자", {@code @Can(Permissions.MONITOR_ACADEMY)}) —
      * {@code GET /staff/dashboard}(Phase 13 T1)와 같은 계열의 관계자 관리 화면이라 근거가 같다
      * (Ruling 145 와 같은 근거).
      *

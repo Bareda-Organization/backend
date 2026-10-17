@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -83,7 +84,7 @@ class AdminStaffApprovalControllerTest {
      */
     @Test
     void 메인_관리자_목록은_role_staff_요청만_싣는다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/staff-signup-requests").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/staff-signup-requests").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.request_id == %d)]"
                         .formatted(STAFF_REQUEST_ON_FULL_ACADEMY)).exists())
@@ -99,7 +100,7 @@ class AdminStaffApprovalControllerTest {
      */
     @Test
     void 목록_항목은_학원_정보와_현재_관계자_수를_함께_싣는다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/staff-signup-requests").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/staff-signup-requests").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].request_id").value((int) STAFF_REQUEST_ON_FULL_ACADEMY))
                 .andExpect(jsonPath("$.data.items[0].name").value("박대기"))
@@ -130,7 +131,7 @@ class AdminStaffApprovalControllerTest {
                     + "(SELECT id FROM academy WHERE code = 'P3T2ADM1'), 'staff', 'system_admin', 'pending', now())"
     })
     void 메인_관리자_목록은_전_학원_요청을_함께_싣는다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/staff-signup-requests").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/staff-signup-requests").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total_count").value(2))
                 .andExpect(jsonPath("$.data.items[?(@.academy.code == 'P3T2ADM1')].academy_staff_count").value(0));
@@ -270,14 +271,9 @@ class AdminStaffApprovalControllerTest {
 
     // ── 도우미 ────────────────────────────────────────────────────────────
 
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(SYSTEM_ADMIN_ACCOUNT, null, Role.SYSTEM_ADMIN,
-                AccountStatus.ACTIVE);
-    }
-
     private ResultActions 처리한다(long requestId, String body) throws Exception {
         return mockMvc.perform(post("/api/v1/admin/staff-signup-requests/" + requestId + "/decide")
-                .header("Authorization", 메인관리자_토큰())
+                .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
     }

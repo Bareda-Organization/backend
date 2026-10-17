@@ -2,6 +2,7 @@ package src.backend.run.scheduler;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -62,6 +63,14 @@ public class RunConfirmationScheduler {
     /** 예기치 못한 예외(버그·인프라 장애)의 스택은 분당 한 번만 남긴다 — 설정 오류는 스택 없이 한 줄이라 이 제한을 받지 않는다. */
     private final RateLimitedWarn unexpectedFailure = RateLimitedWarn.perMinute(log);
 
+    /** 마지막으로 틱이 정상 반환한 시각 — 한 번도 안 돌았으면 기동 시점부터 잰다(관리자 대시보드 {@code confirm_batch} 칸). */
+    private volatile Instant lastSuccessAt = Instant.now();
+
+    /** 마지막 정상 반환 뒤 흐른 시간. */
+    public Duration sinceLastSuccess() {
+        return Duration.between(lastSuccessAt, Instant.now());
+    }
+
     /**
      * 판정 시각이 지난 idle 회차를 확정한다.
      *
@@ -91,6 +100,7 @@ public class RunConfirmationScheduler {
                         () -> confirmSafely(run.getId(), run.getConsecutiveFailures()), runConfirmationExecutor))
                 .toList();
         CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+        lastSuccessAt = Instant.now();
     }
 
     /**
@@ -102,8 +112,8 @@ public class RunConfirmationScheduler {
      * 회차 확정 여부와 무관하게 배치 자체가 실패로 끝난다.</b>
      *
      * <p>이 격리 때문에 {@code confirmDueRuns} 자체는 예외를 던지지 않고 정상 반환하므로,
-     * {@code @Scheduled} 메서드 전체를 감싸는 {@code schoolbus.scheduler.failures}
-     * ({@code ScheduledTaskMetricsAspect})는 이 실패를 절대 못 본다(TECH_DECISIONS §13.1 3행) —
+     * {@code @Scheduled} 메서드 전체를 보는 스프링 기본 계측({@code tasks.scheduled.execution})은
+     * 이 실패를 절대 못 본다(TECH_DECISIONS §13.1 3행) —
      * 그래서 {@link RunConfirmationMetrics#recordRetryFailure()} 를 여기서 직접 부른다.
      */
     private void confirmSafely(Long runId, int failuresSoFar) {

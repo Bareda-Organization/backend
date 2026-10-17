@@ -15,7 +15,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadStudentRuns;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.student.dto.StudentRunsResponse;
 import src.backend.student.query.StudentRunsQueryService;
 
@@ -35,7 +36,7 @@ public class StudentRunsController {
     private final StudentRunsQueryService studentRunsQueryService;
 
     /** 학생 1명의 그날 회차 목록을 돌려준다(§3.5) — {@code date} 미지정이면 오늘. */
-    @CanReadStudentRuns
+    @Can(Permissions.STUDENT_READ_BASIC)
     @Operation(summary = "자녀의 당일 회차 (P-04 · S-01)")
     @GetMapping
     public ApiResponse<StudentRunsResponse> runs(@AuthenticationPrincipal AuthUser authUser,

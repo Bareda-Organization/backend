@@ -17,12 +17,12 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.PageParams;
+import src.backend.global.request.PageSortRequest;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.assembly.RouteDetailAssembler;
 import src.backend.routing.dto.RouteDetailResponse;
-import src.backend.routing.dto.RouteListRequest;
 import src.backend.routing.dto.RouteResponse;
 import src.backend.routing.entity.Route;
 import src.backend.routing.repository.RouteRepository;
@@ -62,7 +62,7 @@ public class RouteQueryService {
     private final RouteDetailAssembler routeDetailAssembler;
 
     /** 소속 학원의 고정 노선 목록(§5.9) — 범위는 토큰이 정하고 요청은 페이지 위치만 정한다. */
-    public PageResponse<RouteResponse> list(AuthUser requester, RouteListRequest request) {
+    public PageResponse<RouteResponse> list(AuthUser requester, PageSortRequest request) {
         Page<Route> page = routeRepository.findAllByAcademyId(requester.academyId(),
                 PageParams.ofLarge(request.page(), request.size())
                         .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER)));

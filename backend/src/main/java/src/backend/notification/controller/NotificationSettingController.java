@@ -17,7 +17,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageNotificationSetting;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.notification.command.NotificationSettingCommandService;
 import src.backend.notification.dto.NotificationSettingResponse;
 import src.backend.notification.query.NotificationSettingQueryService;
@@ -42,7 +43,7 @@ public class NotificationSettingController {
     private final NotificationSettingCommandService notificationSettingCommandService;
 
     /** 알림 설정 조회(§3.14) — 행이 없는 계정은 기본값 DTO 로 응답한다. */
-    @CanManageNotificationSetting
+    @Can(Permissions.NOTIFICATION_SETTING_WRITE)
     @Operation(summary = "알림 설정 (NTF-07, P-09)")
     @GetMapping
     public ApiResponse<NotificationSettingResponse> get(@AuthenticationPrincipal AuthUser requester) {
@@ -50,7 +51,7 @@ public class NotificationSettingController {
     }
 
     /** §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
-    @CanManageNotificationSetting
+    @Can(Permissions.NOTIFICATION_SETTING_WRITE)
     @Operation(summary = "알림 설정 (NTF-07, P-09)")
     @PatchMapping
     public ApiResponse<NotificationSettingResponse> update(@AuthenticationPrincipal AuthUser requester,

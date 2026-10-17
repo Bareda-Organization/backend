@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -24,7 +25,6 @@ import src.backend.academy.repository.AcademySettingRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -87,7 +87,7 @@ class StaffAcademySettingControllerTest {
         long staffAccountId = staffAccount(academyId);
         assertThat(academySettingRepository.findById(academyId)).as("사전 조건 — 설정 행이 없다").isEmpty();
 
-        mockMvc.perform(get(ACADEMY_SETTINGS).header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get(ACADEMY_SETTINGS).header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.no_show_wait_minutes").value(3));
 
@@ -101,7 +101,7 @@ class StaffAcademySettingControllerTest {
     void PATCH_로_바꾼_값이_다음_조회에도_반영된다() throws Exception {
         long academyId = academy();
         long staffAccountId = staffAccount(academyId);
-        String token = 토큰(staffAccountId, academyId, Role.STAFF);
+        String token = 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF);
 
         mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":15}"))
@@ -123,7 +123,7 @@ class StaffAcademySettingControllerTest {
     void 범위_밖_값은_422_VALIDATION_FAILED_이다() throws Exception {
         long academyId = academy();
         long staffAccountId = staffAccount(academyId);
-        String token = 토큰(staffAccountId, academyId, Role.STAFF);
+        String token = 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF);
 
         mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":0}"))
@@ -146,7 +146,7 @@ class StaffAcademySettingControllerTest {
     void 상한_30분_경계_밖은_422_VALIDATION_FAILED_이다() throws Exception {
         long academyId = academy();
         long staffAccountId = staffAccount(academyId);
-        String token = 토큰(staffAccountId, academyId, Role.STAFF);
+        String token = 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF);
 
         mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":30}"))
@@ -169,7 +169,7 @@ class StaffAcademySettingControllerTest {
     void STAFF_가_아니면_403_FORBIDDEN_이다() throws Exception {
         long academyId = academy();
         long driverAccountId = driverAccount(academyId);
-        String token = 토큰(driverAccountId, academyId, Role.DRIVER);
+        String token = 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER);
 
         mockMvc.perform(get(ACADEMY_SETTINGS).header("Authorization", token))
                 .andExpect(status().isForbidden())
@@ -191,16 +191,12 @@ class StaffAcademySettingControllerTest {
         long academyB = academy();
         long staffB = staffAccount(academyB);
 
-        mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", 토큰(staffA, academyA, Role.STAFF))
+        mockMvc.perform(patch(ACADEMY_SETTINGS).header("Authorization", 토큰(tokenProvider, staffA, academyA, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"no_show_wait_minutes\":20}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get(ACADEMY_SETTINGS).header("Authorization", 토큰(staffB, academyB, Role.STAFF)))
+        mockMvc.perform(get(ACADEMY_SETTINGS).header("Authorization", 토큰(tokenProvider, staffB, academyB, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.no_show_wait_minutes").value(3));
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

@@ -31,7 +31,7 @@ import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
  *
  * <p><b>텍스트 스캔이 아니라 리플렉션으로 실제 애너테이션을 확인한다.</b> 이 저장소는 자바독에
  * {@code {@code @Scheduled}} 처럼 애너테이션 이름을 그대로 인용하는 관례가 있어(예:
- * {@code SchedulerHealthMetrics}), 문자열 검색은 그 인용까지 스케줄 메서드로 잘못 센다
+ * {@code RunConfirmationScheduler}), 문자열 검색은 그 인용까지 스케줄 메서드로 잘못 센다
  * (Phase 11 T4 가 조율자의 {@code grep} 오독을 실측으로 정정한 사례). {@link Class#getDeclaredMethods()}
  * 와 {@link Method#getAnnotation(Class)} 는 컴파일된 실제 애너테이션만 본다.
  */

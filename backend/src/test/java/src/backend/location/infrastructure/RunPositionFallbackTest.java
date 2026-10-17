@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -29,7 +31,6 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.EntityManagerFactory;
 
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.SeedDateClockConfig;
@@ -104,7 +105,7 @@ class RunPositionFallbackTest {
 
         try (RedisFreeze ignored = RedisFreeze.start()) {
             mockMvc.perform(get("/api/v1/students/%d/bus-position".formatted(STUDENT_ON_RUN_3))
-                            .header("Authorization", 토큰(GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
+                            .header("Authorization", 토큰(tokenProvider, GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.lat").value(Double.parseDouble(NEW_LAT)))
                     .andExpect(jsonPath("$.data.lng").value(Double.parseDouble(NEW_LNG)));
@@ -120,7 +121,7 @@ class RunPositionFallbackTest {
 
         try (RedisFreeze ignored = RedisFreeze.start()) {
             mockMvc.perform(get("/api/v1/staff/runs/live")
-                            .header("Authorization", 토큰(STAFF_ACCOUNT, ACADEMY_A, Role.STAFF)))
+                            .header("Authorization", 토큰(tokenProvider, STAFF_ACCOUNT, ACADEMY_A, Role.STAFF)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.runs[?(@.run_id == 3)].position.lat")
                             .value(Double.parseDouble(NEW_LAT)))
@@ -144,7 +145,7 @@ class RunPositionFallbackTest {
         try (RedisFreeze ignored = RedisFreeze.start()) {
             long start = System.nanoTime();
             mockMvc.perform(get("/api/v1/admin/academies/%d/runs/live".formatted(ACADEMY_A))
-                            .header("Authorization", 토큰(SYSTEM_ADMIN_ACCOUNT, null, Role.SYSTEM_ADMIN)))
+                            .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.runs.length()").value(org.hamcrest.Matchers.greaterThan(1)))
                     .andExpect(jsonPath("$.data.runs[?(@.run_id == 3)].position.lat")
@@ -182,9 +183,5 @@ class RunPositionFallbackTest {
                 .filter(query -> query.toLowerCase(Locale.ROOT).contains("join lateral"))
                 .mapToLong(query -> statistics.getQueryStatistics(query).getExecutionCount())
                 .sum();
-    }
-
-    private String 토큰(long accountId, Long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

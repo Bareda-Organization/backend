@@ -9,14 +9,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Counter;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.exception.command.NoShowEscalationPersistence;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
-import src.backend.observability.metrics.NoShowEscalationMetrics;
-import src.backend.observability.metrics.SchedulerHealthMetrics;
 
 /**
  * 미승차 에스컬레이션 폴링의 진입점(목표 1, API_SPEC §4.8) — 대기 만료 + 무응답 케이스를 모아
@@ -41,6 +42,8 @@ import src.backend.observability.metrics.SchedulerHealthMetrics;
 @RequiredArgsConstructor
 public class NoShowEscalationScheduler {
 
+    private static final String ESCALATED_METRIC = "schoolbus.no_show.escalated";
+
     /**
      * 한 틱이 한 번에 집는 상한 — 상한 없이 전건을 집으면 만료가 몰린 틱 하나가 커넥션을 오래
      * 붙든다({@code NoShowCaseRepository.findDueForEscalation} 의 {@code pageable} 이 이 값을 받는다).
@@ -53,9 +56,7 @@ public class NoShowEscalationScheduler {
 
     private final Clock clock;
 
-    private final NoShowEscalationMetrics metrics;
-
-    private final SchedulerHealthMetrics schedulerHealthMetrics;
+    private final MeterRegistry meterRegistry;
 
     /**
      * 대기 만료 + 무응답 케이스를 에스컬레이션한다.
@@ -88,11 +89,24 @@ public class NoShowEscalationScheduler {
     private void escalateSafely(Long caseId, OffsetDateTime now) {
         try {
             if (persistence.escalateOne(caseId, now)) {
-                metrics.recordEscalated();
+                meterRegistry.counter(ESCALATED_METRIC).increment();
             }
         } catch (Exception e) {
             log.warn("미승차 케이스 {} 에스컬레이션 실패 — 다음 틱에 재시도한다", caseId, e);
-            schedulerHealthMetrics.recordItemFailure(getClass());
+            recordItemFailure();
         }
+    }
+
+    /** 잡아 삼킨 건별 실패 1건(BR-064) — 주기 전체의 예외는 스프링 기본 계측({@code tasks.scheduled.execution} {@code outcome=ERROR})이 센다. */
+    private void recordItemFailure() {
+        meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "no-show-escalation").increment();
+    }
+
+    /** 기동 직후 에스컬레이션이 한 번도 없어도 이름이 노출되도록 미리 등록한다. */
+    @PostConstruct
+    void registerMetrics() {
+        Counter.builder(ESCALATED_METRIC).description("대기 만료 + 무응답으로 에스컬레이션된 미승차 케이스 건수").register(meterRegistry);
+        // 건별 실패 카운터도 0 으로 미리 등록한다 — 지연 등록이면 첫 실패 때 1 로 태어나 증가분이 0 으로 보인다
+        meterRegistry.counter("schoolbus.scheduler.failures", "scheduler", "no-show-escalation");
     }
 }

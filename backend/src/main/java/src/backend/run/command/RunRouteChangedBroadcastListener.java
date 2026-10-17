@@ -9,8 +9,8 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.run.event.RunRouteConfirmedEvent;
@@ -25,7 +25,6 @@ import src.backend.run.event.RunRouteConfirmedEvent;
  * 롤백된 확정이 화면에 남지 않게 한다. 방송 실패는 여기서 WARN 한 줄로 기록하고 삼킨다 — 삼키지 않아도 응답은
  * 바뀌지 않지만 스프링이 오류 스택으로 남긴다(2026-09-30 F8 관측).
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class RunRouteChangedBroadcastListener {
@@ -41,16 +40,12 @@ public class RunRouteChangedBroadcastListener {
     /** 노선 확정 이벤트를 매니저 채널 1곳에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunRouteConfirmedEvent event) {
-        broadcastExecutor.execute(() -> deliverRunRouteConfirmedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(EVENT, event.runId(), () -> deliverRunRouteConfirmedEvent(event)));
     }
 
     private void deliverRunRouteConfirmedEvent(RunRouteConfirmedEvent event) {
-        try {
-            gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.confirmedAt(),
-                    new Payload(event.runId(), event.confirmedAt()));
-        } catch (RuntimeException e) {
-            log.warn("route_changed 방송 실패 — runId={}", event.runId(), e);
-        }
+        gateway.send(WebSocketDestinations.managerRun(event.runId()), EVENT, event.runId(), event.confirmedAt(),
+                new Payload(event.runId(), event.confirmedAt()));
     }
 
     /** {@code run_id} · {@code changed_at}. */

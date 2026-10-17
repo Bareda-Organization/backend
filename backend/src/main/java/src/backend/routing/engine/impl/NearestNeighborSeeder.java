@@ -3,7 +3,7 @@ package src.backend.routing.engine.impl;
 import java.util.ArrayList;
 import java.util.List;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.OrderableStop;
 import src.backend.routing.engine.spec.RouteOrderInput;
 

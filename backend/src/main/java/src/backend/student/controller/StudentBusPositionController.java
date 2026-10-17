@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadStudentBusPosition;
+import src.backend.global.security.authz.AuthenticatedOnly;
 import src.backend.student.dto.StudentBusPositionResponse;
 import src.backend.student.query.StudentBusPositionQueryService;
 
@@ -23,8 +23,8 @@ import src.backend.student.query.StudentBusPositionQueryService;
  *
  * <p>쿼리 파라미터가 없다 — §3.11 은 항상 오늘 날짜, 그 학생의 오늘 회차를 답한다.
  *
- * <p>{@code @CanReadStudentBusPosition} 은 {@code isAuthenticated()} 만 검사한다 — §3.11 에는
- * {@code CanReadStudentRoute} 가 쓰는 {@code ROUTE_READ} 같은 전용 권한 카탈로그 항목이 부재하다
+ * <p>{@code @AuthenticatedOnly} 은 {@code isAuthenticated()} 만 검사한다 — §3.11 에는
+ * {@code @Can(Permissions.ROUTE_READ)} 가 쓰는 {@code ROUTE_READ} 같은 전용 권한 카탈로그 항목이 부재하다
  * ({@code Permissions} 전수 확인). 연결되지 않은 자녀·본인 아닌 학생은 권한이 아니라
  * {@code student.access.StudentRunsAccess} 가 {@code 403} 으로 걸러낸다(BR-025).
  */
@@ -37,7 +37,7 @@ public class StudentBusPositionController {
     private final StudentBusPositionQueryService studentBusPositionQueryService;
 
     /** 학생 1명의 오늘 회차 버스 위치를 돌려준다(§3.11). */
-    @CanReadStudentBusPosition
+    @AuthenticatedOnly
     @Operation(summary = "실시간 버스 위치 (LOC-02, P-07 · S-02)")
     @GetMapping
     public ApiResponse<StudentBusPositionResponse> position(@AuthenticationPrincipal AuthUser authUser,

@@ -16,7 +16,8 @@ import src.backend.account.dto.AccountPasswordResetResponse;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanResetAccountPassword;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 관계자 웹의 학원 사용자 계정 관리(API_SPEC §5.22) — 지금은 관리자 경유 비밀번호 초기화 하나다(Ruling 329).
@@ -32,7 +33,7 @@ public class StaffAccountController {
     private final AccountPasswordResetCommandService accountPasswordResetCommandService;
 
     /** 비밀번호 초기화(AUTH-08, §5.22) — 응답의 임시 비밀번호는 1회만 보인다. */
-    @CanResetAccountPassword
+    @Can(Permissions.ACCOUNT_PASSWORD_RESET)
     @Operation(summary = "학부모·학생·매니저 비밀번호 초기화 (AUTH-08)")
     @PostMapping("/{accountId}/password-reset")
     public ApiResponse<AccountPasswordResetResponse> resetPassword(@AuthenticationPrincipal AuthUser authUser,

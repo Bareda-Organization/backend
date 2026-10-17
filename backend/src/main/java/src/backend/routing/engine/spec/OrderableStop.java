@@ -2,7 +2,7 @@ package src.backend.routing.engine.spec;
 
 import java.util.Objects;
 
-import src.backend.routing.domain.GeoPoint;
+import src.backend.global.location.GeoPoint;
 
 /**
  * 재배열 대상 정차지 하나.

@@ -15,7 +15,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadStudentRoute;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.student.dto.StudentRouteResponse;
 import src.backend.student.query.StudentRouteQueryService;
 
@@ -38,7 +39,7 @@ public class StudentRouteController {
     private final StudentRouteQueryService studentRouteQueryService;
 
     /** 학생 1명의 상세 노선을 돌려준다(§3.10) — {@code date}·{@code run_id} 미지정 시 오늘 회차. */
-    @CanReadStudentRoute
+    @Can(Permissions.ROUTE_READ)
     @Operation(summary = "상세 노선 (LOC-03, P-08 · S-04)")
     @GetMapping
     public ApiResponse<StudentRouteResponse> route(@AuthenticationPrincipal AuthUser authUser,
