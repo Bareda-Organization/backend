@@ -102,6 +102,12 @@ class StaffWaypointControllerTest {
     private WaypointPreviewCache previewCache;
 
     @Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
+
+    @Autowired
+    private java.time.Clock clock;
+
+    @Autowired
     private WaypointStore waypointStore;
 
     @Autowired
@@ -688,20 +694,19 @@ class StaffWaypointControllerTest {
     }
 
     /**
-     * 미리보기가 그 회차의 <b>운행일</b>로 보관되는지 — 캐시는 운행일이 지난 것만 지우므로, 서비스가
-     * {@code put} 에 넘기는 날짜가 틀리면(예: 아무 날짜나 상수) 정리가 아직 유효한 미리보기를 지우거나 지난 것을 남긴다.
-     * 운행일 당일에는 남고 다음 날 정리 기준에는 지워지는지를 함께 보면 날짜가 정확히 그 운행일임이 고정된다.
+     * 미리보기가 그 회차의 <b>운행일</b>로 보관되는지 — 만료는 운행일이 끝나는 시각이라, 서비스가 {@code put} 에 넘기는 날짜가 틀리면(예: 아무 날짜나 상수)
+     * 아직 유효한 미리보기가 일찍 지워지거나 지난 것이 남는다. Redis 키의 남은 시간이 "그 운행일 다음 날 0시까지" 와 같은지 보면 날짜가 정확히 그 운행일임이 고정된다.
      */
     @Test
     void 미리보기는_그_회차의_운행일로_보관된다() throws Exception {
         시나리오 s = 확정된_회차를_만든다();
         경유_요청한다(s.runId, 경유_본문("운행일경유로 1", "운행일", false)).andExpect(status().isOk());
 
-        previewCache.evictBefore(SERVICE_DATE);
-        assertThat(previewCache.find(s.runId)).as("운행일 당일 기준으로는 지난 회차가 아니다").isPresent();
+        long expected = java.time.Duration.between(clock.instant(),
+                SERVICE_DATE.plusDays(1).atStartOfDay(clock.getZone()).toInstant()).toSeconds();
+        Long remaining = stringRedisTemplate.getExpire("schoolbus:waypoint-preview:" + s.runId);
 
-        previewCache.evictBefore(SERVICE_DATE.plusDays(1));
-        assertThat(previewCache.find(s.runId)).as("운행일 다음 날 기준으로는 지난 회차다").isEmpty();
+        assertThat(remaining).as("운행일 다음 날 0시까지 남은 초").isBetween(expected - 10, expected + 10);
     }
 
     /** 다른 관계자의 배포를 흉내 낸다 — 현재 판본을 복사해 다음 번호로 올리고 확정 노선이 그 판본을 가리키게 한다. */

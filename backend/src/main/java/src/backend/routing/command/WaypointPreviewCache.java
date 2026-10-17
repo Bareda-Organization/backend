@@ -1,14 +1,7 @@
 package src.backend.routing.command;
 
-import java.time.Clock;
 import java.time.LocalDate;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.springframework.stereotype.Component;
-
-import lombok.RequiredArgsConstructor;
 
 import src.backend.routing.pipeline.RouteComputation;
 
@@ -20,47 +13,19 @@ import src.backend.routing.pipeline.RouteComputation;
  * 추가 미리보기가 이미 회차의 미배포 경유 지점 행을 하나만 남기는 것({@link WaypointStore#saveCandidate})과 같은
  * 규칙이고, 크기가 회차 수로 묶인다.
  *
- * <p>프로세스 메모리에 둔다 — 백엔드 인스턴스가 1개라는 배포 전제({@code InMemoryApprovalPreviewCache} 와 같은 근거).
- * 배포하지 않은 미리보기는 그 회차의 운행일이 지나도 남으므로, 새 미리보기를 넣을 때({@link #put}) 주입된
- * {@link Clock} 의 오늘보다 운행일이 앞선 것을 함께 지운다 — 별도 배치를 두지 않고 routing 모듈 안에서
- * 끝낸다(ARCHITECTURE §3.3 은 {@code schedule} 이 {@code routing} 을 알지 않는 방향이다). 쌓이는 양은
- * "마지막 미리보기 이후" 로 묶인다.
- * 다중 인스턴스가 되면 승인 미리보기 캐시와 함께 Redis 로 옮긴다.
+ * <p>구현은 {@link RedisWaypointPreviewCache} 하나다 — 미리보기를 만든 인스턴스와 배포를 처리하는 인스턴스가 다를 수 있어(Ruling 900 C) 메모리가 아니라 Redis 에 둔다.
+ * 보관소를 못 읽으면 없는 것으로 본다(K4) — 배포는 기존 {@code 409 PREVIEW_STALE} 로 답한다.
  */
-@Component
-@RequiredArgsConstructor
-public class WaypointPreviewCache {
+public interface WaypointPreviewCache {
 
-    private final Map<Long, Entry> store = new ConcurrentHashMap<>();
+    /** 이 회차에 지금 유효한 미리보기 — 없거나 보관소 오류면 빈 값. */
+    Optional<WaypointPreview> find(Long runId);
 
-    private final Clock clock;
-
-    /** 이 회차에 지금 유효한 미리보기. */
-    public Optional<WaypointPreview> find(Long runId) {
-        return Optional.ofNullable(store.get(runId)).map(Entry::preview);
-    }
-
-    /**
-     * 미리보기를 보관한다 — {@code serviceDate} 는 그 회차의 운행일이고, 지난 날짜 정리({@link #evictBefore})의
-     * 기준이다. 넣기 전에 오늘({@code Clock}) 보다 운행일이 앞선 미리보기를 지운다.
-     */
-    public void put(Long runId, LocalDate serviceDate, WaypointPreview preview) {
-        evictBefore(LocalDate.now(clock));
-        store.put(runId, new Entry(serviceDate, preview));
-    }
+    /** 미리보기를 보관한다 — {@code serviceDate} 는 그 회차의 운행일이고, 운행일이 끝나면 만료된다(지난 회차는 배포할 수 없어 남겨 둘 이유가 없다). */
+    void put(Long runId, LocalDate serviceDate, WaypointPreview preview);
 
     /** 배포한 미리보기를 지운다 — 같은 토큰으로 두 번 배포되지 않게 한다. */
-    public void evict(Long runId) {
-        store.remove(runId);
-    }
-
-    /** 운행일이 {@code today} 보다 앞선 회차의 미리보기를 지운다 — 지난 회차는 배포할 수 없어 남겨 둘 이유가 없다({@link #put} 이 부른다). */
-    public void evictBefore(LocalDate today) {
-        store.values().removeIf(entry -> entry.serviceDate().isBefore(today));
-    }
-
-    private record Entry(LocalDate serviceDate, WaypointPreview preview) {
-    }
+    void evict(Long runId);
 
     /**
      * 미리보기 한 건.
@@ -68,7 +33,7 @@ public class WaypointPreviewCache {
      * @param seq            추가면 새 경유 지점이 설 자리, 제거면 0 — 배포 때 지문을 다시 뽑는 재료다
      * @param baseVersionId  계산의 바탕이 된 노선 판본 — 배포가 그 사이 다른 배포가 끼었는지 확인한다(BR-021)
      */
-    public record WaypointPreview(String token, long waypointId, boolean removal, int seq, String fingerprint,
+    record WaypointPreview(String token, long waypointId, boolean removal, int seq, String fingerprint,
             Long baseVersionId, RouteComputation computation) {
     }
 }
