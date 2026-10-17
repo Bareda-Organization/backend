@@ -14,6 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
@@ -41,6 +42,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -93,6 +98,9 @@ class AccountRecoveryFlowTest {
 
     @Autowired
     private AccountRecoveryCommandService accountRecoveryCommandService;
+
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
 
     private String phone;
 
@@ -273,18 +281,53 @@ class AccountRecoveryFlowTest {
         assertThat(transactionActive.get()).as("발송 순간 트랜잭션 활성 여부 — 발송이 실행되지 않았으면 null").isFalse();
     }
 
-    /** AR-2 — 문자 발송이 실패해도 인증번호 행은 커밋돼 있다(발송 실패가 발급 한도·행을 되돌리지 않는다). 예외는 호출자에게 그대로 간다. */
+    /**
+     * F3(Ruling 904 ①) — 문자 발송이 실패하면 방금 저장한 인증번호 행을 지운다(문자가 나가지 않았으니 남용 한도가 셀 것이 없다). 바로 다시 요청하면
+     * 60초·24시간 한도에 걸리지 않고 발송된다. 성공한 발송은 행을 남긴다(다른 시험이 본다).
+     */
     @Test
-    void 문자_발송이_실패해도_인증번호_행은_커밋된다() {
+    void 문자_발송이_실패하면_인증번호_행을_지워_바로_다시_요청할_수_있다() {
         createAccount(Role.PARENT);
+        AtomicInteger calls = new AtomicInteger();
         smsSender.duringSend(() -> {
-            throw new IllegalStateException("문자 업체 장애");
+            if (calls.getAndIncrement() == 0) {
+                throw new IllegalStateException("문자 업체 장애");
+            }
         });
 
         assertThatThrownBy(() -> accountRecoveryCommandService.recover("password", phone, null))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("문자 업체 장애");
+        assertThat(codeRows()).as("실패한 발송의 인증번호 행은 지워진다").isZero();
 
-        assertThat(codeRows()).as("발송이 던진 뒤에도 인증번호 행이 남는다").isEqualTo(1);
+        accountRecoveryCommandService.recover("password", phone, null);
+
+        assertThat(smsSender.sent()).as("두 번째 요청은 한도에 걸리지 않고 발송된다").hasSize(1);
+        assertThat(codeRows()).isEqualTo(1);
+    }
+
+    /**
+     * F2 — 서킷 {@code sms} 가 열려 있으면 발급·대조 두 길 모두 업체(가짜 발송기)를 부르지 않고 거절한다. 대조 쪽은 임시 비밀번호 교체도 되돌려진다.
+     */
+    @Test
+    void 서킷_sms_가_열려_있으면_발급도_대조도_업체를_부르지_않는다() {
+        createAccount(Role.PARENT);
+        accountRecoveryCommandService.recover("password", phone, null);
+        String code = issuedCode();
+        smsSender.clear();
+        CircuitBreaker breaker = circuitBreakerRegistry.circuitBreaker("sms");
+        breaker.transitionToForcedOpenState();
+        try {
+            assertThatThrownBy(() -> accountRecoveryCommandService.recover("password", phone, code))
+                    .isInstanceOf(CallNotPermittedException.class);
+            jdbcTemplate.update("DELETE FROM verification_code WHERE phone = ?", phone);
+            assertThatThrownBy(() -> accountRecoveryCommandService.recover("password", phone, null))
+                    .isInstanceOf(CallNotPermittedException.class);
+        } finally {
+            breaker.transitionToClosedState();
+        }
+
+        assertThat(smsSender.sent()).as("열린 서킷은 업체 호출 0").isEmpty();
+        assertThat(mustChangePassword()).as("대조 쪽 문자가 거절되면 임시 비밀번호 교체도 되돌려진다").isFalse();
     }
 
     /**

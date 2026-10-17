@@ -50,7 +50,7 @@ import src.backend.global.sms.spec.SmsSender;
  * <p><b>트랜잭션을 템플릿으로 직접 건다.</b> 틀린 코드의 대조 횟수는 응답이 403 이어도 커밋돼야 상한이 동작한다 —
  * 메서드 전체에 {@code @Transactional} 을 걸고 예외로 거절하면 올린 횟수가 롤백되어 무제한 대조가 된다. 그래서 대조
  * 결과를 값으로 돌려받아 커밋한 뒤에 403 을 던진다. <b>코드 발급의 문자는 커밋 뒤에 보낸다</b>(Ruling 899 F) — 업체
- * 응답을 기다리는 동안 DB 연결을 쥐지 않고, 발송이 실패해도 인증번호 행(한도 계산 포함)은 남는다. <b>임시 비밀번호·아이디 문자는
+ * 응답을 기다리는 동안 DB 연결을 쥐지 않는다. 발송이 실패하면 저장한 행을 지워 한도를 소모하지 않는다(Ruling 904 ①). <b>임시 비밀번호·아이디 문자는
  * 대조 트랜잭션의 마지막에 둔다</b> — 발송이 실패하면 비밀번호 교체가 함께 되돌려진다(받지 못한 임시 비밀번호로 계정이 잠기지 않는다).
  * 두 발송 모두 서킷 {@code sms} 를 지나, 업체가 죽으면 호출 없이 즉시 거절한다.
  *
@@ -120,8 +120,8 @@ public class AccountRecoveryCommandService {
         }
         VerificationPurpose purpose = "login_id".equals(type) ? VerificationPurpose.LOGIN_ID : VerificationPurpose.PASSWORD;
         if (verificationCode == null) {
-            Optional<String> text = transactionTemplate.execute(status -> issue(phone, purpose));
-            text.ifPresent(body -> deliver(sender, phone, body)); // 커밋 뒤 — 발송이 실패해도 인증번호 행은 남는다
+            Optional<IssuedCode> issued = transactionTemplate.execute(status -> issue(phone, purpose));
+            issued.ifPresent(code -> deliverIssued(sender, phone, code)); // 커밋 뒤 — 실패하면 방금 저장한 행을 지운다
             return;
         }
         Map<Long, TemporaryPassword> prepared = purpose == VerificationPurpose.PASSWORD
@@ -133,8 +133,12 @@ public class AccountRecoveryCommandService {
         }
     }
 
-    /** 인증번호 행을 저장하고 보낼 문자 본문을 돌려준다 — 미등록 번호는 행만 남기고 본문이 없다. */
-    private Optional<String> issue(String phone, VerificationPurpose purpose) {
+    /** 방금 저장한 인증번호 행의 id 와 보낼 문자 본문. */
+    private record IssuedCode(Long id, String text) {
+    }
+
+    /** 인증번호 행을 저장하고 보낼 문자를 돌려준다 — 미등록 번호는 행만 남기고 보낼 문자가 없다. */
+    private Optional<IssuedCode> issue(String phone, VerificationPurpose purpose) {
         // 이 번호의 발급을 직렬화한다 — 계정 행 잠금은 미등록 번호에 잠글 행이 없어, 동시 요청의 통과 수가 가입 여부에 따라 갈린다.
         // 발급은 계정이 있는지만 보고 바꾸지 않으므로 행을 잠그지 않는다 — 잠그면 문자 업체 응답이 올 때까지 그 계정의 로그인이 선다(BR-308).
         verificationCodeRepository.lockByPhone(phone);
@@ -149,9 +153,24 @@ public class AccountRecoveryCommandService {
         }
         verificationCodeRepository.invalidateUnconsumedByPhoneAndPurpose(phone, purpose, now);
         String code = newCode();
-        verificationCodeRepository.save(VerificationCode.issue(phone, code, purpose, now.plus(CODE_TTL), now));
+        VerificationCode saved = verificationCodeRepository
+                .save(VerificationCode.issue(phone, code, purpose, now.plus(CODE_TTL), now));
         return accounts.isEmpty() ? Optional.empty()
-                : Optional.of("[바래다] 인증번호 " + code + " (" + CODE_TTL.toMinutes() + "분 안에 입력)");
+                : Optional.of(new IssuedCode(saved.getId(),
+                        "[바래다] 인증번호 " + code + " (" + CODE_TTL.toMinutes() + "분 안에 입력)"));
+    }
+
+    /**
+     * 커밋된 인증번호 문자를 보낸다. 발송이 실패하면(예외 · 서킷 열림) 방금 저장한 행을 지운다(Ruling 904 ①) — 문자가 나가지 않았으므로 60초·24시간
+     * 한도가 셀 것이 없고, 지우지 않으면 업체 장애 동안 사용자가 재요청마다 429 를 받는다. 지움은 자기 트랜잭션이고, 예외는 호출자에게 그대로 간다.
+     */
+    private void deliverIssued(SmsSender sender, String phone, IssuedCode issued) {
+        try {
+            deliver(sender, phone, issued.text());
+        } catch (RuntimeException e) {
+            verificationCodeRepository.deleteById(issued.id());
+            throw e;
+        }
     }
 
     /** 문자 발송기를 서킷 {@code sms} 로 감싸 부른다 — 열려 있으면 업체를 부르지 않고 즉시 예외다. */
