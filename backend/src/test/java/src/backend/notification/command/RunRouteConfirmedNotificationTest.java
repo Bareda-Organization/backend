@@ -11,15 +11,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -30,15 +29,10 @@ import src.backend.manager.entity.Manager;
 import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -60,28 +54,10 @@ class RunRouteConfirmedNotificationTest {
     private static final Weekday WEEKDAY = Weekday.MON;
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private RunConfirmationService confirmationService;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
 
     @Autowired
     private RunRepository runRepository;
@@ -104,7 +80,6 @@ class RunRouteConfirmedNotificationTest {
     @Autowired
     private Clock clock;
 
-
     @AfterEach
     void 뒷정리한다() {
         // 삭제 순서는 FK 제약이 강제한다(V1__init_schema.sql) — run 삭제가 confirmed_route·route_version·
@@ -123,10 +98,6 @@ class RunRouteConfirmedNotificationTest {
         jdbcTemplate.update("DELETE FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "'");
     }
 
-    private RunConfirmationFixtures fixtures() {
-        return new RunConfirmationFixtures(academyRepository, busRepository, routeRepository, routeStopRepository,
-                stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-    }
 
     /** 계정이 연결된 매니저 1명을 등록하고 그 회차에 배치한다. */
     private void 배치된_매니저를_만든다(long academyId, long runId, ManagerRole role, String name) {
@@ -192,7 +163,7 @@ class RunRouteConfirmedNotificationTest {
     @Test
     @DisplayName("목표7 — 확정하면 배치된 기사·동승자 앞으로 route_changed 알림이 적재된다")
     void 확정하면_배치된_기사_동승자에게_알림이_적재된다() {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
         long busId = fixtures.bus(academyId);
         long runId = 확정_대상_회차를_만든다(fixtures, academyId, busId);
@@ -239,7 +210,7 @@ class RunRouteConfirmedNotificationTest {
 
     /** 출발 시각이 {@code elapsed} 만큼 지난(고정 시계 기준) 회차를 만들고 기사 1명을 배치한다. */
     private long 지난_회차를_배치해_만든다(java.time.Duration elapsed) {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
         long busId = fixtures.bus(academyId);
         long firstStop = fixtures.stop(academyId, "37.560000", "126.970000");
@@ -257,7 +228,7 @@ class RunRouteConfirmedNotificationTest {
     @Test
     @DisplayName("R46-FUFEAT ③ — route_changed 알림 행에는 확정한 회차의 식별자가 실린다(매니저 앱이 눌러서 그 회차로 간다)")
     void route_changed_알림에는_회차_식별자가_실린다() {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
         long busId = fixtures.bus(academyId);
         long runId = 확정_대상_회차를_만든다(fixtures, academyId, busId);
@@ -275,7 +246,7 @@ class RunRouteConfirmedNotificationTest {
     @Test
     @DisplayName("목표7 급소 — 확정 트랜잭션이 롤백되면 알림도 적재되지 않는다")
     void 확정_트랜잭션이_롤백되면_알림도_적재되지_않는다() {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
         long busId = fixtures.bus(academyId);
         long runId = 확정_대상_회차를_만든다(fixtures, academyId, busId);
@@ -295,7 +266,7 @@ class RunRouteConfirmedNotificationTest {
     @Test
     @DisplayName("목표7 판단3 — 계정이 연결되지 않은 매니저는 알림을 받지 않는다")
     void 계정이_연결되지_않은_매니저는_알림을_받지_않는다() {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
         long busId = fixtures.bus(academyId);
         long runId = 확정_대상_회차를_만든다(fixtures, academyId, busId);
@@ -310,7 +281,7 @@ class RunRouteConfirmedNotificationTest {
     @Test
     @DisplayName("목표17 — 배치 뒤 곧바로 삭제된 매니저(MGR-04 가 정상 흐름에서는 막는 상태)는 알림을 받지 않는다")
     void 삭제된_매니저는_알림을_받지_않는다() {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
         long busId = fixtures.bus(academyId);
         long runId = 확정_대상_회차를_만든다(fixtures, academyId, busId);
@@ -327,7 +298,7 @@ class RunRouteConfirmedNotificationTest {
     @Test
     @DisplayName("목표7 판단4 — 배정이 없는 회차는 확정은 성공하고 알림도 없다")
     void 배정이_없는_회차는_확정은_성공하고_알림도_없다() {
-        RunConfirmationFixtures fixtures = fixtures();
+        RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
         long busId = fixtures.bus(academyId);
         long runId = 확정_대상_회차를_만든다(fixtures, academyId, busId);

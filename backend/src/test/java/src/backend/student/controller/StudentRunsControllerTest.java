@@ -3,6 +3,7 @@ package src.backend.student.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -117,7 +118,7 @@ class StudentRunsControllerTest {
     /** student1 이 속한 회차 5건을 출발 시각 순(moving → confirmed run2 → confirmed run8 → idle run1 → idle run6)으로 반환한다. */
     @Test
     void 부모가_연결된_자녀의_당일_회차_목록을_출발시각_순으로_받는다() throws Exception {
-        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(5))
                 .andExpect(jsonPath("$.data.items[0].run_id").value(3))
@@ -176,7 +177,7 @@ class StudentRunsControllerTest {
     void 출발_전_미승차는_학부모_응답에서_waiting_으로_나간다() throws Exception {
         미승차로_표시한다(2L, STUDENT_1_ID, false);
 
-        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[1].run_id").value(2))
                 .andExpect(jsonPath("$.data.items[1].rider_status").value("waiting"));
@@ -207,7 +208,7 @@ class StudentRunsControllerTest {
                   AND stop_id = (SELECT stop_id FROM run_rider WHERE run_id = ? AND student_id = ?)
                 """, 2L, 2L, STUDENT_1_ID);
 
-        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[1].run_id").value(2))
                 .andExpect(jsonPath("$.data.items[1].rider_status").value("waiting"));
@@ -218,7 +219,7 @@ class StudentRunsControllerTest {
     void 출발_뒤_미승차는_학부모_응답에서_no_show_로_나간다() throws Exception {
         미승차로_표시한다(2L, STUDENT_1_ID, true);
 
-        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[1].run_id").value(2))
                 .andExpect(jsonPath("$.data.items[1].rider_status").value("no_show"));
@@ -238,7 +239,7 @@ class StudentRunsControllerTest {
     /** {@code date} 를 생략하면 당일이다 — 시드가 전부 {@code CURRENT_DATE} 라 쿼리 파라미터 없이도 같은 5건이 나와야 한다. */
     @Test
     void date_파라미터를_생략하면_당일_기준이다() throws Exception {
-        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(5));
     }
@@ -246,7 +247,7 @@ class StudentRunsControllerTest {
     /** 연결이 없는(대기 중인 요청뿐인) 자녀는 403 이다 — S1 의 보호자가 아니라 계정5는 student5 에 활성 연결이 없다. */
     @Test
     void 연결_부재_자녀의_회차_조회는_403_이다() throws Exception {
-        mockMvc.perform(get(RUNS.formatted(STUDENT_5_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(RUNS.formatted(STUDENT_5_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -265,7 +266,7 @@ class StudentRunsControllerTest {
     void 퇴원_처리된_자녀의_회차_조회는_404_STUDENT_NOT_FOUND_이다() throws Exception {
         jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", STUDENT_1_ID);
 
-        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(RUNS.formatted(STUDENT_1_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
     }
@@ -330,9 +331,5 @@ class StudentRunsControllerTest {
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.error.code").value("STUDENT_NOT_FOUND"));
         }
-    }
-
-    private String 토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, ACADEMY_A, Role.PARENT, AccountStatus.ACTIVE);
     }
 }

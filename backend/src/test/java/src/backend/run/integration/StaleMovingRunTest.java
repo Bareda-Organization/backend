@@ -12,27 +12,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.location.proximity.ProximityFixtures;
 import src.backend.observability.scheduler.StaleMovingRunGaugeScheduler;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.RunStatus;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * R46-KFIXBE K-1(Ruling 701·702) — 운행일이 어제보다 이른 채 끝나지 않은 이동 중 회차는 ① 노선 잠금({@code existsOnMovingRun})에서
@@ -46,6 +36,9 @@ import src.backend.student.repository.StudentRepository;
 class StaleMovingRunTest {
 
     private static final String STOP_LNG = "127.000000";
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private StaleMovingRunGaugeScheduler gaugeScheduler;
@@ -63,40 +56,8 @@ class StaleMovingRunTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
     private RunStopRepository runStopRepository;
 
-    @Autowired
-    private RunRiderRepository runRiderRepository;
 
     @AfterEach
     void tearDown() {
@@ -109,7 +70,7 @@ class StaleMovingRunTest {
 
     @Test
     void 끝나지_않은_회차_지표는_이틀_전_이전_운행일만_센다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         LocalDate today = LocalDate.now(clock);
         double before = staleGauge();
@@ -124,7 +85,7 @@ class StaleMovingRunTest {
 
     @Test
     void 노선_잠금은_이틀_전_회차를_보지_않고_어제_회차는_본다() {
-        ProximityFixtures fx = fixtures();
+        ProximityFixtures fx = ProximityFixtures.of(applicationContext);
         long academyId = fx.academy();
         LocalDate today = LocalDate.now(clock);
         long staleStop = fx.stop(academyId, "37.500000", STOP_LNG);
@@ -159,9 +120,4 @@ class StaleMovingRunTest {
         fx.runStopForStop(versionId, stopId, 1, now.plusMinutes(10));
     }
 
-    private ProximityFixtures fixtures() {
-        return new ProximityFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository);
-    }
 }

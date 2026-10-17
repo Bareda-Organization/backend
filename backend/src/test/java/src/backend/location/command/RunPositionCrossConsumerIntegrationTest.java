@@ -17,16 +17,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
@@ -34,18 +30,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityNotificationService;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
@@ -78,6 +63,9 @@ class RunPositionCrossConsumerIntegrationTest {
     private static final String STOP_LNG = "127.000000";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -95,68 +83,10 @@ class RunPositionCrossConsumerIntegrationTest {
     @Autowired
     private RunPositionStore runPositionStore;
 
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
-    private RunRiderRepository runRiderRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private ChangeRequestRepository changeRequestRepository;
-
 
     /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 좌석·다른 시험의 행을 건드리지 않는다). */
     private final List<Long> academyIds = new ArrayList<>();
 
-    private DriverRunFixtures fixtures() {
-        return new DriverRunFixtures(academyRepository, busRepository, stopRepository, studentRepository,
-                accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
-                guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
 
     /** FK 순서 — notification_log → run_position → run(계단식 assignment·confirmed_route·route_version·
      * run_stop·run_rider) → guardian(계단식 guardian_student) → student → manager → account → bus → stop → academy. */
@@ -184,24 +114,24 @@ class RunPositionCrossConsumerIntegrationTest {
     @Test
     @DisplayName("T1 실제 쓰기 → T3(근접 알림)·T4(학부모 위치 조회) 실제 읽기가 한 값으로 이어진다")
     void 실제_송신_값을_T3_T4_가_각자_읽어낸다() throws Exception {
-        DriverRunFixtures fixtures = fixtures();
+        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         academyIds.add(academyId);
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.500000", STOP_LNG);
         long studentId = fixtures.student(academyId, "교차소비자시험학생");
-        long guardianAccountId = fixtures.guardianOf(academyId, studentId, "교차소비자시험학부모", now());
+        long guardianAccountId = fixtures.guardianOf(academyId, studentId, "교차소비자시험학부모", OffsetDateTime.now(clock));
 
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now().plusMinutes(10));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock).plusMinutes(10));
         fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, null);
 
-        OffsetDateTime recordedAt = now().minusSeconds(2);
+        OffsetDateTime recordedAt = OffsetDateTime.now(clock).minusSeconds(2);
         String body = """
                 {"lat": %s, "lng": %s, "recorded_at": "%s"}
                 """.formatted(NEAR_LAT, STOP_LNG, recordedAt);

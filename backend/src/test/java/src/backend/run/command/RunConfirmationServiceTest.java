@@ -13,27 +13,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.repository.RunTransferRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -55,28 +49,10 @@ class RunConfirmationServiceTest {
     private static final Weekday WEEKDAY = Weekday.MON;
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private RunConfirmationService confirmationService;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
 
     @Autowired
     private RunRepository runRepository;
@@ -98,8 +74,7 @@ class RunConfirmationServiceTest {
 
     private RunConfirmationFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                    routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
+            fixtures = RunConfirmationFixtures.of(applicationContext);
         }
         return fixtures;
     }

@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -22,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.location.GeoPoint;
@@ -65,7 +65,7 @@ class StaffRoutePathMetricsTest {
                 new RoadRoute(List.of(new RoadLeg(700, 100, PATH), new RoadLeg(500, 60, List.of())), false));
         long routeId = 편성한다("sun", "[1,2]");
 
-        mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", 토큰()))
+        mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", 토큰(tokenProvider, STAFF_A_ACCOUNT_ID, ACADEMY_A_ID, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fallback_used").value(false))
                 .andExpect(jsonPath("$.data.distance_m").value(1200))
@@ -79,7 +79,7 @@ class StaffRoutePathMetricsTest {
                 new RoadRoute(List.of(new RoadLeg(700, 100, PATH), new RoadLeg(500, 60, List.of())), true));
         long routeId = 편성한다("sat", "[1,2]");
 
-        mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", 토큰()))
+        mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", 토큰(tokenProvider, STAFF_A_ACCOUNT_ID, ACADEMY_A_ID, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fallback_used").value(true))
                 .andExpect(jsonPath("$.data.distance_m").value(org.hamcrest.Matchers.nullValue()))
@@ -90,7 +90,7 @@ class StaffRoutePathMetricsTest {
     void 도로_좌표가_빈_배열이면_거리와_소요가_null_이다() throws Exception {
         long routeId = 편성한다("fri", "[]");
 
-        mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", 토큰()))
+        mockMvc.perform(get("/api/v1/staff/routes/" + routeId + "/path").header("Authorization", 토큰(tokenProvider, STAFF_A_ACCOUNT_ID, ACADEMY_A_ID, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.road_path.length()").value(0))
                 .andExpect(jsonPath("$.data.distance_m").value(org.hamcrest.Matchers.nullValue()))
@@ -98,17 +98,12 @@ class StaffRoutePathMetricsTest {
     }
 
     private long 편성한다(String weekday, String stopIds) throws Exception {
-        String body = mockMvc.perform(post("/api/v1/staff/routes").header("Authorization", 토큰())
+        String body = mockMvc.perform(post("/api/v1/staff/routes").header("Authorization", 토큰(tokenProvider, STAFF_A_ACCOUNT_ID, ACADEMY_A_ID, Role.STAFF))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"bus_id":%d,"weekday":"%s","direction":"to_academy","stop_ids":%s}"""
                         .formatted(BUS_A_ID, weekday, stopIds)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return Long.parseLong(JsonPath.read(body, "$.data.id"));
-    }
-
-    private String 토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(STAFF_A_ACCOUNT_ID, ACADEMY_A_ID, Role.STAFF,
-                AccountStatus.ACTIVE);
     }
 }

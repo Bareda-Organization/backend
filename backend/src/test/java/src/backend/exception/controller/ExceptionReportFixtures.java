@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.springframework.context.ApplicationContext;
+
 import src.backend.academy.entity.Academy;
 import src.backend.academy.entity.AcademyStaff;
 import src.backend.academy.repository.AcademyRepository;
@@ -84,6 +86,22 @@ public class ExceptionReportFixtures {
         this.runRiderRepository = runRiderRepository;
         this.academyStaffRepository = academyStaffRepository;
         this.exceptionReportRepository = exceptionReportRepository;
+    }
+
+    /** 시험 컨텍스트의 빈으로 ExceptionReportFixtures 를 만든다 — 시험 클래스마다 저장소를 하나씩 넘기던 생성 호출의 단일 정의. */
+    public static ExceptionReportFixtures of(ApplicationContext context) {
+        return new ExceptionReportFixtures(
+                context.getBean(AcademyRepository.class),
+                context.getBean(BusRepository.class),
+                context.getBean(StopRepository.class),
+                context.getBean(StudentRepository.class),
+                context.getBean(AccountRepository.class),
+                context.getBean(ManagerRepository.class),
+                context.getBean(AssignmentRepository.class),
+                context.getBean(RunRepository.class),
+                context.getBean(RunRiderRepository.class),
+                context.getBean(AcademyStaffRepository.class),
+                context.getBean(ExceptionReportRepository.class));
     }
 
     public long academy() {

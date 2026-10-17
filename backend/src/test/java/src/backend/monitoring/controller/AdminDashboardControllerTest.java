@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -144,16 +145,12 @@ class AdminDashboardControllerTest {
 
     // ── 호출 도우미 ─────────────────────────────────────────────────
 
-    private String 토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
-    }
-
     /** JDBC 로 바꾼 상태를 서비스의 엔티티 읽기가 보게 영속성 컨텍스트를 비운다. */
     private DocumentContext 대시보드(String query) throws Exception {
         entityManager.flush();
         entityManager.clear();
         long adminId = f().systemAdminAccount("메인관리자");
-        return JsonPath.parse(mockMvc.perform(get(DASHBOARD + query).header("Authorization", 토큰(adminId)))
+        return JsonPath.parse(mockMvc.perform(get(DASHBOARD + query).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
     }
 
@@ -222,14 +219,14 @@ class AdminDashboardControllerTest {
     void 요청_검증과_권한() throws Exception {
         long adminId = f().systemAdminAccount("메인관리자");
         for (String days : new String[] { "0", "2", "31", "-1" }) {
-            mockMvc.perform(get(DASHBOARD + "?days=" + days).header("Authorization", 토큰(adminId)))
+            mockMvc.perform(get(DASHBOARD + "?days=" + days).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                     .andExpect(status().isUnprocessableContent())
                     .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         }
-        mockMvc.perform(get(DASHBOARD + "?academy_id=999999999").header("Authorization", 토큰(adminId)))
+        mockMvc.perform(get(DASHBOARD + "?academy_id=999999999").header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.error.code").value("ACADEMY_NOT_FOUND"));
         for (String days : new String[] { "1", "7", "30" }) {
-            mockMvc.perform(get(DASHBOARD + "?days=" + days).header("Authorization", 토큰(adminId)))
+            mockMvc.perform(get(DASHBOARD + "?days=" + days).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                     .andExpect(status().isOk());
         }
         long academyId = f().academy();

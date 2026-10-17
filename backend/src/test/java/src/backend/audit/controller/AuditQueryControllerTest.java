@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
@@ -30,7 +31,6 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -70,11 +70,6 @@ class AuditQueryControllerTest {
     @Autowired
     private AuditLogRepository auditLogRepository;
 
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(SYSTEM_ADMIN_ACCOUNT_ID, null, Role.SYSTEM_ADMIN,
-                AccountStatus.ACTIVE);
-    }
-
     private Long createAccount(String academyCode, String loginId) {
         Academy academy = academyRepository.save(Academy.register(academyCode, "학원" + academyCode, "서울", null, null));
         return createAccountIn(academy, loginId, "감사조회테스트", Role.PARENT);
@@ -94,7 +89,7 @@ class AuditQueryControllerTest {
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/login-history")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("account_id", String.valueOf(dataAccessOnlyAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty());
@@ -110,7 +105,7 @@ class AuditQueryControllerTest {
                         .content("{\"login_id\": \"p14t1queryln1\", \"password\": \"%s\"}".formatted(RAW_PASSWORD)));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("account_id", String.valueOf(loginOnlyAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty());
@@ -130,7 +125,7 @@ class AuditQueryControllerTest {
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("account_id", String.valueOf(accountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].target_type").value("emergency"))
@@ -140,7 +135,7 @@ class AuditQueryControllerTest {
     @Test
     void audit_logs_는_academy_id_가_미등록이면_404_ACADEMY_NOT_FOUND_다() throws Exception {
         mockMvc.perform(get("/api/v1/admin/audit-logs")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("academy_id", "999999999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("ACADEMY_NOT_FOUND"));
@@ -149,7 +144,7 @@ class AuditQueryControllerTest {
     @Test
     void login_history_는_account_id_가_미등록이면_404_ACCOUNT_NOT_FOUND_다() throws Exception {
         mockMvc.perform(get("/api/v1/admin/login-history")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("account_id", "999999999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("ACCOUNT_NOT_FOUND"));
@@ -176,7 +171,7 @@ class AuditQueryControllerTest {
                 OffsetDateTime.now()));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("account_id", String.valueOf(account.getId())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].actor").value("p14t1jsonkey1"))
@@ -201,7 +196,7 @@ class AuditQueryControllerTest {
                         .content("{\"login_id\": \"p14t1jsonkey2\", \"password\": \"%s\"}".formatted(RAW_PASSWORD)));
 
         mockMvc.perform(get("/api/v1/admin/login-history")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("account_id", String.valueOf(accountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].account_id").value(accountId))
@@ -224,11 +219,11 @@ class AuditQueryControllerTest {
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, null, accountId, "r46actionflt1",
                 "student", 1L, Map.of(), null, now));
 
-        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("account_id", String.valueOf(accountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total_count").value(3));
-        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("account_id", String.valueOf(accountId)).param("action", "update"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total_count").value(1))
@@ -237,7 +232,7 @@ class AuditQueryControllerTest {
 
     @Test
     void audit_logs_의_action_이_조회_수정_삭제_밖이면_422_다() throws Exception {
-        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-logs").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("action", "login_success"))
                 .andExpect(status().isUnprocessableContent());
     }
@@ -247,13 +242,13 @@ class AuditQueryControllerTest {
     void audit_actors_는_이름_또는_로그인_아이디_일부로_계정을_찾는다() throws Exception {
         Long accountId = createAccount("R46AUD02", "r46actorfind1");
 
-        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("q", "R46ACTORFIND"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].account_id").value(String.valueOf(accountId)))
                 .andExpect(jsonPath("$.data.items[0].login_id").value("r46actorfind1"))
                 .andExpect(jsonPath("$.data.items[0].name").value("감사조회테스트"));
-        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("q", "  "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty());
@@ -268,7 +263,7 @@ class AuditQueryControllerTest {
         Academy academy = academyRepository.save(Academy.register("R339NAME", "학원R339NAME", "서울", null, null));
         Long accountId = createAccountIn(academy, "r339login1", "이름전용Kim", Role.PARENT);
 
-        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("q", "이름전용kim"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
@@ -282,7 +277,7 @@ class AuditQueryControllerTest {
         Academy academy = academyRepository.save(Academy.register("R339ROLE", "학원R339ROLE", "서울", null, null));
         createAccountIn(academy, "r339role1", "단서시험", Role.ESCORT);
 
-        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("q", "r339role1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].role").value("escort"))
@@ -294,7 +289,7 @@ class AuditQueryControllerTest {
     void audit_actors_는_소속_없는_계정의_학원_이름을_null_로_돌려준다() throws Exception {
         String systemAdminLoginId = accountRepository.findById(SYSTEM_ADMIN_ACCOUNT_ID).orElseThrow().getLoginId();
 
-        String body = mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+        String body = mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("q", systemAdminLoginId))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
@@ -316,7 +311,7 @@ class AuditQueryControllerTest {
         Long underscored = createAccountIn(academy, "r376_like", "밑줄시험", Role.PARENT);
         createAccountIn(academy, "r376xlike", "밑줄없음", Role.PARENT);
 
-        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("q", "r376_like"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
@@ -331,7 +326,7 @@ class AuditQueryControllerTest {
             createAccountIn(academy, "r339limit" + i, "상한시험" + i, Role.PARENT);
         }
 
-        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰())
+        mockMvc.perform(get("/api/v1/admin/audit-actors").header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID))
                         .param("q", "r339limit"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(20));

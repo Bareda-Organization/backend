@@ -8,9 +8,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -347,7 +347,6 @@ class StaffRouteControllerTest {
                 .as("순번은 1부터 빈틈 없이 이어져야 한다 — 재배열이 순번을 건너뛰면 기사 화면에서 한 자리가 사라진다")
                 .containsExactly(1, 2, 3, 4);
     }
-
 
     /**
      * 페이징 봉투 4개 필드가 <b>실제 값</b>으로 나온다(API_SPEC §1.8) — {@code page}·{@code size}·
@@ -938,10 +937,6 @@ class StaffRouteControllerTest {
                                 {"bus_id":%d,"weekday":"%s","direction":"%s","name":"%s","stop_ids":[]}"""
                                 .formatted(busId, weekday, direction, name)))
                 .andExpect(status().isCreated());
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
     private String 관계자A_토큰() {

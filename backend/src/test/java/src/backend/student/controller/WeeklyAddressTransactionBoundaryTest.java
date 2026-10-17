@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +18,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -103,7 +103,7 @@ class WeeklyAddressTransactionBoundaryTest {
     @Test
     void 뒤쪽_칸이_제약에_걸리면_앞쪽_칸도_커밋되지_않는다() throws Exception {
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
-                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .header("Authorization", 토큰(tokenProvider, ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("mon", "to_academy", ADDRESS),
                                 항목("tue", "to_academy", ADDRESS),
@@ -123,7 +123,7 @@ class WeeklyAddressTransactionBoundaryTest {
     @Test
     void 성공한_저장은_커밋되어_남는다() throws Exception {
         mockMvc.perform(patch(WEEKLY_ADDRESS.formatted(ACADEMY_B_STUDENT_ID))
-                        .header("Authorization", 토큰(ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B))
+                        .header("Authorization", 토큰(tokenProvider, ACADEMY_B_GUARDIAN_ACCOUNT, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(본문(항목("mon", "to_academy", ADDRESS), 항목("tue", "to_academy", OTHER_ADDRESS))))
                 .andExpect(status().isOk());
@@ -140,10 +140,6 @@ class WeeklyAddressTransactionBoundaryTest {
 
     private static String 본문(String... entries) {
         return "{\"entries\":[" + String.join(",", entries) + "]}";
-    }
-
-    private String 토큰(long accountId, Long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.PARENT, AccountStatus.ACTIVE);
     }
 
     private int 행_수() {

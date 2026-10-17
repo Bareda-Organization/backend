@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,19 +32,11 @@ import org.springframework.context.annotation.Import;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.exception.controller.EmergencyFixtures;
 import src.backend.global.common.enums.Direction;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
@@ -71,6 +66,9 @@ class AdminEmergencyControllerTest {
     private static final String ACK = "/api/v1/staff/emergencies/%d/ack";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -85,44 +83,15 @@ class AdminEmergencyControllerTest {
     @Autowired
     private Clock clock;
 
-    @Autowired
-    private AcademyRepository academyRepository;
 
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-
-    private EmergencyFixtures fixtures() {
-        return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,
-                assignmentRepository, runRepository, academyStaffRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
 
     // ── goal 11 — 필드명 · 경과시간(elapsed_since_raised) 계산 ──────────────
 
     @Test
     void 미확인_신고는_staff_acked가_false이고_경과시간이_now까지_계산된다() throws Exception {
         long emergencyId = 신고를_발신한다_기본();
-        접수시각을_옮긴다(emergencyId, now().minusSeconds(120));
-        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+        접수시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(120));
+        long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
         String body = 목록을_조회한다(adminAccountId);
 
@@ -134,11 +103,11 @@ class AdminEmergencyControllerTest {
     @Test
     void occurred_at은_단말_기록_시각을_참고값으로_싣고_raised_at과_경과시간은_접수_시각을_쓴다() throws Exception {
         long emergencyId = 신고를_발신한다_기본();
-        OffsetDateTime receivedAt = now().minusSeconds(200);
+        OffsetDateTime receivedAt = OffsetDateTime.now(clock).minusSeconds(200);
         OffsetDateTime pressedAt = receivedAt.minusMinutes(7);
         접수시각을_옮긴다(emergencyId, receivedAt);
         발신시각을_옮긴다(emergencyId, pressedAt);
-        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+        long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
         String body = 목록을_조회한다(adminAccountId);
 
@@ -155,9 +124,9 @@ class AdminEmergencyControllerTest {
     @Test
     void 확인된_신고는_경과시간이_확인_시각에서_멈춘다() throws Exception {
         long emergencyId = 신고를_발신한다_기본();
-        접수시각을_옮긴다(emergencyId, now().minusSeconds(300));
-        확인시각을_옮긴다(emergencyId, now().minusSeconds(100));
-        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+        접수시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(300));
+        확인시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(100));
+        long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
         // R6 목표 3 — 기본값은 open 이라 acked 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
         String body = 목록을_조회한다(adminAccountId, "acked");
@@ -171,9 +140,9 @@ class AdminEmergencyControllerTest {
     @Test
     void 취소된_신고는_경과시간이_취소_시각에서_멈춘다() throws Exception {
         long emergencyId = 신고를_발신한다_기본();
-        접수시각을_옮긴다(emergencyId, now().minusSeconds(500));
-        취소시각을_옮긴다(emergencyId, now().minusSeconds(200));
-        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+        접수시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(500));
+        취소시각을_옮긴다(emergencyId, OffsetDateTime.now(clock).minusSeconds(200));
+        long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
         // R6 목표 3 — 기본값은 open 이라 canceled 신고를 보려면 명시해야 한다(필드 계산 검증이 목적).
         String body = 목록을_조회한다(adminAccountId, "canceled");
@@ -185,11 +154,11 @@ class AdminEmergencyControllerTest {
 
     @Test
     void 학원_관계자는_메인관리자_콘솔을_호출할_수_없다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
 
-        mockMvc.perform(get(LIST).header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        mockMvc.perform(get(LIST).header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isForbidden());
     }
 
@@ -203,21 +172,21 @@ class AdminEmergencyControllerTest {
 
     @Test
     void 목록_응답은_5_16_상속_필드를_academy_own_필드와_함께_담는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
 
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
-        위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), now().minusSeconds(30));
+        위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), OffsetDateTime.now(clock).minusSeconds(30));
 
         // 확인은 학원 관계자만 한다(Ruling 884) — 메인 관리자는 이 목록을 열람만 한다
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         // R6 목표 3 — ack 로 상태가 acked 가 됐으니 기본값(open)으로는 빠진다.
@@ -265,11 +234,11 @@ class AdminEmergencyControllerTest {
      */
     @Test
     void direction_은_from_academy_회차에서도_실제_값을_반영한다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now(), Direction.FROM_ACADEMY);
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock), Direction.FROM_ACADEMY);
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
 
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
@@ -285,15 +254,15 @@ class AdminEmergencyControllerTest {
 
     @Test
     void status_필터를_생략하면_기본값_open만_담고_acked_canceled는_뺀다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
 
         long openId = 신고를_발신한다(academyId, fixtures);
         long ackedId = 신고를_발신한다(academyId, fixtures);
-        확인시각을_옮긴다(ackedId, now());
+        확인시각을_옮긴다(ackedId, OffsetDateTime.now(clock));
         long canceledId = 신고를_발신한다(academyId, fixtures);
-        취소시각을_옮긴다(canceledId, now());
+        취소시각을_옮긴다(canceledId, OffsetDateTime.now(clock));
 
         String body = 목록을_조회한다(adminAccountId);
 
@@ -304,16 +273,16 @@ class AdminEmergencyControllerTest {
 
     @Test
     void status_acked_를_주면_확인된_신고만_담는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
 
         long openId = 신고를_발신한다(academyId, fixtures);
         long ackedId = 신고를_발신한다(academyId, fixtures);
-        확인시각을_옮긴다(ackedId, now());
+        확인시각을_옮긴다(ackedId, OffsetDateTime.now(clock));
 
         String body = mockMvc.perform(get(LIST).param("status", "acked")
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -323,17 +292,17 @@ class AdminEmergencyControllerTest {
     /** 미확인 배지는 status 필터와 무관하다(§6.11 → §5.16 · BR-066) — "확인됨" 을 열어도 열린 신고가 세어진다. */
     @Test
     void 미확인_배지는_status_필터를_따라가지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
 
         신고를_발신한다(academyId, fixtures);
         long ackedId = 신고를_발신한다(academyId, fixtures);
-        확인시각을_옮긴다(ackedId, now());
+        확인시각을_옮긴다(ackedId, OffsetDateTime.now(clock));
 
         String openBody = 목록을_조회한다(adminAccountId);
         String ackedBody = mockMvc.perform(get(LIST).param("status", "acked")
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -345,17 +314,17 @@ class AdminEmergencyControllerTest {
 
     @Test
     void 잘못된_status_값은_422_VALIDATION_FAILED_이다() throws Exception {
-        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+        long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
         mockMvc.perform(get(LIST).param("status", "bogus")
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
     @Test
     void academy_id_를_주면_그_학원_신고만_담는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyA = fixtures.academy();
         long academyB = fixtures.academy();
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
@@ -364,7 +333,7 @@ class AdminEmergencyControllerTest {
         long alertInB = 신고를_발신한다(academyB, fixtures);
 
         String body = mockMvc.perform(get(LIST).param("academy_id", String.valueOf(academyA))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -379,19 +348,19 @@ class AdminEmergencyControllerTest {
      */
     @Test
     void counts_는_status_를_acked_로_불러도_세_상태_건수를_모두_싣는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
         신고를_발신한다(academyId, fixtures);
         for (int i = 0; i < 2; i++) {
-            확인시각을_옮긴다(신고를_발신한다(academyId, fixtures), now());
+            확인시각을_옮긴다(신고를_발신한다(academyId, fixtures), OffsetDateTime.now(clock));
         }
         for (int i = 0; i < 3; i++) {
-            취소시각을_옮긴다(신고를_발신한다(academyId, fixtures), now());
+            취소시각을_옮긴다(신고를_발신한다(academyId, fixtures), OffsetDateTime.now(clock));
         }
 
         String ackedBody = mockMvc.perform(get(LIST).param("status", "acked").param("academy_id", String.valueOf(academyId))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -405,17 +374,17 @@ class AdminEmergencyControllerTest {
      */
     @Test
     void counts_는_academy_id_를_주면_그_학원만_세고_안_주면_전_학원을_센다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyA = fixtures.academy();
         long academyB = fixtures.academy();
         long adminAccountId = fixtures.systemAdminAccount("메인관리자");
         long[] before = 상태별_건수(adminAccountId, null);
 
         신고를_발신한다(academyA, fixtures);
-        확인시각을_옮긴다(신고를_발신한다(academyA, fixtures), now());
+        확인시각을_옮긴다(신고를_발신한다(academyA, fixtures), OffsetDateTime.now(clock));
         신고를_발신한다(academyB, fixtures);
         신고를_발신한다(academyB, fixtures);
-        취소시각을_옮긴다(신고를_발신한다(academyB, fixtures), now());
+        취소시각을_옮긴다(신고를_발신한다(academyB, fixtures), OffsetDateTime.now(clock));
 
         long[] after = 상태별_건수(adminAccountId, null);
         assertThat(상태별_건수(adminAccountId, academyA)).as("A").containsExactly(1L, 1L, 0L);
@@ -429,7 +398,7 @@ class AdminEmergencyControllerTest {
         String[] statuses = {"open", "acked", "canceled"};
         long[] result = new long[statuses.length];
         for (int i = 0; i < statuses.length; i++) {
-            var request = get(LIST).param("status", statuses[i]).header("Authorization", 메인관리자_토큰(adminAccountId));
+            var request = get(LIST).param("status", statuses[i]).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId));
             if (academyId != null) {
                 request.param("academy_id", String.valueOf(academyId));
             }
@@ -453,8 +422,8 @@ class AdminEmergencyControllerTest {
      */
     private long 신고를_발신한다(long academyId, EmergencyFixtures fixtures) throws Exception {
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         return 신고를_발신한다(runId, driverAccountId, academyId);
     }
 
@@ -466,17 +435,17 @@ class AdminEmergencyControllerTest {
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
     private long 신고를_발신한다_기본() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        long runId = fixtures.confirmedRun(academyId, busId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         return 신고를_발신한다(runId, driverAccountId, academyId);
     }
 
     private long 신고를_발신한다(long runId, long accountId, long academyId) throws Exception {
         String body = mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(accountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"accident\",\"memo\":null,\"client_key\":\"%s\"}"
                                 .formatted(UUID.randomUUID())))
@@ -487,7 +456,7 @@ class AdminEmergencyControllerTest {
     }
 
     private String 목록을_조회한다(long adminAccountId) throws Exception {
-        return mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        return mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }
@@ -500,7 +469,7 @@ class AdminEmergencyControllerTest {
      */
     private String 목록을_조회한다(long adminAccountId, String status) throws Exception {
         return mockMvc.perform(get(LIST).param("status", status)
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }
@@ -558,13 +527,5 @@ class AdminEmergencyControllerTest {
     private void 취소시각을_옮긴다(long emergencyId, OffsetDateTime canceledAt) {
         jdbcTemplate.update("UPDATE emergency_alert SET canceled_at = ? WHERE id = ?", canceledAt, emergencyId);
         entityManager.clear();
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 메인관리자_토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 }

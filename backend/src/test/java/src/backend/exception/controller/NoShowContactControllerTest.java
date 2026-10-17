@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,31 +27,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.annotation.Import;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.command.BoardingCommandFixtures;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
-import src.backend.exception.repository.NoShowContactRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20310401Config;
 
 /**
@@ -69,6 +57,9 @@ class NoShowContactControllerTest {
     private static final String RECORD_ATTEMPT = "/api/v1/runs/%d/riders/%d/no-show-contacts";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -84,49 +75,10 @@ class NoShowContactControllerTest {
     private EntityManager entityManager;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
     private RunRiderRepository runRiderRepository;
 
     @Autowired
-    private ConfirmedRouteRepository confirmedRouteRepository;
-
-    @Autowired
-    private RouteVersionRepository routeVersionRepository;
-
-    @Autowired
-    private RunStopRepository runStopRepository;
-
-    @Autowired
     private NoShowCaseRepository noShowCaseRepository;
-
-    @Autowired
-    private NoShowContactRepository noShowContactRepository;
 
     @Autowired
     private ManagerRepository managerRepository;
@@ -136,13 +88,9 @@ class NoShowContactControllerTest {
 
     private BoardingCommandFixtures fixtures;
 
-
     private BoardingCommandFixtures fixtures() {
         if (fixtures == null) {
-            fixtures = new BoardingCommandFixtures(academyRepository, busRepository, studentRepository,
-                    guardianRepository, guardianStudentRepository, accountRepository, academyStaffRepository,
-                    runRepository, stopRepository, runRiderRepository, confirmedRouteRepository,
-                    routeVersionRepository, runStopRepository, jdbcTemplate, entityManager);
+            fixtures = BoardingCommandFixtures.of(applicationContext, entityManager);
         }
         return fixtures;
     }
@@ -180,7 +128,7 @@ class NoShowContactControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\"}"))
                 .andExpect(status().isCreated())
@@ -212,7 +160,7 @@ class NoShowContactControllerTest {
         entityManager.flush();
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"answered\"}"))
                 .andExpect(status().isNotFound())
@@ -237,7 +185,7 @@ class NoShowContactControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"answered\"}"))
                 .andExpect(status().isCreated())
@@ -266,7 +214,7 @@ class NoShowContactControllerTest {
                 ManagerRole.ESCORT, now);
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\"}"))
                 .andExpect(status().isCreated())
@@ -295,7 +243,7 @@ class NoShowContactControllerTest {
         long driverAccountId = fixtures().driverAccount(academyId);
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\"}"))
                 .andExpect(status().isForbidden())
@@ -322,7 +270,7 @@ class NoShowContactControllerTest {
         long otherEscortAccountId = fixtures().escortAccount(otherAcademyId);
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(otherEscortAccountId, otherAcademyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, otherEscortAccountId, otherAcademyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\"}"))
                 .andExpect(status().isForbidden())
@@ -349,11 +297,11 @@ class NoShowContactControllerTest {
         String body = "{\"attempt_type\":\"call\",\"result\":\"no_answer\",\"client_key\":\"" + UUID.randomUUID() + "\"}";
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.case_id").value(caseId))
@@ -380,12 +328,12 @@ class NoShowContactControllerTest {
         String key = UUID.randomUUID().toString();
 
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\",\"client_key\":\"" + key + "\"}"))
                 .andExpect(status().isCreated());
         mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                        .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                        .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"attempt_type\":\"message\",\"result\":\"no_answer\",\"client_key\":\"" + key + "\"}"))
                 .andExpect(status().isUnprocessableContent())
@@ -410,7 +358,7 @@ class NoShowContactControllerTest {
 
         for (int i = 0; i < 2; i++) {
             mockMvc.perform(post(RECORD_ATTEMPT.formatted(runId, riderId))
-                            .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                            .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"attempt_type\":\"call\",\"result\":\"no_answer\"}"))
                     .andExpect(status().isCreated());
@@ -419,9 +367,5 @@ class NoShowContactControllerTest {
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM no_show_contact WHERE no_show_case_id = ?",
                 Integer.class, caseId)).isEqualTo(2);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

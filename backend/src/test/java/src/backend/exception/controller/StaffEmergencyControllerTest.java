@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,18 +31,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
-import src.backend.run.repository.RunRepository;
 
 /**
  * 학원 관계자·메인관리자 단말의 비상 알림 수신 범위·확인(ack) API(EXC-04, Phase 11 T2 목표 6·7·10) —
@@ -62,6 +57,9 @@ class StaffEmergencyControllerTest {
     private static final String LIST = "/api/v1/staff/emergencies";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -73,37 +71,13 @@ class StaffEmergencyControllerTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired
-    private AcademyRepository academyRepository;
 
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
-
-    private EmergencyFixtures fixtures() {
-        return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,
-                assignmentRepository, runRepository, academyStaffRepository);
-    }
 
     // ── goal 6 — 학원 관계자 + 메인관리자 동시 수신, 목표 7 — 학부모·학생 미수신 ──────────
 
     @Test
     void 비상_신고는_학원_관계자와_메인관리자_각각에게_한_건씩_알림을_남긴다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -137,7 +111,7 @@ class StaffEmergencyControllerTest {
      */
     @Test
     void 차단된_메인관리자도_비상_알림을_받고_가입_대기_거절은_받지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -158,7 +132,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void 학부모와_학생은_비상_신고_알림을_받지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -177,7 +151,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void 학원_관계자의_확인은_발신자에게_반영되고_이력에_남는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -187,7 +161,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.acked_at").exists());
 
@@ -197,7 +171,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void 메인관리자는_비상_신고를_확인할_수_없다_403_이다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -207,7 +181,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isForbidden());
 
         assertThat(확인시각(emergencyId)).as("Ruling 884 — 메인 관리자는 열람만 하고 확인은 학원 관계자만 한다").isNull();
@@ -219,18 +193,18 @@ class StaffEmergencyControllerTest {
      */
     @Test
     void 메인관리자의_학원_관계자_경로_목록_조회는_403_이고_전용_콘솔_목록은_열린다() throws Exception {
-        long adminAccountId = fixtures().systemAdminAccount("메인관리자");
+        long adminAccountId = EmergencyFixtures.of(applicationContext).systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIST).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/v1/admin/emergencies").header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get("/api/v1/admin/emergencies").header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk());
     }
 
     /** Ruling 885 ① — 발신자가 철회한 신고를 확인하면 발신자에게 "학원이 확인했습니다" 가 가므로 막는다. 정상 건은 그대로 통과한다. */
     @Test
     void 취소된_신고의_확인은_409_EMERGENCY_CANCELED_이고_취소되지_않은_신고는_확인된다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -242,11 +216,11 @@ class StaffEmergencyControllerTest {
         취소시각을_옮긴다(canceled, OffsetDateTime.now());
 
         mockMvc.perform(post(ACK.formatted(canceled))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("EMERGENCY_CANCELED"));
         mockMvc.perform(post(ACK.formatted(normal))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         assertThat(확인시각(canceled)).as("취소된 신고는 확인 이력이 남지 않는다").isNull();
@@ -255,7 +229,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void 이미_확인된_신고는_다시_확인할_수_없다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -265,11 +239,11 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ALREADY_ACKED"));
 
@@ -281,7 +255,7 @@ class StaffEmergencyControllerTest {
     @Test
     @SuppressWarnings("unchecked")
     void 조치_메모를_남기고_확인하면_관계자_목록과_메인관리자_목록에_보인다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -292,7 +266,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"  119 신고 완료, 학부모 연락 중  \"}"))
                 .andExpect(status().isOk());
@@ -301,7 +275,7 @@ class StaffEmergencyControllerTest {
         Map<String, Object> staffItem = 항목(목록을_조회한다(staffAccountId, academyId, "status", "acked"), emergencyId);
         assertThat(((Map<String, Object>) staffItem.get("acked_by")).get("memo")).isEqualTo("119 신고 완료, 학부모 연락 중");
         String adminBody = mockMvc.perform(get("/api/v1/admin/emergencies").param("status", "acked")
-                        .header("Authorization", 메인관리자_토큰(adminAccountId)))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         Map<String, Object> adminItem = 항목(adminBody, emergencyId);
@@ -311,7 +285,7 @@ class StaffEmergencyControllerTest {
     @Test
     @SuppressWarnings("unchecked")
     void 메모_없는_확인도_된다_본문이_없거나_공백이면_메모는_비어_있다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -322,10 +296,10 @@ class StaffEmergencyControllerTest {
         long blankMemo = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(withoutBody))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
         mockMvc.perform(post(ACK.formatted(blankMemo))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"   \"}"))
                 .andExpect(status().isOk());
@@ -338,7 +312,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void 조치_메모가_200자를_넘으면_422_이고_확인되지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -348,7 +322,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"%s\"}".formatted("가".repeat(201))))
                 .andExpect(status().isUnprocessableContent())
@@ -360,7 +334,7 @@ class StaffEmergencyControllerTest {
     /** BR-357 — 201자 거부만으로는 상한을 100 으로 줄여도 통과한다 — 경계(정확히 200자, 한글)는 받아들여야 한다. */
     @Test
     void 조치_메모가_정확히_200자면_받아들여_그대로_저장된다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -370,7 +344,7 @@ class StaffEmergencyControllerTest {
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"memo\":\"%s\"}".formatted("가".repeat(200))))
                 .andExpect(status().isOk());
@@ -382,7 +356,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void 목록_응답은_정본이_요구하는_중첩_형태를_따른다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -396,7 +370,7 @@ class StaffEmergencyControllerTest {
         위치를_기록한다(emergencyId, new BigDecimal("37.500000"), new BigDecimal("127.000000"), recordedAt);
 
         mockMvc.perform(post(ACK.formatted(emergencyId))
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk());
 
         // R7 목표 1 — 기본값은 open 이라 방금 확인(ack)한 신고를 보려면 status 를 명시해야 한다.
@@ -444,7 +418,7 @@ class StaffEmergencyControllerTest {
      */
     @Test
     void direction_은_from_academy_회차에서도_실제_값을_반영한다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now(), Direction.FROM_ACADEMY);
@@ -465,7 +439,7 @@ class StaffEmergencyControllerTest {
     void 위치_캐시가_없으면_position_필드가_모두_null이다() throws Exception {
         // 이 시험 클래스는 RedisTestContainerBase 를 상속하지 않는다(클래스 자바독 참고) — 위치 캐시가
         // 항상 비어 있으므로 attachLocation 이 호출되지 않는 정상 경로를 그대로 검증한다.
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -485,7 +459,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void raised_at은_occurred_at이_아니라_received_at을_쓴다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -507,7 +481,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void occurred_at은_단말_기록_시각을_참고값으로_싣고_raised_at은_접수_시각_그대로다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long runId = fixtures.confirmedRun(academyId, busId, OffsetDateTime.now());
@@ -533,7 +507,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void status_필터를_생략하면_기본값_open만_담고_acked_canceled는_뺀다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
 
@@ -552,7 +526,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void status_acked_를_주면_확인된_신고만_담는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
 
@@ -571,7 +545,7 @@ class StaffEmergencyControllerTest {
      */
     @Test
     void 미확인_배지는_status_필터를_따라가지_않는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
 
@@ -587,7 +561,7 @@ class StaffEmergencyControllerTest {
 
     @Test
     void status_canceled_를_주면_취소된_신고만_담는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
 
@@ -602,18 +576,18 @@ class StaffEmergencyControllerTest {
 
     @Test
     void 잘못된_status_값은_422_VALIDATION_FAILED_이다() throws Exception {
-        long academyId = fixtures().academy();
-        long staffAccountId = fixtures().staffAccount(academyId, "직원");
+        long academyId = EmergencyFixtures.of(applicationContext).academy();
+        long staffAccountId = EmergencyFixtures.of(applicationContext).staffAccount(academyId, "직원");
 
         mockMvc.perform(get(LIST).param("status", "bogus")
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
     @Test
     void date_는_received_at_기준으로_그_날짜의_신고만_담는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "직원");
 
@@ -649,17 +623,9 @@ class StaffEmergencyControllerTest {
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
 
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 메인관리자_토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
-    }
-
     private long 신고를_발신한다(long runId, long accountId, long academyId) throws Exception {
         String body = mockMvc.perform(post(RAISE.formatted(runId))
-                        .header("Authorization", 토큰(accountId, academyId, Role.DRIVER))
+                        .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.DRIVER))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"accident\",\"memo\":null,\"client_key\":\"%s\"}"
                                 .formatted(UUID.randomUUID())))
@@ -670,7 +636,7 @@ class StaffEmergencyControllerTest {
     }
 
     private String 목록을_조회한다(long staffAccountId, long academyId) throws Exception {
-        return mockMvc.perform(get(LIST).header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+        return mockMvc.perform(get(LIST).header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }
@@ -679,7 +645,7 @@ class StaffEmergencyControllerTest {
     private String 목록을_조회한다(long staffAccountId, long academyId, String paramName, String paramValue)
             throws Exception {
         return mockMvc.perform(get(LIST).param(paramName, paramValue)
-                        .header("Authorization", 토큰(staffAccountId, academyId, Role.STAFF)))
+                        .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
     }

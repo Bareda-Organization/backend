@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -31,7 +33,6 @@ import src.backend.exception.entity.EmergencyType;
 import src.backend.exception.entity.ExceptionReportType;
 import src.backend.exception.repository.EmergencyAlertRepository;
 import src.backend.exception.repository.ExceptionReportRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -126,7 +127,7 @@ class StaffListBoundTest {
         }
 
         mockMvc.perform(get("/api/v1/staff/reports").header("Authorization",
-                토큰(staffAccountId, academyId, Role.STAFF)))
+                토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(PageParams.UNPAGED_LIST_MAX))
                 .andExpect(jsonPath("$.data.items[0].memo").value("보고" + (OVER_LIMIT - 1)))
@@ -143,11 +144,11 @@ class StaffListBoundTest {
         OffsetDateTime base = OffsetDateTime.parse("2030-04-01T09:00:00+09:00");
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
         보고를_심는다(fixtures, academyId, busId, base, 1);
-        long oneReport = 목록_쿼리_수("/api/v1/staff/reports", 토큰(staffAccountId, academyId, Role.STAFF));
+        long oneReport = 목록_쿼리_수("/api/v1/staff/reports", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF));
 
         보고를_심는다(fixtures, academyId, busId, base.plusHours(1), 3);
 
-        assertThat(목록_쿼리_수("/api/v1/staff/reports", 토큰(staffAccountId, academyId, Role.STAFF)))
+        assertThat(목록_쿼리_수("/api/v1/staff/reports", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .isEqualTo(oneReport);
     }
 
@@ -166,7 +167,7 @@ class StaffListBoundTest {
     void 관계자_비상_목록은_취소_건도_최근_상한_건만_돌려준다() throws Exception {
         EmergencyFixtures fixtures = emergencyFixtures();
         long academyId = fixtures.academy();
-        String staffToken = 토큰(fixtures.staffAccount(academyId, "직원"), academyId, Role.STAFF);
+        String staffToken = 토큰(tokenProvider, fixtures.staffAccount(academyId, "직원"), academyId, Role.STAFF);
         취소된_신고를_심는다(fixtures, academyId, OVER_LIMIT);
 
         mockMvc.perform(get("/api/v1/staff/emergencies").param("status", "canceled").header("Authorization",
@@ -179,7 +180,7 @@ class StaffListBoundTest {
     void 메인_관리자_비상_목록도_취소_건은_최근_상한_건만_돌려준다() throws Exception {
         EmergencyFixtures fixtures = emergencyFixtures();
         long academyId = fixtures.academy();
-        String adminToken = 토큰(fixtures.systemAdminAccount("메인관리자"), null, Role.SYSTEM_ADMIN);
+        String adminToken = 메인관리자_토큰(tokenProvider, fixtures.systemAdminAccount("메인관리자"));
         취소된_신고를_심는다(fixtures, academyId, OVER_LIMIT);
 
         mockMvc.perform(get("/api/v1/admin/emergencies").param("status", "canceled").param("academy_id",
@@ -208,9 +209,5 @@ class StaffListBoundTest {
         statistics.clear();
         mockMvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk());
         return statistics.getPrepareStatementCount();
-    }
-
-    private String 토큰(long accountId, Long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

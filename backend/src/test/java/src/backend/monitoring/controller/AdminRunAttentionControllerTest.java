@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,16 +24,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
 import src.backend.exception.controller.EmergencyFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
@@ -54,6 +51,9 @@ class AdminRunAttentionControllerTest {
     private static final LocalDate TODAY = LocalDate.of(2030, 4, 1);
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -66,32 +66,14 @@ class AdminRunAttentionControllerTest {
     private AcademyRepository academyRepository;
 
     @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
     private RunRepository runRepository;
 
-    @Autowired
-    private AcademyStaffRepository academyStaffRepository;
 
-    private EmergencyFixtures fixtures() {
-        return new EmergencyFixtures(academyRepository, busRepository, accountRepository, managerRepository,
-                assignmentRepository, runRepository, academyStaffRepository);
-    }
 
     @Test
     @SuppressWarnings("unchecked")
     void 오늘_회차의_지연과_확정_실패를_학원별로_센다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long senderId = fixtures.staffAccount(academyId, "발신자");
         long adminId = fixtures.systemAdminAccount("메인관리자");
@@ -113,7 +95,7 @@ class AdminRunAttentionControllerTest {
         회차(fixtures, academyId, TODAY.minusDays(1), 6, "idle", false); // 어제 회차
         지연_알림(회차(fixtures, academyId, TODAY.minusDays(1), 0, "moving", false), senderId);
 
-        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -126,7 +108,7 @@ class AdminRunAttentionControllerTest {
     @Test
     @SuppressWarnings("unchecked")
     void 지연만_있는_학원과_확정_실패만_있는_학원도_각각_목록에_있다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long delayOnly = fixtures.academy();
         long failureOnly = fixtures.academy();
         long senderId = fixtures.staffAccount(delayOnly, "발신자");
@@ -134,7 +116,7 @@ class AdminRunAttentionControllerTest {
         지연_알림(회차(fixtures, delayOnly, TODAY, 0, "moving", false), senderId);
         회차(fixtures, failureOnly, TODAY, 2, "idle", false);
 
-        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -148,12 +130,12 @@ class AdminRunAttentionControllerTest {
 
     @Test
     void 문제가_없는_학원은_목록에_없다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long quietAcademy = fixtures.academy();
         회차(fixtures, quietAcademy, TODAY, 0, "idle", false);
         long adminId = fixtures.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+        mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.academy_id == %d)]".formatted(quietAcademy)).isEmpty());
     }
@@ -165,7 +147,7 @@ class AdminRunAttentionControllerTest {
     @Test
     @SuppressWarnings("unchecked")
     void today_는_문제_없는_학원과_비활성_학원까지_상태별_회차_수와_함께_싣는다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long busyAcademy = fixtures.academy();
         long quietAcademy = fixtures.academy();
         long emptyAcademy = fixtures.academy();
@@ -184,7 +166,7 @@ class AdminRunAttentionControllerTest {
         academyRepository.findById(quietAcademy).orElseThrow().changeStatus(src.backend.academy.entity.AcademyStatus.INACTIVE);
         academyRepository.flush();
 
-        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -216,7 +198,7 @@ class AdminRunAttentionControllerTest {
 
     @Test
     void 메인_관리자가_아니면_403_이다() throws Exception {
-        EmergencyFixtures fixtures = fixtures();
+        EmergencyFixtures fixtures = EmergencyFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long staffId = fixtures.staffAccount(academyId, "관계자");
 
@@ -246,9 +228,5 @@ class AdminRunAttentionControllerTest {
                 INSERT INTO delay_notice (run_id, sent_by_account_id, minutes, reason)
                 VALUES (?, ?, 10, 'traffic')
                 """, runId, senderAccountId);
-    }
-
-    private String 메인관리자_토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 }

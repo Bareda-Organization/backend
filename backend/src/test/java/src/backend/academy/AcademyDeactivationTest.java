@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import com.jayway.jsonpath.JsonPath;
@@ -163,10 +163,6 @@ class AcademyDeactivationTest {
         assertThat(ids)
                 .as("이 학원의 승인 큐에는 기사 요청 1건만 있어야 한다").hasSize(1);
         return Long.parseLong(ids.get(0));
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 
     /**

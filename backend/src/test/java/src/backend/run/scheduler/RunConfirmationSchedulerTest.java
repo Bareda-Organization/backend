@@ -83,35 +83,18 @@ class RunConfirmationSchedulerTest {
 
     private RunConfirmationFixtures fixtures;
 
-
     @BeforeEach
     void setUp() {
         fixtures = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
                 routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-        cleanUpMarkedRows();
+        RunConfirmationFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
     @AfterEach
     void tearDown() {
-        cleanUpMarkedRows();
+        RunConfirmationFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
-    /**
-     * {@link RunConfirmationFixtures#ACADEMY_NAME} 로 표시된 행만 지운다 — 삭제 순서는 FK
-     * {@code ON DELETE RESTRICT} 를 거스르지 않는 방향이다({@code run} 삭제가 산출물 4종을 이미
-     * 연쇄 삭제한다, V1 스키마).
-     */
-    private void cleanUpMarkedRows() {
-        String academyIds = "(SELECT id FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "')";
-        jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM route WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM weekly_address WHERE student_id IN "
-                + "(SELECT id FROM student WHERE academy_id IN " + academyIds + ")");
-        jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM stop WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "'");
-    }
 
     /** 정상 노선까지 갖춘 학원 1곳 — {@code bus}·{@code route}(2 정차지)·학생 2명까지 완비해 반환한다. */
     private long[] fullyConfiguredAcademyAndBus() {

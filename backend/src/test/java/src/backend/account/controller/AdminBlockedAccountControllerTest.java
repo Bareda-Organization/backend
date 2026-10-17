@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -112,7 +113,7 @@ class AdminBlockedAccountControllerTest {
         비밀번호를_아는_값으로_바꾼다(blockedAccountId);
 
         mockMvc.perform(post("/api/v1/admin/blocked-accounts/" + blockedAccountId + "/unblock")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.account_status").value("active"));
 
@@ -190,7 +191,7 @@ class AdminBlockedAccountControllerTest {
     @Test
     void 해제_감사_행에_프록시가_덮어쓴_접속_IP_가_남는다() throws Exception {
         mockMvc.perform(post("/api/v1/admin/blocked-accounts/" + blockedAccountId + "/unblock")
-                        .header("Authorization", 메인관리자_토큰()).header("X-Real-IP", "203.0.113.41"))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)).header("X-Real-IP", "203.0.113.41"))
                 .andExpect(status().isOk());
         동기화한다();
 
@@ -229,7 +230,7 @@ class AdminBlockedAccountControllerTest {
         assertThat((String) 항목값(body, "br004pending", "status_before_block")).isEqualTo("pending");
 
         mockMvc.perform(post("/api/v1/admin/blocked-accounts/" + accountId + "/unblock")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.account_status").value("pending"));
     }
@@ -240,7 +241,7 @@ class AdminBlockedAccountControllerTest {
         long activeAccountId = 계정_식별자(SeedFixtures.DRIVER_A1_LOGIN_ID);
 
         mockMvc.perform(post("/api/v1/admin/blocked-accounts/" + activeAccountId + "/unblock")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("ACCOUNT_NOT_BLOCKED"));
     }
@@ -249,7 +250,7 @@ class AdminBlockedAccountControllerTest {
     @Test
     void 없는_계정을_해제하려_하면_404_ACCOUNT_NOT_FOUND_다() throws Exception {
         mockMvc.perform(post("/api/v1/admin/blocked-accounts/99999999/unblock")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("ACCOUNT_NOT_FOUND"));
     }
@@ -275,20 +276,15 @@ class AdminBlockedAccountControllerTest {
 
     // ── 도우미 ────────────────────────────────────────────────────────────
 
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(SYSTEM_ADMIN_ACCOUNT_ID, null, Role.SYSTEM_ADMIN,
-                AccountStatus.ACTIVE);
-    }
-
     private void 해제한다(long accountId) throws Exception {
         mockMvc.perform(post("/api/v1/admin/blocked-accounts/" + accountId + "/unblock")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk());
     }
 
     private String 차단_목록_본문() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/admin/blocked-accounts")
-                        .header("Authorization", 메인관리자_토큰()))
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk())
                 .andReturn();
         return result.getResponse().getContentAsString(StandardCharsets.UTF_8);

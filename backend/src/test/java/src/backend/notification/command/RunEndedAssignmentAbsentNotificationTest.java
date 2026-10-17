@@ -13,18 +13,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.run.event.RunEndedEvent;
 import testsupport.db.NotificationInsertFailureInjector;
-import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -34,17 +33,13 @@ import src.backend.manager.event.AssignmentChangedEvent;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.command.ChangeRequestStore;
 import src.backend.request.controller.ChangeRequestFixtures;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * BR-110 — §9.7 알림 종류 중 적재 코드가 없던 3종: {@code run_ended}(회차 종료 → 관계자) ·
@@ -56,6 +51,9 @@ import src.backend.student.repository.WeeklyAddressRepository;
  */
 @SpringBootTest
 class RunEndedAssignmentAbsentNotificationTest {
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
@@ -70,31 +68,13 @@ class RunEndedAssignmentAbsentNotificationTest {
     private ChangeRequestStore changeRequestStore;
 
     @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
     private AcademyStaffRepository academyStaffRepository;
 
     @Autowired
     private AccountRepository accountRepository;
 
     @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
     private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
 
     @Autowired
     private RunRepository runRepository;
@@ -126,10 +106,6 @@ class RunEndedAssignmentAbsentNotificationTest {
         jdbcTemplate.update("DELETE FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "'");
     }
 
-    private RunConfirmationFixtures fixtures() {
-        return new RunConfirmationFixtures(academyRepository, busRepository, routeRepository, routeStopRepository,
-                stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-    }
 
     private ChangeRequestFixtures changeRequestFixtures() {
         return new ChangeRequestFixtures(accountRepository, guardianRepository, guardianStudentRepository,
@@ -138,7 +114,7 @@ class RunEndedAssignmentAbsentNotificationTest {
 
     @Test
     void 회차가_끝나면_관계자에게_run_ended_가_적재된다() {
-        long academyId = fixtures().academyWithCoordinates();
+        long academyId = RunConfirmationFixtures.of(applicationContext).academyWithCoordinates();
         long staffAccountId = changeRequestFixtures().staffOf(academyId);
         long runId = run(academyId);
 
@@ -154,7 +130,7 @@ class RunEndedAssignmentAbsentNotificationTest {
      */
     @Test
     void 배치가_바뀌면_같은_트랜잭션에서_해당_매니저에게_assignment_changed_가_적재된다() {
-        long academyId = fixtures().academyWithCoordinates();
+        long academyId = RunConfirmationFixtures.of(applicationContext).academyWithCoordinates();
         long runId = run(academyId);
         Account account = accountRepository.save(Account.forSignup(academyId, "mgr" + System.nanoTime(), "x",
                 "기사", "010-0000-0000", null, Role.DRIVER));
@@ -186,7 +162,7 @@ class RunEndedAssignmentAbsentNotificationTest {
      */
     @Test
     void 통지_적재가_실패하면_배치_변경_트랜잭션도_되돌아간다() {
-        long academyId = fixtures().academyWithCoordinates();
+        long academyId = RunConfirmationFixtures.of(applicationContext).academyWithCoordinates();
         long runId = run(academyId);
         Account account = accountRepository.save(Account.forSignup(academyId, "mgr" + System.nanoTime(), "x",
                 "기사", "010-0000-0000", null, Role.DRIVER));
@@ -213,10 +189,10 @@ class RunEndedAssignmentAbsentNotificationTest {
 
     @Test
     void 즉시반영_구간_탑승_취소_신청은_관계자에게_absent_가_적재된다() {
-        long academyId = fixtures().academyWithCoordinates();
+        long academyId = RunConfirmationFixtures.of(applicationContext).academyWithCoordinates();
         long staffAccountId = changeRequestFixtures().staffOf(academyId);
         long runId = run(academyId);
-        long studentId = fixtures().student(academyId, "취소학생");
+        long studentId = RunConfirmationFixtures.of(applicationContext).student(academyId, "취소학생");
         long parentAccountId = changeRequestFixtures().parentLinkedTo(academyId, studentId);
         Student student = studentRepository.findById(studentId).orElseThrow();
         Run run = runRepository.findById(runId).orElseThrow();
@@ -227,9 +203,9 @@ class RunEndedAssignmentAbsentNotificationTest {
     }
 
     private long run(long academyId) {
-        long busId = fixtures().bus(academyId);
+        long busId = RunConfirmationFixtures.of(applicationContext).bus(academyId);
         OffsetDateTime departTime = OffsetDateTime.parse("2030-04-01T08:00:00+09:00");
-        return fixtures().idleRun(academyId, busId, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
+        return RunConfirmationFixtures.of(applicationContext).idleRun(academyId, busId, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
     }
 

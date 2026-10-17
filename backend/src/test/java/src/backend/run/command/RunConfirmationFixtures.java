@@ -1,8 +1,12 @@
 package src.backend.run.command;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import src.backend.academy.entity.Academy;
 import src.backend.academy.repository.AcademyRepository;
@@ -79,6 +83,19 @@ public class RunConfirmationFixtures {
         this.runRepository = runRepository;
     }
 
+    /** 시험 컨텍스트의 빈으로 RunConfirmationFixtures 를 만든다 — 시험 클래스마다 저장소를 하나씩 넘기던 생성 호출의 단일 정의. */
+    public static RunConfirmationFixtures of(ApplicationContext context) {
+        return new RunConfirmationFixtures(
+                context.getBean(AcademyRepository.class),
+                context.getBean(BusRepository.class),
+                context.getBean(RouteRepository.class),
+                context.getBean(RouteStopRepository.class),
+                context.getBean(StopRepository.class),
+                context.getBean(StudentRepository.class),
+                context.getBean(WeeklyAddressRepository.class),
+                context.getBean(RunRepository.class));
+    }
+
     /** 좌표가 등록된 학원(정상 경로) — 확정 배치의 기준점으로 쓸 수 있다. */
     public long academyWithCoordinates() {
         Academy academy = academyRepository.save(register());
@@ -142,5 +159,25 @@ public class RunConfirmationFixtures {
         Run run = Run.forSchedule(academyId, busId, null, serviceDate, direction, departTime, confirmAt, "출발지",
                 "도착지", null);
         return runRepository.save(run).getId();
+    }
+
+    /** 이 보조가 만든 학원({@link #ACADEMY_NAME})의 확정 배치 시험 행을 외래 키 순서대로 지운다 — 시험 클래스마다 복사하던 정리의 단일 정의. */
+    public static void cleanUpMarkedRows(JdbcTemplate jdbc) {
+        String academyIds = "(SELECT id FROM academy WHERE name = '" + ACADEMY_NAME + "')";
+        jdbc.update("DELETE FROM run WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM route WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM weekly_address WHERE student_id IN "
+                + "(SELECT id FROM student WHERE academy_id IN " + academyIds + ")");
+        jdbc.update("DELETE FROM student WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM stop WHERE academy_id IN " + academyIds);
+        jdbc.update("DELETE FROM academy WHERE name = '" + ACADEMY_NAME + "'");
+    }
+
+    /** 지금부터 {@code minutesBeforeDepart} 분 뒤에 출발하는 대기(idle) 회차를 만든다 — 확정 시각은 출발 30분 전이다. */
+    public long idleRunBeforeDeparture(Clock clock, long academyId, long busId, int minutesBeforeDepart) {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        OffsetDateTime departTime = now.plusMinutes(minutesBeforeDepart);
+        return idleRun(academyId, busId, now.toLocalDate(), Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
     }
 }

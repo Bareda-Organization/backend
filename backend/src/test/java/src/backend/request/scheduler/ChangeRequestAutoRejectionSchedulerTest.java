@@ -82,37 +82,20 @@ class ChangeRequestAutoRejectionSchedulerTest {
 
     private OffsetDateTime now;
 
-
     @BeforeEach
     void setUp() {
         fixtures = new ChangeRequestAutoRejectFixtures(academyRepository, busRepository, studentRepository,
                 accountRepository, runRepository, boardingIntentRepository, changeRequestRepository,
                 confirmedRouteRepository, routeVersionRepository);
         now = OffsetDateTime.now(clock);
-        cleanUpMarkedRows();
+        ChangeRequestAutoRejectFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
     @AfterEach
     void tearDown() {
-        cleanUpMarkedRows();
+        ChangeRequestAutoRejectFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
-    /**
-     * {@link ChangeRequestAutoRejectFixtures#ACADEMY_NAME} 로 표시된 행만 지운다 — {@code run} 삭제가
-     * {@code change_request}·{@code confirmed_route}·{@code route_version}·{@code boarding_intent} 를
-     * 이미 연쇄 삭제한다(V1 스키마, {@code ON DELETE CASCADE}). {@code notification_log} 는 FK 가 부재해
-     * 별도로 지운다.
-     */
-    private void cleanUpMarkedRows() {
-        String academyIds = "(SELECT id FROM academy WHERE name = '" + ChangeRequestAutoRejectFixtures.ACADEMY_NAME
-                + "')";
-        jdbcTemplate.update("DELETE FROM notification_log WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM account WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM academy WHERE name = '" + ChangeRequestAutoRejectFixtures.ACADEMY_NAME + "'");
-    }
 
     /** 학원·버스·학생·부모 계정·회차까지 갖춘 기본 시나리오 하나 — 각 시험이 세부 값만 덧붙인다. */
     private long[] baseScenario() {

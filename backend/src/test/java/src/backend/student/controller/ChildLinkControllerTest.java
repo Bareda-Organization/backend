@@ -5,8 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -29,7 +30,6 @@ import org.springframework.context.annotation.Import;
 import com.jayway.jsonpath.JsonPath;
 
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20260826Config;
@@ -252,7 +252,7 @@ class ChildLinkControllerTest {
         String code = 코드를_받는다();
 
         mockMvc.perform(post(LINK)
-                        .header("Authorization", 토큰(9L, ACADEMY_B, Role.PARENT))
+                        .header("Authorization", 토큰(tokenProvider, 9L, ACADEMY_B, Role.PARENT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"code\":\"%s\"}".formatted(code)))
                 .andExpect(status().isForbidden())
@@ -357,8 +357,7 @@ class ChildLinkControllerTest {
     /** 목록에는 <b>내 자녀만</b> 나온다(§1.5 — 학부모는 연결된 자녀 범위). */
     @Test
     void 연결된_자녀만_자녀_목록에_등장한다() throws Exception {
-        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A,
-                        Role.PARENT)))
+        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_1_ID)).isNotEmpty())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_2_ID)).isNotEmpty())
@@ -369,8 +368,7 @@ class ChildLinkControllerTest {
     /** 목록 항목은 §3.1 이 정한 4개다 — 이름은 알림 문구에 필수라 비어 있으면 안 된다. */
     @Test
     void 자녀_목록_항목은_식별_선택에_필요한_최소값만_담는다() throws Exception {
-        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A,
-                        Role.PARENT)))
+        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')].name".formatted(SIBLING_1_ID))
                         .value(학생_이름(SIBLING_1_ID)))
@@ -391,7 +389,7 @@ class ChildLinkControllerTest {
     @Test
     void 자녀_목록의_student_id_는_JSON_문자열이다() throws Exception {
         MvcResult result = mockMvc.perform(get(CHILDREN)
-                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
+                        .header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -410,8 +408,7 @@ class ChildLinkControllerTest {
         jdbcTemplate.update("UPDATE guardian_student SET unlinked_at = now() WHERE guardian_id = ?"
                 + " AND student_id = ?", 보호자_식별자(GUARDIAN_SIBLINGS_ACCOUNT), SIBLING_1_ID);
 
-        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A,
-                        Role.PARENT)))
+        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_1_ID)).isEmpty())
                 .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_2_ID)).isNotEmpty());
@@ -428,7 +425,7 @@ class ChildLinkControllerTest {
         jdbcTemplate.update("UPDATE student SET photo_url = ? WHERE id = ?", "https://x/p5t3.jpg", SIBLING_1_ID);
 
         MvcResult result = mockMvc.perform(get(CHILDREN)
-                        .header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
+                        .header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -444,8 +441,7 @@ class ChildLinkControllerTest {
         jdbcTemplate.update("UPDATE guardian_student SET unlinked_at = now() WHERE guardian_id = ?",
                 보호자_식별자(GUARDIAN_SIBLINGS_ACCOUNT));
 
-        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A,
-                        Role.PARENT)))
+        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(tokenProvider, GUARDIAN_SIBLINGS_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items").isEmpty());
     }
@@ -453,27 +449,23 @@ class ChildLinkControllerTest {
     /** 보호자 레코드가 없는 계정은 자녀 목록에 닿을 수 없다(§3.1 권한 학부모). */
     @Test
     void 보호자가_아닌_계정의_자녀_목록_조회는_403_FORBIDDEN_이다() throws Exception {
-        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(13L, ACADEMY_A, Role.DRIVER)))
+        mockMvc.perform(get(CHILDREN).header("Authorization", 토큰(tokenProvider, 13L, ACADEMY_A, Role.DRIVER)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
 
-    private String 토큰(long accountId, Long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
     private ResultActions 코드_생성(long studentAccountId, Long academyId)
             throws Exception {
         return mockMvc.perform(post(LINK_CODE)
-                .header("Authorization", 토큰(studentAccountId, academyId, Role.STUDENT)));
+                .header("Authorization", 토큰(tokenProvider, studentAccountId, academyId, Role.STUDENT)));
     }
 
     private ResultActions 코드_입력(long guardianAccountId, String code)
             throws Exception {
         return mockMvc.perform(post(LINK)
-                .header("Authorization", 토큰(guardianAccountId, ACADEMY_A, Role.PARENT))
+                .header("Authorization", 토큰(tokenProvider, guardianAccountId, ACADEMY_A, Role.PARENT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"code\":\"%s\"}".formatted(code)));
     }
@@ -514,9 +506,5 @@ class ChildLinkControllerTest {
 
     private String 학생_이름(long studentId) {
         return jdbcTemplate.queryForObject("SELECT name FROM student WHERE id = ?", String.class, studentId);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }

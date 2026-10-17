@@ -3,6 +3,7 @@ package src.backend.student.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -94,7 +95,7 @@ class StudentRouteControllerTest {
      */
     @Test
     void 정차지가_맨_앞이면_자기_자신과_학원만_반환한다() throws Exception {
-        mockMvc.perform(get(ROUTE.formatted(STUDENT_2_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_2_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bus_no").value("2호차"))
                 .andExpect(jsonPath("$.data.confirmed").value(true))
@@ -114,7 +115,7 @@ class StudentRouteControllerTest {
      */
     @Test
     void 앞선_정차지가_정확히_2개면_전부_반환하고_학원이_끝에_붙는다() throws Exception {
-        mockMvc.perform(get(ROUTE.formatted(STUDENT_1_ID)).header("Authorization", 토큰(SIBLINGS_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_1_ID)).header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.my_stop_id").value(1))
                 .andExpect(jsonPath("$.data.stops.length()").value(4))
@@ -132,7 +133,7 @@ class StudentRouteControllerTest {
      */
     @Test
     void 앞선_정차지가_3개_이상이면_가까운_2개로_절단하고_학원이_끝에_붙는다() throws Exception {
-        mockMvc.perform(get(ROUTE.formatted(STUDENT_5_ID)).header("Authorization", 토큰(STUDENT_5_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_5_ID)).header("Authorization", 토큰(tokenProvider, STUDENT_5_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.my_stop_id").value(4))
                 .andExpect(jsonPath("$.data.stops.length()").value(4))
@@ -149,7 +150,7 @@ class StudentRouteControllerTest {
      */
     @Test
     void 하원_회차는_학원이_앞에_붙는다() throws Exception {
-        mockMvc.perform(get(ROUTE.formatted(STUDENT_4_ID)).header("Authorization", 토큰(STUDENT_4_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_4_ID)).header("Authorization", 토큰(tokenProvider, STUDENT_4_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.my_stop_id").value(3))
                 .andExpect(jsonPath("$.data.stops.length()").value(3))
@@ -165,7 +166,7 @@ class StudentRouteControllerTest {
      */
     @Test
     void 본인_승하차지가_아닌_앞선_정차지는_주소가_null_이고_이름_좌표_순번은_남는다() throws Exception {
-        mockMvc.perform(get(ROUTE.formatted(STUDENT_5_ID)).header("Authorization", 토큰(STUDENT_5_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_5_ID)).header("Authorization", 토큰(tokenProvider, STUDENT_5_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[0].stop_id").value(3))
                 .andExpect(jsonPath("$.data.stops[0].address").isEmpty())
@@ -181,7 +182,7 @@ class StudentRouteControllerTest {
     /** 보호자 토큰으로 하원 회차를 불러도 학원이 앞에 붙고, 주소는 본인 승하차지(맨 뒤)에만 실린다. */
     @Test
     void 하원에서도_본인_승하차지에만_주소가_실린다() throws Exception {
-        mockMvc.perform(get(ROUTE.formatted(STUDENT_4_ID)).header("Authorization", 토큰(STUDENT_4_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_4_ID)).header("Authorization", 토큰(tokenProvider, STUDENT_4_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[1].stop_id").value(1))
                 .andExpect(jsonPath("$.data.stops[1].address").isEmpty())
@@ -225,7 +226,7 @@ class StudentRouteControllerTest {
     /** 연결 부재 자녀는 노선 조회도 403 이다 — S5 의 보호자가 S1 을 조회한다. */
     @Test
     void 연결_부재_자녀의_노선_조회는_403_이다() throws Exception {
-        mockMvc.perform(get(ROUTE.formatted(STUDENT_1_ID)).header("Authorization", 토큰(STUDENT_5_GUARDIAN_ACCOUNT)))
+        mockMvc.perform(get(ROUTE.formatted(STUDENT_1_ID)).header("Authorization", 토큰(tokenProvider, STUDENT_5_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -233,9 +234,5 @@ class StudentRouteControllerTest {
     /** {@code studentA4}(학생 4) 본인 계정 10 의 토큰. */
     private String 학생_토큰() {
         return "Bearer " + tokenProvider.createAccessToken(10L, ACADEMY_A, Role.STUDENT, AccountStatus.ACTIVE);
-    }
-
-    private String 토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, ACADEMY_A, Role.PARENT, AccountStatus.ACTIVE);
     }
 }

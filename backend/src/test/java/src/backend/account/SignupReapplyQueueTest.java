@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -87,7 +88,7 @@ class SignupReapplyQueueTest {
     @Test
     void 거절된_계정이_재신청하면_pending_으로_돌아오고_관계자_목록에_새_요청이_다시_뜬다() throws Exception {
         mockMvc.perform(post("/api/v1/staff/signup-requests/" + FIRST_REQUEST + "/decide")
-                        .header("Authorization", 관계자_토큰())
+                        .header("Authorization", 토큰(tokenProvider, STAFF_A_ACCOUNT, ACADEMY_A, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accept\": false, \"reject_reason\": \"서류 미비\"}"))
                 .andExpect(status().isOk())
@@ -122,7 +123,7 @@ class SignupReapplyQueueTest {
     @Test
     void 재신청에서_학원을_바꾸면_새_학원의_큐에만_뜬다() throws Exception {
         mockMvc.perform(post("/api/v1/staff/signup-requests/" + FIRST_REQUEST + "/decide")
-                        .header("Authorization", 관계자_토큰())
+                        .header("Authorization", 토큰(tokenProvider, STAFF_A_ACCOUNT, ACADEMY_A, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accept\": false, \"reject_reason\": \"학원 착오\"}"))
                 .andExpect(status().isOk());
@@ -138,11 +139,6 @@ class SignupReapplyQueueTest {
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
-
-    private String 관계자_토큰() {
-        return "Bearer "
-                + tokenProvider.createAccessToken(STAFF_A_ACCOUNT, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
-    }
 
     /** 거절 직후의 계정 상태를 그대로 실은 토큰 — 재신청은 {@code rejected} 에게만 열린다(§1.4). */
     private String 거절된_학부모_토큰() {

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -24,7 +25,6 @@ import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.common.SeedFixtures;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -81,7 +81,7 @@ class StudentDetailAuditIntegrationTest {
         long studentId = 등록한다("{\"name\":\"R46감사묶기\",\"can_go_alone\":false}");
 
         mockMvc.perform(get("/api/v1/staff/students/" + studentId)
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isOk());
 
         assertThat(대상_감사_행(studentId)).as("등록이 남긴 1행뿐 — GET 은 같은 행위자·학생이라 묶였다").hasSize(1);
@@ -98,14 +98,10 @@ class StudentDetailAuditIntegrationTest {
         MockMultipartFile part = new MockMultipartFile("data", "", "application/json",
                 body.getBytes(StandardCharsets.UTF_8));
         MvcResult result = mockMvc.perform(multipart("/api/v1/staff/students").file(part)
-                        .header("Authorization", 관계자_토큰()))
+                        .header("Authorization", 토큰(tokenProvider, 1L, ACADEMY_A, Role.STAFF)))
                 .andExpect(status().isCreated())
                 .andReturn();
         return Long.parseLong(JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8),
                 "$.data.student_id"));
-    }
-
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
     }
 }

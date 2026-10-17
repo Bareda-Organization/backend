@@ -5,9 +5,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
+import static testsupport.web.TestResponses.본문;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -16,40 +17,26 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.account.repository.AccountRepository;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.manager.repository.AssignmentRepository;
-import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.entity.Waypoint;
 import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
-import src.backend.run.command.RunConfirmationService;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.repository.GuardianRepository;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * §4.3 {@code GET /runs/{runId}/route} — RUN-03·M-08·M-09·Ruling 205, Phase 9 목표 8.
@@ -66,52 +53,13 @@ class RunRouteControllerTest {
     private static final String SERVICE_DATE = "2031-07-04";
 
     @Autowired
+    private ApplicationContext applicationContext;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private JwtTokenProvider tokenProvider;
-
-    @Autowired
-    private AcademyRepository academyRepository;
-
-    @Autowired
-    private BusRepository busRepository;
-
-    @Autowired
-    private RouteRepository routeRepository;
-
-    @Autowired
-    private RouteStopRepository routeStopRepository;
-
-    @Autowired
-    private StopRepository stopRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
-
-    @Autowired
-    private WeeklyAddressRepository weeklyAddressRepository;
-
-    @Autowired
-    private RunRepository runRepository;
-
-    @Autowired
-    private ManagerRepository managerRepository;
-
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private AssignmentRepository assignmentRepository;
-
-    @Autowired
-    private GuardianRepository guardianRepository;
-
-    @Autowired
-    private GuardianStudentRepository guardianStudentRepository;
-
-    @Autowired
-    private RunConfirmationService confirmationService;
 
     @Autowired
     private ConfirmedRouteRepository confirmedRouteRepository;
@@ -122,16 +70,10 @@ class RunRouteControllerTest {
     @Autowired
     private WaypointRepository waypointRepository;
 
-    private Phase9RosterFixtures fixtures() {
-        RunConfirmationFixtures base = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
-                routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository, runRepository);
-        return new Phase9RosterFixtures(base, managerRepository, accountRepository, assignmentRepository,
-                guardianRepository, guardianStudentRepository, confirmationService);
-    }
 
     @Test
     void 결번_정차지는_건너뛰고_다음_실제_정차지가_next_stop_이다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -150,7 +92,7 @@ class RunRouteControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -165,7 +107,7 @@ class RunRouteControllerTest {
         // F1 결과 ②(R3 ⑪e) — 기존 결번 시험은 next_stop·skipped_notice 만 보고 stops[] 자체의
         // 값은 확인하지 않았다. 결번 없이 정차지 2곳을 그대로 태워 stops[0] 이 첫 정차지를 가리키고
         // 개수가 심은 만큼인지 본다.
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -183,7 +125,7 @@ class RunRouteControllerTest {
 
         // BR-002(Ruling 327) — 등원은 정차 목록 맨 뒤에 학원 항목이 있고, stop_id 는 run_stop.id 다.
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[0].stop_id").value((int) 정차_항목_id(academyId, runId, stop1)))
                 .andExpect(jsonPath("$.data.stops[0].is_destination").value(false))
@@ -199,7 +141,7 @@ class RunRouteControllerTest {
         // R32 M1 — 기사 운행 화면 가운데 지도가 도로 경로를 그리려면 §4.3 에도 §5.19 와 같은
         // road_path·fallback_used 가 있어야 한다. 없으면 앱이 정차지를 직선으로 잇게 되고, 직선은
         // 건물·강을 가로질러 기사가 실제 경로로 오인한다.
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -216,7 +158,7 @@ class RunRouteControllerTest {
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.road_path").isArray())
                 .andExpect(jsonPath("$.data.road_path.length()").value(org.hamcrest.Matchers.greaterThan(1)))
@@ -228,7 +170,7 @@ class RunRouteControllerTest {
     @Test
     void BR_015_지나간_경유_지점은_next_stop_에_남지_않는다() throws Exception {
         // 경유 지점은 도착 처리 대상이 아니다 — 그 뒤 승하차지에 도착했으면 경유 지점도 지난 것이다.
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -257,7 +199,7 @@ class RunRouteControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -270,7 +212,7 @@ class RunRouteControllerTest {
     void R39_Ruling_400_is_waypoint_는_경유_지점_항목만_true_이고_승하차지와_학원은_false_다() throws Exception {
         // 지도가 경유 지점을 승하차지와 다른 모양으로 그리려면 구분할 필드가 필요하다 — 두 항목 모두
         // stop_id 는 run_stop.id 라 그 값으로는 못 가른다. §4.3·§5.19 가 같은 조립을 공유한다.
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -293,7 +235,7 @@ class RunRouteControllerTest {
         runStopRepository.save(RunStop.forWaypoint(versionId, waypoint.getId(), 3, null));
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[?(@.name == '주유소')].is_waypoint").value(true))
                 .andExpect(jsonPath("$.data.stops[?(@.is_waypoint == true)]", hasSize(1)))
@@ -306,7 +248,7 @@ class RunRouteControllerTest {
         // C-null 대상 2(§4.3 next_stop.lat·lng) 음성 대조용 — 배포 후 제거된 강제 경유지가 다음 차례로
         // 올라오면(RunRouteQueryService#hasResolvedTarget 이 없으면) next_stop 이 좌표 전부 null 인
         // 경유지 행을 그대로 내보낸다. 그 필터를 되돌리면 이 시험만 실패해야 한다.
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -336,7 +278,7 @@ class RunRouteControllerTest {
 
         MvcResult result = mockMvc
                 .perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                        토큰(manager.accountId(), academyId)))
+                        토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -353,7 +295,7 @@ class RunRouteControllerTest {
 
     @Test
     void 확정_전_회차는_409_RUN_NOT_CONFIRMED_다() throws Exception {
-        Phase9RosterFixtures fx = fixtures();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -365,7 +307,7 @@ class RunRouteControllerTest {
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
-                토큰(manager.accountId(), academyId)))
+                토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_CONFIRMED"));
     }
@@ -399,13 +341,5 @@ class RunRouteControllerTest {
                 .findFirst().orElseThrow();
         target.markArrived(OffsetDateTime.now());
         runStopRepository.save(target);
-    }
-
-    private String 토큰(long accountId, long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.DRIVER, AccountStatus.ACTIVE);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
