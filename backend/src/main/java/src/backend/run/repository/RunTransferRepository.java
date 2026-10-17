@@ -47,6 +47,26 @@ public interface RunTransferRepository extends JpaRepository<RunTransfer, Long> 
     List<RunTransfer> findAllByFromRunIdAndAcademyId(@Param("runId") Long runId,
             @Param("academyId") Long academyId);
 
+    /** {@link #findAllByFromRunIdAndAcademyId} 의 여러 회차 한 번 조회판(DA-7). */
+    @Query("""
+            SELECT rt FROM RunTransfer rt
+            JOIN Run r ON r.id = rt.fromRunId
+            WHERE rt.fromRunId IN :runIds
+              AND r.academyId = :academyId
+            """)
+    List<RunTransfer> findAllByFromRunIdInAndAcademyId(@Param("runIds") Collection<Long> runIds,
+            @Param("academyId") Long academyId);
+
+    /** {@link #findAllByToRunIdAndAcademyId} 의 여러 회차 한 번 조회판(DA-7). */
+    @Query("""
+            SELECT rt FROM RunTransfer rt
+            JOIN Run r ON r.id = rt.toRunId
+            WHERE rt.toRunId IN :runIds
+              AND r.academyId = :academyId
+            """)
+    List<RunTransfer> findAllByToRunIdInAndAcademyId(@Param("runIds") Collection<Long> runIds,
+            @Param("academyId") Long academyId);
+
     /**
      * 도착 회차 쪽 확정 배치가 명단에 더할 대상 전체. 상태를 거르지 않는 이유는 위와 같다.
      */

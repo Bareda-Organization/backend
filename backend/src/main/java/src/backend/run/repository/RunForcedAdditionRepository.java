@@ -1,5 +1,6 @@
 package src.backend.run.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -29,6 +30,16 @@ public interface RunForcedAdditionRepository extends JpaRepository<RunForcedAddi
               AND r.academyId = :academyId
             """)
     List<RunForcedAddition> findAllByRunIdAndAcademyId(@Param("runId") Long runId,
+            @Param("academyId") Long academyId);
+
+    /** {@link #findAllByRunIdAndAcademyId} 의 여러 회차 한 번 조회판 — 퇴원 미리보기가 회차마다 읽지 않게 한다(DA-7). */
+    @Query("""
+            SELECT rfa FROM RunForcedAddition rfa
+            JOIN Run r ON r.id = rfa.runId
+            WHERE rfa.runId IN :runIds
+              AND r.academyId = :academyId
+            """)
+    List<RunForcedAddition> findAllByRunIdInAndAcademyId(@Param("runIds") Collection<Long> runIds,
             @Param("academyId") Long academyId);
 
     /**

@@ -1,6 +1,7 @@
 package src.backend.request.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -98,4 +99,20 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
             + "boarding_intent 는 academy_id 컬럼이 부재해 조인 없이는 재확인할 수도 없다")
     @Query("SELECT b.studentId FROM BoardingIntent b WHERE b.runId = :runId AND b.riding = false")
     List<Long> findStudentIdsByRunIdAndRidingFalse(@Param("runId") Long runId);
+
+    /** 회차와 탑승하지 않겠다고 표시한 학생의 쌍 — {@link RunStudent}. */
+    interface RunStudent {
+        Long getRunId();
+
+        Long getStudentId();
+    }
+
+    /** {@link #findStudentIdsByRunIdAndRidingFalse} 의 여러 회차 한 번 조회판 — 학원 조건은 회차 조인에 건다(DA-7). */
+    @Query("""
+            SELECT b.runId AS runId, b.studentId AS studentId FROM BoardingIntent b
+            JOIN Run r ON r.id = b.runId
+            WHERE b.runId IN :runIds AND r.academyId = :academyId AND b.riding = false
+            """)
+    List<RunStudent> findRidingFalseByRunIdInAndAcademyId(@Param("runIds") Collection<Long> runIds,
+            @Param("academyId") Long academyId);
 }

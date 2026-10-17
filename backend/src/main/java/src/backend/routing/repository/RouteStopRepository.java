@@ -35,6 +35,15 @@ public interface RouteStopRepository extends JpaRepository<RouteStop, Long> {
     List<RouteStop> findAllOrderedByRouteIdAndAcademyId(@Param("routeId") Long routeId,
             @Param("academyId") Long academyId);
 
+    /** {@link #findAllOrderedByRouteIdAndAcademyId} 의 여러 노선 한 번 조회판 — 노선 id 순, 노선 안에서 {@code seq} 순(DA-7). */
+    @Query("""
+            SELECT rs FROM RouteStop rs, Route r
+            WHERE rs.routeId = r.id AND r.id IN :routeIds AND r.academyId = :academyId
+            ORDER BY rs.routeId, rs.seq
+            """)
+    List<RouteStop> findAllOrderedByRouteIdInAndAcademyId(@Param("routeIds") Collection<Long> routeIds,
+            @Param("academyId") Long academyId);
+
     /**
      * 목록(§5.9 {@code stop_count})이 쓰는 편성별 정차지 수 — 한 쪽의 편성 전부를 한 번에 센다. 편성마다
      * 세면 한 쪽(최대 100건)이 질의 100건이 된다. 정차지가 없는 편성은 결과에 없다(호출부가 0 으로 채운다).
