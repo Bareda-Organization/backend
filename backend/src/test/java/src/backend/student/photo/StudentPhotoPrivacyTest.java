@@ -26,7 +26,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * 학생 사진의 개인정보 경계 — 목표 12 ⑤(`API_SPEC §1.12` · `ERD student`).
+ * 학생 사진의 개인정보 경계(`API_SPEC §1.12` · `ERD student`).
  *
  * <p>정본 문면은 <b>"{@code photo_url} 은 매니저 앱 · 관계자 웹 · 메인 관리자 콘솔에만 반환 —
  * 학부모·학생 앱 응답에 부재"</b> 다. 업로드가 되는 것만 검사하면 사진이 전 역할에 열린 채로 통과한다.

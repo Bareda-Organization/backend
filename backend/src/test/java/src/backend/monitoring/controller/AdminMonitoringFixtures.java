@@ -158,7 +158,7 @@ public class AdminMonitoringFixtures {
         return stopRepository.save(stop).getId();
     }
 
-    /** 사진·연락처 원문까지 채운 학생(목표 10 원문 단언용) — {@code ProximityFixtures#student} 와 달리 값을 넣는다. */
+    /** 사진·연락처 원문까지 채운 학생(원문 단언용) — {@code ProximityFixtures#student} 와 달리 값을 넣는다. */
     public long student(long academyId, String name, String studentPhone, String photoUrl) {
         StudentProfile profile = new StudentProfile(name, studentPhone, photoUrl, null, null, null, null, null,
                 null);
@@ -228,7 +228,7 @@ public class AdminMonitoringFixtures {
         return runStopRepository.save(RunStop.forStop(routeVersionId, stopId, seq, eta)).getId();
     }
 
-    /** 그 정차 항목을 도착 처리한다(목표 8 뒷항 — 도착 처리된 정차는 {@code eta=null}). */
+    /** 그 정차 항목을 도착 처리한다(도착 처리된 정차는 {@code eta=null}). */
     public void markArrived(long runStopId, OffsetDateTime arrivedAt) {
         RunStop runStop = runStopRepository.findById(runStopId).orElseThrow();
         runStop.markArrived(arrivedAt);
@@ -256,7 +256,7 @@ public class AdminMonitoringFixtures {
         assignmentRepository.save(Assignment.uponAssignment(runId, managerId, role, OffsetDateTime.now(), managerId));
     }
 
-    /** 그 학생에 보호자 1명을 잇고 원문 연락처를 준다(목표 10 {@code guardian_phone} 원문 단언용). */
+    /** 그 학생에 보호자 1명을 잇고 원문 연락처를 준다({@code guardian_phone} 원문 단언용). */
     public void guardianOf(long academyId, long studentId, String rawPhone) {
         Account account = accountRepository.save(Account.forSignup(academyId, "p13t2guardian"
                 + SEQUENCE.incrementAndGet() + System.nanoTime(), "{noop}password", "보호자" + SEQUENCE.get(), rawPhone,

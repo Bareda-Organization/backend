@@ -33,7 +33,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * §5.11 {@code POST · PATCH /staff/students} 의 사진 업로드 — 목표 12 ①~④(Ruling 159 · 160).
+ * §5.11 {@code POST · PATCH /staff/students} 의 사진 업로드(Ruling 159 · 160).
  *
  * <p>이 클래스가 고정하는 것은 <b>요청 형식과 검증 경계</b> 넷이다 — 멀티파트로 올린 사진이
  * {@code photo_url} 로 되돌아오는가 · 사진 없이도 등록되는가 · 이미지 3종 밖이 4xx 인가 ·

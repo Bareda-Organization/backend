@@ -26,7 +26,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.SeedDateClockConfig;
 
 /**
- * 자녀·본인 당일 회차 목록 API(P-04 · S-01, API_SPEC §3.5, 목표 5).
+ * 자녀·본인 당일 회차 목록 API(P-04 · S-01, API_SPEC §3.5).
  *
  * <p>student1(academy1)이 소속된 회차 5건(idle 2건·confirmed 2건·moving)을 한 번에 검증한다 — 시드가
  * 이미 세 상태를 전부 갖추고 있어(run1 idle · run2 confirmed · run3 moving · run4 finished 는

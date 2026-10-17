@@ -30,7 +30,7 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.SeedDateClockConfig;
 
 /**
- * 학부모 앱의 실시간 버스 위치 API(LOC-02, API_SPEC §3.11, Ruling 208) — 목표 9·11.
+ * 학부모 앱의 실시간 버스 위치 API(LOC-02, API_SPEC §3.11, Ruling 208).
  *
  * <p>회차 R3(academy A, moving)가 세 갈래를 동시에 갖는다 — student2(boarded, 위치 정상),
  * student1(absent, 위치 항상 부재), 그리고 이 시험이 Redis 에 직접 쓰는 위치 신호의 신선도. 이
@@ -115,7 +115,7 @@ class StudentBusPositionControllerTest {
     }
 
     /**
-     * 마지막 수신 후 2분(Ruling 208)이 지나면 좌표 대신 last_seen_at 만 채운다(목표 9).
+     * 마지막 수신 후 2분(Ruling 208)이 지나면 좌표 대신 last_seen_at 만 채운다.
      *
      * <p>{@code received_at} 이 비고 {@code last_seen_at} 이 채워지는 것까지 함께 본다 — 좌표만 없애고
      * {@code received_at} 을 그대로 두면 "언제 신호가 왔는지" 와 "언제까지 유효했는지" 가 뒤섞인다.
@@ -249,7 +249,7 @@ class StudentBusPositionControllerTest {
                 .andExpect(jsonPath("$.data.lng").doesNotExist());
     }
 
-    /** 연결 부재 자녀는 위치 조회도 403 이다(목표 11) — S5 의 보호자가 S1 을 조회한다. */
+    /** 연결 부재 자녀는 위치 조회도 403 이다 — S5 의 보호자가 S1 을 조회한다. */
     @Test
     void 연결_부재_자녀의_위치_조회는_403_이다() throws Exception {
         mockMvc.perform(get(POSITION.formatted(SIBLING_1_ID)).header("Authorization", 토큰(tokenProvider, UNLINKED_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))

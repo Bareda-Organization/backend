@@ -81,7 +81,7 @@ class WeeklyAddressControllerTest {
      *
      * <p>{@link #NEAR_ADDRESS}(약 11m)·{@link #FAR_ADDRESS}(약 334m)만으로는 임계가 <b>존재한다</b>는
      * 것만 고정되고 그 <b>값</b>은 고정되지 않는다 — 실제로 50을 300으로 여섯 배 늘려도 15건이 전부
-     * 초록이었다(게이트 리뷰 실측). 경계 양쪽을 함께 밟아야 값이 잠긴다.
+     * 초록이었다. 경계 양쪽을 함께 밟아야 값이 잠긴다.
      */
     private static final String JUST_INSIDE_ADDRESS = "서울시 테스트로 104";
 
@@ -106,7 +106,7 @@ class WeeklyAddressControllerTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    // ── 저장 형태 (목표 6 ①②) ───────────────────────────────────────────
+    // ── 저장 형태 ───────────────────────────────────────────
 
     /**
      * 요일 × 방향 조합마다 <b>독립 행</b>이다(C-16) — 기본 주소 개념이 부재하기 때문이다(C-12).
@@ -148,7 +148,7 @@ class WeeklyAddressControllerTest {
     }
 
     /**
-     * 한 요청이 같은 칸을 두 번 담으면 <b>DB UNIQUE</b> 가 막고 {@code 409} 로 번역된다(목표 6 ①).
+     * 한 요청이 같은 칸을 두 번 담으면 <b>DB UNIQUE</b> 가 막고 {@code 409} 로 번역된다.
      *
      * <p>애플리케이션 선검사가 아니라 제약이 막는 것이 요점이다 — 선검사는 동시에 도착한 두 요청
      * 사이에서 아무것도 막지 못하고, 그때 한 칸에 두 행이 생겨 노선 계산이 어느 것을 쓸지 정할 수단을
@@ -186,7 +186,7 @@ class WeeklyAddressControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
-    // ── 검증 실패 (목표 6 ③) ─────────────────────────────────────────────
+    // ── 검증 실패 ─────────────────────────────────────────────
 
     /** 검증에 실패한 주소는 {@code 422} 이고 행이 <b>남지 않는다</b>(§3.7 저장 보류). */
     @Test
@@ -245,7 +245,7 @@ class WeeklyAddressControllerTest {
     // ── 승하차지 매칭 (STU-05) ───────────────────────────────────────────
 
     /**
-     * 검증에 성공하면 {@code stop_id} 가 채워지고 {@code stop} 행이 실재한다(목표 1 · STU-05).
+     * 검증에 성공하면 {@code stop_id} 가 채워지고 {@code stop} 행이 실재한다(STU-05).
      *
      * <p>이 연결이 노선 계산의 입력이다(ARCHITECTURE §8.1) — 단언이 없으면 주소만 저장하고
      * 매칭을 건너뛴 구현이 통과하는데, 그 상태로는 계산할 대상이 비어 있다.

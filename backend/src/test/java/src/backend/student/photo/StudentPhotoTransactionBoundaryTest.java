@@ -39,7 +39,7 @@ import src.backend.student.photo.spec.PhotoStorage;
 import src.backend.student.photo.spec.StudentPhoto;
 
 /**
- * 사진 파일과 학생 행이 <b>같은 결말</b>을 맞는지 — 목표 12 의 트랜잭션 경계 조항(브리프 §5).
+ * 사진 파일과 학생 행이 <b>같은 결말</b>을 맞는지 — 트랜잭션 경계 조항.
  *
  * <p><b>이 클래스만 {@code @Transactional} 이 아니다.</b> 나머지 테스트는 롤백으로 끝나 커밋 뒤에만
  * 도는 정리(옛 파일 삭제)가 한 번도 실행되지 않는다 — 그 상태로 단언하면 구현이 있든 없든 통과한다.

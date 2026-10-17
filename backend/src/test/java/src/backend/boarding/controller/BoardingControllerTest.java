@@ -112,7 +112,7 @@ class BoardingControllerTest {
         return fixtures;
     }
 
-    // ── 목표 4 — 동승자 전용, 그 외 역할은 403 ESCORT_ONLY ──────────────────
+    // ── 동승자 전용, 그 외 역할은 403 ESCORT_ONLY ──────────────────
 
     @Test
     @DisplayName("목표4 — 동승자 토큰으로 승하차 상태를 변경하면 성공한다")
@@ -187,7 +187,7 @@ class BoardingControllerTest {
                 .isEqualTo("waiting");
     }
 
-    // ── 목표 7 — no_show 처리 시 케이스 생성 + 학부모·관계자 알림 ────────────
+    // ── no_show 처리 시 케이스 생성 + 학부모·관계자 알림 ────────────
 
     /**
      * Ruling 308·311 — 미승차는 관계자 갈래만 즉시고, 학부모 갈래는 그 승하차지를 출발할
@@ -367,7 +367,7 @@ class BoardingControllerTest {
         assertThat(대기_분(riderId)).isEqualTo(AcademySetting.DEFAULT_NO_SHOW_WAIT_MINUTES);
     }
 
-    /** {@code no_show_case.started_at} ~ {@code expires_at} 간격(분) — 목표2 검증에 공용으로 쓴다. */
+    /** {@code no_show_case.started_at} ~ {@code expires_at} 간격(분) — 검증에 공용으로 쓴다. */
     private long 대기_분(long runRiderId) {
         OffsetDateTime startedAt = jdbcTemplate.queryForObject(
                 "SELECT started_at FROM no_show_case WHERE run_rider_id = ?", OffsetDateTime.class, runRiderId);
@@ -376,7 +376,7 @@ class BoardingControllerTest {
         return Duration.between(startedAt, expiresAt).toMinutes();
     }
 
-    // ── 목표 7 — 운행 중 미승차로 잔여 0명이 된 정차지는 stop_skipped (C-05 후자 경로) ──────
+    // ── 운행 중 미승차로 잔여 0명이 된 정차지는 stop_skipped (C-05 후자 경로) ──────
 
     /**
      * 그 정차지에 이미 부재 처리된 탑승자(함정 — {@code absent} 를 잔여로 잘못 세면 이 시험이 통과해도
@@ -450,7 +450,7 @@ class BoardingControllerTest {
                 .as("잔여가 남아 있으니 run_stop 은 전환되면 안 된다").isNull();
     }
 
-    // ── 목표 12 — client_key 재전송 멱등 ──────────────────────────────────
+    // ── client_key 재전송 멱등 ──────────────────────────────────
 
     @Test
     @DisplayName("목표12 — 같은 client_key 로 재전송하면 상태가 두 번 바뀌지 않고 동일한 200 응답이다")
@@ -494,7 +494,7 @@ class BoardingControllerTest {
                 guardian.accountId())).as("④알림 건수 — 출발 전이라 0건").isEqualTo(0);
     }
 
-    // ── 목표 13 — 되돌리기가 직전 상태로 실제로 되돌린다 ─────────────────────
+    // ── 되돌리기가 직전 상태로 실제로 되돌린다 ─────────────────────
 
     @Test
     @DisplayName("목표13 — 되돌리기는 직전 상태로 실제로 되돌리고 이력을 남긴다")
@@ -544,7 +544,7 @@ class BoardingControllerTest {
                 });
     }
 
-    // ── 목표 14 — 되돌리기 횟수·시간 제한 부재 ──────────────────────────────
+    // ── 되돌리기 횟수·시간 제한 부재 ──────────────────────────────
 
     @Test
     @DisplayName("목표14 — 되돌리기를 반복해도 횟수 제한 없이 매번 200 이고 이력이 계속 쌓인다")
@@ -681,7 +681,7 @@ class BoardingControllerTest {
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
         fixtures().confirmedRunStop(runId, stopId, now.minusMinutes(30));
         long riderId = fixtures().runRider(runId, studentId, stopId);
-        // 목표 9 — waiting 인 채 출발하는 학생(같은 정차지, 알림 대상이 아니어야 한다).
+        // waiting 인 채 출발하는 학생(같은 정차지, 알림 대상이 아니어야 한다).
         long waitingStudentId = fixtures().student(academyId, "학생7-대기");
         BoardingCommandFixtures.GuardianAccount waitingGuardian = fixtures().guardian(academyId, "보호자7-대기");
         fixtures().linkChild(waitingGuardian.guardianId(), waitingStudentId, now.minusDays(1));

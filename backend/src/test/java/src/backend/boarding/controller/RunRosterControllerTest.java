@@ -47,14 +47,14 @@ import src.backend.run.command.RunConfirmationFixtures;
  * §4.2 {@code GET /runs/{runId}/roster} — RST-01·02·04·M-03.
  *
  * <p>이 클래스와 {@link StaffRosterControllerTest} 는 <b>같은 원본을 반대로 검사</b>한다 —
- * 이쪽은 보호자 연락처가 <b>가려지는지</b>(목표 6)와 결석 학생이 <b>행에서 빠지고 집계에만
- * 남는지</b>(목표 15)를 본다. 관계자 웹 쪽 클래스가 정반대(원문 노출·결석도 행 유지)를 검사해야
+ * 이쪽은 보호자 연락처가 <b>가려지는지</b>와 결석 학생이 <b>행에서 빠지고 집계에만
+ * 남는지</b>를 본다. 관계자 웹 쪽 클래스가 정반대(원문 노출·결석도 행 유지)를 검사해야
  * 두 화면이 같은 데이터에서 서로 다르게 갈리는 지점이 실제로 검사된다.
  *
- * <p>목표 16(Ruling 148·192)은 {@code ManagerRunControllerTest} 가 목록(§4.1)에서 이미 검사하지만,
+ * <p>Ruling 148·192 는 {@code ManagerRunControllerTest} 가 목록(§4.1)에서 이미 검사하지만,
  * {@code ManagerRunAccess.requireManager} 는 {@code requireAssignedRun} 을 거쳐 이 명단 엔드포인트도
  * 지나므로 여기서도 같은 조건을 별도로 두드린다 — 정본의 완료 조건이 "회차 조회 거부"·"명단 조회
- * 거부" 둘을 각각 명시한다({@code p9-goal-table.md} 목표 16 행).
+ * 거부" 둘을 각각 명시한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

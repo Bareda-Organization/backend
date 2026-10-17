@@ -20,7 +20,7 @@ import src.backend.student.entity.Guardian;
 import src.backend.student.repository.LinkedChild;
 
 /**
- * 목표 8(이월 Ruling 117) — 학부모 → {@code GuardianStudent} 연결 확인이 <b>한 지점</b>에서 나는지
+ * Ruling 117 — 학부모 → {@code GuardianStudent} 연결 확인이 <b>한 지점</b>에서 나는지
  * 고정한다.
  *
  * <p>HTTP 왕복이 아니라 판정 지점 자체를 부른다. 이 판정의 첫 소비자는 자녀 목록(§3.1)이고 자녀를
