@@ -79,8 +79,8 @@ public class BoardingCommandService {
     private final StopSkipJudge stopSkipJudge;
 
     /**
-     * 미승차 대기 시간(분)을 학원별로 읽는다(Phase 11 목표 2, API_SPEC §5.21) — 학원마다 값이 다르고,
-     * {@code academy_setting} 행이 아직 없는 학원(구 데이터 · 등록 경로가 아직 안 만들던 시절의 학원)은
+     * 미승차 대기 시간(분)을 학원별로 읽는다(API_SPEC §5.21) — 학원마다 값이 다르고,
+     * {@code academy_setting} 행이 없는 학원(등록 경로가 행을 만들기 전에 생긴 구 데이터)은
      * {@link AcademySetting#DEFAULT_NO_SHOW_WAIT_MINUTES} 로 자가 치유한다({@code AcademySettingQueryService}
      * 의 GET-or-create 와 같은 근거) — 3분 고정 상수를 없애는 것이 이 목표의 본체라, 값이 없다고 예외를
      * 던지면 그 학원의 미승차 처리 자체가 막힌다.
@@ -180,7 +180,7 @@ public class BoardingCommandService {
 
     /**
      * 상태 정정(BRD-05, API_SPEC §4.7) — 가장 최근 이력 행의 {@code from_status} 로 되돌린다. 횟수
-     * 제한은 두지 않는다(2026-09-19 사용자 확정, Ruling 305 — 오픈 이슈 J 해소) — 되돌린 결과도 새
+     * 제한은 두지 않는다(Ruling 305) — 되돌린 결과도 새
      * 이력 행으로 남으므로, 그 새 행의 {@code from_status} 를 기준으로 다시 되돌리면 두 상태를
      * 오가는 반복이 그대로 허용된다. 단, 같은 Ruling 305 가 **승하차지를 떠난 뒤에는 되돌리기를
      * 막는다** — {@link #assertNotDeparted} 참고.
@@ -245,7 +245,7 @@ public class BoardingCommandService {
      * 폐기했다 — 마지막 승하차지는 뒤 순번이 없어 영원히 되돌릴 수 있는 구멍이 있었다(목표 6c).
      *
      * <p>출발 여부를 <b>행 잠금</b>으로 읽는다({@link #isStopDepartedLocked}) — 잠금 없이 읽으면 출발 선점이 이 읽기와 커밋 사이에 끼어
-     * 출발 알림이 나간 뒤 되돌려진다(R53 게이트). 확정 노선(버전)이 아직 없거나 그 학생의 정차 항목 자체를 찾지 못하면 판정 재료가
+     * 출발 알림이 나간 뒤 되돌려진다. 확정 노선(버전)이 아직 없거나 그 학생의 정차 항목 자체를 찾지 못하면 판정 재료가
      * 없으므로 통과시킨다(막을 근거가 없는 채로 막으면 정상 되돌리기까지 거부하게 된다).
      */
     private void assertNotDeparted(Long runId, Long stopId) {
@@ -270,7 +270,7 @@ public class BoardingCommandService {
     }
 
     /**
-     * FEATURE_SPEC §3.3 전이 표와 등하원 비대칭(C-07 · BRD-01·02)을 강제한다(Ruling 345, BR-031 1번 갈래 · R51 C3) —
+     * FEATURE_SPEC §3.3 전이 표와 등하원 비대칭(C-07 · BRD-01·02)을 강제한다(Ruling 345, BR-031 1번 갈래) —
      * 허용은 {@code waiting→boarded}(<b>등원</b>) · {@code waiting→no_show} · {@code boarded→alighted}(<b>하원</b>)
      * 셋뿐이다. 승차 처리는 등원 승하차지에서만, 하차 처리는 하원 승하차지에서만 받는다 — 등원의 하차·하원 시작 때 전원 승차된
      * 학생의 승차는 서버 자동 처리뿐이다. 하원의 {@code waiting→no_show} 는 종료 보류 회차에서 되돌리기 뒤에 쓰는 길(BR-031)이라
@@ -309,20 +309,20 @@ public class BoardingCommandService {
             // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 이 시점의 최종 지점은 다음 정차지가
             // 없어 RunArrivalCommandService 의 폴백(목표 7)을 받지 못한다.
             stopDepartureService.forceAllRemaining(run.getId(), run.getAcademyId(), now);
-            // R52 L2 — auto_alighted_count 는 등원 종료 때 자동 하차된 수다. 이 경로는 하원의 마지막 수동 하차라 0 이다
+            // auto_alighted_count 는 등원 종료 때 자동 하차된 수다. 이 경로는 하원의 마지막 수동 하차라 0 이다
             // (하원 종료는 어느 경로든 0 — RunArrivalCommandService 의 하원 최종 지점 도착과 같은 값).
             eventPublisher.publishEvent(new RunEndedEvent(run.getId(), run.getAcademyId(), now, 0));
         }
     }
 
     /**
-     * 미승차 케이스 생성(목표 7) — 학원별 대기 시간(목표 2) 뒤 만료로 저장하고, 학부모·관계자 두 갈래
-     * 알림 + WebSocket {@code rider_changed} 방송(Phase 10 이월 ⑤, 이 클래스 상단 참고) 두 갈래 재료가
+     * 미승차 케이스 생성 — 학원별 대기 시간 뒤 만료로 저장하고, 학부모·관계자 두 갈래
+     * 알림 + WebSocket {@code rider_changed} 방송(이 클래스 상단 참고) 두 갈래 재료가
      * 될 {@link RiderMarkedNoShowEvent} 를 발행한다.
      *
      * <p>{@code stop_skipped}(API_SPEC §4.6, C-05)는 {@link StopSkipJudge#skipIfNoRidersRemain} 이 실제로
      * 계산한다 — C-05 가 명시하는 두 발생 경로(③구간 미등원·운행 중 미승차) 중 여기가 후자다. 이벤트
-     * 발행을 그 계산 <b>뒤로</b> 옮겼다(Phase 11) — {@code rider_changed} 방송이 그 값을 실어야 하는데,
+     * 발행은 그 계산 <b>뒤</b>에 둔다 — {@code rider_changed} 방송이 그 값을 실어야 하는데,
      * 계산 전에 발행하면 항상 {@code false} 를 실어 보내게 된다.
      */
     private RiderStatusUpdateResponse handleNoShow(Run run, RunRider rider, OffsetDateTime now) {

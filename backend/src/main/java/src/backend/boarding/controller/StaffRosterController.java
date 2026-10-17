@@ -22,8 +22,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * 관계자 웹의 호차별 일일 명단(API_SPEC §5.4 {@code GET /staff/runs/{runId}/roster}, RST-03·A-04,
- * Phase 9 목표 6).
+ * 관계자 웹의 호차별 일일 명단(API_SPEC §5.4 {@code GET /staff/runs/{runId}/roster}, RST-03·A-04).
  *
  * <p>{@code StaffRunController}(§5.10 회차 조회·조정)와 같은 URL 계열이지만 별도 클래스다 — 권한
  * ({@code STUDENT_READ_SENSITIVE} vs {@code SCHEDULE_MANAGE})과 바뀌는 계기(명단 표시 규칙 vs 운행

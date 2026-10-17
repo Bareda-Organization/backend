@@ -27,7 +27,7 @@ import src.backend.student.repository.StudentRepository;
 
 /**
  * {@link DelayRequestedEvent} 를 구독해 관계자·학부모·학생 3집합을 아웃박스에 적재한다(NTF-06,
- * API_SPEC §4.9, F3 S1 라운드 1 — 반려 🔴-A 해소). {@link RunStartedNotificationListener} 와 같은
+ * API_SPEC §4.9). {@link RunStartedNotificationListener} 와 같은
  * 이유로 {@code @EventListener}(트랜잭션 후가 아니라 <b>같은 트랜잭션 안</b>)를 쓴다 — 지연 신고
  * 커맨드 서비스가 이미 연 트랜잭션 안에서 이벤트가 발행되고, 그 트랜잭션이 롤백되면 이 리스너가
  * 적재한 아웃박스 행도 함께 롤백돼야 한다(아웃박스는 "실제 발신이 성사됐을 때만 남아야" 하는

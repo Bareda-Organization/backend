@@ -24,7 +24,7 @@ import src.backend.notification.dto.NotificationSettingResponse;
 import src.backend.notification.query.NotificationSettingQueryService;
 
 /**
- * 알림 수신 설정 조회·수정 API(API_SPEC §3.14, Phase 12 목표 7). 승인된 학부모·학생 계정만
+ * 알림 수신 설정 조회·수정 API(API_SPEC §3.14). 승인된 학부모·학생 계정만
  * 쓰는 화면이라 {@code @AllowedWhenPending} 을 붙이지 않았다 — {@code DeviceController} 와 달리
  * 대기 중(pending) 계정이 승인 이전에 이 설정을 조작해야 할 이유가 사양 어디에도 없다(Ruling 145
  * 와 같은 축 — 승인된 계정 전용 기능은 기본값대로 게이트에 걸린다).

@@ -26,7 +26,7 @@ import src.backend.notification.repository.NotificationSettingRepository;
  * <p>이 클래스에 트랜잭션 애너테이션이 부재한 것은 의도다 — 발송은 트랜잭션 밖이어야 하고
  * (§7.5), 상태 전이만 저장소 메서드가 각자 {@code REQUIRES_NEW} 로 연다.
  *
- * <p>알림 설정 on/off 판정(Phase 12 목표 8, API_SPEC §3.14)도 이 클래스 한 곳에서만 한다 — 16개
+ * <p>알림 설정 on/off 판정(API_SPEC §3.14)도 이 클래스 한 곳에서만 한다 — 16개
  * 리스너 각자가 발송 여부를 판단하게 하지 않는다. 아웃박스 행 생성({@code NotificationOutbox})은
  * 이 판정과 무관하게 항상 일어나므로 "설정이 꺼져도 기록은 남는다" 는 그쪽을 전혀 건드리지 않고도
  * 이미 성립한다 — 이 클래스가 손대는 것은 <b>푸시 채널</b> 뿐이다.

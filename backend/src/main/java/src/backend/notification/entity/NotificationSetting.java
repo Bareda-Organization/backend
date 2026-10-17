@@ -80,7 +80,7 @@ public class NotificationSetting {
     }
 
     /**
-     * 이 계정이 그 종류의 알림을 받을지 판정한다(Phase 12 목표 8, API_SPEC §3.14).
+     * 이 계정이 그 종류의 알림을 받을지 판정한다(API_SPEC §3.14).
      *
      * <p>3종(도착·등하원·미승차) 밖의 나머지는 설정 항목 자체가 없다 — 지연·비상은 사양이 명시적으로
      * "설정 항목 자체가 부재, 항상 발송" 이라 적었고(NTF-07), 나머지(가입 승인 결과 등)는 사양
@@ -93,17 +93,17 @@ public class NotificationSetting {
      *
      * <p><b>{@code switch} 식을 {@code default} 없이 쓴다</b> — {@code NotificationType} 에 새
      * 값이 늘 때마다 이 메서드가 어느 쪽으로도 자동 분류하지 않고 <b>컴파일 오류로 멈춰</b> 분류를
-     * 강제한다. 이전에는 마지막 분기가 {@code return true}(설정 대상 밖)로 떨어지는 if-else 사슬이라,
-     * {@code boarding} 소관인 새 종류를 등록에서 빠뜨려도 조용히 "항상 발송"으로 새는 형태였다 —
-     * 그 형태의 결함이 실제로 한 번 났다(2026-09-02 Ruling 223, {@code ALIGHTING_CANCELED} 를
+     * 강제한다. if-else 사슬의 마지막 분기가 {@code return true}(설정 대상 밖)로 떨어지면,
+     * {@code boarding} 소관인 새 종류를 등록에서 빠뜨려도 조용히 "항상 발송"으로 새는 형태다 —
+     * 그 형태의 결함이 실제로 한 번 났다(Ruling 223, {@code ALIGHTING_CANCELED} 를
      * 처음엔 존재하지 않는 {@code alighting} 토글 소관으로 잘못 짚었던 사례). {@code BOARDING_CANCELED}·
-     * {@code ALIGHTING_CANCELED}(되돌리기 정정, Phase 12 T4)도 둘 다 {@code boarding} 토글 소관이라
+     * {@code ALIGHTING_CANCELED}(되돌리기 정정)도 둘 다 {@code boarding} 토글 소관이라
      * 아래 {@code BOARDING} 계열 {@code case} 에 이미 들어 있다(Ruling 223).
      */
     public boolean isEnabledFor(NotificationType type) {
         return switch (type) {
             case ARRIVE -> arrive;
-            // Phase 12 T4 가 더한 되돌리기 정정 2종도 같은 토글이다 — §3.14 가 `boarding` 을
+            // 되돌리기 정정 2종도 같은 토글이다 — §3.14 가 `boarding` 을
             // "등하원(승차·하차·운행 시작) 알림" 으로 이미 승차·하차를 한 항목에 묶었고,
             // `alighting` 토글은 실재하지 않는다(Ruling 223).
             case BOARDING, ALIGHTING, RUN_STARTED, BOARDING_CANCELED, ALIGHTING_CANCELED -> boarding;

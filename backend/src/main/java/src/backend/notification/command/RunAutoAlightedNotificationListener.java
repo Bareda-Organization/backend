@@ -18,7 +18,7 @@ import src.backend.student.repository.GuardianStudentRepository;
 
 /**
  * 등원 최종 도착의 자동 하차를 {@code alighting} 알림으로 옮기는 구독자(API_SPEC §9.7 — 수신자
- * 학부모, Phase 9 goal 9). {@link RunAutoAlightedEvent} 가 학생 1명당 1건이라 이 리스너도 1건마다
+ * 학부모). {@link RunAutoAlightedEvent} 가 학생 1명당 1건이라 이 리스너도 1건마다
  * 1번 실행되고, 그 호출마다 그 학생의 <b>보호자 수만큼</b> 적재한다(BR-073).
  *
  * <p>{@code @TransactionalEventListener} 가 아니라 평범한 {@code @EventListener} 인 이유는

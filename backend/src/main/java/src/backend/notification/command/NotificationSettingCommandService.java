@@ -18,7 +18,7 @@ import src.backend.notification.entity.NotificationSetting;
 import src.backend.notification.repository.NotificationSettingRepository;
 
 /**
- * 알림 설정 수정(API_SPEC §3.14 PATCH, Phase 12 목표 7·9) — 학부모·학생 전용. get-or-create 는
+ * 알림 설정 수정(API_SPEC §3.14 PATCH) — 학부모·학생 전용. get-or-create 는
  * {@link src.backend.notification.query.NotificationSettingQueryService} 와 같은 근거다.
  *
  * <p>요청 바디를 고정 3필드 레코드가 아니라 {@code Map<String, Boolean>} 으로 받는다 — 목표 9
@@ -34,7 +34,7 @@ import src.backend.notification.repository.NotificationSettingRepository;
  * 우선)와도 같은 방향이다.
  *
  * <p><b>보낸 항목만 바꾼다(Ruling 869)</b> — API_SPEC §1.14 의 공통 규칙대로 빠진 키와 {@code null} 은 유지이고, 아무 키도
- * 없는 요청은 바꿀 것이 없어 값 그대로 200 이다. 이전에는 세 항목 전부를 요구해 하나만 보내면 422 였다. 대상 밖 키만 422 로 막는다.
+ * 없는 요청은 바꿀 것이 없어 값 그대로 200 이다. 대상 밖 키만 422 로 막는다.
  */
 @Service
 @RequiredArgsConstructor

@@ -39,7 +39,7 @@ public class RunRouteConfirmedNotificationListener {
      * 있어, 키의 안정된 축이 못 된다. {@code managerId} 는 그 회차의 그 자리에 배치된 시점에 고정이다.
      *
      * <p>네 번째 자리를 요청 식별자가 아니라 <b>판정(확정) 시각</b>으로 두는 이유는
-     * {@link SignupDecidedNotificationListener} 와 같다 — Phase 8 의 재확정(②구간 승인이
+     * {@link SignupDecidedNotificationListener} 와 같다 — 재확정(②구간 승인이
      * {@code route_version} 을 +1 하는 경로)이 같은 회차를 다시 확정할 때 새 확정 시각이 붙어야
      * 같은 키로 조용히 차단되지 않는다.
      */
@@ -61,7 +61,7 @@ public class RunRouteConfirmedNotificationListener {
      * recipient_account_id} 가 {@code NOT NULL} 이라 그 행을 만들 수단이 없다.
      *
      * <p>{@code bus_no} 는 수신자 전원이 같은 차량을 가리키므로(그 회차에 배치된 기사·동승자) 순회
-     * 전에 한 번만 조회한다 — {@link RunRouteConfirmedEvent} 는 {@code busId} 만 나른다(R13).
+     * 전에 한 번만 조회한다 — {@link RunRouteConfirmedEvent} 는 {@code busId} 만 나른다.
      */
     @EventListener
     public void appendRouteChanged(RunRouteConfirmedEvent event) {

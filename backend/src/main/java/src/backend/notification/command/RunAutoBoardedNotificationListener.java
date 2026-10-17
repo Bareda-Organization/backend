@@ -17,7 +17,7 @@ import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
 
 /**
- * 하원 시작의 자동 승차를 {@code boarding} 알림으로 옮기는 구독자(NTF-01 · C-07, R51 H1) — 수신자는 그
+ * 하원 시작의 자동 승차를 {@code boarding} 알림으로 옮기는 구독자(NTF-01 · C-07) — 수신자는 그
  * 학생의 보호자 전원이고, 문구는 동승자가 승차 처리했을 때({@link BoardingNotificationListener})와 같다.
  * 알림 설정의 등하원(boarding) 토글은 발송 단계가 이미 {@code NotificationType.BOARDING} 으로 판정한다.
  *

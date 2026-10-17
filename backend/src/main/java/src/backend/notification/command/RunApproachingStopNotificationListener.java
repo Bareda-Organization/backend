@@ -35,7 +35,7 @@ public class RunApproachingStopNotificationListener {
      * <b>시각을 넣지 않는다</b> — 최초 1회 발송의 실제 강제자는 {@code RunStopRepository
      * #claimProximityNotice} 의 조건부 UPDATE(목표 15)이고, 이 키는 그 선점이 새더라도 같은 정차지·
      * 같은 학생·같은 수신자에게 두 번 적재되는 것을 막는 마지막 방어선이다. 시각을 넣으면 재판정
-     * 시각마다 값이 달라져 이 방어선이 통과만 하는 장식이 된다(Phase 4 사고 형태 — 소비 시점 시계로
+     * 시각마다 값이 달라져 이 방어선이 통과만 하는 장식이 된다(소비 시점 시계로
      * dedup_key 를 구성해 매번 새 값이 나온 것과 같은 실수).
      *
      * <p>마지막 자리에 수신자 구분을 더한 것(목표 4) — 학부모·학생 두 행이 같은 runId·stopId·
@@ -76,8 +76,8 @@ public class RunApproachingStopNotificationListener {
     }
 
     /**
-     * 학생 본인 — API_SPEC §9.7 {@code arrive} 수신자가 "학부모·학생" 이라 학생 계정에도 적재한다
-     * (목표 4, R13 이 발견). 계정이 연결된 학생만 대상이다(로그인이 없는 학생은 받을 계정 자체가 없다).
+     * 학생 본인 — API_SPEC §9.7 {@code arrive} 수신자가 "학부모·학생" 이라 학생 계정에도 적재한다.
+     * 계정이 연결된 학생만 대상이다(로그인이 없는 학생은 받을 계정 자체가 없다).
      */
     private List<NotificationDraft> draftsForStudent(RunApproachingStopEvent event, NotificationMessage message,
             String studentName) {

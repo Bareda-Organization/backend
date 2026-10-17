@@ -22,7 +22,7 @@ import src.backend.notification.entity.NotificationType;
 
 /**
  * 비상 신고 접수·취소를 {@code emergency}·{@code emergency_canceled} 알림으로 옮기는 구독자
- * (EXC-04, Phase 11 T2 목표 6·9 — 수신자는 학원 관계자 전원 + 메인관리자 전원, 알림 설정과 무관하게
+ * (EXC-04 — 수신자는 학원 관계자 전원 + 메인관리자 전원, 알림 설정과 무관하게
  * 항상 발송).
  *
  * <p>다른 리스너들({@link RunStartedNotificationListener} 등)과 같은 위치({@code

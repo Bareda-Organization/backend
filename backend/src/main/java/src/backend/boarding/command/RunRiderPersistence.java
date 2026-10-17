@@ -25,7 +25,7 @@ import src.backend.run.roster.ProjectedRoster;
 /**
  * {@code run_rider} 쓰기의 유일한 진입점(BR-095, `ARCHITECTURE §3.3` — "다른 모듈 소유 테이블은 그
  * 모듈의 진입점을 거쳐서만 쓴다") — 확정 배치(v1, {@code run} 소유)의 최초 탑승자 생성과 ②구간 승인
- * 결정({@code request} 소유)의 상태 반영을 이 클래스로 모았다(2026-09-25 검사 W09-11). 두 호출부가
+ * 결정({@code request} 소유)의 상태 반영을 이 클래스로 모은다. 두 호출부가
  * {@code RunRiderRepository} 를 직접 {@code save}/{@code saveAll} 하던 것을 없앤다.
  */
 @Component
@@ -99,7 +99,7 @@ public class RunRiderPersistence {
 
     /**
      * 서버가 스스로 하는 결석(absent) 부여 — ③구간 미등원 토글 · ②구간 취소 승인이 쓴다(ERD §3.4 "absent 부여"). 상태를
-     * 바꾸고 {@code rider_status_history} 에 {@code actor_type=system} 이력을 남긴다(R51 M-B2). 이미 결석이면 전이가
+     * 바꾸고 {@code rider_status_history} 에 {@code actor_type=system} 이력을 남긴다. 이미 결석이면 전이가
      * 아니므로 이력을 만들지 않는다.
      */
     @Transactional
@@ -113,7 +113,7 @@ public class RunRiderPersistence {
         }
     }
 
-    /** 등원 최종 도착의 전원 자동 하차 한 건(C-07 · BRD-03) — 상태를 바꾸고 {@code actor_type=system} 이력을 남긴다(R51 M-B2). */
+    /** 등원 최종 도착의 전원 자동 하차 한 건(C-07 · BRD-03) — 상태를 바꾸고 {@code actor_type=system} 이력을 남긴다. */
     @Transactional
     public void alightBySystem(RunRider rider, OffsetDateTime changedAt) {
         RiderStatus from = rider.getStatus();

@@ -58,8 +58,7 @@ import src.backend.student.repository.StudentRepository;
 
 /**
  * 회차 명단 조회 — 매니저 앱(§4.2)과 관계자 웹(§5.4)이 <b>같은 원본</b>({@code run_rider} ·
- * {@code run_stop} · {@code Student})을 서로 다른 응답 모양으로 읽는다(RST-01~04·A-04,
- * Phase 9 목표 6·15).
+ * {@code run_stop} · {@code Student})을 서로 다른 응답 모양으로 읽는다(RST-01~04·A-04).
  *
  * <p>두 메서드가 대칭으로 갈리는 지점이 <b>둘</b>이다 — {@code guardian_phone}
  * 마스킹 여부({@link GuardianPhoneMasker})와 {@code absent} 학생의 노출 여부(매니저 앱은 행 제외
@@ -68,7 +67,7 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 감사 기록({@code AuditRecorder}, {@code REQUIRES_NEW})이 읽기
  * 트랜잭션 안에서 돌면 요청 하나가 DB 연결을 둘 쥐고, 동시 요청이 풀 크기에 닿으면 서로의 두 번째 연결을 기다려
- * 풀리지 않는다(R46 감사 #1). 조회는 {@link #readOnly} 읽기 트랜잭션 하나(연결 1회 획득)로 끝내 연결을 돌려준 뒤 감사를
+ * 풀리지 않는다. 조회는 {@link #readOnly} 읽기 트랜잭션 하나(연결 1회 획득)로 끝내 연결을 돌려준 뒤 감사를
  * 기록한다(DA-6) — 조회가 예외로 끝나면 감사 호출에 닿지 않는다.
  */
 @Service
@@ -151,7 +150,7 @@ public class RosterQueryService {
     }
 
     /**
-     * 매니저 앱 명단 조회 감사(SYS-01 · FEATURE_SPEC §6.3 · Phase 14 T1 목표 1) — {@code photo_url}·
+     * 매니저 앱 명단 조회 감사(SYS-01 · FEATURE_SPEC §6.3) — {@code photo_url}·
      * {@code note}·{@code address}(정차지, 학생 승하차지 원문 위치)가 L3 다. {@code guardian_phone} 은
      * 이 응답에서 <b>마스킹된 값</b>이라 감사 대상에서 뺀다(§6.3 L2 마스킹 — "원본" 공개가 아니면
      * L3 의 감사 요건이 붙지 않는다).
@@ -181,7 +180,7 @@ public class RosterQueryService {
      * (사양 원문 "진입 차단은 매니저 앱 전용"), 배치되지 않았다는 이유로 막지 않는다 — 학원 관계자는
      * 그 학원의 회차 전체를 볼 권한을 이미 {@code STUDENT_READ_SENSITIVE} 로 가졌다.
      *
-     * <p>존재 판정과 학원 범위 판정을 분리한다(API_SPEC §1.5, Ruling 239, 2026-09-03 사용자 판정 ②) —
+     * <p>존재 판정과 학원 범위 판정을 분리한다(API_SPEC §1.5, Ruling 239) —
      * 회차 자체가 없으면 {@code 404 RUN_NOT_FOUND}, 있는데 타 학원 소속이면
      * {@link AcademyScope#assertAccessible} 이 {@code 403 ACADEMY_SCOPE_VIOLATION} 을 던진다. 조회
      * 조건에 학원 id 를 섞으면(옛 {@code findByIdAndAcademyId}) 두 사유가 같은 404 로 뭉개진다.
@@ -280,7 +279,7 @@ public class RosterQueryService {
     }
 
     /**
-     * 관계자 웹 명단 조회 감사(SYS-01 · FEATURE_SPEC §6.3 · Phase 14 T1 목표 1) — {@code guardian_phone}
+     * 관계자 웹 명단 조회 감사(SYS-01 · FEATURE_SPEC §6.3) — {@code guardian_phone}
      * 이 이 응답에서는 <b>원본</b>이다(§5.4 마스킹 대상 밖, {@link StaffRosterItemResponse} 자바독) —
      * §6.3 L3 행이 명명한 "보호자 연락처 원본" 이 바로 이 값이라 감사 대상이다. {@code note} 도 L3.
      * {@code photo_url} 은 이 응답에 부재(§5.4 필드 목록에 없음)라 감사 대상에 넣지 않는다.

@@ -29,7 +29,7 @@ import src.backend.student.repository.StudentRepository;
  * <p>{@link RiderStatusChangedEvent} 갈래는 {@code stop_skipped} 를 항상 {@code false} 로 채운다 —
  * 정차지 skip 은 미승차로 잔여가 0명이 될 때만 일어나는데({@code BoardingCommandService.handleNoShow}),
  * 그 경로는 이 이벤트를 발행하지 않고 {@link RiderMarkedNoShowEvent} 만 발행한다. 그 경로의 방송은
- * {@link #broadcast(RiderMarkedNoShowEvent)} 가 별도로 맡는다(Phase 11, Phase 10 이월 ⑤ 해소 — API_SPEC
+ * {@link #broadcast(RiderMarkedNoShowEvent)} 가 별도로 맡는다(API_SPEC
  * §7.1 line 1995 의 트리거가 {@code PATCH /runs/{runId}/riders/{riderId}} <b>엔드포인트</b>로 적혀
  * {@code status} 값과 무관하게 걸린다는 근거는 {@link RiderMarkedNoShowEvent} 의 javadoc 참고).
  */
@@ -45,7 +45,7 @@ public class RiderChangedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
-    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기 — 단일 스레드라 커밋 순서가 유지된다. */
     @Qualifier("broadcastListenerExecutor")
     private final Executor broadcastExecutor;
 
@@ -74,7 +74,7 @@ public class RiderChangedBroadcastListener {
     }
 
     /**
-     * 미승차 경로의 {@code rider_changed} 방송(Phase 11, Phase 10 이월 ⑤ 해소) — {@link RiderMarkedNoShowEvent}
+     * 미승차 경로의 {@code rider_changed} 방송 — {@link RiderMarkedNoShowEvent}
      * 가 이미 {@code stopId} · {@code stopSkipped} 를 들고 있어 {@link RunRiderRepository} 를 다시
      * 조회할 필요가 없다({@code broadcast(RiderStatusChangedEvent)} 와의 유일한 구조적 차이).
      * {@code status} 는 {@code "no_show"} 리터럴이다 — 이 이벤트 자체가 그 상태 전이 하나만 나른다.
@@ -99,7 +99,7 @@ public class RiderChangedBroadcastListener {
         gateway.send(WebSocketDestinations.ADMIN_LIVE, EVENT, event.runId(), event.changedAt(), payload);
     }
 
-    /** 상태별 인원을 질의 1번으로 읽는다(R57 RT-4) — 인원이 없는 상태는 0 이다. */
+    /** 상태별 인원을 질의 1번으로 읽는다 — 인원이 없는 상태는 0 이다. */
     private Counts countsOf(Long runId) {
         Map<RiderStatus, Long> totals = new EnumMap<>(RiderStatus.class);
         runRiderRepository.countGroupedByStatus(runId).forEach(row -> totals.put(row.getStatus(), row.getTotal()));

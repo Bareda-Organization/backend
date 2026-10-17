@@ -21,7 +21,7 @@ import src.backend.run.event.RunCanceledEvent;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 확정 회차 취소를 {@code run_canceled} 알림으로 옮기는 구독자(API_SPEC §9.7 — 수신자는 기사·동승자, R56 Ruling 894 ⑤).
+ * 확정 회차 취소를 {@code run_canceled} 알림으로 옮기는 구독자(API_SPEC §9.7 — 수신자는 기사·동승자, Ruling 894 ⑤).
  *
  * <p>{@link RunRouteConfirmedNotificationListener} 와 같은 평범한 {@code @EventListener} 다 — 취소 트랜잭션 안에서 적재하므로
  * 취소가 롤백되면 이 행도 사라진다. 배정이 없는 회차 · 계정이 연결되지 않은 매니저는 건너뛴다.

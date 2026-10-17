@@ -69,7 +69,7 @@ public class RunStartedNotificationListener {
 
     /**
      * 운행 시작(목표 5, §9.7) — 관계자 전원 + 명단에 남은(absent 제외) 학생의 보호자·본인에게 적재한다. 수신자 전원을
-     * 모아 한 번에 적재한다({@link NotificationOutbox#appendAll}, R46 T-6) — 회차 행 잠금 아래에서 문장 수가 수신자 수에
+     * 모아 한 번에 적재한다({@link NotificationOutbox#appendAll}) — 회차 행 잠금 아래에서 문장 수가 수신자 수에
      * 비례하지 않게 한다.
      */
     @EventListener

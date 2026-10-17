@@ -20,8 +20,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * 매니저 앱의 승하차지별 명단(API_SPEC §4.2 {@code GET /runs/{runId}/roster}, RST-01·02·04·M-03,
- * Phase 9 목표 6·15).
+ * 매니저 앱의 승하차지별 명단(API_SPEC §4.2 {@code GET /runs/{runId}/roster}, RST-01·02·04·M-03).
  *
  * <p>회차 접근·확정 여부 판정은 전부 {@link RosterQueryService#managerRoster} 안에 있다 — 이
  * 컨트롤러는 위임만 한다({@code StaffRunAssignmentController} 와 같은 얇은 형태).

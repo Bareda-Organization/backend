@@ -20,7 +20,7 @@ import src.backend.notification.repository.NotificationLogRepository;
 /**
  * 알림 읽음 처리(API_SPEC §3.13, NTF-08) — 중요 통지는 이 처리가 수신 확인(NTF-10)의 근거다.
  *
- * <p>"중요 통지" 3종(지연·미승차·노선 변경)은 {@code FEATURE_SPEC} NTF-10(2026-09-02 확정, Ruling 227)이
+ * <p>"중요 통지" 3종(지연·미승차·노선 변경)은 {@code FEATURE_SPEC} NTF-10(Ruling 227)이
  * 정의처다 — "읽음 처리로 acked 가 되는 종류와 미확인 배지가 세는 종류는 같은 3종". 이 서비스가 판정을
  * 들고 있는 이유는 {@link NotificationType} 이 T4 전용 파일이라 엔티티·타입 쪽에 업무 중요도 판단을
  * 추가로 얹지 않기 위함이다.
@@ -61,7 +61,7 @@ public class NotificationReadCommandService {
     public void markRead(AuthUser requester, Long notificationId) {
         NotificationLog notification = notificationLogRepository.findById(notificationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
-        // R52 L3 — 알림은 소유 자원이라 남의 것은 타 계정이든 타 학원이든 403 FORBIDDEN 이다(API_SPEC §1.11 표 · §3.13). 소유 검사를
+        // 알림은 소유 자원이라 남의 것은 타 계정이든 타 학원이든 403 FORBIDDEN 이다(API_SPEC §1.11 표 · §3.13). 소유 검사를
         // 먼저 해야 타 학원 알림이 학원 범위 위반 코드로 갈라지지 않는다.
         if (!notification.getRecipientAccountId().equals(requester.accountId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);

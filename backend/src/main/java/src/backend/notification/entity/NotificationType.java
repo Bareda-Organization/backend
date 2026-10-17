@@ -52,7 +52,7 @@ public enum NotificationType {
     BOARDING_CANCELED,
     /** 하차 취소됨(BRD-05, 목표 14, Ruling 219) — 되돌리기로 하차 처리가 취소돼 원래 하차 알림이 거짓이 됐음을 정정. */
     ALIGHTING_CANCELED,
-    /** 확정된 회차가 취소됨(SCH-03, R56 Ruling 894 ⑤) — 배치된 기사·동승자가 출발 직전 취소를 알게 한다. 확정 전(idle) 취소에는 보내지 않는다. */
+    /** 확정된 회차가 취소됨(SCH-03, Ruling 894 ⑤) — 배치된 기사·동승자가 출발 직전 취소를 알게 한다. 확정 전(idle) 취소에는 보내지 않는다. */
     RUN_CANCELED;
 
     /**
@@ -66,7 +66,7 @@ public enum NotificationType {
      * 전 실제로 그 상태였고 좌석 양쪽 시험 모두 통과했다). 그래서 상수를 여기 한 곳에 두고
      * 쓰는 쪽·세는 쪽이 함께 참조한다 — 넓히거나 좁히면 배지 대상도 같이 움직인다.
      *
-     * <p>{@code FEATURE_SPEC} NTF-10(2026-09-02 확정, Ruling 227)이 이 3종을 값으로 못박은 정의처다 —
+     * <p>{@code FEATURE_SPEC} NTF-10(Ruling 227)이 이 3종을 값으로 못박은 정의처다 —
      * "읽음 처리로 acked 가 되는 종류와 미확인 배지가 세는 종류는 같은 3종" 이라 다른 문서는 참조만.
      */
     public static final Set<NotificationType> IMPORTANT_FOR_ACK =
