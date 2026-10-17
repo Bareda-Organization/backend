@@ -146,13 +146,12 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             + "스케줄러라 요청 주체의 소속 자체가 부재(ARCHITECTURE §11)")
     @Query("""
             select n from NotificationLog n
-             where n.pushState = :pending
+             where n.pushState = src.backend.notification.entity.PushState.PENDING
                and n.pushAttempts < :maxAttempts
                and (n.lastAttemptAt is null or n.lastAttemptAt <= :attemptedBefore)
              order by n.lastAttemptAt asc nulls first, n.createdAt
             """)
-    List<NotificationLog> findRetryCandidates(@Param("pending") PushState pending,
-            @Param("maxAttempts") int maxAttempts, @Param("attemptedBefore") OffsetDateTime attemptedBefore,
+    List<NotificationLog> findRetryCandidates(@Param("maxAttempts") int maxAttempts, @Param("attemptedBefore") OffsetDateTime attemptedBefore,
             Pageable limit);
 
     /**
@@ -171,10 +170,10 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
     @Query("""
             update NotificationLog n
                set n.pushState = :failed, n.failReason = :reason
-             where n.pushState = :pending and n.pushAttempts >= :maxAttempts
+             where n.pushState = src.backend.notification.entity.PushState.PENDING and n.pushAttempts >= :maxAttempts
                and n.lastAttemptAt <= :stalledBefore
             """)
-    int failStalled(@Param("pending") PushState pending, @Param("failed") PushState failed,
+    int failStalled(@Param("failed") PushState failed,
             @Param("maxAttempts") int maxAttempts, @Param("stalledBefore") OffsetDateTime stalledBefore,
             @Param("reason") String reason);
 

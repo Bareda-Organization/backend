@@ -38,11 +38,10 @@ import src.backend.global.common.SeedFixtures;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.student.photo.spec.StudentPhoto;
 
 /**
  * 사진을 줄이는 순간 이 스레드에 트랜잭션·연결이 없다(BR-322) — 12MP 사진 한 장의 디코딩·축소·재인코딩이 수백 ms 라 학생 저장
- * 트랜잭션 안에 두면 그 시간만큼 DB 연결을 쥔다. 등록·수정 두 경로를 {@link PhotoResizer#shrink} 감시로 확인한다.
+ * 트랜잭션 안에 두면 그 시간만큼 DB 연결을 쥔다. 등록·수정 두 경로를 {@link PhotoResizer#shrinkFrom} 감시로 확인한다.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — 시험이 트랜잭션을 열면 서비스가 합류해 "밖" 이 존재할 수 없다. 만든 행은
  * {@link #뒷정리한다()} 가 직접 지운다. {@code MockMvc} 는 호출한 스레드에서 도므로 정적 메서드 감시가 요청 처리에 닿는다.
@@ -118,7 +117,7 @@ class StudentPhotoShrinkOutsideTransactionTest {
     /** 실제 줄이기를 그대로 돌리되 호출 시점의 트랜잭션 자원을 적는다. */
     private static MockedStatic<PhotoResizer> observing(List<TxObservation> observed) {
         MockedStatic<PhotoResizer> resizer = Mockito.mockStatic(PhotoResizer.class, Mockito.CALLS_REAL_METHODS);
-        resizer.when(() -> PhotoResizer.shrink(any(StudentPhoto.class))).thenAnswer(invocation -> {
+        resizer.when(() -> PhotoResizer.shrinkFrom(org.mockito.ArgumentMatchers.anyLong(), any(PhotoResizer.PhotoContent.class))).thenAnswer(invocation -> {
             observed.add(TxObservation.now());
             return invocation.callRealMethod();
         });

@@ -3,8 +3,10 @@ package src.backend.global.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,13 +25,13 @@ import com.zaxxer.hikari.HikariDataSource;
  * 프로파일 단위로 읽어 {@code spring.datasource.hikari} 를 {@link HikariDataSource} 에 바인딩하고, 시험 DB 에 연결해
  * {@code SHOW} 로 확인한다. 문자열만 찾는 검사는 키 이름이 틀려도(드라이버가 모르는 속성은 조용히 무시된다) 통과한다.
  *
- * <p>{@code statement_timeout} 은 일부러 걸지 않는다 — 보존 정리 DELETE(5,000행)와 Flyway 마이그레이션이 같은 계정을 쓴다.
+ * <p>{@code statement_timeout} 30초는 일반 연결에 건다(DA-4, Ruling 899 L). 보존 정리 · 익명화 트랜잭션과 Flyway 연결은 풀지만 그 시험은 {@code DataAccessSettingsTest} 다.
  */
 class DbSessionTimeoutsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"prod", "demo", "staging"})
-    @DisplayName("운영·demo·staging 연결은 누수 감지 5초 · lock_timeout 5초 · 유휴 트랜잭션 30초를 갖고 statement_timeout 은 걸지 않는다")
+    @DisplayName("운영·demo·staging 연결은 누수 감지 5초 · lock_timeout 5초 · 유휴 트랜잭션 30초 · statement_timeout 30초를 갖는다")
     void 운영_연결에_누수_감지와_세션_시간_상한이_실제로_걸린다(String profile) throws Exception {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(profileDocument(profile));
@@ -46,9 +48,32 @@ class DbSessionTimeoutsTest {
                 assertThat(show(statement, "lock_timeout")).as("%s lock_timeout", profile).isEqualTo("5s");
                 assertThat(show(statement, "idle_in_transaction_session_timeout"))
                         .as("%s idle_in_transaction_session_timeout", profile).isEqualTo("30s");
-                assertThat(show(statement, "statement_timeout")).as("%s statement_timeout 은 걸지 않는다", profile)
-                        .isEqualTo("0");
+                assertThat(show(statement, "statement_timeout")).as("%s statement_timeout", profile)
+                        .isEqualTo("30s");
             }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"prod", "demo", "staging"})
+    @DisplayName("F4 — 운영·demo·staging 의 Flyway 연결(init-sqls)도 lock_timeout 5초 · 유휴 트랜잭션 30초를 갖고 statement_timeout 은 없다")
+    void Flyway_연결에도_세션_시간_상한이_걸린다(String profile) throws Exception {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(profileDocument(profile));
+        List<String> initSqls = Binder.get(environment).bind("spring.flyway.init-sqls", Bindable.listOf(String.class))
+                .orElseThrow(() -> new AssertionError(profile + " 의 spring.flyway.init-sqls 가 없다"));
+
+        // Flyway 가 새 연결을 열 때 init-sqls 를 그 연결에서 실행한다 — 같은 SQL 을 새 연결에서 실행해 효과를 SHOW 로 본다
+        // (Flyway 의 initSql 적용 자체는 라이브러리 기능이라 여기서 다시 확인하지 않는다)
+        try (Connection connection = DriverManager.getConnection(System.getProperty("spring.datasource.url"), "schoolbus",
+                "schoolbus"); Statement statement = connection.createStatement()) {
+            for (String sql : initSqls) {
+                statement.execute(sql);
+            }
+            assertThat(show(statement, "lock_timeout")).as("%s Flyway lock_timeout", profile).isEqualTo("5s");
+            assertThat(show(statement, "idle_in_transaction_session_timeout"))
+                    .as("%s Flyway idle_in_transaction_session_timeout", profile).isEqualTo("30s");
+            assertThat(show(statement, "statement_timeout")).as("%s Flyway statement_timeout", profile).isEqualTo("0");
         }
     }
 

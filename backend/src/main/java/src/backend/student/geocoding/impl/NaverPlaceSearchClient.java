@@ -15,6 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 
 import src.backend.student.geocoding.spec.GeocodedPoint;
@@ -73,6 +74,7 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
 
     @Override
     @CircuitBreaker(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
+    @Bulkhead(name = RESILIENCE_INSTANCE)
     public List<FoundPlace> search(String query) {
         LocalResponse response;
         try {

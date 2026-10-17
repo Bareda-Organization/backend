@@ -19,6 +19,13 @@ import src.backend.routing.entity.ConfirmedRoute;
  */
 public interface ConfirmedRouteRepository extends JpaRepository<ConfirmedRoute, Long> {
 
+    /** 여러 회차의 확정 노선 한 번 조회 — 근접 판정이 틱마다 회차 수만큼 읽지 않게 한다(DA-1, Ruling 899). */
+    @AcademyScopeExempt(reason = "근접 알림 스케줄러가 RunRepository 로 이미 학원과 무관하게 골라낸 run.id 묶음만 넘긴다 — "
+            + "시각이 촉발하는 전 학원 대상 배치라 좁힐 학원이 부재하다(RunRepository.findMovingFromServiceDate 와 같은 근거). "
+            + "호출부는 ProximityNotificationService 뿐이라는 전제")
+    @Query("SELECT c FROM ConfirmedRoute c WHERE c.runId IN :runIds")
+    List<ConfirmedRoute> findAllByRunIdIn(@Param("runIds") Collection<Long> runIds);
+
     /**
      * 회차 여러 개의 확정 노선을 한 번에(BR-247) — 관제 조회가 회차마다 {@code findById} 를 부르지 않게 한다. 학원 조건은
      * 부모 {@code Run} 조인이다({@code RunStopRepository} 와 같은 형태).

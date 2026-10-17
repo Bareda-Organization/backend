@@ -16,8 +16,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.location.infrastructure.RunBroadcastCache;
+import src.backend.global.location.RunRiderDirectory;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.event.RunPositionReceivedEvent;
@@ -33,10 +33,11 @@ import src.backend.location.event.RunPositionReceivedEvent;
  */
 class PositionBroadcastListenerTest {
 
-    private final RunRiderRepository runRiderRepository = mock(RunRiderRepository.class);
+    private final RunRiderDirectory runRiderDirectory = mock(RunRiderDirectory.class);
     private final WebSocketBroadcastGateway gateway = mock(WebSocketBroadcastGateway.class);
 
-    private final PositionBroadcastListener listener = new PositionBroadcastListener(runRiderRepository, gateway);
+    private final PositionBroadcastListener listener = new PositionBroadcastListener(runRiderDirectory,
+            new RunBroadcastCache(java.time.Clock.systemUTC()), gateway);
 
     @Test
     @DisplayName("목표 6 — 학부모·학생 채널은 eta 키가 없고, 관제 채널(academy·admin)만 eta 를 갖는다. 매니저 채널은 아예 받지 않는다")
@@ -54,7 +55,7 @@ class PositionBroadcastListenerTest {
 
         // 수신자는 absent(다른 버스로 옮긴 removed 포함)를 뺀 학생 id 만 — 학생 채널이 학생 단위라 여기 보내면 학부모 지도에 버스 두 대가
         // 번갈아 뜬다. 그 거름은 조회에 absent 제외를 넘기는 것으로 하므로, 그 인자로 부른 경우에만 학생 id 를 돌려준다.
-        given(runRiderRepository.findStudentIdsByRunIdAndStatusNot(runId, RiderStatus.ABSENT))
+        given(runRiderDirectory.studentIdsExcludingAbsent(runId))
                 .willReturn(List.of(studentId));
 
         listener.broadcast(event);

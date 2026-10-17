@@ -85,6 +85,8 @@ public class RetentionCleanupScheduler {
 
     private final RetentionPolicy retentionPolicy;
 
+    private final RetentionTransactions retentionTransactions;
+
     private final Clock clock;
 
     private final SchedulerHealthMetrics schedulerHealthMetrics;
@@ -223,12 +225,15 @@ public class RetentionCleanupScheduler {
         int totalDeleted = 0;
         int roundDeleted;
         do {
-            List<Long> ids = finder.apply(cutoff, Limit.of(batchSize));
-            roundDeleted = ids.size();
-            if (roundDeleted > 0) {
-                deleter.accept(ids);
-                totalDeleted += roundDeleted;
-            }
+            // 한 묶음의 조회와 삭제를 문장 시간 상한이 풀린 트랜잭션 하나로 돌린다(DA-4) — 묶음마다 새 트랜잭션이라 잠금은 길게 쥐지 않는다
+            roundDeleted = retentionTransactions.call(() -> {
+                List<Long> ids = finder.apply(cutoff, Limit.of(batchSize));
+                if (!ids.isEmpty()) {
+                    deleter.accept(ids);
+                }
+                return ids.size();
+            });
+            totalDeleted += roundDeleted;
         } while (roundDeleted == batchSize);
 
         if (totalDeleted > 0) {

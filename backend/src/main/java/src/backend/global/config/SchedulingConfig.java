@@ -1,10 +1,16 @@
 package src.backend.global.config;
 
+import java.util.List;
+
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
 
 /**
  * {@code @Scheduled} 전용 스케줄러(BR-010).
@@ -35,11 +41,20 @@ public class SchedulingConfig implements SchedulingConfigurer, DisposableBean {
 
     private final ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
 
+    private final ObjectProvider<MeterRegistry> meterRegistry;
+
+    public SchedulingConfig(ObjectProvider<MeterRegistry> meterRegistry) {
+        this.meterRegistry = meterRegistry;
+    }
+
     @Override
     public void configureTasks(ScheduledTaskRegistrar registrar) {
         scheduler.setPoolSize(POOL_SIZE);
         scheduler.setThreadNamePrefix("scheduling-");
         scheduler.initialize();
+        // 스케줄러 풀도 Micrometer 기본 계측(executor.*, name=scheduling)으로 — 풀이 마르면 어느 배치가 줄을 섰는지 본다(DA-12)
+        meterRegistry.ifAvailable(registry -> new ExecutorServiceMetrics(scheduler.getScheduledExecutor(), "scheduling",
+                List.of()).bindTo(registry));
         registrar.setTaskScheduler(scheduler);
     }
 

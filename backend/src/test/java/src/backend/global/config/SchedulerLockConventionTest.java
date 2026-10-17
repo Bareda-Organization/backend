@@ -44,13 +44,9 @@ class SchedulerLockConventionTest {
      * 않는 {@code @Scheduled} 메서드. 항목마다 근거를 남긴다. 근거 없이 이름만 추가하면, 같은
      * 클래스에 락 없는 메서드가 하나 더 늘어도 이 목록이 통째로 가려 회귀를 못 잡는다.
      *
-     * <p><b>{@code RunConfirmationScheduler#confirmDueRuns}.</b> 근거: {@code ShedLockConfig}
-     * 자바독 — 확정 판정은 {@code RunRepository} 의 상태 조건부 조회 + 회차별 개별 트랜잭션 구조로
-     * 이미 "먼저 잡는 인스턴스만 갱신에 성공"이 보장돼, 락이 막을 대상(중복 판정 수행) 자체가
-     * 발생할 자리가 없다고 판단했다(Phase 11 T4 판정, 게이트 리뷰 승인).
+     * <p>{@code RunConfirmationScheduler#confirmDueRuns} 는 R57(DA-12, Ruling 899 J)에서 {@code @SchedulerLock} 을 달아 이 목록에서 뺐다.
      */
     private static final List<String> EXEMPT = List.of(
-            "RunConfirmationScheduler#confirmDueRuns",
             // DemoRunSimulator 는 @Profile("local") 전용 데모 코드라 운영에 실리지 않는다 — 분산 락이
             // 막으려는 "인스턴스 2대가 같은 배치를 동시에" 상황 자체가 성립하지 않는다(R23 신설).
             "DemoRunSimulator#tick");
@@ -109,8 +105,8 @@ class SchedulerLockConventionTest {
     @Test
     void 면제_목록은_개수가_고정되고_실재하는_스케줄_메서드만_가리킨다() {
         assertThat(EXEMPT)
-                .as("면제 목록이 2개에서 바뀌었다 — 항목을 더했으면 EXEMPT 자바독에 근거를 함께 적고 이 수를 고친다")
-                .hasSize(2);
+                .as("면제 목록이 1개에서 바뀌었다 — 항목을 더했으면 EXEMPT 자바독에 근거를 함께 적고 이 수를 고친다")
+                .hasSize(1);
 
         List<String> scheduledKeys = scheduledMethods().stream()
                 .map(method -> method.getDeclaringClass().getSimpleName() + "#" + method.getName())

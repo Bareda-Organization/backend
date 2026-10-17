@@ -5,9 +5,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
@@ -65,8 +68,8 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 감사 기록({@code AuditRecorder}, {@code REQUIRES_NEW})이 읽기
  * 트랜잭션 안에서 돌면 요청 하나가 DB 연결을 둘 쥐고, 동시 요청이 풀 크기에 닿으면 서로의 두 번째 연결을 기다려
- * 풀리지 않는다(R46 감사 #1). 저장소 호출마다 짧은 읽기 트랜잭션이 돌고, 감사는 조회가 끝난 뒤에 기록한다 —
- * 조회가 예외로 끝나면 감사 호출에 닿지 않는다.
+ * 풀리지 않는다(R46 감사 #1). 조회는 {@link #readOnly} 읽기 트랜잭션 하나(연결 1회 획득)로 끝내 연결을 돌려준 뒤 감사를
+ * 기록한다(DA-6) — 조회가 예외로 끝나면 감사 호출에 닿지 않는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -100,6 +103,8 @@ public class RosterQueryService {
 
     private final ProjectedRosterReader projectedRosterReader;
 
+    private final PlatformTransactionManager transactionManager;
+
     /**
      * 매니저 앱의 승하차지별 명단(§4.2) — 확정 전(idle) 회차는 {@code 409 RUN_NOT_CONFIRMED}(명단이
      * 아직 채워지지 않아 빈 배열과 "확정됐는데 비었다" 가 구별되지 않기 때문, {@code ErrorCode} 참고).
@@ -109,6 +114,13 @@ public class RosterQueryService {
      * 접근이 아니라 자원 상태를 묻는 질문이라 별도 계층에 둔다.
      */
     public ManagerRosterResponse managerRoster(AuthUser requester, Long runId) {
+        ManagerRosterResponse response = readOnly(() -> assembleManagerRoster(requester, runId));
+        recordManagerRosterAudit(requester, runId, response.stops());
+        return response;
+    }
+
+    /** 매니저 명단 조립 — 읽기 트랜잭션 하나 안에서 돈다(감사 기록은 이 뒤에 호출부가 한다). */
+    private ManagerRosterResponse assembleManagerRoster(AuthUser requester, Long runId) {
         ManagerRunAccess.RunAssignment assigned = managerRunAccess.requireAssignedRun(requester, runId);
         Run run = assigned.run();
         if (run.getStatus() == RunStatus.IDLE) {
@@ -134,7 +146,6 @@ public class RosterQueryService {
                                 ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById,
                                 maskedPhonesById, countdownsByRiderId))
                 .toList();
-        recordManagerRosterAudit(requester, run, stops);
         return new ManagerRosterResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
                 countsOf(riders), stops);
     }
@@ -151,7 +162,7 @@ public class RosterQueryService {
      * L3 값이 실제로 실리지 않았으므로 행을 남기지 않는다({@code StudentQueryService.detail} 과
      * 같은 근거).
      */
-    private void recordManagerRosterAudit(AuthUser requester, Run run, List<StopGroup> stops) {
+    private void recordManagerRosterAudit(AuthUser requester, Long runId, List<StopGroup> stops) {
         List<String> studentIds = stops.stream()
                 .flatMap(stopGroup -> stopGroup.students().stream())
                 .map(RosterStudent::studentId)
@@ -161,7 +172,7 @@ public class RosterQueryService {
         if (studentIds.isEmpty()) {
             return;
         }
-        auditRecorder.recordDataAccessRead(requester.academyId(), requester.accountId(), "run_roster", run.getId(),
+        auditRecorder.recordDataAccessRead(requester.academyId(), requester.accountId(), "run_roster", runId,
                 Map.of("student_ids", studentIds, "fields", List.of("photo_url", "note", "address")));
     }
 
@@ -176,14 +187,30 @@ public class RosterQueryService {
      * 조건에 학원 id 를 섞으면(옛 {@code findByIdAndAcademyId}) 두 사유가 같은 404 로 뭉개진다.
      */
     public List<StaffRosterItemResponse> staffRoster(AuthUser requester, Long runId) {
+        StaffRoster roster = readOnly(() -> assembleStaffRoster(requester, runId));
+        recordStaffRosterAudit(requester, roster.run(), roster.items());
+        return roster.items();
+    }
+
+    /** 관계자 명단 조립 — 읽기 트랜잭션 하나 안에서 돈다. 감사에 쓸 회차를 함께 돌려준다. */
+    private StaffRoster assembleStaffRoster(AuthUser requester, Long runId) {
         Run run = runRepository.findById(runId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         AcademyScope.assertAccessible(requester, run.getAcademyId());
         List<StaffRosterItemResponse> items = run.getStatus() == RunStatus.IDLE
                 ? plannedStaffItems(requester, run)
                 : confirmedStaffItems(requester, run);
-        recordStaffRosterAudit(requester, run, items);
-        return items;
+        return new StaffRoster(run, items);
+    }
+
+    private record StaffRoster(Run run, List<StaffRosterItemResponse> items) {
+    }
+
+    /** 조회 전체를 읽기 트랜잭션 하나로 — 저장소 호출마다 연결을 따로 얻지 않는다(DA-6). */
+    private <T> T readOnly(Supplier<T> read) {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setReadOnly(true);
+        return template.execute(status -> read.get());
     }
 
     /** 확정 뒤 회차의 명단 — {@code run_rider} 원본 그대로다. */

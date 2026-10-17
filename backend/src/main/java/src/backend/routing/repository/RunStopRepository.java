@@ -161,6 +161,28 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
     List<RunStop> findNextUnarrived(@Param("routeVersionId") Long routeVersionId, Pageable pageable);
 
     /**
+     * {@link #findNextUnarrived} 의 여러 노선 판본 한 번 조회판(DA-1, Ruling 899) — 판본마다 {@code seq} 가 가장 작은 미도착 정차 항목
+     * 하나씩. 같은 조건을 서브쿼리로도 걸어 판본마다 첫 항목만 남긴다(근접 판정이 틱마다 회차 수만큼 읽지 않게 한다).
+     */
+    @AcademyScopeExempt(reason = "findNextUnarrived 와 같은 근거 — 판본 id 는 근접 알림 스케줄러가 RunRepository 로 이미 학원과 무관하게 "
+            + "골라낸 run.id 에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다")
+    @Query("""
+            SELECT rs FROM RunStop rs
+            WHERE rs.routeVersionId IN :routeVersionIds
+              AND rs.stopId IS NOT NULL
+              AND rs.arrivedAt IS NULL
+              AND rs.departedAt IS NULL
+              AND (rs.change IS NULL OR rs.change <> src.backend.global.common.enums.ChangeType.SKIPPED)
+              AND rs.seq = (SELECT MIN(x.seq) FROM RunStop x
+                            WHERE x.routeVersionId = rs.routeVersionId
+                              AND x.stopId IS NOT NULL
+                              AND x.arrivedAt IS NULL
+                              AND x.departedAt IS NULL
+                              AND (x.change IS NULL OR x.change <> src.backend.global.common.enums.ChangeType.SKIPPED))
+            """)
+    List<RunStop> findNextUnarrivedOfVersions(@Param("routeVersionIds") Collection<Long> routeVersionIds);
+
+    /**
      * 정차 항목 1건의 근접 알림을 <b>최초 1회</b>로 선점한다 — 영향받은 행 수로 성공 여부를 판정한다
      * (목표 15, Ruling 210 조건부 UPDATE 선점).
      *
@@ -204,6 +226,23 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             ORDER BY rs.seq ASC
             """)
     List<RunStop> findFirstArrivedNotDeparted(@Param("routeVersionId") Long routeVersionId, Pageable pageable);
+
+    /** {@link #findFirstArrivedNotDeparted} 의 여러 노선 판본 한 번 조회판(DA-1) — 판본마다 {@code seq} 가 가장 작은 도착·미출발 정차 항목 하나씩. */
+    @AcademyScopeExempt(reason = "findFirstArrivedNotDeparted 와 같은 근거 — 판본 id 는 출발 판정 스케줄러가 RunRepository 로 이미 학원과 "
+            + "무관하게 골라낸 run.id 에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다")
+    @Query("""
+            SELECT rs FROM RunStop rs
+            WHERE rs.routeVersionId IN :routeVersionIds
+              AND rs.stopId IS NOT NULL
+              AND rs.arrivedAt IS NOT NULL
+              AND rs.departedAt IS NULL
+              AND rs.seq = (SELECT MIN(x.seq) FROM RunStop x
+                            WHERE x.routeVersionId = rs.routeVersionId
+                              AND x.stopId IS NOT NULL
+                              AND x.arrivedAt IS NOT NULL
+                              AND x.departedAt IS NULL)
+            """)
+    List<RunStop> findFirstArrivedNotDepartedOfVersions(@Param("routeVersionIds") Collection<Long> routeVersionIds);
 
     /**
      * 아직 출발 처리되지 않은 정차지 <b>전부</b> — <b>도착 처리 여부와 무관</b>하다(Ruling 312, R51 H2). 운행 종료 시

@@ -1,11 +1,16 @@
 package src.backend.run.scheduler;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
 
 /**
  * 확정 배치가 회차를 동시에 처리할 스레드 풀(RTE-08, Phase 7 목표 6) — 한 틱이 집은 회차들을 이
@@ -36,7 +41,10 @@ public class RunConfirmationWorkerPoolConfig {
     @Bean
     public ExecutorService runConfirmationExecutor(
             @Value("${app.run.confirmation.pool-size:${resilience4j.bulkhead.instances.mapRouteBatch.max-concurrent-calls}}")
-            int poolSize) {
-        return Executors.newFixedThreadPool(poolSize);
+            int poolSize, MeterRegistry meterRegistry) {
+        ExecutorService executor = Executors.newFixedThreadPool(poolSize, new CustomizableThreadFactory("run-confirm-"));
+        // Micrometer 기본 계측(executor.*, name=run-confirmation) — 새 지표 보관 클래스를 두지 않는다. 감싸지 않고 바인딩만 한다(DA-12)
+        new ExecutorServiceMetrics(executor, "run-confirmation", List.of()).bindTo(meterRegistry);
+        return executor;
     }
 }

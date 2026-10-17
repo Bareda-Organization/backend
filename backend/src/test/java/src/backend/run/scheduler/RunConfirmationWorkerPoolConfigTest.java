@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import io.github.resilience4j.bulkhead.BulkheadRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 
 /**
  * 확정 배치 워커 풀({@link RunConfirmationWorkerPoolConfig#runConfirmationExecutor})의 <b>동시 실행
@@ -32,6 +33,27 @@ class RunConfirmationWorkerPoolConfigTest {
 
     @Autowired
     private BulkheadRegistry bulkheadRegistry;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    /** DA-12 — 확정 실행기의 스레드 이름이 {@code run-confirm-} 이다(스레드 덤프 · 로그에서 어느 풀인지 가른다). */
+    @Test
+    void 확정_실행기의_스레드_이름은_run_confirm_으로_시작한다() throws Exception {
+        String threadName = runConfirmationExecutor.submit(() -> Thread.currentThread().getName()).get(TIMEOUT_SECONDS,
+                TimeUnit.SECONDS);
+
+        assertThat(threadName).startsWith("run-confirm-");
+    }
+
+    /** DA-12 — 확정 실행기와 스케줄러 풀의 지표는 Micrometer 기본 계측({@code executor.*})으로 나간다. */
+    @Test
+    void 확정_실행기와_스케줄러_풀의_실행기_지표가_있다() {
+        assertThat(meterRegistry.find("executor.pool.size").tag("name", "run-confirmation").gauge())
+                .as("확정 실행기 executor.pool.size").isNotNull();
+        assertThat(meterRegistry.find("executor.pool.size").tag("name", "scheduling").gauge())
+                .as("스케줄러 풀 executor.pool.size").isNotNull();
+    }
 
     /**
      * 풀이 격벽보다 크면 한 틱에 도래한 회차 중 격벽을 넘는 몫은 <b>공급자에 닿지도 못하고</b> 직선 근사로

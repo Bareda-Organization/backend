@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
  * 키의 기한이 행을 만든 시각이 아니라 <b>회차 종료</b>를 기준으로 하는 사양("최소 회차 종료 후 24시간 보장")을 지킨다.
  *
  * <p>표마다 한 문장짜리 벌크 UPDATE 를 {@code batchSize} 행씩 반복한다({@link RetentionPolicy#BATCH_SIZE} 와 같은 이유 — 행 잠금을 길게
- * 붙들지 않는다). 문장마다 독립된 트랜잭션이다(트랜잭션 없는 {@link JdbcTemplate} 은 문장별 자동 커밋). ponytail: 키 컬럼에 부분 인덱스가
+ * 붙들지 않는다). 문장마다 독립된 트랜잭션이다({@link RetentionTransactions} — 문장 시간 상한이 풀린다). ponytail: 키 컬럼에 부분 인덱스가
  * 없어 정리 때 후보를 훑는다 — 느려지면 {@code (client_key) WHERE client_key IS NOT NULL} 인덱스를 더한다.
  */
 @Component
@@ -44,6 +44,8 @@ public class IdempotencyKeyExpiry {
 
     private final JdbcTemplate jdbc;
 
+    private final RetentionTransactions retentionTransactions;
+
     /**
      * 기한이 지난 키를 비운다.
      *
@@ -58,7 +60,7 @@ public class IdempotencyKeyExpiry {
         int total = 0;
         int updated;
         do {
-            updated = jdbc.update(sql, cutoff, batchSize);
+            updated = retentionTransactions.call(() -> jdbc.update(sql, cutoff, batchSize));
             total += updated;
         } while (updated == batchSize);
         return total;

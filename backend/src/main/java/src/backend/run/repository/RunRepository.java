@@ -124,7 +124,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 시각으로 재계산하면 배치가 늦게 돈 회차의 판정 기준이 실행 시각 쪽으로 밀린다.
      *
      * <p>{@code pageable} 은 한 틱이 한 번에 집는 상한이다(목표 6) — 상한 없이 전건을 집으면 회차가
-     * 몰린 틱 하나가 커넥션·워커 풀을 오래 붙든다. {@code ix_run_status_confirm_at} 이 이 조회를 받친다.
+     * 몰린 틱 하나가 커넥션·워커 풀을 오래 붙든다. {@code ix_run_status_confirm_at} 이 이 조회를 받친다 — 상태는 enum 리터럴이다(바인딩 파라미터면 일반 계획이 부분 인덱스를 못 쓴다, DA-3).
      *
      * <p><b>영구 실패 회차가 상한을 차지하지 못하게</b> 두 조건을 건다(BR-001, ARCHITECTURE §9.4 회차 단위
      * 격리). ① {@code service_date >= today} — 지난 날짜 회차는 확정해도 운행할 수 없고, 빼지 않으면 노선
@@ -140,12 +140,12 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     @AcademyScopeExempt(reason = "확정 배치(RTE-08)는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
             + "학원 하나로 좁히면 나머지 학원의 회차가 확정되지 않는다. 호출부는 배치(RunConfirmationScheduler)뿐이라는 "
             + "전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다(ScheduleRepository.findAllByWeekdayAndActiveIsTrue 와 같은 근거)")
-    @Query("SELECT r FROM Run r WHERE r.status = :idleStatus AND r.confirmAt <= :now "
+    @Query("SELECT r FROM Run r WHERE r.status = src.backend.run.entity.RunStatus.IDLE AND r.confirmAt <= :now "
             + "AND r.serviceDate >= :today AND r.canceledAt IS NULL "
             + "AND (r.confirmRetryAt IS NULL OR r.confirmRetryAt <= :now) "
             + "ORDER BY r.consecutiveFailures ASC, r.confirmAt ASC")
     List<Run> findDueForConfirmation(@Param("now") OffsetDateTime now, @Param("today") LocalDate today,
-            @Param("idleStatus") RunStatus idleStatus, Pageable pageable);
+            Pageable pageable);
 
     /**
      * 근접 알림 스케줄러(NTF-04, 목표 13·15)의 조회 대상 — 시각 문턱이 없다는 점이

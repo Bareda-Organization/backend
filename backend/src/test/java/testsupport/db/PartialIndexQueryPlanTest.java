@@ -31,6 +31,8 @@ import ch.qos.logback.core.read.ListAppender;
 import src.backend.BackendApplication;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.boarding.entity.RiderStatus;
+import src.backend.notification.entity.PushState;
+import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StudentRepository;
@@ -45,7 +47,7 @@ import src.backend.student.repository.StudentRepository;
  *       {@code ix_student_retention_cutoff}). 부분 인덱스는 조건이 리터럴일 때만 일반(generic) 계획에서도 쓰이므로(14.6만 행 실측
  *       20.7ms ↔ 0.033ms, Ruling 673·701) {@code plan_cache_mode = force_generic_plan} 으로 계획하고, SQL 에 상태 리터럴이 있는지를
  *       따로 본다 — 누가 {@code :status} 파라미터로 되돌리면 둘 다 실패한다.</li>
- *   <li><b>파라미터 쿼리</b> — 상태를 바인딩 파라미터로 받는 {@code findDueForConfirmation} · {@code countOverdueUnconfirmed}. ERD §5.3 Ruling 631 이
+ *   <li><b>파라미터 쿼리</b> — 상태를 바인딩 파라미터로 받는 {@code countOverdueUnconfirmed}(30초 게이지 하나라 R57 에서 리터럴로 옮기지 않았다). ERD §5.3 Ruling 631 이
  *       "맞춤(custom) 계획이 유지돼 부분 인덱스를 쓴다" 고 받아들인 쿼리라 실제 값을 넣은 맞춤 계획으로 본다. 쿼리가 인덱스 조건
  *       (status · canceled_at)을 빠뜨리면 이 인덱스를 못 쓴다.</li>
  * </ul>
@@ -59,6 +61,9 @@ class PartialIndexQueryPlanTest {
 
     private static final Pattern RUN_STATEMENT = Pattern.compile("(?is)^\\s*(select\\b.*\\bfrom run\\b|update run\\b).*");
 
+    private static final Pattern NOTIFICATION_LOG_STATEMENT = Pattern
+            .compile("(?is)^\\s*(select\\b.*\\bfrom notification_log\\b|update notification_log\\b).*");
+
     private static final Pattern STUDENT_STATEMENT = Pattern.compile("(?is)^\\s*select\\b.*\\bfrom student\\b.*");
 
     private static final Pattern AUDIT_LOG_STATEMENT = Pattern.compile("(?is)^\\s*select\\b.*\\bfrom audit_log\\b.*");
@@ -70,21 +75,48 @@ class PartialIndexQueryPlanTest {
     private StudentRepository studentRepository;
 
     @Autowired
+    private NotificationLogRepository notificationLogRepository;
+
+    @Autowired
     private DataSource dataSource;
 
     @Autowired
     private AuditLogRepository auditLogRepository;
 
-    /** 확정 배치가 매 틱 읽는 조회 — 상태는 파라미터다(Ruling 631). */
+    /** 확정 배치가 매 틱 읽는 조회 — 상태는 리터럴이라 일반 계획에서도 부분 인덱스를 탄다(DA-3, Ruling 899). */
     @Test
-    void 확정_배치_조회는_ix_run_status_confirm_at_으로_풀린다() throws Exception {
+    void 확정_배치_조회는_idle_리터럴로_ix_run_status_confirm_at_을_일반_계획에서도_탄다() throws Exception {
         String sql = 실행된_SQL(RUN_STATEMENT, () -> runRepository.findDueForConfirmation(OffsetDateTime.now(),
-                LocalDate.now(), RunStatus.IDLE, PageRequest.of(0, 50)));
+                LocalDate.now(), PageRequest.of(0, 50)));
 
-        String plan = 맞춤_계획을_본다(sql, List.of("'idle'", "now()", "current_date", "now()", "50"),
-                List.of("ix_run_open_service_date"));
+        String plan = 일반_계획을_본다(sql, List.of("ix_run_open_service_date"));
 
+        assertThat(sql).as("상태가 바인딩 파라미터면 부분 인덱스를 못 쓴다").contains("'idle'");
         assertThat(plan).as("%s%n%s", sql, plan).contains("ix_run_status_confirm_at").doesNotContain("Seq Scan");
+    }
+
+    /** 아웃박스 워커가 매 틱 읽는 미발송 후보 — 상태는 리터럴이라 일반 계획에서도 ix_notification_log_pending 을 탄다(DA-3). */
+    @Test
+    void 알림_재시도_후보_조회는_pending_리터럴로_ix_notification_log_pending_을_일반_계획에서도_탄다() throws Exception {
+        String sql = 실행된_SQL(NOTIFICATION_LOG_STATEMENT, () -> notificationLogRepository.findRetryCandidates(
+                5, OffsetDateTime.now(), PageRequest.of(0, 50)));
+
+        String plan = 일반_계획을_본다(sql, List.of());
+
+        assertThat(sql).as("상태가 바인딩 파라미터면 부분 인덱스를 못 쓴다").contains("'pending'");
+        assertThat(plan).as("%s%n%s", sql, plan).contains("ix_notification_log_pending").doesNotContain("Seq Scan");
+    }
+
+    /** 멈춘 미발송 행을 failed 로 옮기는 갱신 — 같은 부분 인덱스로 후보를 좁힌다(DA-3). */
+    @Test
+    void 정체_행_회수_갱신은_pending_리터럴로_ix_notification_log_pending_을_일반_계획에서도_탄다() throws Exception {
+        String sql = 실행된_SQL(NOTIFICATION_LOG_STATEMENT, () -> notificationLogRepository.failStalled(
+                PushState.FAILED, 5, OffsetDateTime.now(), "stalled"));
+
+        String plan = 일반_계획을_본다(sql, List.of());
+
+        assertThat(sql).as("상태가 바인딩 파라미터면 부분 인덱스를 못 쓴다").contains("'pending'");
+        assertThat(plan).as("%s%n%s", sql, plan).contains("ix_notification_log_pending").doesNotContain("Seq Scan");
     }
 
     /** 30초마다 도는 확정 지연 게이지 — 상태는 파라미터다(Ruling 631). */

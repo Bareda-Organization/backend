@@ -96,8 +96,8 @@ class RedisFailureLogFloodTest {
         when(redis.opsForValue()).thenReturn(operations);
         when(operations.multiGet(anyCollection())).thenThrow(new RedisConnectionFailureException("redis down"));
         RunPositionRepository history = mock(RunPositionRepository.class);
-        when(history.findLatestByRunIdIn(any())).thenReturn(List.of());
-        RunPositionStore store = new RunPositionStore(redis, history, mock(RunPositionFallbackMetrics.class));
+        when(history.findLatestByRunIdIn(any(), any(), any())).thenReturn(List.of());
+        RunPositionStore store = new RunPositionStore(redis, history, mock(RunPositionFallbackMetrics.class), Clock.systemUTC());
         collect(RunPositionStore.class);
 
         for (int i = 0; i < FAILURES; i++) {
@@ -105,7 +105,7 @@ class RedisFailureLogFloodTest {
         }
 
         assertStackLogged(1);
-        org.mockito.Mockito.verify(history, org.mockito.Mockito.times(FAILURES)).findLatestByRunIdIn(any());
+        org.mockito.Mockito.verify(history, org.mockito.Mockito.times(FAILURES)).findLatestByRunIdIn(any(), any(), any());
     }
 
     @Test
@@ -123,11 +123,11 @@ class RedisFailureLogFloodTest {
                 new BigDecimal("127.0"), OffsetDateTime.now(), OffsetDateTime.now(), null)));
         // 서비스가 판정 둘의 실패를 각각 알려 온다 — 근접·출발이 따로 센다
         doAnswer(invocation -> {
-            BiConsumer<ProximityNotificationService.Judgment, Exception> onFailure = invocation.getArgument(3);
+            BiConsumer<ProximityNotificationService.Judgment, Exception> onFailure = invocation.getArgument(4);
             onFailure.accept(ProximityNotificationService.Judgment.APPROACH, new IllegalStateException("판정 실패"));
             onFailure.accept(ProximityNotificationService.Judgment.DEPARTURE, new IllegalStateException("판정 실패"));
             return null;
-        }).when(service).judgeRun(any(), any(), any(), any());
+        }).when(service).judgeRun(any(), any(), any(), any(), any());
         ProximityNotificationScheduler scheduler = new ProximityNotificationScheduler(runRepository,
                 new MovingRunWindowPolicy(Clock.systemUTC()), service, store, mock(SchedulerHealthMetrics.class));
         collect(ProximityNotificationScheduler.class);

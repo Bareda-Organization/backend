@@ -24,6 +24,11 @@ import src.backend.location.infrastructure.RunPositionPartitionManager;
 @Transactional
 class RunPositionRepositoryLatestTest {
 
+    /** 시간 구간이 시험 데이터(2099년)를 모두 덮게 넓힌 값 — 구간 효과는 DA-2 시험이 따로 본다. */
+    private static final OffsetDateTime WIDE_SINCE = OffsetDateTime.parse("1900-01-01T00:00:00Z");
+
+    private static final OffsetDateTime WIDE_UNTIL = OffsetDateTime.parse("2200-01-01T00:00:00Z");
+
     private static final long RUN_A = 3L;
 
     private static final long RUN_B = 4L;
@@ -54,7 +59,7 @@ class RunPositionRepositoryLatestTest {
         long bLatest = 행을_심는다(RUN_B, base.plusMinutes(7));
         행을_심는다(RUN_B, base.plusMinutes(2));
 
-        List<Long> actual = repository.findLatestByRunIdIn(List.of(RUN_A, RUN_B)).stream()
+        List<Long> actual = repository.findLatestByRunIdIn(List.of(RUN_A, RUN_B), WIDE_SINCE, WIDE_UNTIL).stream()
                 .map(RunPosition::getId).sorted().collect(Collectors.toList());
         List<Long> old = jdbc.queryForList(OLD_QUERY, Long.class, RUN_A, RUN_B).stream().sorted().toList();
 
@@ -78,7 +83,7 @@ class RunPositionRepositoryLatestTest {
                 java.math.BigDecimal.valueOf(127.0), day2.plusMinutes(30), day2.plusMinutes(30), null, null)).getId();
         long bLatest = 행을_심는다(RUN_B, day1.plusHours(1));
 
-        List<Long> inPartitions = repository.findLatestByRunIdIn(List.of(RUN_A, RUN_B)).stream()
+        List<Long> inPartitions = repository.findLatestByRunIdIn(List.of(RUN_A, RUN_B), WIDE_SINCE, WIDE_UNTIL).stream()
                 .map(RunPosition::getId).sorted().toList();
         assertThat(inPartitions).containsExactlyInAnyOrder(saved, bLatest);
         assertThat(jdbc.queryForObject("SELECT tableoid::regclass::text FROM run_position WHERE id = ?", String.class, saved))
@@ -86,7 +91,7 @@ class RunPositionRepositoryLatestTest {
 
         // 파티션이 없는 날짜(기본 파티션)의 행이 더 최근이면 그 행이 최신이다
         long inDefault = 행을_심는다(RUN_A, OffsetDateTime.parse("2099-03-05T10:00:00+09:00"));
-        assertThat(repository.findLatestByRunIdIn(List.of(RUN_A)).stream().map(RunPosition::getId))
+        assertThat(repository.findLatestByRunIdIn(List.of(RUN_A), WIDE_SINCE, WIDE_UNTIL).stream().map(RunPosition::getId))
                 .containsExactly(inDefault);
     }
 
@@ -106,7 +111,8 @@ class RunPositionRepositoryLatestTest {
         jdbc.execute("ANALYZE run_position");
 
         String sql = 조회_쿼리_원문();
-        String plan = jdbc.queryForList("EXPLAIN " + sql.replace(":runIds", "3, 4"), String.class).stream()
+        String plan = jdbc.queryForList("EXPLAIN " + sql.replace(":runIds", "3, 4")
+                .replace(":since", "TIMESTAMPTZ '1900-01-01'").replace(":until", "TIMESTAMPTZ '2200-01-01'"), String.class).stream()
                 .collect(Collectors.joining("\n"));
 
         // 정렬 키 중 recorded_at 은 인덱스가 이미 정렬해 둔 것(Presorted) — 동률 묶음만 id 로 다시 정렬한다
@@ -114,10 +120,32 @@ class RunPositionRepositoryLatestTest {
         assertThat(plan).as(plan).contains("_run_id_recorded_at_idx", "Presorted Key: run_position.recorded_at");
     }
 
+    /**
+     * DA-2(Ruling 899) — 일 파티션이 열흘치 있어도 최신 위치 조회가 읽는 파티션은 시간 구간이 닿는 2개 이하다(하한 {@code :since} · 상한
+     * {@code :until}). 시간 구간이 없으면 파티션마다 회차 인덱스를 한 번씩 찾아 파티션 수만큼 비용이 는다. 운영 쿼리 원문의 구간 값만
+     * 리터럴로 채워 {@code EXPLAIN} 한다.
+     */
+    @Test
+    @DisplayName("DA-2 — 최신 위치 조회는 일 파티션 열 개 중 시간 구간이 닿는 2개 이하만 읽는다")
+    void 최신_위치_조회는_파티션_2개_이하만_읽는다() {
+        manager.ensureAhead(java.time.LocalDate.of(2099, 3, 1), 9);
+        OffsetDateTime now = OffsetDateTime.parse("2099-03-06T10:00:00+09:00");
+
+        String sql = 조회_쿼리_원문().replace(":runIds", "3, 4")
+                .replace(":since", "TIMESTAMPTZ '" + now.minusHours(24) + "'")
+                .replace(":until", "TIMESTAMPTZ '" + now.plusMinutes(10) + "'");
+        String plan = jdbc.queryForList("EXPLAIN " + sql, String.class).stream().collect(Collectors.joining("\n"));
+
+        long partitions = java.util.regex.Pattern.compile("run_position_(p\\d{8}|default)").matcher(plan).results()
+                .map(java.util.regex.MatchResult::group).distinct().count();
+        assertThat(partitions).as(plan).isLessThanOrEqualTo(2);
+    }
+
     /** 운영 쿼리 원문 — 시험용 사본이 아니라 애너테이션에서 그대로 읽어 쿼리가 바뀌면 이 시험도 따라간다. */
     private static String 조회_쿼리_원문() {
         try {
-            return RunPositionRepository.class.getMethod("findLatestByRunIdIn", java.util.Collection.class)
+            return RunPositionRepository.class.getMethod("findLatestByRunIdIn", java.util.Collection.class, OffsetDateTime.class,
+                    OffsetDateTime.class)
                     .getAnnotation(org.springframework.data.jpa.repository.Query.class).value();
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException(e);

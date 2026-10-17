@@ -1,6 +1,7 @@
 package src.backend.location.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,11 +23,16 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionTemplate;
+
 import jakarta.persistence.EntityManagerFactory;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
+import src.backend.boarding.command.RunRiderPersistence;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
@@ -35,6 +41,10 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import src.backend.global.security.AuthUser;
+import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.global.websocket.WebSocketDestinations;
+import src.backend.location.dto.RunPositionRequest;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.request.repository.ChangeRequestRepository;
@@ -42,6 +52,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
+import src.backend.run.event.StopArrivedEvent;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
@@ -80,6 +91,11 @@ class RunPositionQueryCountTest {
     @Autowired private GuardianRepository guardianRepository;
     @Autowired private GuardianStudentRepository guardianStudentRepository;
     @Autowired private ChangeRequestRepository changeRequestRepository;
+    @Autowired private RunPositionCommandService positionCommandService;
+    @Autowired private RunRiderPersistence runRiderPersistence;
+    @Autowired private TransactionTemplate transactionTemplate;
+    @Autowired private ApplicationEventPublisher eventPublisher;
+    @MockitoSpyBean private WebSocketBroadcastGateway gateway;
 
     private final List<Long> academyIds = new ArrayList<>();
 
@@ -120,12 +136,12 @@ class RunPositionQueryCountTest {
     }
 
     /**
-     * R46-LATERBE L2(Ruling 671) — 위치 1건(2초마다)의 SQL 은 6건이다: <b>인증 필터의 계정 상태 확인 1(Ruling 880)</b> · 인가 exists 1(전 2 — 매니저·배치) · 회차 1 · INSERT 1 ·
-     * 확정 노선+정차 목록+정차 이름 조인 1(전 3 — 확정 노선·정차 목록·정차명) · 커밋 뒤 탑승자 학생 id 1. 전체 9건(첫 도착 전 8건)에서
-     * 줄었다. 880 이 요청마다 더한 1건(기본키 조회)은 의도한 비용이다. 캐시가 아니라 쿼리를 합친 것이라 무효화 지점이 없다 — 매 요청이 실시간 값을 읽는다.
+     * R46-LATERBE L2(Ruling 671) — <b>캐시가 비어 있는</b> 첫 위치 1건의 SQL 은 6건이다: 인증 필터의 계정 상태 확인 1(Ruling 880) · 인가 exists 1 ·
+     * 회차 1 · INSERT 1 · 정차 목록 1 · 커밋 뒤 탑승자 학생 id 1. 두 목록은 R57(RT-5)부터 이벤트가 커밋될 때만 다시 읽으므로 이어지는 위치는
+     * 아래 RT-5 시험이 3건을 센다.
      */
     @Test
-    @DisplayName("L2 — 위치 1건의 SQL 은 6건이다(첫 도착 뒤 · 880 포함)")
+    @DisplayName("L2 — 캐시가 빈 첫 위치 1건의 SQL 은 6건이다(첫 도착 뒤 · 880 포함)")
     void 첫_도착_뒤_위치_1건의_SQL_은_6건이다() throws Exception {
         Seeded seeded = 회차를_심는다(true);
 
@@ -133,11 +149,65 @@ class RunPositionQueryCountTest {
     }
 
     @Test
-    @DisplayName("L2 — 첫 도착 전에도 위치 1건의 SQL 은 6건이다(880 포함)")
+    @DisplayName("L2 — 캐시가 빈 첫 위치는 첫 도착 전에도 SQL 6건이다(880 포함)")
     void 첫_도착_전_위치_1건의_SQL_은_6건이다() throws Exception {
         Seeded seeded = 회차를_심는다(false);
 
         assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(6);
+    }
+
+    /**
+     * RT-5(Ruling 899 K) — 정차 목록 · 탑승 학생 목록은 도착 · 결석 · 전환 이벤트가 커밋될 때만 다시 읽는다. 인증 필터의 계정 상태 확인(Ruling 880 ·
+     * BE-RT 가 캐시한다)은 이 경로의 몫이 아니라 서비스를 직접 불러 센다. 데워진 위치 1건은 인가 exists 1 + 회차 1 + INSERT 1 = 3건이다.
+     */
+    @Test
+    @DisplayName("RT-5 — 데워진 뒤 위치 1건의 SQL 은 3건 이하다")
+    void 데워진_뒤_위치_1건의_SQL_은_3건_이하다() {
+        Seeded seeded = 회차를_심는다(true);
+        직접_보낸다(seeded);
+
+        long warm = 직접_보내고_SQL_수를_센다(seeded);
+
+        assertThat(warm).isLessThanOrEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("RT-5 — 결석 전이가 커밋되면 다음 위치 한 번만 학생 목록을 다시 읽고, 결석 학생 채널로는 방송하지 않는다")
+    void 결석_뒤_첫_위치에서만_학생_목록을_다시_읽는다() {
+        Seeded seeded = 회차를_심는다(false);
+        DriverRunFixtures fx = fixtures();
+        long stopId = fx.stop(seeded.academyId(), "37.570000", "126.980000");
+        long staying = fx.student(seeded.academyId(), "남는학생");
+        long leaving = fx.student(seeded.academyId(), "결석할학생");
+        fx.rider(seeded.runId(), staying, stopId, RiderStatus.WAITING, seeded.now());
+        long leavingRiderId = fx.rider(seeded.runId(), leaving, stopId, RiderStatus.WAITING, seeded.now());
+        직접_보낸다(seeded);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("데워진 위치").isEqualTo(3);
+
+        transactionTemplate.executeWithoutResult(status -> runRiderPersistence
+                .markAbsentBySystem(runRiderRepository.findById(leavingRiderId).orElseThrow(), seeded.now()));
+        org.mockito.Mockito.clearInvocations(gateway);
+
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("결석 뒤 첫 위치 — 학생 목록 1건 더").isEqualTo(4);
+        org.mockito.Mockito.verify(gateway, org.mockito.Mockito.never()).send(
+                org.mockito.ArgumentMatchers.eq(WebSocketDestinations.studentRun(leaving)), any(), any(), any(), any());
+        org.mockito.Mockito.verify(gateway).send(org.mockito.ArgumentMatchers.eq(WebSocketDestinations.studentRun(staying)),
+                any(), any(), any(), any());
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("그 다음 위치는 다시 3건").isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("RT-5 — 정류장 도착이 커밋되면 다음 위치 한 번만 정차 목록을 다시 읽는다")
+    void 도착_뒤_첫_위치에서만_정차_목록을_다시_읽는다() {
+        Seeded seeded = 회차를_심는다(false);
+        직접_보낸다(seeded);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("데워진 위치").isEqualTo(3);
+
+        eventPublisher.publishEvent(new StopArrivedEvent(seeded.runId(), seeded.academyId(), 1L, 1, "정류장",
+                seeded.now(), null));
+
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("도착 뒤 첫 위치 — 정차 목록 1건 더").isEqualTo(4);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("그 다음 위치는 다시 3건").isEqualTo(3);
     }
 
     /** 위치 방송 수신자 조회가 absent 를 빼고 학생 id 만 돌려준다(엔티티 목록 대신 투영 — L2). 거르는 일은 조회가 한다. */
@@ -196,6 +266,27 @@ class RunPositionQueryCountTest {
                                 {"lat": 37.561000, "lng": 126.971000, "recorded_at": "%s"}
                                 """.formatted(seeded.now().minusSeconds(2))))
                 .andExpect(status().isNoContent());
+    }
+
+    private DriverRunFixtures fixtures() {
+        return new DriverRunFixtures(academyRepository, busRepository, stopRepository,
+                studentRepository, accountRepository, managerRepository, assignmentRepository, runRepository,
+                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository,
+                academyStaffRepository, guardianRepository, guardianStudentRepository, changeRequestRepository);
+    }
+
+    /** 인증 필터를 거치지 않고 서비스를 직접 부른다 — 위치 경로의 SQL(인가 · 회차 · INSERT · 목록)만 센다. */
+    private void 직접_보낸다(Seeded seeded) {
+        AuthUser driver = new AuthUser(seeded.driverAccountId(), seeded.academyId(), Role.DRIVER, AccountStatus.ACTIVE, false);
+        positionCommandService.receive(driver, seeded.runId(), new RunPositionRequest(new java.math.BigDecimal("37.561000"),
+                new java.math.BigDecimal("126.971000"), seeded.now().minusSeconds(2), null, null));
+    }
+
+    private long 직접_보내고_SQL_수를_센다(Seeded seeded) {
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        long before = statistics.getPrepareStatementCount();
+        직접_보낸다(seeded);
+        return statistics.getPrepareStatementCount() - before;
     }
 
     /** Hibernate 가 준비한 문장 수의 요청 전후 차이 — 커밋 뒤 리스너(탑승자 조회)까지 같은 스레드라 포함된다. */

@@ -8,8 +8,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -85,14 +83,14 @@ public class StudentAnonymizationService {
 
     private final Clock clock;
 
-    private final TransactionTemplate transaction;
+    private final RetentionTransactions transaction;
 
     public StudentAnonymizationService(StudentRepository studentRepository,
             WeeklyAddressRepository weeklyAddressRepository, LinkCodeRepository linkCodeRepository,
             GuardianStudentRepository guardianStudentRepository, ChangeRequestRepository changeRequestRepository, AccountRepository accountRepository,
             RefreshTokenRepository refreshTokenRepository, DeviceTokenRepository deviceTokenRepository,
             AuditLogRepository auditLogRepository, PhotoStorage photoStorage, Clock clock,
-            PlatformTransactionManager transactionManager) {
+            RetentionTransactions retentionTransactions) {
         this.studentRepository = studentRepository;
         this.weeklyAddressRepository = weeklyAddressRepository;
         this.linkCodeRepository = linkCodeRepository;
@@ -104,7 +102,7 @@ public class StudentAnonymizationService {
         this.auditLogRepository = auditLogRepository;
         this.photoStorage = photoStorage;
         this.clock = clock;
-        this.transaction = new TransactionTemplate(transactionManager);
+        this.transaction = retentionTransactions;
     }
 
     /**
@@ -140,7 +138,7 @@ public class StudentAnonymizationService {
     /** 한 트랜잭션으로 파기하고, 실패하면 학생 한 명씩 다시 시도한다 — 한 명이면 그 학생만 실패로 남는다. */
     private int purgeIsolatingFailures(List<Long> studentIds) {
         try {
-            return transaction.execute(status -> purge(studentIds));
+            return transaction.call(() -> purge(studentIds));
         } catch (RuntimeException e) {
             if (studentIds.size() == 1) {
                 log.warn("퇴원 학생 파기 실패(다음 틱에 다시 시도) — studentId={}", studentIds.get(0), e);

@@ -24,7 +24,6 @@ import src.backend.global.security.access.AcademyScope;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
-import src.backend.run.roster.ProjectedRoster;
 import src.backend.run.roster.ProjectedRosterReader;
 import src.backend.student.dto.WithdrawalPreviewResponse;
 import src.backend.student.dto.WithdrawalPreviewResponse.RunItem;
@@ -110,15 +109,13 @@ public class WithdrawalPreviewQueryService {
                 }
             }
         }
-        for (Run run : runs) {
-            if (run.getStatus() != RunStatus.IDLE) {
-                continue;
-            }
-            ProjectedRoster planned = projectedRosterReader.read(run);
+        // 확정 전 회차의 예정 명단은 회차 수와 무관한 조회 횟수로 한꺼번에 읽는다(DA-7)
+        List<Run> idleRuns = runs.stream().filter(run -> run.getStatus() == RunStatus.IDLE).toList();
+        projectedRosterReader.readAll(idleRuns).forEach((runId, planned) -> {
             if (planned.studentIds().contains(studentId)) {
-                stopIdsByRunId.put(run.getId(), planned.studentStops().get(studentId));
+                stopIdsByRunId.put(runId, planned.studentStops().get(studentId));
             }
-        }
+        });
         return stopIdsByRunId;
     }
 

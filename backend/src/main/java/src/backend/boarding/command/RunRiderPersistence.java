@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +18,8 @@ import src.backend.boarding.entity.RiderStatusHistory;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.common.enums.ChangeType;
+import src.backend.global.location.RunRidersChangedEvent;
 import src.backend.run.roster.ProjectedRoster;
 
 /**
@@ -28,7 +32,19 @@ import src.backend.run.roster.ProjectedRoster;
 @RequiredArgsConstructor
 public class RunRiderPersistence {
 
+    /** 한 INSERT 의 행 수 상한 — 바인딩 파라미터 한도(32,767)를 행당 6개로 나눈 값 안쪽이다. */
+    private static final int INSERT_CHUNK = 1000;
+
+    /** 컬럼 값은 엔티티와 같은 컨버터가 정한다 — 다중 행 INSERT 가 문자열 변환을 따로 갖지 않는다. */
+    private static final RiderStatus.Db STATUS_DB = new RiderStatus.Db();
+
+    private static final ChangeType.Db CHANGE_DB = new ChangeType.Db();
+
     private final RunRiderRepository runRiderRepository;
+
+    private final JdbcTemplate jdbc;
+
+    private final ApplicationEventPublisher eventPublisher;
 
     private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
@@ -37,11 +53,33 @@ public class RunRiderPersistence {
      * 전용) — 좌표를 얻지 못해 계산에서 분리된 학생({@code unresolvedStudentIds})은 명단에서도 뺀다.
      * OFF 학생은 {@code absent}, 출발 이동 학생은 {@code absent · removed}, 당일 추가 학생은
      * {@code added} 로 남긴다(목표 2와 같은 근거).
+     *
+     * <p><b>한 문장 다중 행 INSERT 로 저장한다</b>(DA-8, Ruling 899) — 키가 IDENTITY 라 엔티티 {@code saveAll} 은 학생 수만큼 INSERT 를
+     * 따로 내 확정 트랜잭션이 연결을 오래 쥐었다. 만든 행의 키는 호출부가 쓰지 않아 돌려주지 않는다.
      */
     @Transactional
-    public List<RunRider> confirmRiders(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
+    public void confirmRiders(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
             OffsetDateTime confirmedAt) {
-        return runRiderRepository.saveAll(ridersOf(runId, roster, unresolvedStudentIds, confirmedAt));
+        List<RunRider> riders = ridersOf(runId, roster, unresolvedStudentIds, confirmedAt);
+        eventPublisher.publishEvent(new RunRidersChangedEvent(runId));
+        for (int from = 0; from < riders.size(); from += INSERT_CHUNK) {
+            insertRows(riders.subList(from, Math.min(from + INSERT_CHUNK, riders.size())));
+        }
+    }
+
+    private void insertRows(List<RunRider> riders) {
+        String values = String.join(", ", java.util.Collections.nCopies(riders.size(), "(?, ?, ?, ?, ?, ?)"));
+        List<Object> args = new ArrayList<>();
+        for (RunRider rider : riders) {
+            args.add(rider.getRunId());
+            args.add(rider.getStudentId());
+            args.add(rider.getStopId());
+            args.add(STATUS_DB.convertToDatabaseColumn(rider.getStatus()));
+            args.add(CHANGE_DB.convertToDatabaseColumn(rider.getChange()));
+            args.add(rider.getChangedAt());
+        }
+        jdbc.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, change, changed_at) VALUES " + values,
+                args.toArray());
     }
 
     /**
@@ -70,6 +108,8 @@ public class RunRiderPersistence {
         rider.markAbsent(changedAt);
         if (from != RiderStatus.ABSENT) {
             recordSystemTransition(rider, from, RiderStatus.ABSENT, changedAt);
+            // 위치 방송 수신자 목록이 바뀐다 — 커밋되면 location 이 캐시를 비운다(RT-5)
+            eventPublisher.publishEvent(new RunRidersChangedEvent(rider.getRunId()));
         }
     }
 

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,7 +22,6 @@ import src.backend.observability.metrics.RunConfirmationMetrics;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.domain.RunConfirmationPolicy;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -73,12 +73,17 @@ public class RunConfirmationScheduler {
      * <p>한 틱 안에서 모든 확정을 {@link CompletableFuture#join()} 으로 기다린 뒤 반환한다 — 그래야
      * 이 메서드를 직접 호출하는 테스트가 완료를 동기적으로 관측할 수 있고, {@code fixedDelay} 특성상
      * 다음 실행도 이 완료 시점부터 계산된다(밀린 틱이 겹쳐 돌지 않는다).
+     *
+     * <p>{@code @SchedulerLock}(DA-12, Ruling 899 J) — 인스턴스 2대가 같은 틱에 같은 회차를 집어 지도 API 를 두 번 부르는 낭비를 막는다.
+     * 조건부 UPDATE({@code confirmIfIdle})는 정합성 안전장치로 그대로 둔다. {@code lockAtMostFor} 는 외부 호출이 느린 한 틱(최대 50회차)보다
+     * 길고 확정 판정 시각(출발 30분 전)보다 짧게 잡았다.
      */
     @Scheduled(fixedDelayString = "${app.run.confirmation.poll-interval-ms:30000}",
             initialDelayString = "${app.run.confirmation.initial-delay-ms:0}")
+    @SchedulerLock(name = "run-confirmation", lockAtMostFor = "PT5M")
     public void confirmDueRuns() {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        List<Run> dueRuns = runRepository.findDueForConfirmation(now, LocalDate.now(clock), RunStatus.IDLE,
+        List<Run> dueRuns = runRepository.findDueForConfirmation(now, LocalDate.now(clock),
                 PageRequest.of(0, BATCH_SIZE));
 
         List<CompletableFuture<Void>> tasks = dueRuns.stream()
