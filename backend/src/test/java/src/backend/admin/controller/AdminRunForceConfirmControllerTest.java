@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -164,7 +165,7 @@ class AdminRunForceConfirmControllerTest {
         long runId = dueIdleRun();
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"기사 무응답으로 콘솔 강제 확정\"}"))
                 .andExpect(status().isCreated())
@@ -208,7 +209,7 @@ class AdminRunForceConfirmControllerTest {
         long runId = dueIdleRun();
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰()).header("X-Real-IP", "203.0.113.23")
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L)).header("X-Real-IP", "203.0.113.23")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"기사 무응답으로 콘솔 강제 확정\"}"))
                 .andExpect(status().isCreated());
@@ -262,7 +263,7 @@ class AdminRunForceConfirmControllerTest {
                 departTime.minusMinutes(30));
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"조기 강제 확정 시도\"}"))
                 .andExpect(status().isConflict())
@@ -284,7 +285,7 @@ class AdminRunForceConfirmControllerTest {
         assertThat(runRepository.findById(runId).orElseThrow().getStatus()).isEqualTo(RunStatus.CONFIRMED);
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"이미 확정된 회차를 다시 강제 확정 시도\"}"))
                 .andExpect(status().isConflict())
@@ -301,7 +302,7 @@ class AdminRunForceConfirmControllerTest {
         동기화한다();
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"운행 중인 회차를 강제 확정 시도\"}"))
                 .andExpect(status().isConflict())
@@ -318,7 +319,7 @@ class AdminRunForceConfirmControllerTest {
         동기화한다();
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"종료된 회차를 강제 확정 시도\"}"))
                 .andExpect(status().isConflict())
@@ -335,7 +336,7 @@ class AdminRunForceConfirmControllerTest {
         동기화한다();
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"취소된 회차를 강제 확정 시도\"}"))
                 .andExpect(status().isConflict())
@@ -347,7 +348,7 @@ class AdminRunForceConfirmControllerTest {
     @DisplayName("목표11 — 없는 회차의 강제 확정은 404 RUN_NOT_FOUND 다")
     void 없는_회차는_404_RUN_NOT_FOUND_다() throws Exception {
         mockMvc.perform(post(FORCE_CONFIRM.formatted(999_999_999L))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"없는 회차\"}"))
                 .andExpect(status().isNotFound())
@@ -361,7 +362,7 @@ class AdminRunForceConfirmControllerTest {
         long runId = dueIdleRun();
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"%s\"}".formatted("가".repeat(201))))
                 .andExpect(status().isUnprocessableContent())
@@ -380,7 +381,7 @@ class AdminRunForceConfirmControllerTest {
         long runId = dueIdleRun();
 
         mockMvc.perform(post(FORCE_CONFIRM.formatted(runId))
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"   \"}"))
                 .andExpect(status().isUnprocessableContent())
@@ -412,10 +413,6 @@ class AdminRunForceConfirmControllerTest {
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────
-
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
-    }
 
     private void 동기화한다() {
         entityManager.flush();
