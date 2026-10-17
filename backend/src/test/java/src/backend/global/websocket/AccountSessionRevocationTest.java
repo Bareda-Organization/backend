@@ -22,6 +22,8 @@ import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
+import io.micrometer.core.instrument.MeterRegistry;
+
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.AuthUser;
@@ -66,6 +68,9 @@ class AccountSessionRevocationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    private MeterRegistry meterRegistry;
+
+    @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
     @AfterEach
@@ -80,10 +85,13 @@ class AccountSessionRevocationTest {
         String destination = "/topic/students/" + STUDENT_ID + "/run";
         String token = tokenProvider.createAccessToken(GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT, AccountStatus.ACTIVE);
         Client open = connectAndSubscribe(token, destination);
+        double revokedBefore = meterRegistry.counter("schoolbus.ws.closed", "reason", "4500").count();
 
         studentCommandService.withdraw(staff(), STUDENT_ID);
 
         assertThat(open.closeStatus()).as("연결 해제가 커밋되면 열린 세션이 닫힌다").isEqualTo(4500);
+        assertThat(meterRegistry.counter("schoolbus.ws.closed", "reason", "4500").count())
+                .as("회수 종료는 사유별 카운터에 센다(RT-11)").isEqualTo(revokedBefore + 1);
 
         Client again = connectAndSubscribe(token, destination, false);
         assertThat(again.awaitFrame()).as("다시 붙어 잃은 채널을 구독하면 거부된다").startsWith("ERROR").contains("FORBIDDEN");

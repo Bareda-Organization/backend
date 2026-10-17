@@ -59,8 +59,8 @@ public class OpenWebSocketSessions implements WebSocketHandlerDecoratorFactory {
                 continue;
             }
             try {
+                meterRegistry.counter("schoolbus.ws.closed", "reason", "4500").increment(); // 닫기 전에 센다 — 닫힌 뒤 값을 읽는 쪽이 앞서지 않게
                 session.close(WebSocketCloseCodes.SESSION_REVOKED);
-                meterRegistry.counter("schoolbus.ws.closed", "reason", "4500").increment();
                 closed++;
             } catch (IOException | RuntimeException e) {
                 log.warn("권한이 바뀐 계정의 WebSocket 세션을 닫지 못했다 — sessionId={}", sessionId, e);

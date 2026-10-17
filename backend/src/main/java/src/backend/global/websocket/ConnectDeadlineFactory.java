@@ -71,8 +71,8 @@ public class ConnectDeadlineFactory implements WebSocketHandlerDecoratorFactory 
             return;
         }
         try {
-            session.close(WebSocketCloseCodes.CONNECT_TIMEOUT);
             meterRegistry.counter("schoolbus.ws.closed", "reason", "CONNECT_TIMEOUT").increment();
+            session.close(WebSocketCloseCodes.CONNECT_TIMEOUT);
         } catch (Exception e) {
             log.warn("CONNECT 마감을 넘긴 소켓을 닫지 못했다 — sessionId={}", session.getId(), e);
         }

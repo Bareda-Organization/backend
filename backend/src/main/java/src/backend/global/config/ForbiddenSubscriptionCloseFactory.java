@@ -10,6 +10,10 @@ import org.springframework.web.socket.handler.WebSocketHandlerDecorator;
 import org.springframework.web.socket.handler.WebSocketHandlerDecoratorFactory;
 import org.springframework.web.socket.handler.WebSocketSessionDecorator;
 
+import io.micrometer.core.instrument.MeterRegistry;
+
+import lombok.RequiredArgsConstructor;
+
 import src.backend.global.security.WebSocketCloseCodes;
 
 /**
@@ -31,27 +35,34 @@ import src.backend.global.security.WebSocketCloseCodes;
  * 따라서 최초 1회의 치환이 연결 전체 수명에 걸쳐 유지된다.
  */
 @Component
+@RequiredArgsConstructor
 public class ForbiddenSubscriptionCloseFactory implements WebSocketHandlerDecoratorFactory {
+
+    private final MeterRegistry meterRegistry;
 
     @Override
     public WebSocketHandler decorate(WebSocketHandler handler) {
         return new WebSocketHandlerDecorator(handler) {
             @Override
             public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-                super.afterConnectionEstablished(new CloseCodeOverridingSession(session));
+                super.afterConnectionEstablished(new CloseCodeOverridingSession(session, meterRegistry));
             }
         };
     }
 
     private static final class CloseCodeOverridingSession extends WebSocketSessionDecorator {
 
-        private CloseCodeOverridingSession(WebSocketSession delegate) {
+        private final MeterRegistry meterRegistry;
+
+        private CloseCodeOverridingSession(WebSocketSession delegate, MeterRegistry meterRegistry) {
             super(delegate);
+            this.meterRegistry = meterRegistry;
         }
 
         @Override
         public void close(CloseStatus status) throws IOException {
             if (CloseStatus.PROTOCOL_ERROR.equals(status) && isMarkedForbidden()) {
+                meterRegistry.counter("schoolbus.ws.closed", "reason", "4403").increment(); // R57 RT-11 — 닫기 전에 센다(닫힌 뒤 센 값을 읽는 쪽이 앞서지 않게)
                 super.close(WebSocketCloseCodes.SUBSCRIPTION_FORBIDDEN);
                 return;
             }

@@ -24,6 +24,8 @@ import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 import testsupport.clock.AdvanceableClock;
 
 /**
@@ -44,7 +46,7 @@ class StompSessionExpirySweepTest {
     void setUp() {
         clock = new AdvanceableClock(Clock.fixed(START, ZoneOffset.UTC));
         accountStanding = mock(AccountStanding.class);
-        expiry = new StompSessionExpiry(clock, accountStanding);
+        expiry = new StompSessionExpiry(clock, accountStanding, new SimpleMeterRegistry());
         expiry.record("s1", ACCOUNT, START.plus(Duration.ofHours(1)));
     }
 

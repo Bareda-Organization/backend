@@ -20,6 +20,8 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import io.micrometer.core.instrument.MeterRegistry;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,6 +57,8 @@ public class StompSessionExpiry implements ChannelInterceptor {
     private final Clock clock;
 
     private final AccountStanding accountStanding;
+
+    private final MeterRegistry meterRegistry;
 
     /** CONNECT 인증이 끝난 세션의 계정과 토큰 만료 시각을 남긴다. */
     void record(String sessionId, Long accountId, Instant expiresAt) {
@@ -101,6 +105,7 @@ public class StompSessionExpiry implements ChannelInterceptor {
             return message;
         }
         trackedBySession.remove(sessionId);
+        meterRegistry.counter("schoolbus.ws.closed", "reason", ErrorCode.TOKEN_EXPIRED.name()).increment();
         StompHeaderAccessor error = StompHeaderAccessor.create(StompCommand.ERROR);
         error.setMessage(ErrorCode.TOKEN_EXPIRED.name());
         error.setSessionId(sessionId);
