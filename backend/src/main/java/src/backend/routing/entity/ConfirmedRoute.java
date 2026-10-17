@@ -24,7 +24,7 @@ import src.backend.global.common.BaseTimeEntity;
  *
  * <p>{@code currentVersionId} 는 {@code route_version.confirmed_route_id} 와 순환 FK 쌍이다
  * (`V1` 에서 {@code DEFERRABLE INITIALLY DEFERRED} 로 사후 추가). 어느 쪽도 엔티티 참조를 두지
- * 않고 {@code Long} 컬럼으로만 잇는다 — "현재 버전 포인터 전진" 은 Phase 7 이 담당한다.
+ * 않고 {@code Long} 컬럼으로만 잇는다 — "현재 버전 포인터 전진" 은 확정 배치가 담당한다.
  */
 @Entity
 @Table(name = "confirmed_route")

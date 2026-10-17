@@ -39,7 +39,7 @@ import src.backend.run.repository.RunRepository;
  * 가능한 쪽을 나중에 둔다. 이 서비스는 이벤트만 발행하고, 실제 Redis 쓰기는
  * {@link RunPositionRedisListener} 가 커밋 뒤에 한다.
  *
- * <p><b>클래스에 {@code @Transactional} 을 달지 않는 것이 요점이다</b>(R46 T-1) — DB 일은
+ * <p><b>클래스에 {@code @Transactional} 을 달지 않는 것이 요점이다</b> — DB 일은
  * {@link TransactionTemplate} 안에서 끝내고 이벤트는 그 밖에서 발행한다. {@code AFTER_COMMIT} 콜백은
  * 연결을 반납하기 <em>전에</em> 돌기 때문에, 클래스 트랜잭션 안에서 발행하면 Redis 쓰기(500ms 타임아웃)와
  * 방송 직렬화가 끝날 때까지 DB 연결을 쥔다. 구독자 둘은 이 발행이 트랜잭션 밖이어도 돌도록

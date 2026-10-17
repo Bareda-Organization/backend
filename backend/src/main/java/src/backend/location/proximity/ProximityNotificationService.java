@@ -33,9 +33,9 @@ import src.backend.student.repository.StopRepository;
 
 /**
  * 회차 1건의 근접·출발 두 판정 — {@link #judgeRun} 이 위치(스케줄러가 회차 묶음당 Redis {@code MGET} 한 번으로 미리 읽어 넘긴다)로
- * 두 판정을 <b>한 트랜잭션</b>에서 같이 읽는다(R46-LATERBE L5, Ruling 672). 확정 노선 조회 한 번을 두 판정이 나눠 쓰고, 틱마다 회차당
+ * 두 판정을 <b>한 트랜잭션</b>에서 같이 읽는다(Ruling 672). 확정 노선 조회 한 번을 두 판정이 나눠 쓰고, 틱마다 회차당
  * 트랜잭션이 2개에서 1개로 준다. 근접 판정은 다음 미도착 정차지가 300m 안인지(NTF-04, Ruling 207), 출발 판정은 도착했지만 아직 출발
- * 처리되지 않은 정차지에서 100m 밖으로 벗어났는지(Ruling 307, R14-T2 목표 6a)를 본다.
+ * 처리되지 않은 정차지에서 100m 밖으로 벗어났는지(Ruling 307)를 본다.
  *
  * <p><b>읽기와 선점을 가른다</b> — 읽기 트랜잭션은 "판정이 걸렸는가" 만 알아낸다. 걸린 판정(정차지당 한 번뿐이라 드물다)은 각자
  * 별도 트랜잭션에서 선점({@link RunStopRepository#claimProximityNotice} · {@link StopDepartureService#claimAndPublish}) 하고

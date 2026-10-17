@@ -8,7 +8,7 @@ import src.backend.global.location.GeoPoint;
  * 산출 순서의 한 자리 — 승하차지이거나 경유 지점이고, 둘 다이거나 둘 다 아닐 수는 없다.
  *
  * <p>배타 조건을 여기서 막는 이유는 {@code ck_run_stop_target_exclusive} 가 DB 에만 있으면 계산
- * 중에는 아무도 막지 않아, 두 자리가 뭉갠 값이 저장 단계(Phase 7)까지 가서야 드러나기 때문이다.
+ * 중에는 아무도 막지 않아, 두 자리가 뭉갠 값이 저장 단계까지 가서야 드러나기 때문이다.
  */
 public record OrderedStop(Long stopId, Long waypointId, int seq, GeoPoint point) {
 

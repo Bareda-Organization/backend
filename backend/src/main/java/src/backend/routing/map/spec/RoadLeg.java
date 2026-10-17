@@ -9,7 +9,7 @@ import src.backend.global.location.GeoPoint;
  *
  * @param distanceMeters  구간 거리(m). 폴백일 때는 직선거리다
  * @param durationSeconds 구간 소요 시간(초). 폴백일 때는 평균 속도 가정으로 환산한 값이다
- * @param path            이 구간이 지나는 도로 좌표(순서 있음, Ruling 309 · R15 T1). 공급자는 세그먼트
+ * @param path            이 구간이 지나는 도로 좌표(순서 있음, Ruling 309). 공급자는 세그먼트
  *                         단위로만 좌표를 주므로(경유지별 값 미제공) <b>세그먼트의 첫 leg 에만</b> 채워지고
  *                         나머지 leg 는 빈 목록일 수 있다 — {@link RoadRoute#roadPath()} 가 전부 이어
  *                         붙이면서 이음매 중복을 걷어낸다

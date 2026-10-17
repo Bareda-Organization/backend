@@ -16,7 +16,7 @@ import src.backend.run.entity.RunStatus;
  * 운행 중 회차의 노선 잠금 판정(ARCHITECTURE §8.5 운행 시작과 동시에 노선 잠금, BR-052) — 승하차지 좌표를 바꾸는 두 경로(노선의
  * 승하차지 저장 · 승하차지 수정, Ruling 849)가 같은 판정을 쓰도록 한 곳에 둔다.
  *
- * <p>운행일이 어제보다 이른 끝나지 않은 회차는 잠금 대상이 아니다({@link MovingRunWindowPolicy}, R46-KFIXBE K-1).
+ * <p>운행일이 어제보다 이른 끝나지 않은 회차는 잠금 대상이 아니다({@link MovingRunWindowPolicy}).
  */
 @Component
 @RequiredArgsConstructor

@@ -14,8 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * {@code run_position} 일 단위 범위 파티션의 <b>미리 만들기</b>와 <b>만료 DROP</b>을 맡는다(R46-LATERBE B-1, Ruling 670 ·
- * ERD §7.3). 파티션 이름은 {@code run_position_pYYYYMMDD}(한국 시간 날짜), 범위는 그날 0시 이상 다음날 0시 미만이다.
+ * {@code run_position} 일 단위 범위 파티션의 <b>미리 만들기</b>와 <b>만료 DROP</b>을 맡는다(R46-LATERBE B-1, Ruling 670 · ERD §7.3). 파티션 이름은 {@code run_position_pYYYYMMDD}(한국 시간 날짜), 범위는 그날 0시 이상 다음날 0시 미만이다.
  *
  * <p><b>기본 파티션({@code run_position_default})이 안전망이다</b> — 해당 날짜 파티션이 없어도 INSERT 는 실패하지 않고 위치
  * 수신이 이어진다. 대신 PostgreSQL 은 기본 파티션에 이미 그 범위의 행이 있으면 새 파티션 생성을 거절하므로,

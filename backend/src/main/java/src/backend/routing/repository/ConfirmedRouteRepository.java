@@ -41,7 +41,7 @@ public interface ConfirmedRouteRepository extends JpaRepository<ConfirmedRoute, 
 
     /**
      * 노선 계산 산출물로 만든 {@code route_version} 을 저장한 뒤 "현재 버전" 포인터를 그 행으로
-     * 옮긴다(확정 배치 RTE-08, Phase 7) — 엔티티 세터 대신 저장소 갱신을 쓰는 이유는
+     * 옮긴다(확정 배치 RTE-08) — 엔티티 세터 대신 저장소 갱신을 쓰는 이유는
      * {@link ConfirmedRoute} 의 PK 가 저장 시점에 이미 채워져 있어 {@code save()} 가 {@code merge}
      * 경로를 타기 때문이다. {@code merge} 는 <b>새 관리 인스턴스</b>를 돌려주므로, 호출부가 들고 있던
      * 원본 객체를 이어서 고쳐도 영속 컨텍스트에 반영되지 않는다 — 그 함정을 피해 조건부 UPDATE 로

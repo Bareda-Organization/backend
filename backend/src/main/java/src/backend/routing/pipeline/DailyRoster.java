@@ -16,18 +16,18 @@ import src.backend.global.common.enums.Weekday;
  * <p><b>명단을 확정하는 것은 이 타입이 아니라 호출자다.</b> C-16 이 요구하는 세 축 중 요일별
  * 주소(P-05)만 지금 조회 가능한 형태로 존재하고, 금일 탑승 의사(ATT-01)와 일일 변경(P-06)은
  * 저장 테이블({@code boarding_intent}·{@code change_request})만 있고 그 값을 읽어 명단에
- * 반영하는 경로가 아직 부재하다(Phase 8 소유). 그래서 두 축을 파이프라인 안에서 지어내지 않고
+ * 반영하는 경로가 아직 부재하다. 그래서 두 축을 파이프라인 안에서 지어내지 않고
  * <b>입력 자리로만 열어 둔다</b> — 탑승 의사는 {@code studentIds} 를 고르는 것으로,
  * 일일 변경은 {@link #stopOverrides} 로 들어온다.
  *
  * <p><b>{@code studentIds} 에 중복이 없어야 한다는 것은 명단 조립 주체(호출자)의 전제다</b>
- * ({@code ARCHITECTURE §8.1} — 정본, Phase 6 T4 리뷰 계약 공백 · Phase 7 목표 11). 이 타입은
+ * ({@code ARCHITECTURE §8.1} — 정본). 이 타입은
  * 그 전제가 깨져도 정차지 인원({@code ridersByStop})이 부풀지 않도록 <b>방어적으로 중복을
  * 흡수</b>한다 — 던지면 그 회차 하나가 통째로 재시도 루프에 걸리고, 조용히 삼키면 관측 수단이
  * 없어지므로 흡수하되 {@code WARN} 로그로 호출자의 결함을 드러낸다.
  *
  * <p><b>이 안전망은 중복만 흡수한다 — {@code null} 원소까지 거르도록 넓히지 않는다</b>
- * (Phase 8 목표 15). {@code null} 이 섞여 들어오는 것은 중복과 달리 "같은 학생이 두 번
+ * {@code null} 이 섞여 들어오는 것은 중복과 달리 "같은 학생이 두 번
  * 실렸다" 는 흔한 조립 실수가 아니라 명단을 만드는 쪽의 다른 결함이라, 이 계층이 흡수할
  * 대상이 아니다. {@link List#copyOf} 가 {@code null} 원소를 거부하는 것을 그대로 둬 이
  * 생성 시점에 곧바로 {@link NullPointerException} 으로 드러나게 한다 — {@code distinct()}

@@ -24,9 +24,9 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 근접 알림 배치의 진입점(NTF-04, 목표 13·15) — 운행 중인 회차를 모아
+ * 근접 알림 배치의 진입점(NTF-04) — 운행 중인 회차를 모아
  * {@code ProximityNotificationService#judgeRun} 을 회차별로 부른다. 위치는 회차 묶음당 Redis {@code MGET} 한 번으로
- * 미리 읽어 넘긴다(R46-LATERBE L5).
+ * 미리 읽어 넘긴다.
  *
  * <p>{@code RunConfirmationScheduler} 와 달리 {@code CompletableFuture}·전용 스레드 풀을 쓰지
  * 않는다 — 그쪽이 비동기로 나누는 이유는 회차별 확정이 외부 지도 API 를 부르는 <b>느린 I/O</b>이기
@@ -59,7 +59,7 @@ public class ProximityNotificationScheduler {
 
     private final MeterRegistry meterRegistry;
 
-    /** Redis 가 죽으면 운행 중 회차마다 틱마다 같은 실패가 난다 — 판정별로 분당 한 번만 스택과 함께 남긴다(R46 S-3). */
+    /** Redis 가 죽으면 운행 중 회차마다 틱마다 같은 실패가 난다 — 판정별로 분당 한 번만 스택과 함께 남긴다. */
     private final RateLimitedWarn judgeFailure = RateLimitedWarn.perMinute(log);
 
     private final RateLimitedWarn departureFailure = RateLimitedWarn.perMinute(log);
@@ -99,7 +99,7 @@ public class ProximityNotificationScheduler {
 
     /**
      * 한 묶음(최대 {@link #BATCH_SIZE} 회차)의 위치를 Redis {@code MGET} 한 번으로 읽고(트랜잭션 밖 — BR-166), 위치가 있는 회차마다
-     * 두 판정을 돈다(R46-LATERBE L5). 첫 위치 수신 전 회차는 위치가 없어 건너뛴다 — 다음 틱에 다시 대상이 된다. 위치 읽기 자체가
+     * 두 판정을 돈다. 첫 위치 수신 전 회차는 위치가 없어 건너뛴다 — 다음 틱에 다시 대상이 된다. 위치 읽기 자체가
      * 실패하면(Redis 와 DB 대체 둘 다) 이 묶음의 이번 틱을 건너뛴다.
      */
     private void judgeBatch(List<Run> runs) {

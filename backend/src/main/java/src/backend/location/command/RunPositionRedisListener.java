@@ -35,7 +35,7 @@ public class RunPositionRedisListener {
 
     private final RunPositionStore runPositionStore;
 
-    /** Redis 가 죽으면 위치 수신마다 같은 실패가 난다 — 분당 한 번만 스택과 함께 남긴다(R46 S-3). */
+    /** Redis 가 죽으면 위치 수신마다 같은 실패가 난다 — 분당 한 번만 스택과 함께 남긴다. */
     private final RateLimitedWarn redisWriteFailure = RateLimitedWarn.perMinute(log);
 
     /**

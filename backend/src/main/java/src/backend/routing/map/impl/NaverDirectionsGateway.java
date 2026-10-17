@@ -34,13 +34,12 @@ import src.backend.routing.map.spec.RoadLeg;
  * 부르면 프록시를 거치지 않아 {@code @Retry}·{@code @CircuitBreaker} 가 <b>한 번도 걸리지 않고</b>,
  * 설정에는 값이 적혀 있으니 아무도 눈치채지 못한다.
  *
- * <p>2026-09-13 Directions 5({@code /map-direction/v1/driving})에서 15
- * ({@code /map-direction-15/v1/driving})로 전환했다(BE-R1 목표 6) — 경로만 바뀌고 응답 스키마는 같다
+ * <p>Directions 15({@code /map-direction-15/v1/driving})를 쓴다. Directions 5({@code /map-direction/v1/driving})와 경로만 다르고 응답 스키마는 같다
  * ({@code route.traoptimal[].summary.distance/duration},
  * <a href="https://api.ncloud-docs.com/docs/ai-naver-mapsdirections15-driving">NCP 공식 문서</a> 확인).
  *
- * <p>⚠ 대가 — 일일 할당량 60,000 → 3,000(Directions 5 → 15). 옛 경로가 상한 밖 경유지도 받아 결과에
- * 반영하지만(2026-09-13 실 API 확인) 문서 미보장 동작이라 채택하지 않음 — 근거는 {@code
+ * <p>⚠ 대가 — 일일 할당량 60,000 → 3,000(Directions 5 → 15). Directions 5 경로는 상한 밖 경유지도 받아 결과에
+ * 반영하지만 문서 미보장 동작이라 채택하지 않음 — 근거는 {@code
  * application.yml} 의 {@code max-waypoints} 주석.
  */
 @Slf4j
@@ -129,13 +128,12 @@ public class NaverDirectionsGateway {
      * 열린 서킷을 세 번 두드리고 {@code wait-duration} 만큼 응답만 늦어진다. 공급자에는 닿지 않고
      * 응답 코드도 그대로라 어느 기능 시험에도 드러나지 않는다.
      *
-     * <p>⚠ <b>도달한 호출 수만으로는 이 배치를 가릴 수 없다</b>(2026-08-29 실측) — 폴백이 값을
+     * <p>⚠ <b>도달한 호출 수만으로는 이 배치를 가릴 수 없다</b> — 폴백이 값을
      * 돌려주지 않고 예외를 던지므로 두 배치 모두 {@code max-attempts} 만큼 공급자를 부른다. 순서를
      * 고정하는 것은 {@code NaverDirectionsResilienceTest} 의 <b>재시도 없이 실패한 호출 수</b>
      * 단언이고, 호출 수 단언이 잡는 것은 재시도가 아예 안 걸린 상태다.
      *
-     * <p>⚠ <b>인접한 두 지점이 같으면 부르기 전에 걷어낸다</b>(R18 A 목표 1·3, 2026-09-19 실 API
-     * 확인). NCP 는 그런 요청을 {@code 출발지와 도착지가 동일합니다}(400)로 통째로 거절하는데,
+     * <p>⚠ <b>인접한 두 지점이 같으면 부르기 전에 걷어낸다</b>. NCP 는 그런 요청을 {@code 출발지와 도착지가 동일합니다}(400)로 통째로 거절하는데,
      * 등원 노선의 첫 정차지처럼 <b>출발 기준점과 그 자리에서 타는 학생의 승차지가 같은 자리인
      * 것은 정상적인 배차</b>라 흔히 일어난다 — {@code RunConfirmationService} 가 등원 origin 을
      * 노선의 첫 정차지 좌표로 잡고, 그 정차지에 학생이 있으면 같은 좌표가 정차지 목록에도 들어가
@@ -229,10 +227,8 @@ public class NaverDirectionsGateway {
      *
      * <p>NCP 는 경유지가 있는 요청에 <b>구간별 실측값을 그대로 준다</b>({@code summary.waypoints[]}
      * 가 시작점→첫 경유지, 경유지→다음 경유지 순으로, {@code summary.goal} 이 마지막 경유지→도착지
-     * 구간을 담는다 — 2026-09-19 실 API 확인, {@code NaverDirectionsClientLiveTest}). 예전 주석의
-     * "경유지별 값을 안 준다" 는 <b>직선거리 비율 배분판을 그대로 두려고 아무도 실 응답을 확인하지
-     * 않은 채 남은 추정</b>이었다 — {@link StraightLineLegs#distribute} 는 그 추정 위에 지어진
-     * 근사값이었고, 지도 API 가 정상 응답한 경우에도 구간별 거리·시간이 근사값이 되는 원인이었다.
+     * 구간을 담는다(실 API 확인, {@code NaverDirectionsClientLiveTest}).
+     * {@link StraightLineLegs#distribute} 는 실측값이 없을 때만 쓰는 직선거리 근사다.
      *
      * <p>경유지가 없어 구간이 하나뿐이면(총합 자체가 그 구간의 실측값이라 배분이 필요 없다) 또는
      * 응답이 예상과 다른 개수를 주면(방어적으로) 기존 직선거리 비율로 되돌아간다.
@@ -286,7 +282,7 @@ public class NaverDirectionsGateway {
     }
 
     /**
-     * 세그먼트 전체 도로 좌표를 <b>첫 leg 에만</b> 싣고 나머지는 비운다(R15 T1 목표 2·3).
+     * 세그먼트 전체 도로 좌표를 <b>첫 leg 에만</b> 싣고 나머지는 비운다.
      *
      * <p>공급자가 경유지별 좌표를 안 주므로(거리·시간처럼 배분할 근거가 없다) leg 마다 나눠 담을
      * 수 없다 — 대신 세그먼트당 좌표 뭉치 하나로 두고, {@link RoadRoute#roadPath()} 가 이어 붙이면서
@@ -330,7 +326,7 @@ public class NaverDirectionsGateway {
      * <p>{@code private} 이 아닌 것은 Resilience4j 가 리플렉션으로 찾기 때문이고, 시그니처가 원
      * 메서드 + {@link Throwable} 인 것도 그 규약이다.
      *
-     * <p>⚠ <b>{@code public} 이어야 한다 — package-private 으로는 부족하다</b>(2026-08-29 실측,
+     * <p>⚠ <b>{@code public} 이어야 한다 — package-private 으로는 부족하다</b>(실측,
      * resilience4j-spring6 2.3.0). {@code FallbackMethod.invoke()} 는 이 메서드의 {@link
      * java.lang.reflect.Method} 객체를 클래스당 하나로 캐시해 모든 호출이 공유한다. package-private
      * 이면 호출마다 {@code setAccessible(true)} 로 열었다가 {@code finally} 에서 다시 {@code false}
@@ -338,15 +334,15 @@ public class NaverDirectionsGateway {
      * {@code Method} 객체에서 이 토글을 밟으면</b> 한 스레드가 {@code invoke()} 를 부르기 직전에 다른
      * 스레드가 이미 {@code false} 로 되돌려 놓아 {@link IllegalAccessException} 이 난다. 격벽이
      * 순간적으로 여러 건을 한꺼번에 거절할 때(동시 도래가 상한을 넘을 때)만 이 경합이 열리므로,
-     * 순차 호출뿐인 서킷 개방 시험에서는 한 번도 걸리지 않았다 — {@code public} 이면 이 토글 자체가
+     * 순차 호출뿐인 서킷 개방 시험에서는 드러나지 않는다 — {@code public} 이면 이 토글 자체가
      * 없어 경합도 없다.
      *
-     * <p>⚠ <b>여기서 WARN 로그를 남긴다</b>(R18 A 목표 2). 이 메서드로 들어왔다는 것 자체가 이미
+     * <p>⚠ <b>여기서 WARN 로그를 남긴다</b>. 이 메서드로 들어왔다는 것 자체가 이미
      * "공급자에 닿지 못했다" 는 뜻이라, 이후 호출부가 직선거리 근사로 넘어가든({@code
      * NaverDirectionsClient.route}) 서킷 개방을 그대로 되던지든({@code CallerPolicy.ON_DEMAND})
-     * 운영에서는 똑같이 "지도 API 가 응답하지 않았다" 는 사실을 알아야 한다 — 지금까지는
-     * {@code fallback_used} 가 DB 한 칸에만 남고 로그가 하나도 없어, 근사 경로가 쌓여도 아무도
-     * 몰랐다.
+     * 운영에서는 똑같이 "지도 API 가 응답하지 않았다" 는 사실을 알아야 한다. 로그가 없으면
+     * {@code fallback_used} 가 DB 한 칸에만 남아, 근사 경로가 쌓여도 아무도
+     * 알 수 없다.
      */
     public List<RoadLeg> unavailable(List<GeoPoint> segment, Duration timeout, Throwable cause) {
         log.warn("도로 경로 조회가 폴백으로 떨어졌다 — 지점 {}개, 원인: {}", segment.size(), cause.toString());
@@ -391,9 +387,8 @@ public class NaverDirectionsGateway {
      *
      * <p>⚠ NCP 는 {@code option} 을 지정하지 않으면 {@code trafast}(최속)가 아니라
      * {@code traoptimal}(기본·실시간 반영)로 응답한다({@code Ruling 276} — 실 호출로 확인).
-     * 예전에는 {@code trafast} 를 읽어 파싱이 항상 {@code null} 로 떨어졌고, 그 실패가 예외가 아니라
-     * 바로 위 폴백(직선거리 근사)으로 조용히 흡수돼 <b>어댑터가 생긴 날부터 실 도로 경로가 한 번도
-     * 쓰인 적이 없었다</b>.
+     * {@code trafast} 를 읽으면 파싱이 항상 {@code null} 로 떨어지고, 그 실패가 예외가 아니라
+     * 바로 위 폴백(직선거리 근사)으로 조용히 흡수돼 <b>실 도로 경로가 쓰이지 않는다</b>.
      */
     private static Traoptimal traoptimalOf(DrivingResponse response) {
         if (response == null || response.route() == null || response.route().traoptimal() == null
@@ -416,7 +411,7 @@ public class NaverDirectionsGateway {
     }
 
     /**
-     * 총합과 함께 구간별 실측값도 온다(경유지가 있을 때만 — 2026-09-19 실 API 확인).
+     * 총합과 함께 구간별 실측값도 온다(경유지가 있을 때만 — 실 API 확인).
      *
      * @param waypoints 시작점→첫 경유지, 경유지→다음 경유지 순 구간값. 경유지가 없으면 {@code null}
      * @param goal      마지막 경유지(또는 경유지가 없으면 시작점)→도착지 구간값. 경유지가 없으면

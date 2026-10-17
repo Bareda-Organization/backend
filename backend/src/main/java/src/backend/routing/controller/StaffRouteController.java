@@ -110,7 +110,7 @@ public class StaffRouteController {
         return ApiResponse.ok(routePathQueryService.path(requester, id));
     }
 
-    /** 승하차지 한 번에 저장 — 추가·수정·삭제·순서를 한 트랜잭션으로(2026-09-23 사용자 지시). */
+    /** 승하차지 한 번에 저장 — 추가·수정·삭제·순서를 한 트랜잭션으로 반영한다. */
     @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 승하차지 저장 (RTE-01)")
     @PutMapping("/{id}/stops")

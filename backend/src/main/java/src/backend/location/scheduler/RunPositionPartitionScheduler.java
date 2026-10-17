@@ -17,7 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 
 /**
- * {@code run_position} 일 단위 파티션을 앞으로 쓸 날짜까지 미리 만든다(R46-LATERBE B-1, Ruling 670) — 기동 직후 한 번과 매일 한 번.
+ * {@code run_position} 일 단위 파티션을 앞으로 쓸 날짜까지 미리 만든다(Ruling 670) — 기동 직후 한 번과 매일 한 번.
  *
  * <p>미리 만들기가 멈춰도 위치 수신은 기본 파티션({@code run_position_default})이 받아 이어진다. 그래서 여유를
  * {@link #LOOK_AHEAD_DAYS} 일로 두어, 하루 이틀 실패해도 파티션이 없는 날이 오지 않게 한다. 매일 도는 쪽의 실패는
