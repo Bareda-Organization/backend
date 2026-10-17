@@ -119,7 +119,7 @@ public class ProximityNotificationService {
 
     private Map<Long, RunTargets> targetsOf(Map<Long, RunPositionRedisValue> positions, FailureSink onFailure) {
         Map<Long, Long> versionIdByRun = new HashMap<>();
-        for (ConfirmedRoute route : confirmedRouteRepository.findAllById(positions.keySet())) {
+        for (ConfirmedRoute route : confirmedRouteRepository.findAllByRunIdIn(positions.keySet())) {
             if (route.getCurrentVersionId() != null) {
                 versionIdByRun.put(route.getRunId(), route.getCurrentVersionId());
             }
@@ -134,7 +134,7 @@ public class ProximityNotificationService {
         Set<Long> stopIds = new HashSet<>();
         Stream.concat(nextUnarrivedByVersion.values().stream(), arrivedNotDepartedByVersion.values().stream())
                 .forEach(runStop -> stopIds.add(runStop.getStopId()));
-        Map<Long, Stop> stopsById = stopRepository.findAllById(stopIds).stream()
+        Map<Long, Stop> stopsById = stopRepository.findAllByIdIn(stopIds).stream()
                 .collect(Collectors.toMap(Stop::getId, Function.identity()));
 
         Map<Long, RunTargets> targets = new HashMap<>();
