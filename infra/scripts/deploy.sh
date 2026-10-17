@@ -11,7 +11,7 @@
 #
 # 백엔드 대수 — SSM `BACKEND_INSTANCES`(선택, 기본 1). 1 이면 지금까지처럼 `up -d` 로 한 번에 올리고(재생성 중 수십 초 다운타임),
 # 2 이면 docker-compose.scale.yml 을 얹어 백엔드를 한 대씩 다시 만든다(infra/scripts/rolling-restart.sh — nginx 는 다시 시작하지 않는다).
-# 절차: docs/backend/infra/DEPLOYMENT.md §13
+# 절차: docs/backend/infra/DEPLOYMENT.md §15
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/school-bus}"
@@ -177,7 +177,7 @@ NAVER_DIRECTIONS_PATH="$(get_param NAVER_DIRECTIONS_PATH optional)"
 NAVER_DIRECTIONS_MAX_POINTS="$(get_param NAVER_DIRECTIONS_MAX_POINTS optional)"
 BOOTSTRAP_ADMIN_LOGIN_ID="$(get_param BOOTSTRAP_ADMIN_LOGIN_ID optional)"
 BOOTSTRAP_ADMIN_PASSWORD_HASH="$(get_param BOOTSTRAP_ADMIN_PASSWORD_HASH optional)"
-# 백엔드 대수 — 사용자가 배포 때 정한다(2대는 메모리 6GB 이상 기계가 필요하다 — DEPLOYMENT.md §13). 없으면 1대. .env 에는 쓰지 않는다(compose 변수가 아니다).
+# 백엔드 대수 — 사용자가 배포 때 정한다(2대는 메모리 6GB 이상 기계가 필요하다 — DEPLOYMENT.md §15). 없으면 1대. .env 에는 쓰지 않는다(compose 변수가 아니다).
 BACKEND_INSTANCES="$(get_param BACKEND_INSTANCES optional)"
 BACKEND_INSTANCES="${BACKEND_INSTANCES:-1}"
 case "$BACKEND_INSTANCES" in
@@ -313,7 +313,7 @@ fi
 if [[ "$BACKEND_INSTANCES" == 2 ]]; then
     # 백엔드 2대: nginx 를 다시 시작하지 않는다 — 다시 시작하면 열린 WebSocket 세션 전부가 한꺼번에 끊긴다. 컨테이너가 새로 만들어져 IP 가 바뀌어도
     # 업스트림이 이름을 다시 풀므로(backend-pool.scale.conf 의 resolve) 새 대를 찾는다. 안 떠 있으면(첫 배포) 여기서 띄운다.
-    # nginx 설정 파일 자체를 고친 배포는 반영되지 않는다(바인드 마운트가 옛 파일을 본다) — 점검 시간에 `docker compose … restart proxy` 를 따로 한다(DEPLOYMENT.md §13).
+    # nginx 설정 파일 자체를 고친 배포는 반영되지 않는다(바인드 마운트가 옛 파일을 본다) — 점검 시간에 `docker compose … restart proxy` 를 따로 한다(DEPLOYMENT.md §15).
     $COMPOSE up -d --no-deps proxy
     echo "백엔드 2대 모드 — proxy 는 다시 시작하지 않았다."
 else

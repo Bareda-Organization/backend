@@ -5,7 +5,7 @@
 # 이 파일이 하는 일
 #   1. backend2 를 더한다 — backend 와 같은 정의(이미지 · 환경 · 사진 볼륨 · 헬스체크)를 extends 로 그대로 쓴다.
 #   2. 두 대 모두 cpus 2 · mem_limit 3072m · stop_grace_period 35s 를 명시한다(컨테이너 1대의 크기 — Ruling 900).
-#      ⚠ 3GB 두 대 = 6GB 다. prod 의 t3.medium(4GB)에는 안 들어간다 — 호스트 메모리는 DEPLOYMENT.md §13 의 표를 본다.
+#      ⚠ 3GB 두 대 = 6GB 다. prod 의 t3.medium(4GB)에는 안 들어간다 — 호스트 메모리는 DEPLOYMENT.md §15 의 표를 본다.
 #   3. proxy 의 업스트림을 두 서버(backend · backend2)로 바꾼다 — backend-pool.scale.conf. nginx.prod.conf · WebSocket 프록시 설정은 그대로다.
 #   4. proxy 가 두 대 모두 healthy 일 때 뜬다.
 #   5. Prometheus 가 두 대를 같은 job(backend)에서 긁는다 — backend-targets.scale.yml.

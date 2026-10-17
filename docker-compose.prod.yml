@@ -2,7 +2,7 @@
 #
 # 실행:
 #   docker compose -f docker-compose.prod.yml --env-file /opt/school-bus/.env up -d                                  # 백엔드 1대(기본)
-#   docker compose -f docker-compose.prod.yml -f docker-compose.scale.yml --env-file /opt/school-bus/.env up -d      # 백엔드 2대 — docs/backend/infra/DEPLOYMENT.md §13
+#   docker compose -f docker-compose.prod.yml -f docker-compose.scale.yml --env-file /opt/school-bus/.env up -d      # 백엔드 2대 — docs/backend/infra/DEPLOYMENT.md §15
 #
 # 로컬용 docker-compose.yml 과 의도적으로 분리했다. 로컬 파일은 "매번 시드 상태로 리셋"이
 # 목적이라 볼륨이 없고 DB·Redis 포트를 호스트에 열어두는데, 둘 다 운영에서는 정반대다.
