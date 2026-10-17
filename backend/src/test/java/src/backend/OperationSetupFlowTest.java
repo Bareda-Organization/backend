@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.web.TestResponses.본문;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -334,9 +335,5 @@ class OperationSetupFlowTest {
     /** {@code schedule.weekday} 의 값 공간({@code mon}~{@code sun}) 표기. */
     private static String 요일명(LocalDate date) {
         return date.getDayOfWeek().name().substring(0, 3).toLowerCase(Locale.ROOT);
-    }
-
-    private String 본문(MvcResult result) throws Exception {
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
     }
 }
