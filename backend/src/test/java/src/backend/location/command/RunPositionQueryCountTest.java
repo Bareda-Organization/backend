@@ -66,7 +66,8 @@ import src.backend.student.repository.StudentRepository;
  * <p>커밋 뒤 리스너가 돌아야 하므로 {@code @Transactional} 을 쓰지 않는다 — 만든 행과 Redis 키는 직접 지운다.
  * 셈은 Hibernate 통계의 "그 조회문이 실행된 횟수" 로 한다(다른 시험과 섞이지 않게 요청 전후 차이만 본다).
  */
-@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
+@SpringBootTest(properties = {"spring.jpa.properties.hibernate.generate_statistics=true",
+        "app.security.account-standing-cache-ttl=5s"})
 @AutoConfigureMockMvc
 class RunPositionQueryCountTest {
 
@@ -171,6 +172,21 @@ class RunPositionQueryCountTest {
         assertThat(warm).isLessThanOrEqualTo(3);
     }
 
+    /**
+     * 실제 요청 경로(인증 필터 · 컨트롤러 · 서비스 · 커밋 뒤 리스너) 전체의 SQL — 시험 JVM 은 계정 상태 캐시를 0초로 꺼 두므로(다른 시험이 계정 상태를
+     * 바로 바꾼다) 이 시험만 5초로 되돌려, 운영과 같이 인증 필터의 계정 상태 확인이 캐시에서 나오는 상태를 센다. 첫 요청이 캐시를 채운 뒤의 3건이 각각 3건 이하다.
+     */
+    @Test
+    @DisplayName("RT-5 — 실제 요청 경로로 데워진 위치 3건의 SQL 은 각각 3건 이하다(계정 상태 캐시 5초)")
+    void 데워진_실제_요청_3건의_SQL_은_각각_3건_이하다() throws Exception {
+        Seeded seeded = 회차를_심는다(true);
+        위치를_보낸다(seeded, 0);
+
+        for (int i = 1; i <= 3; i++) {
+            assertThat(위치를_보내고_SQL_수를_센다(seeded, i)).as("데워진 %d번째 요청", i).isLessThanOrEqualTo(3);
+        }
+    }
+
     @Test
     @DisplayName("RT-5 — 결석 전이가 커밋되면 다음 위치 한 번만 학생 목록을 다시 읽고, 결석 학생 채널로는 방송하지 않는다")
     void 결석_뒤_첫_위치에서만_학생_목록을_다시_읽는다() {
@@ -258,13 +274,18 @@ class RunPositionQueryCountTest {
     }
 
     private void 위치를_보낸다(Seeded seeded) throws Exception {
+        위치를_보낸다(seeded, 0);
+    }
+
+    /** {@code sequence} 번째 요청 — 기록 시각을 1초씩 앞으로 보내 앞 위치보다 오래된 값으로 걸러지지 않게 한다. */
+    private void 위치를_보낸다(Seeded seeded, int sequence) throws Exception {
         mockMvc.perform(post("/api/v1/runs/" + seeded.runId() + "/position")
                         .header("Authorization", "Bearer " + tokenProvider.createAccessToken(seeded.driverAccountId(),
                                 seeded.academyId(), Role.DRIVER, AccountStatus.ACTIVE))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"lat": 37.561000, "lng": 126.971000, "recorded_at": "%s"}
-                                """.formatted(seeded.now().minusSeconds(2))))
+                                """.formatted(seeded.now().minusSeconds(2).plusSeconds(sequence))))
                 .andExpect(status().isNoContent());
     }
 
@@ -291,9 +312,13 @@ class RunPositionQueryCountTest {
 
     /** Hibernate 가 준비한 문장 수의 요청 전후 차이 — 커밋 뒤 리스너(탑승자 조회)까지 같은 스레드라 포함된다. */
     private long 위치를_보내고_SQL_수를_센다(Seeded seeded) throws Exception {
+        return 위치를_보내고_SQL_수를_센다(seeded, 0);
+    }
+
+    private long 위치를_보내고_SQL_수를_센다(Seeded seeded, int sequence) throws Exception {
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         long before = statistics.getPrepareStatementCount();
-        위치를_보낸다(seeded);
+        위치를_보낸다(seeded, sequence);
         return statistics.getPrepareStatementCount() - before;
     }
 
