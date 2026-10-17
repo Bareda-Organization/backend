@@ -8,7 +8,8 @@ import org.junit.jupiter.api.Test;
 
 import src.backend.account.event.SignupDecidedEvent;
 import src.backend.global.common.enums.Role;
-import src.backend.notification.domain.impl.SignupDecidedComposer;
+import src.backend.notification.domain.impl.NotificationTexts;
+import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.NotificationMessage;
 
 /**
@@ -26,7 +27,7 @@ class SignupDecidedComposerTest {
 
     private static final String 거절_사유 = "제출 서류가 부족합니다";
 
-    private final SignupDecidedComposer composer = new SignupDecidedComposer();
+    private final NotificationComposer<SignupDecidedEvent> composer = new NotificationTexts().signupDecidedComposer();
 
     @Test
     void 가입_거절_문구에는_거절_사유가_그대로_실린다() {

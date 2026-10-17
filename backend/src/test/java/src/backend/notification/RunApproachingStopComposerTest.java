@@ -4,14 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-import src.backend.notification.domain.impl.RunApproachingStopComposer;
+import src.backend.notification.domain.impl.NotificationTexts;
+import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.RunApproachingStopSubject;
 import src.backend.notification.domain.spec.NotificationMessage;
 
 /** 근접(도착) 알림 문구(API_SPEC §9.7 {@code arrive}, NTF-04) — 자녀 이름을 싣는지 본다(ATT-03, Ruling 225). */
 class RunApproachingStopComposerTest {
 
-    private final RunApproachingStopComposer composer = new RunApproachingStopComposer();
+    private final NotificationComposer<RunApproachingStopSubject> composer = new NotificationTexts().runApproachingStopComposer();
 
     @Test
     void 문구에_자녀_이름이_실린다() {

@@ -4,7 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-import src.backend.notification.domain.impl.RiderStatusChangedComposer;
+import src.backend.notification.domain.impl.NotificationTexts;
+import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.RiderStatusChangedSubject;
 import src.backend.notification.domain.spec.NotificationMessage;
 
@@ -15,7 +16,7 @@ import src.backend.notification.domain.spec.NotificationMessage;
  */
 class RiderStatusChangedComposerTest {
 
-    private final RiderStatusChangedComposer composer = new RiderStatusChangedComposer();
+    private final NotificationComposer<RiderStatusChangedSubject> composer = new NotificationTexts().riderStatusChangedComposer();
 
     @Test
     void 승차_문구에는_자녀_이름이_실린다() {

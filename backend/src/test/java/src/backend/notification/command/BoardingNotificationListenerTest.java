@@ -24,8 +24,7 @@ import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.notification.domain.impl.NoShowParentComposer;
-import src.backend.notification.domain.impl.NoShowStaffComposer;
-import src.backend.notification.domain.impl.RiderStatusChangedComposer;
+import src.backend.notification.domain.impl.NotificationTexts;
 import src.backend.notification.entity.NotificationType;
 import src.backend.run.entity.Run;
 import src.backend.run.event.StopDepartedEvent;
@@ -40,6 +39,7 @@ import src.backend.student.repository.StudentRepository;
  */
 class BoardingNotificationListenerTest {
 
+    private static final NotificationTexts TEXTS = new NotificationTexts();
     private static final long ACADEMY_ID = 1L;
     private static final long RUN_ID = 10L;
     private static final long STOP_ID = 20L;
@@ -54,7 +54,7 @@ class BoardingNotificationListenerTest {
 
     private final BoardingNotificationListener listener = new BoardingNotificationListener(
             guardianStudentRepository, academyStaffRepository, studentRepository, runRiderRepository, runRepository, outbox,
-            new RiderStatusChangedComposer(), new NoShowParentComposer(), new NoShowStaffComposer());
+            TEXTS.riderStatusChangedComposer(), new NoShowParentComposer(), TEXTS.noShowStaffComposer());
 
     BoardingNotificationListenerTest() {
         List<RunRider> finalized = List.of(rider(1L, 101L), rider(2L, 102L), rider(3L, 103L));

@@ -4,7 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-import src.backend.notification.domain.impl.ChangeDecidedComposer;
+import src.backend.notification.domain.impl.NotificationTexts;
+import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.ChangeDecidedSubject;
 import src.backend.notification.domain.spec.NotificationMessage;
 
@@ -15,7 +16,7 @@ import src.backend.notification.domain.spec.NotificationMessage;
  */
 class ChangeDecidedComposerTest {
 
-    private final ChangeDecidedComposer composer = new ChangeDecidedComposer();
+    private final NotificationComposer<ChangeDecidedSubject> composer = new NotificationTexts().changeDecidedComposer();
 
     @Test
     void 승인_문구에는_자녀_이름이_실린다() {

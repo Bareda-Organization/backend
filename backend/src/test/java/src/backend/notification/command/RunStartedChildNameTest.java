@@ -19,8 +19,7 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Role;
-import src.backend.notification.domain.impl.RunStartedChildComposer;
-import src.backend.notification.domain.impl.RunStartedComposer;
+import src.backend.notification.domain.impl.NotificationTexts;
 import src.backend.run.event.RunStartedEvent;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
@@ -89,7 +88,7 @@ class RunStartedChildNameTest {
         given(runRepository.findByIdAndAcademyId(anyLong(), anyLong())).willReturn(Optional.empty());
 
         new RunStartedNotificationListener(staffRepository, runRiderRepository, guardianStudentRepository,
-                studentRepository, runRepository, mock(BusRepository.class), outbox, new RunStartedComposer(), new RunStartedChildComposer())
+                studentRepository, runRepository, mock(BusRepository.class), outbox, new NotificationTexts().runStartedComposer(), new NotificationTexts().runStartedChildComposer())
                 .appendRunStarted(new RunStartedEvent(RUN_ID, ACADEMY_ID, AT, 0));
 
         @SuppressWarnings("unchecked")

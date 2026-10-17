@@ -4,7 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-import src.backend.notification.domain.impl.ChangeAutoRejectedComposer;
+import src.backend.notification.domain.impl.NotificationTexts;
+import src.backend.notification.domain.spec.NotificationComposer;
 import src.backend.notification.domain.spec.ChangeAutoRejectedSubject;
 import src.backend.notification.domain.spec.NotificationMessage;
 
@@ -15,7 +16,7 @@ import src.backend.notification.domain.spec.NotificationMessage;
  */
 class ChangeAutoRejectedComposerTest {
 
-    private final ChangeAutoRejectedComposer composer = new ChangeAutoRejectedComposer();
+    private final NotificationComposer<ChangeAutoRejectedSubject> composer = new NotificationTexts().changeAutoRejectedComposer();
 
     @Test
     void 자동_거절_문구에는_자녀_이름이_실린다() {
