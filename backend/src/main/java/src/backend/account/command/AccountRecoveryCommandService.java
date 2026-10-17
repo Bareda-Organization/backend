@@ -19,6 +19,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.command.TemporaryPasswordGenerator;
@@ -47,8 +49,10 @@ import src.backend.global.sms.spec.SmsSender;
  *
  * <p><b>트랜잭션을 템플릿으로 직접 건다.</b> 틀린 코드의 대조 횟수는 응답이 403 이어도 커밋돼야 상한이 동작한다 —
  * 메서드 전체에 {@code @Transactional} 을 걸고 예외로 거절하면 올린 횟수가 롤백되어 무제한 대조가 된다. 그래서 대조
- * 결과를 값으로 돌려받아 커밋한 뒤에 403 을 던진다. 문자 발송은 트랜잭션의 마지막에 두어, 발송이 실패하면 코드 발급·
- * 비밀번호 교체가 함께 되돌려진다(받지 못한 임시 비밀번호로 계정이 잠기지 않는다).
+ * 결과를 값으로 돌려받아 커밋한 뒤에 403 을 던진다. <b>코드 발급의 문자는 커밋 뒤에 보낸다</b>(Ruling 899 F) — 업체
+ * 응답을 기다리는 동안 DB 연결을 쥐지 않고, 발송이 실패해도 인증번호 행(한도 계산 포함)은 남는다. <b>임시 비밀번호·아이디 문자는
+ * 대조 트랜잭션의 마지막에 둔다</b> — 발송이 실패하면 비밀번호 교체가 함께 되돌려진다(받지 못한 임시 비밀번호로 계정이 잠기지 않는다).
+ * 두 발송 모두 서킷 {@code sms} 를 지나, 업체가 죽으면 호출 없이 즉시 거절한다.
  *
  * <p><b>임시 비밀번호의 BCrypt 는 트랜잭션·행 잠금 밖에서 미리 만든다</b>(R46 T-3) — 발급된 코드와 입력이 맞을 때만, 같은 번호의
  * 계정 수만큼 만들어 둔다(틀린 코드로 BCrypt 를 태우지 못하게). 대조·소비·교체·문자 발송은 그대로 한 트랜잭션이고, 그
@@ -77,6 +81,9 @@ public class AccountRecoveryCommandService {
 
     private static final int CODE_DIGITS = 6;
 
+    /** {@code resilience4j.circuitbreaker.instances} 의 이름 — 값은 FCM 과 같다(Ruling 899 F). */
+    private static final String SMS_CIRCUIT = "sms";
+
     private final ObjectProvider<SmsSender> smsSender;
 
     private final AccountRepository accountRepository;
@@ -90,6 +97,8 @@ public class AccountRecoveryCommandService {
     private final PasswordEncoder passwordEncoder;
 
     private final TransactionTemplate transactionTemplate;
+
+    private final CircuitBreakerRegistry circuitBreakers;
 
     private final Clock clock;
 
@@ -111,7 +120,8 @@ public class AccountRecoveryCommandService {
         }
         VerificationPurpose purpose = "login_id".equals(type) ? VerificationPurpose.LOGIN_ID : VerificationPurpose.PASSWORD;
         if (verificationCode == null) {
-            transactionTemplate.executeWithoutResult(status -> issue(sender, phone, purpose));
+            Optional<String> text = transactionTemplate.execute(status -> issue(phone, purpose));
+            text.ifPresent(body -> deliver(sender, phone, body)); // 커밋 뒤 — 발송이 실패해도 인증번호 행은 남는다
             return;
         }
         Map<Long, TemporaryPassword> prepared = purpose == VerificationPurpose.PASSWORD
@@ -123,7 +133,8 @@ public class AccountRecoveryCommandService {
         }
     }
 
-    private void issue(SmsSender sender, String phone, VerificationPurpose purpose) {
+    /** 인증번호 행을 저장하고 보낼 문자 본문을 돌려준다 — 미등록 번호는 행만 남기고 본문이 없다. */
+    private Optional<String> issue(String phone, VerificationPurpose purpose) {
         // 이 번호의 발급을 직렬화한다 — 계정 행 잠금은 미등록 번호에 잠글 행이 없어, 동시 요청의 통과 수가 가입 여부에 따라 갈린다.
         // 발급은 계정이 있는지만 보고 바꾸지 않으므로 행을 잠그지 않는다 — 잠그면 문자 업체 응답이 올 때까지 그 계정의 로그인이 선다(BR-308).
         verificationCodeRepository.lockByPhone(phone);
@@ -139,9 +150,14 @@ public class AccountRecoveryCommandService {
         verificationCodeRepository.invalidateUnconsumedByPhoneAndPurpose(phone, purpose, now);
         String code = newCode();
         verificationCodeRepository.save(VerificationCode.issue(phone, code, purpose, now.plus(CODE_TTL), now));
-        if (!accounts.isEmpty()) {
-            sender.send(phone, "[바래다] 인증번호 " + code + " (" + CODE_TTL.toMinutes() + "분 안에 입력)");
-        }
+        return accounts.isEmpty() ? Optional.empty()
+                : Optional.of("[바래다] 인증번호 " + code + " (" + CODE_TTL.toMinutes() + "분 안에 입력)");
+    }
+
+    /** 문자 발송기를 서킷 {@code sms} 로 감싸 부른다 — 열려 있으면 업체를 부르지 않고 즉시 예외다. */
+    private void deliver(SmsSender sender, String phone, String text) {
+        CircuitBreaker circuitBreaker = circuitBreakers.circuitBreaker(SMS_CIRCUIT);
+        circuitBreaker.executeRunnable(() -> sender.send(phone, text));
     }
 
     /**
@@ -208,7 +224,7 @@ public class AccountRecoveryCommandService {
         }
         String text = purpose == VerificationPurpose.LOGIN_ID ? loginIdText(accounts)
                 : resetPasswords(accounts, now, prepared);
-        sender.send(phone, text);
+        deliver(sender, phone, text);
         return true;
     }
 

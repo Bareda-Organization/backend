@@ -1,6 +1,7 @@
 package src.backend.account;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,6 +40,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -254,6 +256,35 @@ class AccountRecoveryFlowTest {
 
         assertThat(probed.get()).as("발송 도중 확인이 실행됐다").isTrue();
         assertThat(lockFailure.get()).as("발송 도중 다른 연결이 계정 행을 잠글 수 있다").isNull();
+    }
+
+    /**
+     * AR-2(Ruling 899 F) — 코드 발급의 문자는 트랜잭션이 끝난 뒤에 나간다. 트랜잭션 안에서 보내면 문자 업체가 느린 동안 DB 연결이
+     * 묶이고, 업체 장애 때 연결 풀이 고갈된다.
+     */
+    @Test
+    void 코드_발급의_문자는_트랜잭션_밖에서_나간다() throws Exception {
+        createAccount(Role.PARENT);
+        AtomicReference<Boolean> transactionActive = new AtomicReference<>();
+        smsSender.duringSend(() -> transactionActive.set(TransactionSynchronizationManager.isActualTransactionActive()));
+
+        recover("password", null).andExpect(status().isOk());
+
+        assertThat(transactionActive.get()).as("발송 순간 트랜잭션 활성 여부 — 발송이 실행되지 않았으면 null").isFalse();
+    }
+
+    /** AR-2 — 문자 발송이 실패해도 인증번호 행은 커밋돼 있다(발송 실패가 발급 한도·행을 되돌리지 않는다). 예외는 호출자에게 그대로 간다. */
+    @Test
+    void 문자_발송이_실패해도_인증번호_행은_커밋된다() {
+        createAccount(Role.PARENT);
+        smsSender.duringSend(() -> {
+            throw new IllegalStateException("문자 업체 장애");
+        });
+
+        assertThatThrownBy(() -> accountRecoveryCommandService.recover("password", phone, null))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("문자 업체 장애");
+
+        assertThat(codeRows()).as("발송이 던진 뒤에도 인증번호 행이 남는다").isEqualTo(1);
     }
 
     /**
