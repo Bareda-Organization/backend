@@ -3,6 +3,7 @@ package src.backend.account.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ClientIp;
+import src.backend.global.security.AccountStandingChangedEvent;
 
 /**
  * 로그인 차단 해제(AUTH-06 · O-03, API_SPEC §6.12) — 상태 전이와 감사 적재를 한 트랜잭션에서 함께 한다.
@@ -33,6 +35,8 @@ public class AccountUnblockCommandService {
     private final AuditLogRepository auditLogRepository;
 
     private final Clock clock;
+
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 차단을 푼다 — 미존재 계정은 {@code 404 ACCOUNT_NOT_FOUND}, {@code blocked} 가 아니면
@@ -62,6 +66,7 @@ public class AccountUnblockCommandService {
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         target.unblock(actor.getId(), now);
+        eventPublisher.publishEvent(new AccountStandingChangedEvent(target.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다(R57 RT-1)
         auditLogRepository.save(AuditLog.forAccountUnblock(target.getAcademyId(), actor.getId(),
                 actor.getLoginId(), target.getId(), ClientIp.ofCurrentRequest(), now));
 
