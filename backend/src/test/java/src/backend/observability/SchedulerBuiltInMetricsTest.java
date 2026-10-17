@@ -9,6 +9,7 @@ import java.util.TreeSet;
 
 import io.micrometer.observation.ObservationRegistry;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -58,7 +59,11 @@ class SchedulerBuiltInMetricsTest {
         }
     }
 
-    /** 크론 작업은 등록기가 돌려주는 목록에 없을 수 있어, 스케줄러가 쓰는 래퍼를 컨텍스트의 관측 등록기로 직접 만들어 돌린다. */
+    /**
+     * 스케줄러가 쓰는 래퍼({@code ScheduledMethodRunnable})를 컨텍스트의 관측 등록기로 만들어 돌린다. 대상은 실제 빈이 아니라 목이다 — 실제 빈을 돌리면
+     * 일일 회차 생성 · 보존 정리 같은 작업이 공유 DB 를 바꿔 다른 시험(예: 학생 회차 목록)의 기대 건수를 흔든다. 인라인 목은 클래스 자체라 지표의
+     * {@code code_namespace} 가 실제 클래스 이름으로 나온다.
+     */
     private void runEveryScheduledMethodOnce() {
         for (String beanName : context.getBeanDefinitionNames()) {
             Class<?> type = context.getType(beanName);
@@ -67,7 +72,7 @@ class SchedulerBuiltInMetricsTest {
             }
             for (Method method : ClassUtils.getUserClass(type).getDeclaredMethods()) {
                 if (method.isAnnotationPresent(Scheduled.class)) {
-                    new ScheduledMethodRunnable(context.getBean(beanName), method, null, () -> observationRegistry).run();
+                    new ScheduledMethodRunnable(Mockito.mock(ClassUtils.getUserClass(type)), method, null, () -> observationRegistry).run();
                 }
             }
         }
