@@ -74,10 +74,10 @@ public class RunConfirmationPersistence {
      *
      * @return 이 호출이 실제로 확정을 저장했으면 {@code true}, 진 경쟁이라 조용히 반환했으면
      *         {@code false} — 호출부({@code RunConfirmationService#confirmOne})가 이 값으로 배치
-     *         지연 지표를 승자 1건에만 기록한다. 반환값이 없던 시절엔 진 스레드도 이 지점까지
-     *         정상 도달해 지표 표본이 확정 사건 수보다 부풀었다 — 이 지표의 존재 목적(증설 판단 신호,
+     *         지연 지표를 승자 1건에만 기록한다. 이 값이 없으면 진 스레드도 이 지점까지
+     *         정상 도달해 지표 표본이 확정 사건 수보다 부푼다 — 이 지표의 존재 목적(증설 판단 신호,
      *         {@code ARCHITECTURE §9.4})이 인스턴스를 늘려 경합이 잦아지는 바로 그 시점에 가장
-     *         부정확해지는 결함이었다.
+     *         부정확해진다.
      */
     public boolean persist(Run run, RouteComputation computation, RunRouteEndpoints.Endpoints endpoints,
             Weekday weekday, ProjectedRoster roster, OffsetDateTime confirmedAt) {

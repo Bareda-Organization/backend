@@ -143,7 +143,8 @@ public class AdminEmergencyQueryService {
 
     /**
      * 경과 시간(목표 11)의 종료 시점 — 취소·확인으로 이미 끝난 신고는 그 시각에서 멈춘다({@link
-     * AdminEmergencyItemResponse} 자바독). 아직 열려 있는 신고만 {@code now} 까지 계속 흐른다.     */
+     * AdminEmergencyItemResponse} 자바독). 아직 열려 있는 신고만 {@code now} 까지 계속 흐른다.
+     */
     private AdminEmergencyItemResponse toItem(EmergencyAlert alert, Academy academy, Manager raiser, Account acker,
             Run run, List<AssignedManagerContactView> assigned, Map<Long, Manager> managersById,
             OffsetDateTime now) {

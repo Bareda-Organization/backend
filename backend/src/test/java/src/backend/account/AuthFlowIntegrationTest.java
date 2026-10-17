@@ -47,7 +47,7 @@ import testsupport.gate.AccountStatusGateEndpoints;
  * 실제 경로를 두드려야만 드러난다. 애너테이션 <b>부착</b>을 세는 개수 단언도 그 애너테이션이
  * 런타임에 실제로 읽히는지는 보지 않으므로 이 갭을 메우지 못한다.
  *
- * <p>Ruling 133 으로 거부측이 <b>허용 목록 밖 실제 핸들러 전부</b>로 확대됐다 —
+ * <p>Ruling 133 에 따라 거부측은 <b>허용 목록 밖 실제 핸들러 전부</b>다 —
  * 대상 목록과 그 목록이 낡지 않았는지 대조하는 수단은 {@code testsupport.gate.AccountStatusGateEndpoints}
  * 에 둔다.
  *

@@ -265,7 +265,8 @@ class AdminMonitoringControllerTest {
 
     /**
      * 오늘 회차는 <b>상태와 무관하게 전부</b> 나온다(Ruling 315) — 관제 화면이 버스별
-     * 상태 목록을 그리려면 {@code moving} 만으로는 성립하지 않는다.     */
+     * 상태 목록을 그리려면 {@code moving} 만으로는 성립하지 않는다.
+     */
     @Test
     void 오늘_회차는_상태와_무관하게_전부_나온다() throws Exception {
         AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);

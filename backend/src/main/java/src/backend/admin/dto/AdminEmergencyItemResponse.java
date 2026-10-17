@@ -30,7 +30,8 @@ import src.backend.exception.dto.EmergencyStaffItemResponse.RaisedBy;
  * 파생값이다(목표 11 요구 — 저장하면 조회할 때마다 갱신 배치가 따로 필요해진다). 단위는 <b>초</b>다
  * (정본이 "경과 초" 로 요구, {@code API_SPEC.md:1923}). 취소된 신고는 더 흐르지 않도록
  * {@code canceledAt} 을, 확인된 신고는 {@code ackedAt} 을 종료 시점으로 우선한다 — 그렇지 않으면
- * 이미 끝난 신고의 경과 시간이 콘솔을 열어 둔 만큼 계속 늘어난다. *
+ * 이미 끝난 신고의 경과 시간이 콘솔을 열어 둔 만큼 계속 늘어난다.
+ *
  * <p>타입을 {@code Duration} 이 아니라 {@code Long}(초)으로 둔다 — 이 저장소에 {@code Duration} 을
  * 응답 필드로 노출한 전례가 없고({@code StudentBusPositionQueryService} 도 내부 계산에만 쓰고
  * 응답에는 원본 시각만 싣는다), 전역 {@code ObjectMapper} 에 {@code WRITE_DURATIONS_AS_TIMESTAMPS}
