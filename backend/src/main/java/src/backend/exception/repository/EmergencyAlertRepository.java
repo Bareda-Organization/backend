@@ -18,7 +18,7 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.authz.Permissions;
 
-/** {@link EmergencyAlert} 영속성 접근(EXC-04, Phase 11 T2). */
+/** {@link EmergencyAlert} 영속성 접근(EXC-04). */
 public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, Long> {
 
     /**

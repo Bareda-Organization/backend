@@ -24,7 +24,7 @@ import src.backend.exception.repository.NoShowCaseRepository;
  * {@link NoShowEscalationPersistence#escalateOne} 을 건별로 부른다. {@code ChangeRequestAutoRejectionScheduler}
  * 와 같은 골격(배치 상한 · 건별 격리 · 초기 지연 설정 · 전용 스레드 풀 없음)이다.
  *
- * <p>{@code @SchedulerLock}(TECH_DECISIONS §3.2, Phase 11 T4 배선 명세) — {@link
+ * <p>{@code @SchedulerLock}(TECH_DECISIONS §3.2, 배선 명세) — {@link
  * NoShowEscalationPersistence#escalateOne} 의 조건부 UPDATE({@code escalateIfDue})가 이중
  * 에스컬레이션은 이미 막지만, 락이 없으면 인스턴스마다 같은 대상을 반복 조회한다 —
  * {@code ChangeRequestAutoRejectionScheduler} 와 완전히 같은 근거다. {@code RunConfirmationScheduler}

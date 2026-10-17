@@ -28,7 +28,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * 학원 관계자 화면의 비상 알림 조회·확인 API(EXC-04, Phase 11 T2 목표 10) — 두 경로 모두 학원 관계자 전용이다
+ * 학원 관계자 화면의 비상 알림 조회·확인 API(EXC-04) — 두 경로 모두 학원 관계자 전용이다
  * ({@code @Can(Permissions.EMERGENCY_ACK)}, Ruling 884). 메인관리자는 이 경로에서 목록도 확인도 {@code 403} 이고, 전 학원 열람은
  * {@code GET /admin/emergencies} 를 쓴다.
  */

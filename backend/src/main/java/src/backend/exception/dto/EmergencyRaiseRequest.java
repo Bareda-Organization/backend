@@ -11,7 +11,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * 비상 신고 요청(EXC-04, Phase 11 T2 목표 5·8). {@code type} 을 문자열로 받는 이유는
+ * 비상 신고 요청(EXC-04). {@code type} 을 문자열로 받는 이유는
  * {@code RiderStatusUpdateRequest} 와 같다 — 잘못된 값을 자동 바인딩(400)이 아니라 서비스 계층이
  * {@code 422 VALIDATION_FAILED} 로 판정해야 한다.
  *

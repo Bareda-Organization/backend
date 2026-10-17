@@ -34,8 +34,8 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 학원 관계자 화면의 비상 알림 목록 조회(Phase 11 T2 목표 10, Phase 13 목표 13, §5.16 목록
- * 필터는 R7 목표 1) — {@code emergency_alert} 는 발신자 연락처를 컬럼으로 갖지 않으므로({@link
+ * 학원 관계자 화면의 비상 알림 목록 조회(§5.16 목록
+ * 필터) — {@code emergency_alert} 는 발신자 연락처를 컬럼으로 갖지 않으므로({@link
  * EmergencyStaffItemResponse} 자바독) 이 조회가 매번 {@code raisedBy}(manager.id) 를 일괄
  * 재조회해 이름·전화·역할을 채운다.
  *

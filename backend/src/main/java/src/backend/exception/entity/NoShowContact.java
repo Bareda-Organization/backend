@@ -67,7 +67,7 @@ public class NoShowContact {
     }
 
     /**
-     * 연락 시도 1회가 끝났을 때 결과 행을 만든다(Phase 11 목표 3, API_SPEC §4.8) — {@code decision} 은
+     * 연락 시도 1회가 끝났을 때 결과 행을 만든다(API_SPEC §4.8) — {@code decision} 은
      * 요청 본문의 선택 필드를 그대로 받아 이 행 하나에 함께 남긴다({@code no_show_contact.decision}).
      * 그 값이 {@link NoShowCase} 의 카운트다운을 실제로 멈추는지는 이 팩토리가 아니라 호출부
      * ({@code NoShowContactCommandService})가 {@link NoShowCase#resolveByAnswer}·{@link NoShowCase#decide}

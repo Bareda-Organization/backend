@@ -25,7 +25,7 @@ import src.backend.global.common.enums.ManagerRole;
  *
  * <p>{@code academy_id}·{@code run_id}·{@code raised_by} 는 논리적 부모이나 DB FK 가 미설정이다
  * (ERD §4.2 — 스냅샷 성격상 원본 정리와 보존 주기가 다르다). {@code raised_by_role} 은 CHECK
- * ({@code ck_emergency_alert_raised_by_role})로 값이 강제된다(R46 A-5) — 읽을 때는
+ * ({@code ck_emergency_alert_raised_by_role})로 값이 강제된다. 읽을 때는
  * {@link ManagerRole.Db#convertToEntityAttribute} 의 {@link Enum#valueOf} 가 한 번 더 막는다.
  */
 @Entity
@@ -138,7 +138,7 @@ public class EmergencyAlert {
     /**
      * 신고 접수 시점의 위치를 붙인다 — 위치 캐시(Redis)에 값이 있을 때만 호출된다. 캐시가 비어 있어도
      * 신고 자체는 반드시 성공해야 하므로(안전 요구), 이 메서드를 호출하지 않고 {@code lat}·{@code lng}
-     * 를 {@code null} 로 남겨 두는 것이 정상 경로다(호출부 판단, Phase 11 T2 목표 8).
+     * 를 {@code null} 로 남겨 두는 것이 정상 경로다(호출부 판단).
      *
      * <p>{@code recordedAt} 은 위치 발신 장비가 찍은 시각(Redis 스냅샷의 {@code recordedAt})이다 —
      * {@code occurred_at}·{@code received_at} 은 신고 자체의 시각이라 의미가 다르므로 대신 쓰지

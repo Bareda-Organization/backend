@@ -98,7 +98,7 @@ public class LoginSettlement {
                 refreshTokenRepository.revokeAllValidByAccountId(account.getId(), now);
                 auditLogRepository.save(
                         AuditLog.forLoginBlock(account.getAcademyId(), account.getId(), loginId, ip, now));
-                eventPublisher.publishEvent(new AccountStandingChangedEvent(account.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다(R57 RT-1)
+                eventPublisher.publishEvent(new AccountStandingChangedEvent(account.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다
                 throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
             }
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, new LoginFailureDetail(remaining));

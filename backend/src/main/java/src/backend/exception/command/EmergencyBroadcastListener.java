@@ -19,7 +19,7 @@ import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 
 /**
- * 비상 신고 접수·확인·취소 방송(EXC-04, Phase 11 T2 목표 6·10·11) — {@code @TransactionalEventListener
+ * 비상 신고 접수·확인·취소 방송(EXC-04) — {@code @TransactionalEventListener
  * (AFTER_COMMIT)} 근거는 {@code run.command.RunStartedBroadcastListener} 와 같다.
  *
  * <p><b>{@link WebSocketBroadcastGateway#broadcastToRunChannels} 를 쓰지 않는다</b> — 그 메서드는
@@ -44,7 +44,7 @@ public class EmergencyBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
-    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기 — 단일 스레드라 커밋 순서가 유지된다. */
     @Qualifier("broadcastListenerExecutor")
     private final Executor broadcastExecutor;
 

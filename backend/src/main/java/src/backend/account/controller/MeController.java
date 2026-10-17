@@ -20,8 +20,7 @@ import src.backend.global.security.gate.AllowedWhenPending;
 
 /**
  * 본인 프로필 조회(API_SPEC §2.10). {@code pending}·{@code rejected} 도 호출할 수 있다고
- * 본문이 명시해(대기 화면이 상태를 알아야 함) {@code @AllowedWhenPending} 을 붙인다 — 2026-08-25
- * 확인, MeControllerTest 리네임(Task 4).
+ * 본문이 명시해(대기 화면이 상태를 알아야 함) {@code @AllowedWhenPending} 을 붙인다.
  */
 @Tag(name = ApiTags.AUTH)
 @RestController

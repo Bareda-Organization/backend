@@ -18,9 +18,8 @@ import src.backend.exception.dto.StaffNoShowCaseView;
 
 /**
  * {@link NoShowCase} 영속성 접근 — {@code no_show_case} 는 {@code run_rider} 를 부모로 두는 부모 경유
- * 자원이다(ERD §6.1). Phase 9 목표 7 이 처음으로 이 저장소를 만든다: 승하차 처리가 {@code no_show} 로
- * 전이할 때 케이스를 만들고, 그 응답 조립이 이미 있는 케이스를 되읽는다. Phase 11 목표 1(에스컬레이션)이
- * 폴링 조회 2건을 더한다.
+ * 자원이다(ERD §6.1). 승하차 처리가 {@code no_show} 로 전이할 때 케이스를 만들고, 그 응답 조립이 이미 있는 케이스를
+ * 되읽는다. 에스컬레이션 폴링 조회 2건도 이 저장소에 둔다.
  */
 public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
 
@@ -36,7 +35,7 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
     Optional<NoShowCase> findByRunRiderId(Long runRiderId);
 
     /**
-     * 에스컬레이션 폴링 대상(Phase 11 목표 1, API_SPEC §4.8) — 대기 만료({@code expires_at <= now})
+     * 에스컬레이션 폴링 대상(API_SPEC §4.8) — 대기 만료({@code expires_at <= now})
      * + 무응답({@code escalated_at IS NULL}) + 미해소({@code resolved_at IS NULL}).
      *
      * <p>시각이 촉발하는 <b>전 학원 대상</b> 조회라 좁힐 학원이 없다 — 학원 하나로 좁히면 나머지 학원의
@@ -68,7 +67,7 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
      * 시점엔 미해소였어도 UPDATE 시점엔 해소됐을 수 있어, 조건에서 빠뜨리면 이미 끝난 케이스를
      * 에스컬레이션하는 경쟁이 생긴다.
      *
-     * <p>{@code expires_at <= now} 도 재확인한다(R51 L1) — 폴링 뒤 UPDATE 전에 케이스가 재개돼(되돌린 미승차를 다시 미승차 처리하면
+     * <p>{@code expires_at <= now} 도 재확인한다 — 폴링 뒤 UPDATE 전에 케이스가 재개돼(되돌린 미승차를 다시 미승차 처리하면
      * 만료 시각이 새 대기 시간 뒤로 갱신된다) 아직 만료 전이면, 새 대기 시간이 시작된 케이스를 곧바로 올리지 않는다.
      *
      * @return 영향받은 행 수. 0이면 이미 처리됐거나(경쟁 패배·응답 도착) 대상이 없는 것이다.
@@ -95,7 +94,7 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
 
     /**
      * 회차 목록의 <b>진행 중</b>({@code resolvedAt IS NULL}) 미승차 에스컬레이션 케이스를 학생·
-     * 승하차지 이름과 함께 읽는다(§5.3 {@code runs[].no_show_cases[]}, BRD-05, Phase 13 T1) —
+     * 승하차지 이름과 함께 읽는다(§5.3 {@code runs[].no_show_cases[]}, BRD-05) —
      * 관계자 웹 대시보드 전용이라는 뜻으로 메서드 이름에 용도를 남긴다(Ruling 238).
      *
      * <p>{@code stop_id} 는 {@code run_stop} 이 아니라 승하차지 마스터를 가리킨다({@code RunRider}

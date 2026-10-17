@@ -32,7 +32,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 
 /**
- * 기사·동승자 단말의 비상 신고 발신·취소 API(EXC-04, Phase 11 T2 목표 5·8·9) —
+ * 기사·동승자 단말의 비상 신고 발신·취소 API(EXC-04) —
  * {@link src.backend.run.controller.DriverRunController} 와 같이 {@code /staff} 접두어가 없는
  * 단말 표면이다.
  */

@@ -51,14 +51,14 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 비상 신고 발신·취소·확인(EXC-04, Phase 11 T2 목표 5·8·9·10) — {@code emergency_alert} 를 쓰는
+ * 비상 신고 발신·취소·확인(EXC-04) — {@code emergency_alert} 를 쓰는
  * 유일한 지점이다.
  *
  * <p><b>발신은 확정({@code confirmed}) 이후 회차에만 받는다</b>(API_SPEC §4.14 "발신 시점" · M-15 ·
  * UF-X-08, BR-109) — 확정 전({@code idle}) 회차는 {@code 409 RUN_NOT_CONFIRMED}. 운행 중이 아니어도
  * (확정 뒤 출발 전 차량 이상 등) 받는다.
  *
- * <p><b>{@link #raise} 는 클래스 트랜잭션이 아니라 {@link TransactionTemplate} 으로 쓰기만 감싼다</b>(R46 T-5) — 위치 캐시(Redis,
+ * <p><b>{@link #raise} 는 클래스 트랜잭션이 아니라 {@link TransactionTemplate} 으로 쓰기만 감싼다</b> — 위치 캐시(Redis,
  * 500ms 상한)를 읽는 동안 DB 연결과 {@code client_key} 잠금을 쥐면 가장 빨라야 하는 접수가 Redis 지연만큼 늦어진다.
  * 그래서 좌표 없는 요청만 캐시를 <b>트랜잭션 앞에서</b> 읽어 저장 메서드에 넘긴다. {@link #cancel}·{@link #ack} 는
  * 외부 읽기가 없어 메서드 단위 {@code @Transactional} 이다.
@@ -175,9 +175,8 @@ public class EmergencyCommandService {
      * 같은 이유로 재취소도 멱등하게 둔다 — 취소 응답을 놓친 클라이언트가 다시 눌러도 두 번째
      * {@code canceled_at} 덮어쓰기로 이력이 바뀌지 않는다).
      *
-     * <p>배치 확인을 신고 조회보다 먼저 한다({@link #raise} 와 같은 순서) — 이전에는 배치를 전혀
-     * 확인하지 않고 {@code findByIdAndRunIdAndAcademyId} 복합키만으로 404 를 던져, §4.14 가 명시한
-     * "배치되지 않은 회차" 시나리오(driverA1 이 미배치 회차의 신고를 지목)를 결코 만나지 못했다.
+     * <p>배치 확인을 신고 조회보다 먼저 한다({@link #raise} 와 같은 순서) — 신고 조회를 먼저 하면 미배치 회차의 신고 지목이 404 로 답해져, §4.14 가 명시한
+     * "배치되지 않은 회차" 시나리오(driverA1 이 미배치 회차의 신고를 지목)가 성립하지 않는다.
      */
     @Transactional
     public EmergencyCancelResponse cancel(AuthUser requester, Long runId, Long emergencyId) {

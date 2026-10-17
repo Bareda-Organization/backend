@@ -82,7 +82,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     int revokeByTokenHash(@Param("tokenHash") String tokenHash, @Param("revokedAt") OffsetDateTime revokedAt);
 
     /**
-     * 보존 정리 배치 후보 id(목표 6, Phase 14 T2) — 만료되거나 폐기된 뒤 유예 기간이 지난 토큰이
+     * 보존 정리 배치 후보 id — 만료되거나 폐기된 뒤 유예 기간이 지난 토큰이
      * 대상이다({@link src.backend.global.retention.RetentionPolicy#refreshTokenCutoff} 잠정값).
      *
      * <p>이미 폐기된 토큰({@code revoked_at IS NOT NULL})은 <b>폐기 시각</b> 기준으로, 아직 폐기되지
@@ -98,7 +98,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
 
     /**
-     * 남은 행 수(R47, Ruling 742) — 보존 정리 직후 운영 지표 {@code schoolbus.refresh.token.rows} 용이다. {@code count()} 를 직접 부르지 않는 것은
+     * 남은 행 수(Ruling 742) — 보존 정리 직후 운영 지표 {@code schoolbus.refresh.token.rows} 용이다. {@code count()} 를 직접 부르지 않는 것은
      * 학원 범위 저장소의 상속 전건 조회 호출을 막는 규칙({@code AcademyScopeRepositoryConventionTest})이 있어, 예외 근거를 적은 전용 조회로 둔다.
      */
     @AcademyScopeExempt(reason = "운영 지표(R47 Ruling 742) — 보존 정리가 끝난 직후 전 학원의 refresh_token 남은 행 수를 센다. 개별 행·개인정보를 읽지 않고 "

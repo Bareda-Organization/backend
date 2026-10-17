@@ -32,7 +32,7 @@ public class PasswordChangeCommandService {
     /**
      * 현재 비밀번호 불일치 시 {@code 401 INVALID_CREDENTIALS}(API_SPEC §2.8) — 형식 오류는 {@code @Valid} 가 앞단에서 걸러 {@code 422} 로 응답한다.
      *
-     * <p><b>BCrypt(대조 · 새 해시)는 트랜잭션·행 잠금 밖에서 한다</b>(R46 T-3, {@code LoginCommandService} 와 같은 3단계) —
+     * <p><b>BCrypt(대조 · 새 해시)는 트랜잭션·행 잠금 밖에서 한다</b>({@code LoginCommandService} 와 같은 3단계) —
      * 요청당 수십~수백 ms 라 잠금 안에 두면 그 계정의 로그인이 그만큼 막히고 연결이 묶인다. 잠금 없이 읽어 대조하고 새 해시를
      * 만든 뒤, {@link #settle} 이 행을 잠가 저장한다.
      */
