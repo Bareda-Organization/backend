@@ -24,7 +24,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageSchedule;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.run.command.RunCommandService;
 import src.backend.run.dto.RunCreateRequest;
 import src.backend.run.dto.RunResponse;
@@ -60,7 +61,7 @@ public class StaffRunController {
      * {@code @ModelAttribute} 로 받으면 {@code service_date} 가 조용히 안 붙고 <b>목록이 늘 오늘</b>이
      * 된다. 실제로 그 형태로 깨졌다. 파라미터가 늘어 DTO 로 묶게 되면 이름 규약을 함께 정해야 한다.
      */
-    @CanManageSchedule
+    @Can(Permissions.SCHEDULE_MANAGE)
     @Operation(summary = "운행 스케줄 · 일일 회차 — 그 날짜의 회차 목록 (SCH-02)")
     @GetMapping
     public ApiResponse<List<RunResponse>> list(@AuthenticationPrincipal AuthUser requester,
@@ -69,7 +70,7 @@ public class StaffRunController {
     }
 
     /** 특정일 회차 임시 추가(SCH-03, §5.10) — 만들어진 회차는 {@code schedule_id} 가 비어 있다. */
-    @CanManageSchedule
+    @Can(Permissions.SCHEDULE_MANAGE)
     @Operation(summary = "운행 스케줄 · 일일 회차 — 특정일 회차 임시 추가 (SCH-03)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -79,7 +80,7 @@ public class StaffRunController {
     }
 
     /** 특정일 회차 임시 취소(SCH-03, §5.10) — 행을 지우지 않고 {@code canceled_at} 을 채운다. */
-    @CanManageSchedule
+    @Can(Permissions.SCHEDULE_MANAGE)
     @Operation(summary = "운행 스케줄 · 일일 회차 — 특정일 회차 임시 취소 (SCH-03)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

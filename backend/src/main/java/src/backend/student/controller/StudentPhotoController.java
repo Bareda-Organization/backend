@@ -22,7 +22,8 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadStudentPhoto;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.student.query.StudentPhotoQueryService;
 import src.backend.student.query.StudentPhotoQueryService.PhotoFile;
 
@@ -48,7 +49,7 @@ public class StudentPhotoController {
      * {@code If-None-Match} 가 일치하면 Spring 이 본문 없이 {@code 304} 로 답한다(R46-KFIXBE K-3). 학원 소속 확인은 이 응답을 만들기 전에
      * 끝나 있어 {@code 304} 도 접근 권한을 우회하지 못한다. 본문은 파일에서 흘려 보내 힙에 올리지 않는다.
      */
-    @CanReadStudentPhoto
+    @Can(Permissions.STUDENT_READ_PHOTO)
     @Operation(summary = "학생 사진 파일 (STU-01, §5.11.1)", responses = @ApiResponse(responseCode = "200",
             content = @Content(mediaType = "image/*",
                     schema = @Schema(type = "string", format = "binary", example = "(이미지 바이너리 — png · jpeg · webp)"))))

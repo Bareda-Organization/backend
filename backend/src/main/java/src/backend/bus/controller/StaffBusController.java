@@ -29,7 +29,8 @@ import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageBus;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 관계자 웹의 차량 관리 API(BUS-01~03 · A-11, API_SPEC §5.12).
@@ -48,7 +49,7 @@ public class StaffBusController {
     private final BusCommandService busCommandService;
 
     /** 차량 목록(BUS-01, §5.12). */
-    @CanManageBus
+    @Can(Permissions.BUS_MANAGE)
     @Operation(summary = "차량 목록 (BUS-01, A-11)")
     @GetMapping
     public ApiResponse<PageResponse<BusResponse>> list(@AuthenticationPrincipal AuthUser requester,
@@ -57,7 +58,7 @@ public class StaffBusController {
     }
 
     /** 차량 등록(BUS-02, §5.12) — 응답의 {@code student_capacity} 는 서버 계산값이다. */
-    @CanManageBus
+    @Can(Permissions.BUS_MANAGE)
     @Operation(summary = "차량 등록 (BUS-02, A-11)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -67,7 +68,7 @@ public class StaffBusController {
     }
 
     /** 차량 수정(BUS-03, §5.12) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
-    @CanManageBus
+    @Can(Permissions.BUS_MANAGE)
     @Operation(summary = "차량 수정 (BUS-03, A-11)")
     @PatchMapping("/{id}")
     public ApiResponse<BusResponse> update(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id,

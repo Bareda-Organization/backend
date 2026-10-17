@@ -18,7 +18,8 @@ import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageRoute;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.routing.command.StopCommandService;
 import src.backend.routing.dto.StopListRequest;
 import src.backend.routing.dto.StopManageResponse;
@@ -43,7 +44,7 @@ public class StaffStopManagementController {
     private final StopCommandService stopCommandService;
 
     /** 승하차지 목록(§5.9) — 이름 오름차순, {@code q} 는 이름·주소 검색. */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "승하차지 관리 — 목록 (§1.8 페이징) (RTE-01 · A-08)")
     @GetMapping
     public ApiResponse<PageResponse<StopManageResponse>> list(@AuthenticationPrincipal AuthUser requester,
@@ -52,7 +53,7 @@ public class StaffStopManagementController {
     }
 
     /** 승하차지 수정(§5.9) — 보낸 필드만 고치고 변경 후 항목을 그대로 돌려준다(§1.9). */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "승하차지 관리 — 수정 (RTE-01 · A-08)")
     @PatchMapping("/{id}")
     public ApiResponse<StopManageResponse> update(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id,

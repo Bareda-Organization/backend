@@ -27,8 +27,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageStudent;
-import src.backend.global.security.authz.CanReadStudentRecord;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.student.command.StudentCommandService;
 import src.backend.student.dto.StudentDetailResponse;
 import src.backend.student.dto.StudentListRequest;
@@ -75,7 +75,7 @@ public class StaffStudentController {
     private final WithdrawalPreviewQueryService withdrawalPreviewQueryService;
 
     /** 학생 목록·검색(STU-01, §5.11) — 강제 추가 자동완성과 공용이다. */
-    @CanReadStudentRecord
+    @Can(Permissions.STUDENT_READ_SENSITIVE)
     @Operation(summary = "학생 관리 — 목록·검색 (STU-01)")
     @GetMapping
     public ApiResponse<StudentListResponse> list(@AuthenticationPrincipal AuthUser authUser,
@@ -84,7 +84,7 @@ public class StaffStudentController {
     }
 
     /** 학생 상세(STU-01, §5.11). */
-    @CanReadStudentRecord
+    @Can(Permissions.STUDENT_READ_SENSITIVE)
     @Operation(summary = "학생 관리 — 상세 (STU-01)")
     @GetMapping("/{id}")
     public ApiResponse<StudentDetailResponse> detail(@AuthenticationPrincipal AuthUser authUser,
@@ -96,7 +96,7 @@ public class StaffStudentController {
      * 퇴원 미리보기(STU-04, §5.11 · Ruling 815) — 퇴원 확인 창이 오늘·내일 영향을 보이는 읽기 전용 조회다. 아무것도 바꾸지
      * 않는다. 권한·에러는 상세와 같다.
      */
-    @CanReadStudentRecord
+    @Can(Permissions.STUDENT_READ_SENSITIVE)
     @Operation(summary = "학생 관리 — 퇴원 미리보기 (STU-04)")
     @GetMapping("/{id}/withdrawal-preview")
     public ApiResponse<WithdrawalPreviewResponse> withdrawalPreview(@AuthenticationPrincipal AuthUser authUser,
@@ -108,7 +108,7 @@ public class StaffStudentController {
      * 학생의 요일별 승하차 주소 조회(STU-06, §5.11 · Ruling 498) — 관계자는 조회만 한다(입력은 학부모, §3.7). 주소가 L3 라
      * 상세와 같은 권한을 요구하고 조회마다 감사 기록이 남는다.
      */
-    @CanReadStudentRecord
+    @Can(Permissions.STUDENT_READ_SENSITIVE)
     @Operation(summary = "학생 관리 — 요일별 승하차 주소 조회 (STU-06)")
     @GetMapping("/{id}/weekly-address")
     public ApiResponse<WeeklyAddressResponse> weeklyAddresses(@AuthenticationPrincipal AuthUser authUser,
@@ -123,7 +123,7 @@ public class StaffStudentController {
      * 상태에 <b>쓰기가 만들지 않는 값</b>(보호자 연락처)이 함께 들어가기 때문이다 — 쓰기 쪽이 그것까지
      * 조립하면 같은 조인이 두 곳에 생긴다.
      */
-    @CanManageStudent
+    @Can(Permissions.STUDENT_WRITE)
     @Operation(summary = "학생 관리 — 등록 (STU-02)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -135,7 +135,7 @@ public class StaffStudentController {
     }
 
     /** 학생 정보 수정(STU-03 · 07 · 08, §5.11) — 주소는 대상 밖이다(A-10). 보호자 연락처는 {@code guardians[]} 로 함께 고친다(Ruling 326). */
-    @CanManageStudent
+    @Can(Permissions.STUDENT_WRITE)
     @Operation(summary = "학생 관리 — 수정 (STU-03)")
     @PatchMapping("/{id}")
     public ApiResponse<StudentDetailResponse> update(@AuthenticationPrincipal AuthUser authUser,
@@ -146,7 +146,7 @@ public class StaffStudentController {
     }
 
     /** 학생 사진 삭제(§5.11 · R56 Ruling 894 ③) — 사진이 이미 없어도 {@code 204}(멱등). 권한·학원 범위는 수정과 같다. */
-    @CanManageStudent
+    @Can(Permissions.STUDENT_WRITE)
     @Operation(summary = "학생 관리 — 사진 삭제 (STU-03)")
     @DeleteMapping("/{id}/photo")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -155,7 +155,7 @@ public class StaffStudentController {
     }
 
     /** 퇴원 처리(STU-04, §5.11) — soft delete 이며 오늘 명단은 유지된다. */
-    @CanManageStudent
+    @Can(Permissions.STUDENT_WRITE)
     @Operation(summary = "학생 관리 — 퇴원 soft delete (STU-04)")
     @DeleteMapping("/{id}")
     public ApiResponse<StudentWithdrawalResponse> withdraw(@AuthenticationPrincipal AuthUser authUser,

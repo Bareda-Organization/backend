@@ -16,7 +16,7 @@ import src.backend.notification.repository.NotificationSettingRepository;
 /**
  * 알림 설정 조회(API_SPEC §3.14 GET, Phase 12 목표 7) — 학부모·학생 전용. 인가 판정은 서비스가
  * 아니라 컨트롤러의 {@code @PreAuthorize} 메타 애너테이션이 한다({@code Permissions.NOTIFICATION_SETTING_WRITE}
- * 가 이미 학부모·학생에게만 부여돼 있어 — {@code CanWriteIntent} 와 같은 근거로 새 권한 상수를
+ * 가 이미 학부모·학생에게만 부여돼 있어 — {@code @Can(Permissions.INTENT_WRITE)} 와 같은 근거로 새 권한 상수를
  * 만들지 않았다).
  *
  * <p>{@code notification_setting} 행이 아직 없는 계정은 기본값(전부 on) DTO 를 그 자리에서

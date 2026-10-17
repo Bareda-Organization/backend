@@ -18,7 +18,8 @@ import src.backend.boarding.query.RosterQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadStaffRoster;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 관계자 웹의 호차별 일일 명단(API_SPEC §5.4 {@code GET /staff/runs/{runId}/roster}, RST-03·A-04,
@@ -37,7 +38,7 @@ public class StaffRosterController {
     private final RosterQueryService rosterQueryService;
 
     /** 관계자용 호차 명단(§5.4) — 위임 대상은 {@link RosterQueryService#staffRoster}. */
-    @CanReadStaffRoster
+    @Can(Permissions.STUDENT_READ_SENSITIVE)
     @Operation(summary = "호차별 일일 명단 (RST-03, A-04)")
     @GetMapping("/{runId}/roster")
     public ApiResponse<List<StaffRosterItemResponse>> roster(@AuthenticationPrincipal AuthUser requester,

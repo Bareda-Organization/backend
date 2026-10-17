@@ -39,7 +39,7 @@ import src.backend.global.response.PageResponse;
  *
  * <p>학원 격리의 예외 구역이다(§1.5) — {@code /admin/**} 는 전 학원 범위이고, 응답이 어느 학원
  * 관계자인지({@code academy_name})를 드러내는 것이 이 화면의 요건이다. 예외를 여는 판정은 컨트롤러의
- * {@code @CanManageStaffAccount} 한 곳이다.
+ * {@code @Can(Permissions.STAFF_APPROVE)} 한 곳이다.
  */
 @Service
 @RequiredArgsConstructor

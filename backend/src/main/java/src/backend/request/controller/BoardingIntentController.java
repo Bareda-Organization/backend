@@ -17,7 +17,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanWriteIntent;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.request.command.BoardingIntentCommandService;
 import src.backend.request.dto.BoardingIntentToggleRequest;
 import src.backend.request.dto.BoardingIntentToggleResponse;
@@ -38,7 +39,7 @@ public class BoardingIntentController {
     private final BoardingIntentCommandService boardingIntentCommandService;
 
     /** 탑승 의사(riding)를 토글한다(§3.6 {@code PATCH}) — 응답 형태는 구간마다 다르다. */
-    @CanWriteIntent
+    @Can(Permissions.INTENT_WRITE)
     @Operation(summary = "회차별 탑승 토글 (ATT-01·02, P-03)")
     @PatchMapping
     public ApiResponse<BoardingIntentToggleResponse> toggle(@AuthenticationPrincipal AuthUser authUser,

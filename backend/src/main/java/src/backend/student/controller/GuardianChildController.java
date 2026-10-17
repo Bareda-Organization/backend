@@ -21,8 +21,9 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanLinkChild;
-import src.backend.global.security.authz.CanReadLinkedChild;
+import src.backend.global.security.authz.AuthenticatedOnly;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.student.command.ChildLinkCommandService;
 import src.backend.student.dto.ChildLinkSubmitRequest;
 import src.backend.student.dto.ChildLinkedResponse;
@@ -53,7 +54,7 @@ public class GuardianChildController {
     private final ChildLinkCommandService childLinkCommandService;
 
     /** 연결된 자녀 목록(ATT-03, §3.1) — 자녀 선택 UI 와 알림 문구의 재료다. */
-    @CanReadLinkedChild
+    @Can(Permissions.STUDENT_READ_BASIC)
     @Operation(summary = "연결된 자녀 목록 (P-02 · ATT-03)")
     @GetMapping
     public ApiResponse<ChildListResponse> list(@AuthenticationPrincipal AuthUser authUser) {
@@ -69,7 +70,7 @@ public class GuardianChildController {
      * <p>{@code 403 LINK_CODE_INVALID} 를 여기서 던진다 — 서비스 트랜잭션이 시도 횟수를 커밋한 뒤여야
      * 실패한 입력도 상한에 세어진다(BR-024).
      */
-    @CanLinkChild
+    @AuthenticatedOnly
     @Operation(summary = "코드 입력 → 서버 인증으로 연결 완료 (P-02) — 학부모")
     @PostMapping("/link")
     @ResponseStatus(HttpStatus.CREATED)

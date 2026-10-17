@@ -27,7 +27,7 @@ import src.backend.notification.repository.DeviceTokenRepository;
 /**
  * §2.11 {@code POST/DELETE /me/devices} — NTF-12.
  *
- * <p>{@code @CanRegisterDevice} 는 {@link src.backend.global.security.authz.Permissions#DEVICE_REGISTER}
+ * <p>{@code @Can(Permissions.DEVICE_REGISTER)} 는 {@link src.backend.global.security.authz.Permissions#DEVICE_REGISTER}
  * 를 전 역할이 보유하도록 설계됐다 — {@code roleHierarchy()} 배선이 어긋나면 특정 역할만
  * 조용히 403 을 받는데, 이 테스트가 role 6종 각각으로 등록을 성공시켜 그 배선을 실측 검증한다
  * (선결 조건① NTF-12 종단 증거).

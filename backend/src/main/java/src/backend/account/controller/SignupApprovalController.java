@@ -25,7 +25,8 @@ import src.backend.account.query.SignupRequestQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanApproveSignup;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 관계자 웹의 가입 승인 API(AUTH-10·11 · A-02, API_SPEC §5.1·§5.2).
@@ -47,7 +48,7 @@ public class SignupApprovalController {
     private final SignupApprovalCommandService signupApprovalCommandService;
 
     /** 가입 요청 목록(AUTH-10, §5.1) — 기본은 미처리 건이다. */
-    @CanApproveSignup
+    @Can(Permissions.SIGNUP_APPROVE)
     @Operation(summary = "가입 요청 목록 (AUTH-10, A-02)")
     @GetMapping
     public ApiResponse<SignupRequestListResponse> list(@AuthenticationPrincipal AuthUser authUser,
@@ -56,7 +57,7 @@ public class SignupApprovalController {
     }
 
     /** 수락 · 거절(AUTH-10·11, §5.2) — 수락에는 계정 ↔ 레코드 연결이 함께 필요하다. */
-    @CanApproveSignup
+    @Can(Permissions.SIGNUP_APPROVE)
     @Operation(summary = "수락 / 거절 (AUTH-10·11, A-02)")
     @PostMapping("/{id}/decide")
     public ApiResponse<SignupDecisionResponse> decide(@AuthenticationPrincipal AuthUser authUser,

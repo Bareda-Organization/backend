@@ -20,8 +20,9 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadChangeRequest;
-import src.backend.global.security.authz.CanRequestChange;
+import src.backend.global.security.authz.AuthenticatedOnly;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.request.command.ChangeRequestCommandService;
 import src.backend.request.dto.ChangeRequestCreateRequest;
 import src.backend.request.dto.ChangeRequestCreateResponse;
@@ -49,7 +50,7 @@ public class ChangeRequestController {
      * 구간과 무관하게 {@code change_request} 행이 새로 생기기 때문이다(승인 대기든 즉시 승인이든 자원
      * 생성은 매한가지다).
      */
-    @CanRequestChange
+    @Can(Permissions.CHANGE_REQUEST_WRITE)
     @Operation(summary = "변경 신청 (REQ-01·02, P-06)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -59,7 +60,7 @@ public class ChangeRequestController {
     }
 
     /** 신청 상태 조회(§3.9) — 접수 역순 이력 + 대기 중 건수. */
-    @CanReadChangeRequest
+    @AuthenticatedOnly
     @Operation(summary = "신청 상태 조회 (REQ-03)")
     @GetMapping
     public ApiResponse<ChangeRequestListResponse> list(@AuthenticationPrincipal AuthUser authUser,

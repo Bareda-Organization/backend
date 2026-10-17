@@ -23,7 +23,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageManager;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.manager.command.ManagerCommandService;
 import src.backend.manager.dto.ManagerListRequest;
 import src.backend.manager.dto.ManagerListResponse;
@@ -52,7 +53,7 @@ public class StaffManagerController {
     private final ManagerCommandService managerCommandService;
 
     /** 매니저 목록·검색(MGR-01, §5.13) — 삭제된 매니저는 실리지 않는다. */
-    @CanManageManager
+    @Can(Permissions.MANAGER_MANAGE)
     @Operation(summary = "매니저 관리 — 목록·검색 (MGR-01)")
     @GetMapping
     public ApiResponse<ManagerListResponse> list(@AuthenticationPrincipal AuthUser requester,
@@ -61,7 +62,7 @@ public class StaffManagerController {
     }
 
     /** 매니저 등록(MGR-02, §5.13). */
-    @CanManageManager
+    @Can(Permissions.MANAGER_MANAGE)
     @Operation(summary = "매니저 관리 — 등록 (MGR-02)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -71,7 +72,7 @@ public class StaffManagerController {
     }
 
     /** 매니저 수정(MGR-03, §5.13) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
-    @CanManageManager
+    @Can(Permissions.MANAGER_MANAGE)
     @Operation(summary = "매니저 관리 — 수정 (MGR-03)")
     @PatchMapping("/{id}")
     public ApiResponse<ManagerResponse> update(@AuthenticationPrincipal AuthUser requester, @PathVariable Long id,
@@ -80,7 +81,7 @@ public class StaffManagerController {
     }
 
     /** 매니저 삭제(MGR-04, §5.13) — 회차에 배치돼 있으면 {@code 409 MANAGER_ASSIGNED}. */
-    @CanManageManager
+    @Can(Permissions.MANAGER_MANAGE)
     @Operation(summary = "매니저 관리 — 삭제 (MGR-04)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

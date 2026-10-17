@@ -16,6 +16,7 @@ import src.backend.academy.entity.StaffStatus;
 import src.backend.account.entity.Account;
 import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.global.security.authz.Permissions;
 
 /** {@link AcademyStaff} 영속성 접근. */
 public interface AcademyStaffRepository extends JpaRepository<AcademyStaff, Long> {
@@ -73,7 +74,7 @@ public interface AcademyStaffRepository extends JpaRepository<AcademyStaff, Long
      */
     @AcademyScopeExempt(reason = "§6.6 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "응답이 academy_name 을 실어 어느 학원 관계자인지 드러내는 것이 이 화면의 요건이라 학원을 선택 조건으로만 둔다 "
-            + "(academy_id 를 안 주면 전 학원). 예외를 여는 판정은 컨트롤러의 @CanManageStaffAccount 하나다")
+            + "(academy_id 를 안 주면 전 학원). 예외를 여는 판정은 컨트롤러의 @Can(Permissions.STAFF_APPROVE) 하나다")
     @Query(value = "SELECT a FROM Account a WHERE EXISTS (SELECT 1 FROM AcademyStaff s WHERE s.accountId = a.id "
             + "AND s.status IN :statuses AND (:academyId IS NULL OR s.academyId = :academyId)) "
             + "AND (LOWER(a.name) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\' "

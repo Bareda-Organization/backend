@@ -22,7 +22,8 @@ import src.backend.admin.dto.ForceConfirmResponse;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanForceConfirmRun;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * idle 로 정체된 회차의 강제 확정 콘솔 개입(API_SPEC §6.14, F3 S2 목표 11) — 메인관리자 전용.
@@ -40,7 +41,7 @@ public class AdminRunForceConfirmController {
     private final RunForceConfirmCommandService runForceConfirmCommandService;
 
     /** 강제 확정(§6.14) — {@code 201}, {@code route_version} 신규 생성을 반영한다. */
-    @CanForceConfirmRun
+    @Can(Permissions.RUN_FORCE_CONFIRM)
     @Operation(summary = "강제 확정 콘솔 개입 (Ruling 254, 2026-09-04)")
     @PostMapping("/{runId}/force-confirm")
     @ResponseStatus(HttpStatus.CREATED)

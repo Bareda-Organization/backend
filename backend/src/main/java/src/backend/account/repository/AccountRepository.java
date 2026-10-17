@@ -19,6 +19,7 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.persistence.AcademyCount;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.global.security.authz.Permissions;
 
 /** {@link Account} 영속성 접근. */
 public interface AccountRepository extends JpaRepository<Account, Long> {
@@ -141,7 +142,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      */
     @AcademyScopeExempt(reason = "§6.10 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "차단 해제는 계정 단위 조치라 대상을 학원으로 좁히면 운영사가 어느 학원에서 사고가 났는지 "
-            + "알아야만 목록을 볼 수 있게 된다. 예외를 여는 판정은 컨트롤러의 @CanUnblockAccount 하나다")
+            + "알아야만 목록을 볼 수 있게 된다. 예외를 여는 판정은 컨트롤러의 @Can(Permissions.ACCOUNT_UNBLOCK) 하나다")
     Page<Account> findAllByStatus(AccountStatus status, Pageable pageable);
 
     /**
@@ -150,7 +151,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      */
     @AcademyScopeExempt(reason = "§6.1 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "summary 는 목록 필터·쪽과 무관한 전 학원 합계라 학원으로 좁히면 값의 뜻이 사라진다. 예외 판정은 컨트롤러의 "
-            + "@CanManageAcademy 하나다")
+            + "@Can(Permissions.ACADEMY_MANAGE) 하나다")
     long countByRoleInAndStatusIn(Collection<Role> roles, Collection<AccountStatus> statuses);
 
     /**
@@ -158,7 +159,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — 감사 이력은 전 학원 범위이고 행위자는 어느 학원의 계정이든 될 수 있어 "
             + "학원으로 좁히면 화면이 성립하지 않는다. 로그인 아이디는 전 학원 통틀어 유일하다(existsByLoginId). 호출부가 감사 행에서 읽은 "
-            + "값만 넘긴다는 전제 — 요청 파라미터를 직접 넘기면 임의 계정의 이름을 읽는 통로가 된다. 예외 판정은 컨트롤러의 @CanReadAudit 하나다")
+            + "값만 넘긴다는 전제 — 요청 파라미터를 직접 넘기면 임의 계정의 이름을 읽는 통로가 된다. 예외 판정은 컨트롤러의 @Can(Permissions.AUDIT_READ) 하나다")
     List<Account> findAllByLoginIdIn(Collection<String> loginIds);
 
     /**
@@ -189,7 +190,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      * {@code ESCAPE '\'} 로 해석만 한다(BR-376).
      */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — 감사 이력은 전 학원 범위이고 행위자는 어느 학원의 계정이든 될 수 있어 "
-            + "학원으로 좁히면 화면이 성립하지 않는다. 예외 판정은 컨트롤러의 @CanReadAudit 하나다")
+            + "학원으로 좁히면 화면이 성립하지 않는다. 예외 판정은 컨트롤러의 @Can(Permissions.AUDIT_READ) 하나다")
     @Query("""
             SELECT a FROM Account a
             WHERE LOWER(a.name) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
@@ -215,6 +216,6 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 
     /** 지금 차단된 계정 수(§6.18 {@code attention.blocked_accounts}, §6.10) — 계정 단위 조치라 전 학원 범위다. */
     @AcademyScopeExempt(reason = "차단 계정 수(§6.18 · §6.10)는 계정 단위 조치라 전 학원 범위로 센다 — findAllByStatus 와 같은 근거. 호출부는 "
-            + "@CanMonitorAll 로 보호되는 AdminDashboardQueryService 뿐이라는 전제")
+            + "@Can(Permissions.MONITOR_ALL) 로 보호되는 AdminDashboardQueryService 뿐이라는 전제")
     long countByStatus(AccountStatus status);
 }

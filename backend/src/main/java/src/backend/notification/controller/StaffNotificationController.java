@@ -14,7 +14,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadNotificationLog;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.notification.dto.StaffNotificationListRequest;
 import src.backend.notification.dto.StaffNotificationListResponse;
 import src.backend.notification.query.StaffNotificationQueryService;
@@ -36,7 +37,7 @@ public class StaffNotificationController {
     private final StaffNotificationQueryService staffNotificationQueryService;
 
     /** 알림 로그 목록(§5.17) — 학원 관계자만, 소속 학원 범위. */
-    @CanReadNotificationLog
+    @Can(Permissions.NOTIFICATION_LOG_READ)
     @Operation(summary = "알림 로그 (NTF-10·11, A-13)")
     @GetMapping
     public ApiResponse<StaffNotificationListResponse> list(@AuthenticationPrincipal AuthUser authUser,

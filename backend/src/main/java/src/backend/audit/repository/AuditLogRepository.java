@@ -16,6 +16,7 @@ import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.entity.AuditLog;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * {@link AuditLog} 영속성 접근 — 적재와 조회를 함께 갖는다(API_SPEC §6.13
@@ -99,7 +100,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      * 로 합쳐진다 — 해제 행의 접근 경로가 없을 때는 일치 행이 적은 계정이 기간 전체를 훑었다(실측 15,674 버퍼 → 18).
      */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
-            + "예외를 여는 판정은 컨트롤러의 @CanReadAudit 하나다")
+            + "예외를 여는 판정은 컨트롤러의 @Can(Permissions.AUDIT_READ) 하나다")
     @Query("""
             SELECT a FROM AuditLog a
             WHERE a.category = :category
@@ -123,14 +124,14 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     /** 계정만 지정한 검색 — 메인 관리자 콘솔(§6.13)이라 학원으로 좁히지 않는다. */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
-            + "예외를 여는 판정은 컨트롤러의 @CanReadAudit 하나다")
+            + "예외를 여는 판정은 컨트롤러의 @Can(Permissions.AUDIT_READ) 하나다")
     Page<AuditLog> findAllByCategoryAndActionInAndActorAccountIdAndOccurredAtBetween(AuditCategory category,
             Collection<AuditAction> actions, Long actorAccountId, OffsetDateTime from, OffsetDateTime to,
             Pageable pageable);
 
     /** 필터 없는 첫 화면 — {@code ix_audit_log_category_occurred} 를 탄다. */
     @AcademyScopeExempt(reason = "§6.13 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
-            + "예외를 여는 판정은 컨트롤러의 @CanReadAudit 하나다")
+            + "예외를 여는 판정은 컨트롤러의 @Can(Permissions.AUDIT_READ) 하나다")
     Page<AuditLog> findAllByCategoryAndActionInAndOccurredAtBetween(AuditCategory category,
             Collection<AuditAction> actions, OffsetDateTime from, OffsetDateTime to, Pageable pageable);
 
@@ -150,7 +151,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      * 학원 필터를 걸지 않는다(계정·서버 단위 값이다, §6.18).
      */
     @AcademyScopeExempt(reason = "메인 관리자 대시보드(§6.18)의 로그인 집계는 학원 필터를 걸지 않는 계정·서버 단위 값이다 — 접속 이력 §6.13 과 같은 원천이고 "
-            + "호출부는 @CanMonitorAll 로 보호되는 AdminDashboardQueryService 뿐이라는 전제")
+            + "호출부는 @Can(Permissions.MONITOR_ALL) 로 보호되는 AdminDashboardQueryService 뿐이라는 전제")
     @Query(value = """
             SELECT (a.occurred_at AT TIME ZONE :zone)::date AS "day", a.action AS "action", COUNT(*) AS "total"
               FROM audit_log a

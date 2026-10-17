@@ -22,7 +22,8 @@ import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanUnblockAccount;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 메인 관리자 콘솔의 로그인 차단 해제 API(AUTH-06 · O-03, API_SPEC §6.10·§6.12).
@@ -42,7 +43,7 @@ public class AdminBlockedAccountController {
     private final AccountUnblockCommandService accountUnblockCommandService;
 
     /** 차단 계정 목록(AUTH-06, §6.10). */
-    @CanUnblockAccount
+    @Can(Permissions.ACCOUNT_UNBLOCK)
     @Operation(summary = "차단 계정 목록 (AUTH-06, O-03)")
     @GetMapping
     public ApiResponse<PageResponse<BlockedAccountResponse>> list(@ModelAttribute AdminAccountListRequest request) {
@@ -50,7 +51,7 @@ public class AdminBlockedAccountController {
     }
 
     /** 로그인 차단 해제(AUTH-06, §6.12) — 요청 본문은 부재하고 대상은 경로가 정한다. */
-    @CanUnblockAccount
+    @Can(Permissions.ACCOUNT_UNBLOCK)
     @Operation(summary = "로그인 차단 해제 (AUTH-06, O-03)")
     @PostMapping("/{id}/unblock")
     public ApiResponse<AccountUnblockResponse> unblock(@PathVariable Long id,

@@ -25,7 +25,8 @@ import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageRoute;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.routing.command.RouteCommandService;
 import src.backend.routing.command.RouteOptimizeService;
 import src.backend.routing.dto.RouteDetailResponse;
@@ -64,7 +65,7 @@ public class StaffRouteController {
     private final RoutePathQueryService routePathQueryService;
 
     /** 고정 노선 목록(RTE-01 · A-08, §5.9) — 비활성 편성도 실린다. */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 목록 (§1.8 페이징) (RTE-01)")
     @GetMapping
     public ApiResponse<PageResponse<RouteResponse>> list(@AuthenticationPrincipal AuthUser requester,
@@ -73,7 +74,7 @@ public class StaffRouteController {
     }
 
     /** 고정 노선 편성(RTE-01, §5.9) — 같은 차량·요일·방향이 이미 있으면 {@code 409 DUPLICATE_ROUTE}. */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 편성 (RTE-01)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -83,7 +84,7 @@ public class StaffRouteController {
     }
 
     /** 고정 노선 상세(RTE-01, §5.9) — 정차 순서를 {@code seq} 차례로 함께 싣는다. */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 상세 (RTE-01)")
     @GetMapping("/{id}")
     public ApiResponse<RouteDetailResponse> detail(@AuthenticationPrincipal AuthUser requester,
@@ -92,7 +93,7 @@ public class StaffRouteController {
     }
 
     /** 고정 노선 수정(RTE-01, §5.9) — §1.9 대로 변경 후 자원 상태를 그대로 반환한다. */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 수정 (RTE-01)")
     @PatchMapping("/{id}")
     public ApiResponse<RouteDetailResponse> update(@AuthenticationPrincipal AuthUser requester,
@@ -101,7 +102,7 @@ public class StaffRouteController {
     }
 
     /** 고정 노선의 도로 경로(RTE-01, §5.9 신설) — 정차 순서(seq)대로 이은 실제 도로 좌표열. */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 도로 경로 (RTE-01)")
     @GetMapping("/{id}/path")
     public ApiResponse<RoutePathResponse> path(@AuthenticationPrincipal AuthUser requester,
@@ -110,7 +111,7 @@ public class StaffRouteController {
     }
 
     /** 승하차지 한 번에 저장 — 추가·수정·삭제·순서를 한 트랜잭션으로(2026-09-23 사용자 지시). */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 승하차지 저장 (RTE-01)")
     @PutMapping("/{id}/stops")
     public ApiResponse<RouteDetailResponse> saveStops(@AuthenticationPrincipal AuthUser requester,
@@ -119,7 +120,7 @@ public class StaffRouteController {
     }
 
     /** 고정 노선 삭제(RTE-01, §5.9) — 행을 지우고 정차 순서도 FK CASCADE 로 함께 사라진다. */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 삭제 (RTE-01)")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -134,7 +135,7 @@ public class StaffRouteController {
      * 않는 것은 최적화 가중치가 미확정이기 때문이고(PRD §10.1 G), 기준 없는 재배열이 조용히 돌면
      * 관리자가 정한 차례가 이유 없이 뒤집힌다.
      */
-    @CanManageRoute
+    @Can(Permissions.ROUTE_MANAGE)
     @Operation(summary = "고정 노선 편성 · 정차 순서 최적화 — 정차 순서 최적화 (RTE-09)")
     @PostMapping("/{id}/optimize")
     public ApiResponse<RouteDetailResponse> optimize(@AuthenticationPrincipal AuthUser requester,

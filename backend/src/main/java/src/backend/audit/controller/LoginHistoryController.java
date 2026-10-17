@@ -16,7 +16,8 @@ import src.backend.audit.query.LoginHistoryQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.response.PageResponse;
-import src.backend.global.security.authz.CanReadAudit;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 메인 관리자 콘솔의 로그인·차단 이력 조회 API(SYS-02, API_SPEC §6.13, Phase 14 T1 목표 4).
@@ -32,7 +33,7 @@ public class LoginHistoryController {
     private final LoginHistoryQueryService loginHistoryQueryService;
 
     /** 로그인 성공·실패·차단 이력을 필터·페이징으로 조회한다(§6.13). */
-    @CanReadAudit
+    @Can(Permissions.AUDIT_READ)
     @Operation(summary = "접속 이력 조회 (SYS-02)")
     @GetMapping
     public ApiResponse<PageResponse<LoginHistoryItemResponse>> list(

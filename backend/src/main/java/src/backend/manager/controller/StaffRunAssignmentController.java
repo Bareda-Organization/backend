@@ -17,7 +17,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanManageManager;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.manager.command.AssignmentCommandService;
 import src.backend.manager.dto.AssignmentRequest;
 import src.backend.manager.dto.RunAssignmentResponse;
@@ -41,7 +42,7 @@ public class StaffRunAssignmentController {
     private final AssignmentCommandService assignmentCommandService;
 
     /** 회차에 기사·동승자를 배치한다(MGR-05·06, §5.14) — 지정하지 않은 자리는 그대로 둔다. */
-    @CanManageManager
+    @Can(Permissions.MANAGER_MANAGE)
     @Operation(summary = "매니저 배치 (MGR-05·06, A-12)")
     @PatchMapping("/{runId}/assignment")
     public ApiResponse<RunAssignmentResponse> assign(@AuthenticationPrincipal AuthUser requester,

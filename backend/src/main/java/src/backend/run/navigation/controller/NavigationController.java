@@ -19,7 +19,8 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadRoute;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.run.navigation.dto.NavigationResponse;
 import src.backend.run.navigation.service.NavigationQueryService;
 import src.backend.run.navigation.service.NavigationScope;
@@ -41,7 +42,7 @@ public class NavigationController {
     private final NavigationQueryService navigationQueryService;
 
     /** {@code GET /runs/{runId}/navigation}(RUN-08) — 외부 내비게이션 앱으로 넘길 목적지 좌표를 낸다. */
-    @CanReadRoute
+    @Can(Permissions.ROUTE_READ)
     @Operation(summary = "외부 내비게이션 앱 연동 (RUN-08, M-09)")
     @GetMapping("/{runId}/navigation")
     public ApiResponse<NavigationResponse> navigate(@AuthenticationPrincipal AuthUser requester,
@@ -52,7 +53,7 @@ public class NavigationController {
 
     /**
      * {@code scope} 는 {@code enum} 이 아니라 {@code String} 으로 받는다 — {@code enum} 으로 받으면
-     * Spring 이 바인딩 단계에서 거부해 {@code CanReadRoute} 인가 검사보다 먼저 실패하고, 배치되지 않은
+     * Spring 이 바인딩 단계에서 거부해 {@code @Can(Permissions.ROUTE_READ)} 인가 검사보다 먼저 실패하고, 배치되지 않은
      * 회차에 잘못된 값을 보내도 403 대신 400 이 먼저 난다. 그래서 여기서 직접 파싱해 검증한다
      * ({@code SortParam} 과 같은 이유 — 목록에 없는 값을 그대로 넘기면 500 이 된다).
      */

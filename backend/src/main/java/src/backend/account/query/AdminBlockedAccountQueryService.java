@@ -26,7 +26,7 @@ import src.backend.global.response.PageResponse;
  * 차단 계정 목록 조회(AUTH-06 · O-03, API_SPEC §6.10).
  *
  * <p>학원 격리의 예외 구역이다(§1.5) — 차단은 계정 단위 조치라 전 학원 범위로 본다. 예외를 여는
- * 판정은 컨트롤러의 {@code @CanUnblockAccount} 한 곳이고, 그래서 이 서비스에는 호출자의 소속 학원을
+ * 판정은 컨트롤러의 {@code @Can(Permissions.ACCOUNT_UNBLOCK)} 한 곳이고, 그래서 이 서비스에는 호출자의 소속 학원을
  * 보는 자리가 부재하다.
  */
 @Service

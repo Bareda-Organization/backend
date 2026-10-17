@@ -16,7 +16,8 @@ import src.backend.boarding.query.RosterQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadRoster;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 매니저 앱의 승하차지별 명단(API_SPEC §4.2 {@code GET /runs/{runId}/roster}, RST-01·02·04·M-03,
@@ -34,7 +35,7 @@ public class RunRosterController {
     private final RosterQueryService rosterQueryService;
 
     /** 매니저용 명단(§4.2) — 회차 접근·확정 여부 판정은 {@link RosterQueryService#managerRoster} 위임. */
-    @CanReadRoster
+    @Can(Permissions.ROSTER_READ)
     @Operation(summary = "승하차지별 명단 (RST-01·02·04, M-03)")
     @GetMapping("/{runId}/roster")
     public ApiResponse<ManagerRosterResponse> roster(@AuthenticationPrincipal AuthUser requester,

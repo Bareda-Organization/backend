@@ -28,14 +28,15 @@ import src.backend.academy.dto.AcademyUpdateRequest;
 import src.backend.academy.query.AdminAcademyQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
-import src.backend.global.security.authz.CanManageAcademy;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 메인 관리자 콘솔의 학원 API(ACAD-01~04 · O-01, API_SPEC §6.1~§6.3).
  *
  * <p>전 학원 범위이며 학원 격리의 예외다(§1.5) — 대상 학원은 토큰이 아니라 경로 파라미터가 정한다.
  * 그래서 이 컨트롤러에는 {@code AuthUser} 를 받는 자리가 부재하다. 예외를 여는 판정은
- * {@link CanManageAcademy} 한 곳이고, 그 권한은 메인 관리자만 보유한다.
+ * {@code @Can(Permissions.ACADEMY_MANAGE)} 한 곳이고, 그 권한은 메인 관리자만 보유한다.
  */
 @Tag(name = ApiTags.ADMIN)
 @RestController
@@ -48,7 +49,7 @@ public class AdminAcademyController {
     private final AdminAcademyQueryService adminAcademyQueryService;
 
     /** 학원 목록·검색(ACAD-01, §6.1). */
-    @CanManageAcademy
+    @Can(Permissions.ACADEMY_MANAGE)
     @Operation(summary = "학원 목록·검색 (ACAD-01, O-01)")
     @GetMapping
     public ApiResponse<AcademyListResponse> list(@ModelAttribute AcademyListRequest request) {
@@ -56,7 +57,7 @@ public class AdminAcademyController {
     }
 
     /** 학원 등록(ACAD-02, §6.2) — 학원 코드는 서버가 만들어 응답에 싣는다. */
-    @CanManageAcademy
+    @Can(Permissions.ACADEMY_MANAGE)
     @Operation(summary = "학원 등록 (ACAD-02, O-01)")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -65,7 +66,7 @@ public class AdminAcademyController {
     }
 
     /** 학원 상세(ACAD-03, §6.3). */
-    @CanManageAcademy
+    @Can(Permissions.ACADEMY_MANAGE)
     @Operation(summary = "학원 상세 · 정보 수정 · 비활성화 (ACAD-03·04, O-01)")
     @GetMapping("/{id}")
     public ApiResponse<AcademyDetailResponse> detail(@PathVariable Long id) {
@@ -79,7 +80,7 @@ public class AdminAcademyController {
      * 그 상태에는 쓰기가 만들지 않는 값(관계자 수·소속 사용자 수)이 함께 들어가기 때문이다 —
      * 쓰기 쪽이 그것까지 조립하면 같은 집계가 두 곳에 생긴다.
      */
-    @CanManageAcademy
+    @Can(Permissions.ACADEMY_MANAGE)
     @Operation(summary = "학원 상세 · 정보 수정 · 비활성화 (ACAD-03·04, O-01)")
     @PatchMapping("/{id}")
     public ApiResponse<AcademyDetailResponse> update(@PathVariable Long id,

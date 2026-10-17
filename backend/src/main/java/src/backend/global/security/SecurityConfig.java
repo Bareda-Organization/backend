@@ -13,6 +13,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.annotation.AnnotationTemplateExpressionDefaults;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -181,5 +182,11 @@ public class SecurityConfig {
     @Bean
     static RoleHierarchy roleHierarchy() {
         return RoleHierarchyImpl.fromHierarchy(RolePermissions.HIERARCHY);
+    }
+
+    /** {@code @Can(Permissions.X)} 의 {@code {value}} 를 {@code @PreAuthorize} 식에 채우는 애너테이션 템플릿 처리기. */
+    @Bean
+    static AnnotationTemplateExpressionDefaults annotationTemplateExpressionDefaults() {
+        return new AnnotationTemplateExpressionDefaults();
     }
 }

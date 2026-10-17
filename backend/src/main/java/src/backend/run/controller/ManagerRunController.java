@@ -14,7 +14,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanReadRoster;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.run.dto.ManagerRunListResponse;
 import src.backend.run.query.ManagerRunQueryService;
 
@@ -39,7 +40,7 @@ public class ManagerRunController {
      * {@code StaffRunController#list} 와 같다 — {@code @ModelAttribute} 로 묶으면 스네이크 케이스
      * 파라미터가 조용히 안 붙는다.
      */
-    @CanReadRoster
+    @Can(Permissions.ROSTER_READ)
     @Operation(summary = "담당 회차 (RUN-01, M-02 · M-07 운행 카드)")
     @GetMapping
     public ApiResponse<ManagerRunListResponse> list(@AuthenticationPrincipal AuthUser requester,

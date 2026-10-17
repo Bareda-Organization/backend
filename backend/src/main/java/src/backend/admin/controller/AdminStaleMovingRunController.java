@@ -23,8 +23,8 @@ import src.backend.admin.query.AdminStaleMovingRunQueryService;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanForceFinishRun;
-import src.backend.global.security.authz.CanMonitorAll;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 
 /**
  * 운행일이 지난 채 끝나지 않은 이동 중 회차의 목록·강제 종료 콘솔 개입(API_SPEC §6.16·§6.17, R47 Ruling 724) — 메인관리자 전용.
@@ -43,7 +43,7 @@ public class AdminStaleMovingRunController {
     private final RunForceFinishCommandService runForceFinishCommandService;
 
     /** 끝나지 않은 이동 중 회차 목록(§6.16) — {@code StaleMovingRun} 경보가 세는 회차와 같다. */
-    @CanMonitorAll
+    @Can(Permissions.MONITOR_ALL)
     @Operation(summary = "끝나지 않은 이동 중 회차 목록 (Ruling 724, 2026-10-02)")
     @GetMapping("/stale-moving")
     public ApiResponse<StaleMovingRunListResponse> list() {
@@ -51,7 +51,7 @@ public class AdminStaleMovingRunController {
     }
 
     /** 강제 종료(§6.17) — {@code 200}. 탑승자 상태·알림은 건드리지 않는다. */
-    @CanForceFinishRun
+    @Can(Permissions.RUN_FORCE_FINISH)
     @Operation(summary = "끝나지 않은 이동 중 회차 강제 종료 (Ruling 724, 2026-10-02)")
     @PostMapping("/{runId}/force-finish")
     public ApiResponse<ForceFinishResponse> forceFinish(@PathVariable Long runId,

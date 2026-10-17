@@ -14,7 +14,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
-import src.backend.global.security.authz.CanMonitorAcademy;
+import src.backend.global.security.authz.Can;
+import src.backend.global.security.authz.Permissions;
 import src.backend.monitoring.dto.StaffDashboardResponse;
 import src.backend.monitoring.query.StaffDashboardQueryService;
 
@@ -37,7 +38,7 @@ public class StaffDashboardController {
      * {@code StaffRunController#list} 의 {@code service_date} 와 같다(쿼리 파라미터는 Jackson
      * SNAKE_CASE 전략을 타지 않는다).
      */
-    @CanMonitorAcademy
+    @Can(Permissions.MONITOR_ACADEMY)
     @Operation(summary = "운행 대시보드 · 금일 현황 (MON-01·02·03·04·06, A-03)")
     @GetMapping
     public ApiResponse<StaffDashboardResponse> dashboard(@AuthenticationPrincipal AuthUser requester,

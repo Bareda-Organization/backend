@@ -22,7 +22,7 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>{@link src.backend.global.security.authz.Permissions#STUDENT_READ_BASIC} 은 관계자·기사·동승자·
  * 메인관리자까지 보유해 애너테이션
- * 만으로는 이 좁은 권한을 표현할 수 없다({@code CanReadStudentRoute} 의 자바독과 같은 판단) — 그래서
+ * 만으로는 이 좁은 권한을 표현할 수 없다({@code @Can(Permissions.ROUTE_READ)} 와 같은 판단) — 그래서
  * PARENT·STUDENT 가 아닌 역할은 이 클래스가 직접 {@code 403} 으로 막는다.
  */
 @Component
