@@ -165,7 +165,7 @@ class AdminBlockedAccountControllerTest {
      * 해제는 {@code audit_log} 에 {@code action='unblock'} 행을 남긴다.
      *
      * <p>{@code §6.13 GET /admin/login-history}가 이 행을 {@code block_event} 로 투영하므로,
-     * 여기서 쌓지 않으면 그 화면이 성립하지 않는다. 조회 엔드포인트는 이 태스크 범위 밖이라 적재만 본다.
+     * 여기서 쌓지 않으면 그 화면이 성립하지 않는다. 조회 엔드포인트는 이 시험의 대상이 아니라 적재만 본다.
      */
     @Test
     void 해제하면_audit_log_에_action_unblock_행이_생긴다() throws Exception {

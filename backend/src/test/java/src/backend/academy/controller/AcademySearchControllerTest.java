@@ -21,7 +21,7 @@ import src.backend.academy.repository.AcademyRepository;
  * §2.1 {@code GET /academies/search} — AUTH-02.
  *
  * <p>{@code inactive} 학원은 {@link Academy} 의 정적 팩토리로 만들 수 없다({@code register(...)} 는 항상
- * {@code active} 로 시작) — 그 상태 전이(ACAD-04 비활성화)는 이 태스크 범위 밖이라 팩토리를 늘리지 않고,
+ * {@code active} 로 시작) — 그 상태 전이(ACAD-04 비활성화)는 이 시험의 대상이 아니라 팩토리를 늘리지 않고,
  * {@code @Sql} 로 고정 상태 행을 직접 심는다.
  */
 @SpringBootTest

@@ -152,7 +152,7 @@ class EmergencyRaisedBroadcastIntegrationTest {
                 .andExpect(status().isCreated());
 
         // academyLive · ADMIN_LIVE 두 목적지로 각각 한 번씩, 총 2회 — 학생 채널은 안 탄다
-        // (EmergencyBroadcastListenerTest 의 goal 6·7 시험이 이미 이 사실을 고정하므로 여기서는
+        // (EmergencyBroadcastListenerTest 의 시험이 이미 이 사실을 고정하므로 여기서는
         // 페이로드 내용에만 집중하고 목적지 개수만 가볍게 확인한다).
         ArgumentCaptor<Object> envelopeCaptor = ArgumentCaptor.forClass(Object.class);
         verify(messagingTemplate, times(2)).convertAndSend(anyString(), envelopeCaptor.capture());

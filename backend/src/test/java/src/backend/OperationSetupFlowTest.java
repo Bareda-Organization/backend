@@ -192,7 +192,7 @@ class OperationSetupFlowTest {
 
     // ── 단계 ──────────────────────────────────────────────────────────────
 
-    /** {@code POST /staff/students} 는 멀티파트이고 JSON 은 {@code data} 파트다(§1.1 · P5-T6). */
+    /** {@code POST /staff/students} 는 멀티파트이고 JSON 은 {@code data} 파트다(§1.1). */
     private long 학생을_등록한다(String staffToken) throws Exception {
         MvcResult result = mockMvc.perform(multipart("/api/v1/staff/students")
                         .file(데이터_파트("{\"name\": \"P5T7흐름학생\", \"can_go_alone\": false}"))

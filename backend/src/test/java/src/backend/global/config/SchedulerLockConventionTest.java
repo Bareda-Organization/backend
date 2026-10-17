@@ -23,8 +23,8 @@ import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
  * 고정하는 회귀 방지 시험 — {@code ControllerAuthorizationConventionTest}
  * 와 같은 관례(면제 목록에 근거를 함께 적는다)를 그대로 따른다.
  *
- * <p>같은 형태의 누락이 이 저장소에서 반복됐다 — 규약 시험이 좌석 단독 실행에서는 걸리지 않고
- * 병합 후 전체 실행에서야 드러난 전례가 있다({@code ControllerAuthorizationConventionTest}). 이 시험도 새 스케줄러를 추가하는 좌석이 이 파일이 같은
+ * <p>같은 형태의 누락이 이 저장소에서 반복됐다 — 규약 시험이 단독 실행에서는 걸리지 않고
+ * 병합 후 전체 실행에서야 드러난 전례가 있다({@code ControllerAuthorizationConventionTest}). 이 시험도 새 스케줄러를 추가하는 쪽이 이 파일이 같은
  * 모듈에 있는지 모른 채 넘어갈 수 있으므로, 병합 뒤 전체 실행에서 이 클래스가 실제로 도는지 매번
  * 확인한다.
  *

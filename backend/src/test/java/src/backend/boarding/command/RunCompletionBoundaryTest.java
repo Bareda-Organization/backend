@@ -177,7 +177,7 @@ class RunCompletionBoundaryTest {
         Run run = runRepository.findById(runId).orElseThrow();
 
         // 그 정차지가 이미 도착 처리는 됐지만 출발 판정은 아직 안 된 상태를 흉내낸다 —
-        // RunArrivalCommandService.arrive 를 거치지 않는(T2 회차 시작·도착 부재 워크트리) 이 시험은
+        // RunArrivalCommandService.arrive 를 거치지 않는 이 시험은
         // run_stop.arrived_at 을 직접 채운다. flush 를 먼저 해야 그 앞의 assignedManager 저장분이
         // 지워지지 않는다(BoardingCommandFixtures#startRun 자바독과 같은 근거).
         entityManager.flush();

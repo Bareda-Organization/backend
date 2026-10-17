@@ -116,7 +116,7 @@ class AcademyEntitySchemaValidationTest extends MigratedPostgresTestBase {
         Academy academy = Academy.register("A002", "테스트학원2", "부산", null, null);
         entityManager.persist(academy);
         entityManager.flush();
-        // account 는 이 태스크의 대상 밖이라 엔티티가 없다 — FK(fk_academy_staff_account)를
+        // account 는 이 시험의 대상 밖이라 엔티티가 없다 — FK(fk_academy_staff_account)를
         // 만족시키기 위해 최소 컬럼만 채운 행을 네이티브 SQL로 직접 넣는다.
         Number accountId = (Number) entityManager.createNativeQuery(
                         "INSERT INTO account (academy_id, login_id, password_hash, name, phone, role, status) "

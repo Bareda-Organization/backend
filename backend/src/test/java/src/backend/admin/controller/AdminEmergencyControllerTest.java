@@ -84,7 +84,7 @@ class AdminEmergencyControllerTest {
 
 
 
-    // ── goal 11 — 필드명 · 경과시간(elapsed_since_raised) 계산 ──────────────
+    // ── 필드명 · 경과시간(elapsed_since_raised) 계산 ──────────────
 
     @Test
     void 미확인_신고는_staff_acked가_false이고_경과시간이_now까지_계산된다() throws Exception {

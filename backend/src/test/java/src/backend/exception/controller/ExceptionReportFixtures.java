@@ -181,7 +181,7 @@ public class ExceptionReportFixtures {
     }
 
     /**
-     * 예외 보고 1건을 직접 심는다(goal 16 필터 시험의 매칭·비매칭 행 조성용) — {@code type} 이
+     * 예외 보고 1건을 직접 심는다(필터 시험의 매칭·비매칭 행 조성용) — {@code type} 이
      * {@code GUARDIAN_ABSENT} 면 {@code runRiderId} 를 반드시 넘겨야 한다({@code CommandService} 를
      * 거치지 않고 저장소에 직접 넣으므로 DB CHECK 만 그 조건을 지킨다).
      */

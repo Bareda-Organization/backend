@@ -49,9 +49,8 @@ import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 승하차 처리(§4.6)·되돌리기(§4.7). 하원 자동 승차는
- * {@link src.backend.boarding.command.AutoBoardingServiceTest} 가 별도로 다룬다 — 이 워크트리에는
- * 회차 시작 엔드포인트가 없어 {@link src.backend.boarding.command.AutoBoardingService} 를
- * 직접 호출해야 하고, 그 호출은 컨트롤러 계층을 거치지 않기 때문이다.
+ * {@link src.backend.boarding.command.AutoBoardingServiceTest} 가 별도로 다룬다 — 자동 승차 로직은
+ * {@link src.backend.boarding.command.AutoBoardingService} 에 있다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

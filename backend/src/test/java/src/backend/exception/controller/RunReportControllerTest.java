@@ -61,7 +61,7 @@ class RunReportControllerTest {
 
 
 
-    // ── goal 15 — 등록 성공 ────────────────────────────────────────────────
+    // ── 등록 성공 ────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal15 — 도로 통제(rider_id 불필요) 보고는 배치된 기사가 등록하면 201 이고 저장된다")
@@ -227,7 +227,7 @@ class RunReportControllerTest {
         assertThat(보고_라이더(runId)).isEqualTo(runRiderId);
     }
 
-    // ── goal 15 — 관계자 즉시 통지 ─────────────────────────────────────────
+    // ── 관계자 즉시 통지 ─────────────────────────────────────────
 
     /**
      * §4.13 "관계자에게 즉시 통지" — 접수 성공 직후 그 학원 관계자(재직 스태프)에게
@@ -261,7 +261,7 @@ class RunReportControllerTest {
                 Integer.class, staffAccountId, "exception_reported:" + reportId + ":%")).isEqualTo(1);
     }
 
-    // ── goal 15 — 422 vs 404 구분 ──────────────────────────────────────────
+    // ── 422 vs 404 구분 ──────────────────────────────────────────
 
     @Test
     @DisplayName("goal15 급소 — type=guardian_absent 인데 rider_id 가 없으면 422 VALIDATION_FAILED 이고 저장되지 않는다")
@@ -312,7 +312,7 @@ class RunReportControllerTest {
         assertThat(보고_개수(runId)).as("rider_id 가 이 회차 소속이 아니면 저장되면 안 된다").isEqualTo(0);
     }
 
-    // ── goal 15 — 회차·인가 ────────────────────────────────────────────────
+    // ── 회차·인가 ────────────────────────────────────────────────
 
     @Test
     @DisplayName("goal15 — 배치는 통과해도 토큰이 주장하는 academy_id 가 그 회차의 실제 학원과 다르면 404 RUN_NOT_FOUND 이고 저장되지 않는다"

@@ -239,7 +239,7 @@ class AuthControllerTest {
             assertThat(accountRepository.findById(accountId).orElseThrow().getFailedAttempts())
                     .isEqualTo(Account.MAX_FAILED_ATTEMPTS);
 
-            // 감사(goal 3) — 실패 5행(login_fail) + 상한을 채운 마지막 시도의 별도 차단 행(block) = 6행.
+            // 감사 — 실패 5행(login_fail) + 상한을 채운 마지막 시도의 별도 차단 행(block) = 6행.
             Integer loginFailRows = jdbcTemplate.queryForObject(
                     "SELECT count(*) FROM audit_log WHERE actor_login_id = ? AND action = 'login_fail'",
                     Integer.class, loginId);
@@ -339,7 +339,7 @@ class AuthControllerTest {
     }
 
     /**
-     * 목표 문장(Ruling 282, goal 4) — 미등록 login_id 로 로그인을 실패해도 감사 행이 남는다.
+     * 요구 문장(Ruling 282) — 미등록 login_id 로 로그인을 실패해도 감사 행이 남는다.
      *
      * <p>{@code LoginCommandService.login()} 은 계정을 못 찾으면
      * {@code auditLogRepository.save(AuditLog.forLoginFail(null, null, loginId, ip, now))} 를 쓴 뒤

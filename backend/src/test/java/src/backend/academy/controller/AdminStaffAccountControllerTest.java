@@ -135,7 +135,7 @@ class AdminStaffAccountControllerTest {
      * 퇴사 처리는 그 계정의 refresh 토큰을 전량 무효화한다.
      *
      * <p>무효화하지 않으면 퇴사한 관계자가 기존 토큰으로 access 토큰을 계속 재발급받는다 —
-     * 관계자 계정은 학생 개인정보 전체에 접근하므로(§6.7) 이것이 이 태스크에서 가장 값비싼 결함이다.
+     * 관계자 계정은 학생 개인정보 전체에 접근하므로(§6.7) 이것이 가장 값비싼 결함이다.
      */
     @Test
     void 관계자_계정을_inactive_로_바꾸면_그_계정의_기존_refresh_토큰이_401_TOKEN_EXPIRED_다() throws Exception {

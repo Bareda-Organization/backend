@@ -154,7 +154,7 @@ class StaffEmploymentLoginTest {
                 .content("{\"login_id\":\"%s\",\"password\":\"%s\"}".formatted(loginId, password)));
     }
 
-    /** 퇴사·재직 전환은 §6.7 엔드포인트를 실제로 거친다 — 두 기능이 이어져 있다는 것이 이 태스크의 요건이다. */
+    /** 퇴사·재직 전환은 §6.7 엔드포인트를 실제로 거친다 — 두 기능이 이어져 있다는 것이 이 시험이 지키는 요건이다. */
     private void 퇴사시킨다(long accountId) throws Exception {
         재직_상태를_바꾼다(accountId, "inactive");
     }

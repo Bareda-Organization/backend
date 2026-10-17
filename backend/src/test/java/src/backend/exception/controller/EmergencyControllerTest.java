@@ -43,11 +43,11 @@ import org.springframework.context.annotation.Import;
 /**
  * 기사·동승자 단말의 비상 신고 발신·취소 API(EXC-04) — {@code /runs/{runId}/emergency}.
  *
- * <p>위치 자동 첨부가 실제 Redis 캐시(T1 계약, {@code run:{runId}:position})를 읽는지
+ * <p>위치 자동 첨부가 실제 Redis 캐시({@code run:{runId}:position} 계약)를 읽는지
  * 검증하려면 진짜 Redis 가 필요하다 — {@link RedisTestContainerBase} 를 상속하지 않아도 전역 장치
  * ({@code RedisTestContainerContextCustomizerFactory})가 같은 전용 컨테이너를 자동으로 물려준다
  * (BR-107, 상속은 중복이라 걷어냄). 공유 {@code school-bus-redis-1} 대신 전용 컨테이너를 쓰는 이유는
- * 그 클래스 자바독과 같다(병렬 좌석 간 이름공간 충돌 회피).
+ * 그 클래스 자바독과 같다(병렬 실행 간 이름공간 충돌 회피).
  *
  * <p>경계값(정확히 60초)은 Clock 을 흐르게 두는 대신 {@code received_at} 을 직접
  * UPDATE 해 고정 Clock 과의 차이를 원하는 만큼 정확히 만든다 — {@code DriverRunControllerTest} 의
