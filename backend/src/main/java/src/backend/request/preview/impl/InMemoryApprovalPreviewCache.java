@@ -1,10 +1,16 @@
 package src.backend.request.preview.impl;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Component;
+
+import lombok.RequiredArgsConstructor;
 
 import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
@@ -20,23 +26,47 @@ import src.backend.request.preview.spec.ApprovalPreviewCache;
  * 되는 시점에야 그 비용을 들일 이유(요청이 다른 인스턴스로 갈 수 있음)가 생긴다. 그때 이 클래스만
  * 교체하면 되도록 {@link ApprovalPreviewCache} 뒤에 감췄다.
  *
- * <p><b>만료·정리를 두지 않는다</b> — 결정되지 않은 채 남는 승인 건이 쌓이면 이 맵도 함께 쌓인다.
- * 이 태스크(T4)의 책임은 승인 1건이 결정되면 {@link ApprovalPreviewCache#evict} 로 지우는 것까지고,
- * 그 호출은 결정(T5, {@code decide})의 몫이다.
+ * <p><b>상한 500건 · 하루 만료</b>(DA-11) — 결정되지 않은 채 남는 승인 건이 힙에 쌓이지 않게 한다. 승인 1건이 결정되면
+ * {@link ApprovalPreviewCache#evict} 로 지운다(결정의 몫). 2대 운영의 Redis 이전은 R59 에서 한다.
  */
 @Component
+@RequiredArgsConstructor
 public class InMemoryApprovalPreviewCache implements ApprovalPreviewCache {
 
-    private final Map<Long, ApprovalPreview> store = new ConcurrentHashMap<>();
+    /** 보관 상한(DA-11, Ruling 899) — 넘으면 가장 먼저 넣은 항목이 밀려난다. */
+    static final int MAX_ENTRIES = 500;
+
+    /** 보관 기간 — 하루가 지난 미리보기는 낡아 쓸 수 없다(결정되지 않은 채 남은 승인 건). */
+    static final Duration TTL = Duration.ofDays(1);
+
+    private record Entry(ApprovalPreview preview, Instant expiresAt) {
+    }
+
+    private final Clock clock;
+
+    private final Map<Long, Entry> store = Collections.synchronizedMap(new LinkedHashMap<>() {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<Long, Entry> eldest) {
+            return size() > MAX_ENTRIES;
+        }
+    });
 
     @Override
     public Optional<ApprovalPreview> find(Long approvalId) {
-        return Optional.ofNullable(store.get(approvalId));
+        Entry entry = store.get(approvalId);
+        if (entry == null) {
+            return Optional.empty();
+        }
+        if (!entry.expiresAt().isAfter(clock.instant())) {
+            store.remove(approvalId, entry);
+            return Optional.empty();
+        }
+        return Optional.of(entry.preview());
     }
 
     @Override
     public void put(Long approvalId, ApprovalPreview preview) {
-        store.put(approvalId, preview);
+        store.put(approvalId, new Entry(preview, clock.instant().plus(TTL)));
     }
 
     @Override
