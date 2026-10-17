@@ -228,6 +228,8 @@ tasks.withType(Test).configureEach {
     systemProperty 'app.observability.run-position-lost.initial-delay-ms', '86400000'
     // 끝나지 않은 이동 중 회차 게이지(StaleMovingRunGaugeScheduler, R46-KFIXBE K-1)도 같은 이유로 미룬다.
     systemProperty 'app.observability.stale-moving-run.initial-delay-ms', '86400000'
+    // 열린 WebSocket 세션 계정 상태 점검(StompStandingSweepScheduler, R57 RT-7)도 같은 이유로 미룬다 — 시험이 직접 한 번씩 돌린다.
+    systemProperty 'app.ws.standing-sweep.initial-delay-ms', '86400000'
 
     // 지오코딩을 결정론적 스텁으로 고정한다. 기본값(naver)은 실 API 라, 두면 테스트 전체 묶음이
     // 네트워크·요금·NCP 계정 상태에 매달려 그 초록이 코드에 대해 아무것도 말하지 않게 된다

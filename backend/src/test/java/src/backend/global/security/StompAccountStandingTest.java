@@ -3,7 +3,6 @@ package src.backend.global.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
-import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -44,8 +43,6 @@ class StompAccountStandingTest {
     private static final String DESTINATION = "/topic/academy/1/live";
     private static final char NULL_TERMINATOR = '\0';
     private static final long FRAME_TIMEOUT_SECONDS = 5;
-    /** 서버의 점검 간격(30초)을 넘기는 시계 이동 — 간격 상수가 아니라 값으로 둔다(간격을 늘리면 이 시험이 먼저 알린다). */
-    private static final Duration SWEEP_INTERVAL_PASSED = Duration.ofSeconds(31);
 
     @LocalServerPort
     private int port;
@@ -61,6 +58,9 @@ class StompAccountStandingTest {
 
     @Autowired
     private AdvanceableClock advanceableClock;
+
+    @Autowired
+    private StompStandingSweepScheduler sweepScheduler;
 
     @AfterEach
     void restore() {
@@ -125,9 +125,9 @@ class StompAccountStandingTest {
         }
     }
 
-    /** 이미 구독을 마친 세션은 요청이 없어도 점검 간격이 지난 뒤 첫 방송이 ERROR 로 바뀌며 닫힌다. */
+    /** 이미 구독을 마친 세션은 요청이 없어도 점검 스케줄러가 한 번 돈 뒤 첫 방송이 ERROR 로 바뀌며 닫힌다. */
     @Test
-    void 이미_열린_세션은_퇴사_뒤_점검_간격이_지나면_방송_대신_TOKEN_EXPIRED_로_닫힌다() throws Exception {
+    void 이미_열린_세션은_퇴사_뒤_점검이_돌면_방송_대신_TOKEN_EXPIRED_로_닫힌다() throws Exception {
         BlockingQueue<String> frames = new LinkedBlockingQueue<>();
         WebSocketSession session = open(frames);
         try {
@@ -136,7 +136,7 @@ class StompAccountStandingTest {
             awaitSubscribed(frames);
 
             retire();
-            advanceableClock.advance(SWEEP_INTERVAL_PASSED);
+            sweepScheduler.sweep(); // 30초마다 도는 스케줄러를 직접 한 번 돌린다(시험 JVM 에서는 하루 뒤로 미뤄져 있다)
             frames.clear();
             messagingTemplate.convertAndSend(DESTINATION, "after-retire");
 

@@ -23,15 +23,15 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 public class SchedulingConfig implements SchedulingConfigurer, DisposableBean {
 
     /**
-     * 스레드 수 = {@code @Scheduled} 메서드 수(2026-10-02 기준 12개 — 데모 시뮬레이터 · 위치 이력 파티션 미리 만들기 · 끝나지 않은 이동 중 회차 지표 포함). 전부
+     * 스레드 수 = {@code @Scheduled} 메서드 수(R57 기준 13개 — 데모 시뮬레이터 · 위치 이력 파티션 미리 만들기 · 끝나지 않은 이동 중 회차 지표 · 열린 WebSocket 세션의 계정 상태 점검 포함). 전부
      * {@code fixedDelay}·{@code cron} 이라 한 작업이 자기 자신과 겹쳐 돌지 않으므로, 이 수면 어떤
      * 작업도 남의 작업을 기다리지 않는다. 작업을 더하면 이 값도 함께 올린다 — {@code SchedulingPoolSizeTest} 가 개수를 세어 어긋나면 실패한다.
      *
      * <p>DB 커넥션(Hikari 기본 10)과의 관계 — 작업들은 짧은 트랜잭션만 쓰고 외부 호출은 트랜잭션 밖
-     * (§7 규칙 16)이라 {@link #POOL_SIZE}개(운영은 {@code local} 전용 데모 시뮬레이터를 뺀 11개)가 동시에 커넥션을 쥐는 경우는 드물다. 동시 도래가 커넥션을 밀어내는지는
+     * (§7 규칙 16)이라 {@link #POOL_SIZE}개(운영은 {@code local} 전용 데모 시뮬레이터를 뺀 12개)가 동시에 커넥션을 쥐는 경우는 드물다. 동시 도래가 커넥션을 밀어내는지는
      * 관측 지표(hikaricp_connections_pending)로 본다.
      */
-    static final int POOL_SIZE = 12;
+    static final int POOL_SIZE = 13;
 
     private final ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
 
