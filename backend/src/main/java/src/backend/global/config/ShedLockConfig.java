@@ -11,9 +11,9 @@ import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
 import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 
 /**
- * 스케줄 분산 락(TECH_DECISIONS §3.2, Phase 11) — 인스턴스가 2대 이상일 때 같은 {@code @Scheduled}
+ * 스케줄 분산 락(TECH_DECISIONS §3.2) — 인스턴스가 2대 이상일 때 같은 {@code @Scheduled}
  * 배치가 동시에 판정을 수행하는 것을 막는다. 어떤 스케줄러가 이 락을 실제로 쓰는지는 각 스케줄러
- * 파일의 {@code @SchedulerLock} 을 본다 — 확정 배치({@code RunConfirmationScheduler})도 R57(Ruling 899 J)부터 락을 쓴다.
+ * 파일의 {@code @SchedulerLock} 을 본다 — 확정 배치({@code RunConfirmationScheduler})도 락을 쓴다(Ruling 899 J).
  * 조건부 UPDATE 는 정합성 안전장치로 그대로 둔다.
  *
  * <p>{@code usingDbTime()} 을 쓰는 이유 — 인스턴스마다 시스템 시계가 미세하게 어긋나면 락 만료

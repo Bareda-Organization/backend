@@ -31,7 +31,7 @@ import src.backend.student.repository.StudentRepository;
  * {@code link_code} · {@code audit_log})의 행을 회차(배치) 단위로 나눠 지운다(Ruling 324 — {@code link_request}
  * 삭제로 5개→4개, Ruling 445 — {@code audit_log} 편입으로 4개→5개). 여기에 <b>퇴원 90일이 지난 학생의 개인정보 파기</b>
  * (Ruling 480 ②·520)가 같은 배치 상한·같은 잠금으로 편입돼 있다 — 이쪽은 행을 지우지 않고 익명화한다
- * ({@link StudentAnonymizationService}). R56(Ruling 894)이 두 가지를 더했다 — 지연 알림 발신 기록({@code delay_notice})을
+ * ({@link StudentAnonymizationService}). Ruling 894 가 두 가지를 더했다 — 지연 알림 발신 기록({@code delay_notice})을
  * {@code notification_log} 와 같은 14일로 지우고, 회차 종료 24시간이 지난 멱등 키를 비운다({@link IdempotencyKeyExpiry} — 승하차 이력 · 연락 기록의
  * 키 값만 비우고 행은 무기한 보존한다).
  *
@@ -41,7 +41,7 @@ import src.backend.student.repository.StudentRepository;
  * {@code run_stop}). 새 테이블을 이 배치에 넣으려면 {@link RetentionPolicy} 에 상수를 먼저 더해야
  * 하므로, 무기한 보존 테이블이 실수로 섞여 들어오는 경로 자체가 없다.
  *
- * <p><b>{@code run_position} 은 파티션 DROP, 나머지는 행 단위 DELETE</b>(Ruling 243 → R46-LATERBE Ruling 670) — 하루
+ * <p><b>{@code run_position} 은 파티션 DROP, 나머지는 행 단위 DELETE</b>(Ruling 243 → Ruling 670) — 하루
  * 약 27만 행이 쌓이는 위치 이력만 일 단위 파티션이라 만료된 날의 파티션을 통째로 지운다
  * ({@link RunPositionPartitionManager#dropExpired}). 다른 테이블은 한 번의 삭제 호출을
  * {@link RetentionPolicy#BATCH_SIZE} 로 잘라 여러 회차에 나눠 지운다(목표 7) — 상한 없이 전건을 한 트랜잭션에서 지우면
@@ -60,7 +60,7 @@ import src.backend.student.repository.StudentRepository;
 public class RetentionCleanupScheduler {
 
     /**
-     * 퇴원 학생 파기의 묶음 크기(R46 T-8) — 삭제용 {@link RetentionPolicy#BATCH_SIZE}(5,000)는 한 문장짜리 벌크 DELETE 기준이다.
+     * 퇴원 학생 파기의 묶음 크기 — 삭제용 {@link RetentionPolicy#BATCH_SIZE}(5,000)는 한 문장짜리 벌크 DELETE 기준이다.
      * 파기는 한 트랜잭션이 학생·계정 엔티티를 전부 적재하고 커밋 때 건별 UPDATE 를 쏟아내 묶음이 크면 연결을 오래 쥔다.
      */
     private static final int ANONYMIZATION_BATCH_SIZE = 200;
@@ -109,7 +109,7 @@ public class RetentionCleanupScheduler {
 
         cleanUpSafely("notification_log", retentionPolicy.notificationLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                 notificationLogRepository::findIdsForRetentionCleanup, notificationLogRepository::deleteAllByIdInBatch);
-        // 지연 알림 발신 기록은 학부모에게 간 알림 기록이라 notification_log 와 같은 보존 주기를 읽는다(R56 Ruling 894 ⑦)
+        // 지연 알림 발신 기록은 학부모에게 간 알림 기록이라 notification_log 와 같은 보존 주기를 읽는다(Ruling 894 ⑦)
         cleanUpSafely("delay_notice", retentionPolicy.notificationLogCutoff(now), RetentionPolicy.BATCH_SIZE,
                 delayNoticeRepository::findIdsForRetentionCleanup, delayNoticeRepository::deleteAllByIdInBatch);
         expireIdempotencyKeysSafely(retentionPolicy.idempotencyKeyCutoff(now));
@@ -159,7 +159,7 @@ public class RetentionCleanupScheduler {
         }
     }
 
-    /** 회차 종료 24시간이 지난 멱등 키를 비운다(R56 Ruling 894 ⑥) — 행은 남기고 키만 비운다. 실패는 삼켜 다른 테이블 정리를 막지 않는다. */
+    /** 회차 종료 24시간이 지난 멱등 키를 비운다(Ruling 894 ⑥) — 행은 남기고 키만 비운다. 실패는 삼켜 다른 테이블 정리를 막지 않는다. */
     private void expireIdempotencyKeysSafely(OffsetDateTime cutoff) {
         try {
             int cleared = idempotencyKeyExpiry.expire(cutoff, RetentionPolicy.BATCH_SIZE);
@@ -173,7 +173,7 @@ public class RetentionCleanupScheduler {
     }
 
     /**
-     * 정리 직후 {@code refresh_token} 남은 행 수를 게이지에 싣는다(R47, Ruling 742) — 운영에는 테이블 크기를 보는 exporter 가 없다. 하루 한 번
+     * 정리 직후 {@code refresh_token} 남은 행 수를 게이지에 싣는다(Ruling 742) — 운영에는 테이블 크기를 보는 exporter 가 없다. 하루 한 번
      * {@code count(*)} 라 정상 상태(약 310만 행 추정)에서도 부담이 없다. 실패는 삼켜 다른 테이블 정리를 막지 않는다.
      * ponytail: 수천만 행이 되면 {@code pg_class.reltuples} 추정치로 바꾼다.
      */
@@ -187,7 +187,7 @@ public class RetentionCleanupScheduler {
     }
 
     /**
-     * 위치 이력은 행을 지우지 않고 <b>기간이 지난 일 파티션을 통째로 DROP</b> 한다(R46-LATERBE B-1, Ruling 670) — 하루 약 27만 행의
+     * 위치 이력은 행을 지우지 않고 <b>기간이 지난 일 파티션을 통째로 DROP</b> 한다(Ruling 670) — 하루 약 27만 행의
      * 행 단위 DELETE 와 그 뒤 vacuum 이 사라진다. 실패는 {@link #cleanUpSafely} 와 같이 삼켜 다른 테이블 정리를 막지 않는다.
      */
     private void dropRunPositionPartitionsSafely(OffsetDateTime cutoff) {

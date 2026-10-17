@@ -26,8 +26,7 @@ import src.backend.global.security.AuthUser;
  * {@code default} 분기가 {@code BLOCKED} 뿐 아니라 향후 {@link AccountStatus} 에 값이 추가돼도
  * 자동으로 차단측에 붙게 한다(신규 상태를 깜빡 허용측에 추가하지 않는 이상 안전).
  *
- * <p>{@link AuthUser#status()} 가 {@link AccountStatus} 로 타입화돼 있어(리뷰 라운드 1 Important #2)
- * "상태를 알 수 없는 인증된 요청"이라는 제3의 경우가 애초에 존재하지 않는다 — {@code AuthUser} 는
+ * <p>{@link AuthUser#status()} 가 {@link AccountStatus} 로 타입화돼 있어 "상태를 알 수 없는 인증된 요청"이라는 제3의 경우가 애초에 존재하지 않는다 — {@code AuthUser} 는
  * status 없이 생성될 수 없으므로, 이 메서드는 미인증(authUser == null)과 4개 상태값만 고려하면 된다.
  */
 @Component

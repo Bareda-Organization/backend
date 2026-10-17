@@ -8,7 +8,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * 감사 기록의 접속 {@code ip}(BR-062 · R46 감사 C) — 로그인 기록과 조회 기록이 같은 방식으로 뽑는다.
+ * 감사 기록의 접속 {@code ip}(BR-062) — 로그인 기록과 조회 기록이 같은 방식으로 뽑는다.
  *
  * <p>{@code X-Real-IP} 를 쓰고 {@code X-Forwarded-For} 는 쓰지 않는다 — nginx 는 받은 {@code X-Forwarded-For}
  * 뒤에 실제 주소를 덧붙이므로 첫 값은 요청자가 적은 값이라 위조 가능하다. {@code X-Real-IP} 는 nginx 가

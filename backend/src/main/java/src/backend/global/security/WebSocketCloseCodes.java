@@ -14,10 +14,10 @@ public final class WebSocketCloseCodes {
 
     public static final CloseStatus SUBSCRIPTION_FORBIDDEN = new CloseStatus(4403, "SUBSCRIPTION_FORBIDDEN");
 
-    /** 계정이 채널 권한을 잃어(보호자 연결 해제 · 퇴원 · 기사 교체) 서버가 세션을 닫았다 — 클라이언트는 1초 뒤 다시 붙고, 아직 금지된 채널은 4403 을 받는다(R57 K1 ③). */
+    /** 계정이 채널 권한을 잃어(보호자 연결 해제 · 퇴원 · 기사 교체) 서버가 세션을 닫았다 — 클라이언트는 1초 뒤 다시 붙고, 아직 금지된 채널은 4403 을 받는다. */
     public static final CloseStatus SESSION_REVOKED = new CloseStatus(4500, "SESSION_REVOKED");
 
-    /** 연결 뒤 10초 안에 STOMP CONNECT 가 없어 서버가 닫았다 — 표준 1008(정책 위반)이다(R57 K1 ④). */
+    /** 연결 뒤 10초 안에 STOMP CONNECT 가 없어 서버가 닫았다 — 표준 1008(정책 위반)이다. */
     public static final CloseStatus CONNECT_TIMEOUT = CloseStatus.POLICY_VIOLATION.withReason("CONNECT_TIMEOUT");
 
     private WebSocketCloseCodes() {

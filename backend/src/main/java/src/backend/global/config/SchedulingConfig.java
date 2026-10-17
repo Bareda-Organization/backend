@@ -21,7 +21,7 @@ import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
  * (EXC-01 3분) · 근접 알림 · 아웃박스 재발송 · 자동 거절이 전부 멈춘다.
  *
  * <p>⚠ <b>빈으로 등록하지 않는다</b> — 스케줄러는 {@code AsyncTaskExecutor} 이기도 해서, 빈이 되면 Boot 의
- * WebSocket 자동 구성이 그것을 STOMP 입·출력 채널 실행기로 바꿔 끼운다(2026-09-25 실측: 출력 채널
+ * WebSocket 자동 구성이 그것을 STOMP 입·출력 채널 실행기로 바꿔 끼운다(실측: 출력 채널
  * 실행기가 이 스케줄러로 바뀌어 {@code app.ws.outbound.core-pool-size} 가 무력화됨). 그래서
  * 등록기에만 넘기고 종료는 이 설정이 맡는다.
  */
@@ -29,7 +29,7 @@ import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
 public class SchedulingConfig implements SchedulingConfigurer, DisposableBean {
 
     /**
-     * 스레드 수 = {@code @Scheduled} 메서드 수(R57 기준 13개 — 데모 시뮬레이터 · 위치 이력 파티션 미리 만들기 · 끝나지 않은 이동 중 회차 지표 · 열린 WebSocket 세션의 계정 상태 점검 포함). 전부
+     * 스레드 수 = {@code @Scheduled} 메서드 수(13개 — 데모 시뮬레이터 · 위치 이력 파티션 미리 만들기 · 끝나지 않은 이동 중 회차 지표 · 열린 WebSocket 세션의 계정 상태 점검 포함). 전부
      * {@code fixedDelay}·{@code cron} 이라 한 작업이 자기 자신과 겹쳐 돌지 않으므로, 이 수면 어떤
      * 작업도 남의 작업을 기다리지 않는다. 작업을 더하면 이 값도 함께 올린다 — {@code SchedulingPoolSizeTest} 가 개수를 세어 어긋나면 실패한다.
      *

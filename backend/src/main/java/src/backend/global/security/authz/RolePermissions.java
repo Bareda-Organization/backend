@@ -22,10 +22,9 @@ import src.backend.global.common.enums.Role;
  *
  * <h2>배선 — {@code SecurityConfig.roleHierarchy()}</h2>
  *
- * <p>{@code SecurityConfig.roleHierarchy()} 가 이 필드를 읽어 빈으로 등록한다(Phase 2 Task 3,
- * Ruling 76). 그 배선이 없으면 컨트롤러의 {@code hasAuthority(...)} 평가가 전부 거부로 떨어져
+ * <p>{@code SecurityConfig.roleHierarchy()} 가 이 필드를 읽어 빈으로 등록한다(Ruling 76). 그 배선이 없으면 컨트롤러의 {@code hasAuthority(...)} 평가가 전부 거부로 떨어져
  * <b>모든 인가 애너테이션이 403 을 낸다</b> — 부여표가 비어 있는 것과 배선이 빠진 것은 증상이 같다.
- * 이 필드를 옮기거나 이름을 바꾸면 그 한 곳을 함께 고친다(자세한 경위는 p2-task-1-report.md).
+ * 이 필드를 옮기거나 이름을 바꾸면 그 한 곳을 함께 고친다.
  */
 public final class RolePermissions {
 
@@ -33,9 +32,8 @@ public final class RolePermissions {
     }
 
     /**
-     * 역할별 부여 줄 59개(FEATURE_SPEC §6.2 권한 32종을 보유 역할 수만큼 반복한 합계, 2026-09-01
-     * 기준). {@code EXCEPTION_REPORT_READ}(Phase 11 신설, 관계자 전용)가 더해져 57 → 58 로 늘었고,
-     * {@code RUN_FORCE_CONFIRM}(F3 S2 신설, 메인관리자 전용)이 더해져 58 → 59 로 늘었다 — 둘 다
+     * 역할별 부여 줄 59개(FEATURE_SPEC §6.2 권한 32종을 보유 역할 수만큼 반복한 합계). {@code EXCEPTION_REPORT_READ}(관계자 전용)와
+     * {@code RUN_FORCE_CONFIRM}(메인관리자 전용)이 포함된 수다 — 둘 다
      * §6.2 표에는 아직 반영 전이라 위 "32종"은 코드 상수 개수이지 표의 행 수와는 갈린다.
      */
     public static final String HIERARCHY =

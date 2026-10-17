@@ -62,7 +62,7 @@ public class ForbiddenSubscriptionCloseFactory implements WebSocketHandlerDecora
         @Override
         public void close(CloseStatus status) throws IOException {
             if (CloseStatus.PROTOCOL_ERROR.equals(status) && isMarkedForbidden()) {
-                meterRegistry.counter("schoolbus.ws.closed", "reason", "4403").increment(); // R57 RT-11 — 닫기 전에 센다(닫힌 뒤 센 값을 읽는 쪽이 앞서지 않게)
+                meterRegistry.counter("schoolbus.ws.closed", "reason", "4403").increment(); // 닫기 전에 센다(닫힌 뒤 센 값을 읽는 쪽이 앞서지 않게)
                 super.close(WebSocketCloseCodes.SUBSCRIPTION_FORBIDDEN);
                 return;
             }

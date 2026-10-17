@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 클라이언트가 유휴 제한 동안 <b>아무 프레임도 보내지 않은</b> WebSocket 세션을 컨테이너(Tomcat)가 닫게 한다(R46-CONNCAP, Ruling 693).
+ * 클라이언트가 유휴 제한 동안 <b>아무 프레임도 보내지 않은</b> WebSocket 세션을 컨테이너(Tomcat)가 닫게 한다(Ruling 693).
  *
  * <p>STOMP 하트비트를 협상한 세션은 단순 브로커가 무수신 30초에 치운다. 구멍은 {@code heart-beat:0,0} 으로 붙은 클라이언트다 — 읽기
  * 감시가 꺼져 조용히 사라져도(전원·망 끊김으로 FIN 도 못 보낸 경우) 서버는 다음 쓰기가 실패할 때까지 세션·구독·우리 쪽 맵 둘을 쥔다.

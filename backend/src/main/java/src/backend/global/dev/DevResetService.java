@@ -36,7 +36,7 @@ import src.backend.schedule.command.RunGenerationService;
  * <p>조건 두 겹은 {@link DevResetController} 와 <b>같은 것을 달아야 한다.</b> 위임 대상인
  * {@code LocalFlywayCleanStrategy} 자체가 {@code @Profile("local")} 이라, 이 빈만 조건 없이 두면
  * {@code local} 이 아닌 프로파일에서 <b>주입 대상이 없어 기동이 실패한다</b> — 컨트롤러가 안 떠도
- * 서비스는 뜨기 때문이고, 실제로 {@code load} 프로파일 기동이 그렇게 막혔다(2026-09-09).
+ * 서비스는 뜨기 때문이고, 실제로 {@code load} 프로파일 기동이 그렇게 막혔다.
  */
 @Service
 @Profile("local")
@@ -83,7 +83,7 @@ public class DevResetService {
     }
 
     /**
-     * 시드 재적재를 하되 교착으로 중단되면 처음부터 다시 한다(R38-B).
+     * 시드 재적재를 하되 교착으로 중단되면 처음부터 다시 한다.
      *
      * <p>{@code clean()} 이 테이블을 지우는 동안 배치·요청 트랜잭션이 같은 테이블을 잡고 있으면 Postgres 가 교착을
      * 감지해 한쪽을 중단시키는데, 그 희생자가 {@code DROP TABLE academy CASCADE} 면 첫 호출이 {@code 500} 이 된다.

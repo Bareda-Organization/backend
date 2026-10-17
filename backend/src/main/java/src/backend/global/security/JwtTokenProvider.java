@@ -146,12 +146,11 @@ public class JwtTokenProvider {
      *
      * <p>{@code role}·{@code status} 클레임이 없는 토큰은 여기서 {@link JwtException}으로 실패한다 —
      * 그런 토큰을 조용히 통과시키면 계정 상태 게이트가 상태 미상 요청 전체를 열어 버리므로, 늦게
-     * 실패하는 것보다 여기서 바로 막는 편이 낫다(리뷰 라운드 1 Critical #1). {@code Enum.valueOf(Class,
+     * 실패하는 것보다 여기서 바로 막는 편이 낫다. {@code Enum.valueOf(Class,
      * null)}은 {@link IllegalArgumentException}이 아니라 {@link NullPointerException}을 던지는데,
      * 그 타입 그대로 호출부까지 새 나가면 {@link JwtAuthenticationFilter}·{@link
      * StompAuthChannelInterceptor}의 {@code catch (JwtException | IllegalArgumentException e)} 절이
-     * 놓쳐 {@code GlobalExceptionHandler}가 못 잡는 API_SPEC §1.10 형식 밖 500이 된다(리뷰 라운드 2
-     * Important #10). 그래서 여기서 {@link IllegalArgumentException}·{@link NullPointerException}을
+     * 놓쳐 {@code GlobalExceptionHandler}가 못 잡는 API_SPEC §1.10 형식 밖 500이 된다. 그래서 여기서 {@link IllegalArgumentException}·{@link NullPointerException}을
      * 전부 붙잡아 {@link JwtException}으로 통일한다 — 호출부 catch 절을 그대로 둬도 계속 막힌다.
      */
     public AuthUser resolveAuthUser(Claims claims) {

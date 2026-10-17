@@ -25,7 +25,7 @@ import src.backend.global.security.StompSessionExpiry;
 import src.backend.global.security.WebSocketCloseCodes;
 
 /**
- * 연결을 열고 STOMP {@code CONNECT} 를 보내지 않는 소켓을 마감 시간 뒤 {@code 1008}(정책 위반)로 닫는다(R57 RT-8 · K1 ④ · Ruling 899 D). 인증 전
+ * 연결을 열고 STOMP {@code CONNECT} 를 보내지 않는 소켓을 마감 시간 뒤 {@code 1008}(정책 위반)로 닫는다(Ruling 899 D). 인증 전
  * 소켓은 서버 쪽 세션·스레드 자원을 쥐면서 아무 권한도 증명하지 않았다 — 열어 두기만 하는 연결이 풀을 채우는 길을 막는다. 마감은 인증된 CONNECT 를
  * 마쳤는지({@link StompSessionExpiry#isConnected})로 판정하고, 세션이 먼저 닫히면 예약을 취소한다. 예약은 하트비트 스케줄러를 쓴다.
  */

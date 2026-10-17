@@ -73,7 +73,7 @@ public class WebSocketBroadcastGateway {
 
     /**
      * 목적지 1곳에 봉투를 실어 보내고 발행 지연을 계측한다. 큐 포화 때 {@code position} 은 버린다. {@code position} 은
-     * 구독자가 없는 목적지에는 직렬화하지 않고 건너뛴다(R46 D #6) — 위치 1건이 22채널로 나가는데 대부분 아무도 안 본다.
+     * 구독자가 없는 목적지에는 직렬화하지 않고 건너뛴다 — 위치 1건이 22채널로 나가는데 대부분 아무도 안 본다.
      */
     private void deliver(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {
         if (DROPPABLE_EVENT.equals(event) && !hasSubscriber(destination)) {
@@ -138,7 +138,7 @@ public class WebSocketBroadcastGateway {
     }
 
     /**
-     * 목적지 하나의 전송 예외를 그 목적지에서 끝낸다(R57 RT-9) — 학생 채널 하나가 실패해도 뒤 학생 채널과 매니저 · 학원 · 관리자 채널의 방송이 이어진다.
+     * 목적지 하나의 전송 예외를 그 목적지에서 끝낸다 — 학생 채널 하나가 실패해도 뒤 학생 채널과 매니저 · 학원 · 관리자 채널의 방송이 이어진다.
      * 삼킨 실패는 {@code schoolbus.ws.broadcast.failed}(event 태그)로 센다. 앞에서 예외가 번지면 관제 화면이 그 이벤트를 통째로 못 받는다.
      */
     public void send(String destination, String event, Long runId, OffsetDateTime occurredAt, Object payload) {

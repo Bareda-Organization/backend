@@ -8,7 +8,7 @@ import org.springframework.dao.QueryTimeoutException;
 import org.springframework.transaction.CannotCreateTransactionException;
 
 /**
- * 어느 DB 예외가 "자원 상태" 라 {@code 503 SERVER_BUSY} 인지 가르는 단 한 곳(R46 S-7) — {@link GlobalExceptionHandler} 와
+ * 어느 DB 예외가 "자원 상태" 라 {@code 503 SERVER_BUSY} 인지 가르는 단 한 곳 — {@link GlobalExceptionHandler} 와
  * 인증 필터({@code JwtAuthenticationFilter}, 컨트롤러 어드바이스 바깥)가 같은 목록을 쓴다. 연결 풀 고갈
  * ({@link CannotCreateTransactionException}) · 연결 끊김({@link DataAccessResourceFailureException}) · 잠금 대기 초과
  * ({@link PessimisticLockingFailureException}) · 쿼리 취소({@link QueryTimeoutException}). 그 밖의 DB 예외(SQL 문법 오류 등)는

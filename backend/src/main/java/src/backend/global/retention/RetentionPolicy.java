@@ -21,15 +21,15 @@ import org.springframework.stereotype.Component;
 public class RetentionPolicy {
 
     /**
-     * 감사 로그({@code audit_log}) 보관 기간 — <b>2026-10-01 사용자 결정(R46 감사 B · Ruling 445)</b>, 두 category(조회·수정·삭제
-     * 기록과 로그인 기록) 모두 같다. 기존 "삭제 부재(무기한)" 를 바꾼 값이다. 근거는 개인정보 안전성 확보조치 기준의
+     * 감사 로그({@code audit_log}) 보관 기간 — <b>Ruling 445</b>, 두 category(조회·수정·삭제
+     * 기록과 로그인 기록) 모두 같다. 근거는 개인정보 안전성 확보조치 기준의
      * 접속기록 보관(1년 이상, 대규모·민감정보 2년 이상)이고, 그 문구·적용 대상은 법률 검토(L-06~08)에서 다시 확인한다.
      * 달력 기준 2년이다({@code Duration} 이 아니라 {@link Period}) — 윤년이 끼어도 "2년 전" 이다.
      */
     public static final Period AUDIT_LOG_RETENTION = Period.ofYears(2);
 
     /**
-     * 퇴원 학생 개인정보 보관 기간 — <b>2026-10-01 사용자 결정(R46 privacy · Ruling 480 ②)</b>. 퇴원({@code student.deleted_at})
+     * 퇴원 학생 개인정보 보관 기간 — <b>Ruling 480 ②</b>. 퇴원({@code student.deleted_at})
      * 후 이 기간이 지나면 이름·연락처·주소·특이사항·사진을 파기한다(행은 남기고 익명화 — Ruling 520). 근거 법령 기간은 법률 검토
      * (L-06~08)에서 재조정할 여지가 있어, 바꿀 때는 이 상수만 고친다.
      */
@@ -39,21 +39,20 @@ public class RetentionPolicy {
     public static final Duration NOTIFICATION_LOG_RETENTION = Duration.ofDays(14);
 
     /**
-     * 위치 이력 보관 기간 — <b>2026-09-04 사용자 확정(X-09 해소)</b> — 실사용 전환 시 법정 검토에서
+     * 위치 이력 보관 기간 — 실사용 전환 시 법정 검토에서
      * 재조정 여지만 존치(ERD §8 "run_position 보유 기간 미설정 — 위치정보법 검토 대기", Ruling 243).
      * 재조정이 필요해지면 이 상수만 바꾸면 된다.
      */
     public static final Duration RUN_POSITION_RETENTION = Duration.ofDays(90);
 
     /**
-     * 재발급 토큰이 만료되거나 폐기된 뒤 더 보관하는 기간 — <b>2026-09-04 사용자 확정(X-09 해소)</b> —
-     * 실사용 전환 시 법정 검토에서 재조정 여지만 존치(Ruling 243). 만료·폐기 즉시 지우지 않는 이유는
+     * 재발급 토큰이 만료되거나 폐기된 뒤 더 보관하는 기간 — 실사용 전환 시 법정 검토에서 재조정 여지만 존치(Ruling 243). 만료·폐기 즉시 지우지 않는 이유는
      * 폐기 직후 그 토큰으로 재사용을 시도하는 정황을 30일 동안 감사할 수 있게 남겨 두기 위함이다.
      */
     public static final Duration REFRESH_TOKEN_RETENTION_AFTER_EXPIRY_OR_REVOCATION = Duration.ofDays(30);
 
     /**
-     * 멱등 키({@code client_key}) 보존 기간 — API_SPEC §1.7 "최소 회차 종료 후 24시간 보장"(R56 Ruling 894 ⑥). 24시간은 하한이고, 정리는
+     * 멱등 키({@code client_key}) 보존 기간 — API_SPEC §1.7 "최소 회차 종료 후 24시간 보장"(Ruling 894 ⑥). 24시간은 하한이고, 정리는
      * 다음 배치 틱이라 실제로는 그보다 조금 더 남는다. 키 값만 비우며 비우는 표는 종료 회차를 거절하는 승하차 이력 · 연락 기록
      * 둘뿐이고(행은 무기한 보존이라 지우지 않는다), 비상 알림 · 예외 보고의 키는 비우지 않는다({@link IdempotencyKeyExpiry}).
      */

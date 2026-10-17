@@ -5,7 +5,7 @@ package src.backend.global.response;
  * {@link ErrorResponse}(API_SPEC §1.10 {@code error.code}·{@code error.message}·{@code error.details})를
  * 쓴다 — 하나의 레코드로 성공·실패를 겸하면 실패에 코드를 실을 자리가 없어, 클라이언트가
  * {@code AUTH_PENDING} 과 {@code FORBIDDEN} 처럼 같은 403 을 문자열 메시지로만 구별해야 하는
- * 문제가 생긴다(Phase 2 Task 2 리뷰 라운드 1 Important #6).
+ * 문제가 생긴다.
  */
 public record ApiResponse<T>(boolean success, T data, String message) {
 
