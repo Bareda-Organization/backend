@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -34,7 +35,6 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -147,7 +147,6 @@ class RunPositionRedisIntegrationTest {
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
 
-
     /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 좌석·다른 테스트의 행을 건드리지 않는다). */
     private final List<Long> academyIds = new ArrayList<>();
 
@@ -196,7 +195,7 @@ class RunPositionRedisIntegrationTest {
                 """.formatted(lat, lng, recordedAt);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
                 .andExpect(status().isNoContent());
@@ -236,7 +235,7 @@ class RunPositionRedisIntegrationTest {
         MovingRun moving = 움직이는_회차를_만든다();
 
         mockMvc.perform(post("/api/v1/runs/" + moving.runId() + "/position")
-                .header("Authorization", 토큰(moving.driverAccountId(), moving.academyId(), Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, moving.driverAccountId(), moving.academyId(), Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
@@ -279,9 +278,5 @@ class RunPositionRedisIntegrationTest {
         fixtures.startRun(runId, now());
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
         return new MovingRun(academyId, runId, driverAccountId);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -28,7 +29,6 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -170,10 +170,6 @@ class RunPositionCommandServiceTest {
                 guardianRepository, guardianStudentRepository, changeRequestRepository);
     }
 
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
-
     /** 기록 빈은 컨텍스트 하나를 공유하는 시험 전체에서 같은 인스턴스다 — 시험마다 비워야 건수 단언이 순서에 기대지 않는다. */
     @BeforeEach
     void 이벤트_기록을_비운다() {
@@ -188,19 +184,19 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        OffsetDateTime recordedAt = now().minusSeconds(3);
+        OffsetDateTime recordedAt = OffsetDateTime.now(clock).minusSeconds(3);
         String body = """
                 {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
                 """.formatted(recordedAt);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
                 .andExpect(status().isNoContent());
@@ -229,22 +225,22 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         // 엔티티로 보류를 건다 — JDBC 로 바꾸면 영속성 컨텍스트에 남은 옛 Run 을 서비스가 읽어 보류 상태가 보이지 않는다.
         Run pending = runRepository.findById(runId).orElseThrow();
         pending.deferFinish();
         runRepository.saveAndFlush(pending);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
-                        """.formatted(now().minusSeconds(3))))
+                        """.formatted(OffsetDateTime.now(clock).minusSeconds(3))))
                 .andExpect(status().isNoContent());
 
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_position WHERE run_id = ?", Integer.class,
@@ -263,16 +259,16 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        List<OffsetDateTime> skewedValues = List.of(now().plusDays(1), now().plusMinutes(6), now().minusMinutes(6));
+        List<OffsetDateTime> skewedValues = List.of(OffsetDateTime.now(clock).plusDays(1), OffsetDateTime.now(clock).plusMinutes(6), OffsetDateTime.now(clock).minusMinutes(6));
         for (OffsetDateTime skewed : skewedValues) {
             mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                    .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                    .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                             {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
@@ -284,10 +280,10 @@ class RunPositionCommandServiceTest {
                 "SELECT recorded_at FROM run_position WHERE run_id = ?", OffsetDateTime.class, runId);
         assertThat(stored).as("어긋난 시각이어도 위치는 적재돼야 한다").hasSize(skewedValues.size());
         assertThat(stored).as("저장된 recorded_at 은 전부 서버 수신 시각이어야 한다")
-                .allSatisfy(each -> assertThat(each.toInstant()).isEqualTo(now().toInstant()));
+                .allSatisfy(each -> assertThat(each.toInstant()).isEqualTo(OffsetDateTime.now(clock).toInstant()));
         assertThat(capturedEvents.events()).as("Redis 갱신·방송이 읽는 이벤트도 바뀐 값을 실어야 한다")
                 .hasSize(skewedValues.size())
-                .allSatisfy(event -> assertThat(event.recordedAt().toInstant()).isEqualTo(now().toInstant()));
+                .allSatisfy(event -> assertThat(event.recordedAt().toInstant()).isEqualTo(OffsetDateTime.now(clock).toInstant()));
     }
 
     /** 위 시험의 짝 — 경계 안쪽(±4분)은 통과한다("항상 거절" 로 구현해도 통과하는 함정 방지). */
@@ -297,16 +293,16 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
-        List<OffsetDateTime> nearbyValues = List.of(now().plusMinutes(4), now().minusMinutes(4));
+        List<OffsetDateTime> nearbyValues = List.of(OffsetDateTime.now(clock).plusMinutes(4), OffsetDateTime.now(clock).minusMinutes(4));
         for (OffsetDateTime nearby : nearbyValues) {
             mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                    .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                    .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                             {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
@@ -332,35 +328,35 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
         long firstStopId = fixtures.stop(academyId, "37.500000", "127.000000");
-        long firstRunStopId = fixtures.runStopForStop(versionId, firstStopId, 1, now().minusMinutes(5));
+        long firstRunStopId = fixtures.runStopForStop(versionId, firstStopId, 1, OffsetDateTime.now(clock).minusMinutes(5));
         long secondStopId = fixtures.stop(academyId, "37.510000", "127.010000");
-        long secondRunStopId = fixtures.runStopForStop(versionId, secondStopId, 2, now().minusMinutes(2));
-        OffsetDateTime nextEta = now().plusMinutes(7);
+        long secondRunStopId = fixtures.runStopForStop(versionId, secondStopId, 2, OffsetDateTime.now(clock).minusMinutes(2));
+        OffsetDateTime nextEta = OffsetDateTime.now(clock).plusMinutes(7);
         fixtures.runStopForStop(versionId, fixtures.stop(academyId, "37.520000", "127.020000"), 3, nextEta);
         fixtures.runStopForDestination(versionId, 4);
         // 엔티티로 도착 처리한다 — JDBC 로 바꾸면 같은 트랜잭션의 영속성 컨텍스트가 들고 있는 옛 엔티티가 그대로 읽힌다.
         // 도착한 정차를 둘로 둔다 — "도착 정차 중 seq 최댓값" 이 현재 정차지이고 다음 ETA 는 그 뒤 첫 정차의 것이다(BR-341)
         for (long runStopId : new long[] { firstRunStopId, secondRunStopId }) {
             RunStop arrived = runStopRepository.findById(runStopId).orElseThrow();
-            arrived.markArrived(now());
+            arrived.markArrived(OffsetDateTime.now(clock));
             runStopRepository.saveAndFlush(arrived);
         }
         String secondStopName = jdbcTemplate.queryForObject("SELECT name FROM stop WHERE id = ?", String.class,
                 secondStopId);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s"}
-                        """.formatted(now().minusSeconds(3))))
+                        """.formatted(OffsetDateTime.now(clock).minusSeconds(3))))
                 .andExpect(status().isNoContent());
 
         RunPositionReceivedEvent event = capturedEvents.events().get(0);
@@ -375,19 +371,19 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         String template = """
                 {"lat": 37.501000, "lng": 127.001000, "recorded_at": "%s", "speed": %s, "heading": %s}
                 """;
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(template.formatted(now().minusSeconds(3), "32.5", "270.0")))
+                .content(template.formatted(OffsetDateTime.now(clock).minusSeconds(3), "32.5", "270.0")))
                 .andExpect(status().isNoContent());
         java.util.Map<String, Object> row = jdbcTemplate.queryForMap(
                 "SELECT speed, heading FROM run_position WHERE run_id = ?", runId);
@@ -395,9 +391,9 @@ class RunPositionCommandServiceTest {
         assertThat((java.math.BigDecimal) row.get("heading")).isEqualByComparingTo("270.0");
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(template.formatted(now().minusSeconds(1), "1000", "361")))
+                .content(template.formatted(OffsetDateTime.now(clock).minusSeconds(1), "1000", "361")))
                 .andExpect(status().isUnprocessableContent());
     }
 
@@ -409,16 +405,16 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(9);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(9);
         long runId = fixtures.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime);
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"lat": 37.5, "lng": 127.0, "recorded_at": "%s"}
-                        """.formatted(now())))
+                        """.formatted(OffsetDateTime.now(clock))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_MOVING"));
 
@@ -431,21 +427,21 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         Run run = runRepository.findById(runId).orElseThrow();
-        run.finish(now());
+        run.finish(OffsetDateTime.now(clock));
         runRepository.save(run);
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(driverAccountId, academyId, Role.DRIVER))
+                .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"lat": 37.5, "lng": 127.0, "recorded_at": "%s"}
-                        """.formatted(now())))
+                        """.formatted(OffsetDateTime.now(clock))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_MOVING"));
 
@@ -458,18 +454,18 @@ class RunPositionCommandServiceTest {
         DriverRunFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", now());
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long escortAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자", OffsetDateTime.now(clock));
 
         mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
-                .header("Authorization", 토큰(escortAccountId, academyId, Role.ESCORT))
+                .header("Authorization", 토큰(tokenProvider, escortAccountId, academyId, Role.ESCORT))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"lat": 37.5, "lng": 127.0, "recorded_at": "%s"}
-                        """.formatted(now())))
+                        """.formatted(OffsetDateTime.now(clock))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("DRIVER_ONLY"));
 
@@ -480,9 +476,5 @@ class RunPositionCommandServiceTest {
         Integer count = jdbcTemplate.queryForObject("SELECT count(*) FROM run_position WHERE run_id = ?",
                 Integer.class, runId);
         assertThat(count).as("거절된 호출은 이력을 남기면 안 된다").isEqualTo(0);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }

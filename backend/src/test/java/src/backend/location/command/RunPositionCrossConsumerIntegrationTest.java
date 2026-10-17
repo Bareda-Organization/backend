@@ -143,7 +143,6 @@ class RunPositionCrossConsumerIntegrationTest {
     @Autowired
     private ChangeRequestRepository changeRequestRepository;
 
-
     /** 이 클래스가 만든 학원 id — 뒷정리가 이 값으로만 지운다(다른 좌석·다른 시험의 행을 건드리지 않는다). */
     private final List<Long> academyIds = new ArrayList<>();
 
@@ -152,10 +151,6 @@ class RunPositionCrossConsumerIntegrationTest {
                 accountRepository, managerRepository, assignmentRepository, runRepository, confirmedRouteRepository,
                 routeVersionRepository, runStopRepository, runRiderRepository, academyStaffRepository,
                 guardianRepository, guardianStudentRepository, changeRequestRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
     }
 
     /** FK 순서 — notification_log → run_position → run(계단식 assignment·confirmed_route·route_version·
@@ -190,18 +185,18 @@ class RunPositionCrossConsumerIntegrationTest {
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.500000", STOP_LNG);
         long studentId = fixtures.student(academyId, "교차소비자시험학생");
-        long guardianAccountId = fixtures.guardianOf(academyId, studentId, "교차소비자시험학부모", now());
+        long guardianAccountId = fixtures.guardianOf(academyId, studentId, "교차소비자시험학부모", OffsetDateTime.now(clock));
 
-        OffsetDateTime departTime = now();
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        fixtures.startRun(runId, now());
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now());
-        long versionId = fixtures.confirmedRouteWithVersion(runId, now());
-        fixtures.runStopForStop(versionId, stopId, 1, now().plusMinutes(10));
+        fixtures.startRun(runId, OffsetDateTime.now(clock));
+        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+        long versionId = fixtures.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock));
+        fixtures.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock).plusMinutes(10));
         fixtures.rider(runId, studentId, stopId, RiderStatus.WAITING, null);
 
-        OffsetDateTime recordedAt = now().minusSeconds(2);
+        OffsetDateTime recordedAt = OffsetDateTime.now(clock).minusSeconds(2);
         String body = """
                 {"lat": %s, "lng": %s, "recorded_at": "%s"}
                 """.formatted(NEAR_LAT, STOP_LNG, recordedAt);

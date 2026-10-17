@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,7 +22,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.SeedDateClockConfig;
@@ -59,18 +60,14 @@ class RedisReadOutsideTransactionTest {
             return invocation.callRealMethod();
         }).when(runPositionStore).find(any());
 
-        호출한다("/api/v1/staff/runs/live", 토큰(2L, ACADEMY_A, Role.STAFF));
-        호출한다("/api/v1/admin/academies/%d/runs/live".formatted(ACADEMY_A), 토큰(1L, null, Role.SYSTEM_ADMIN));
-        호출한다("/api/v1/students/2/bus-position", 토큰(5L, ACADEMY_A, Role.PARENT));
+        호출한다("/api/v1/staff/runs/live", 토큰(tokenProvider, 2L, ACADEMY_A, Role.STAFF));
+        호출한다("/api/v1/admin/academies/%d/runs/live".formatted(ACADEMY_A), 메인관리자_토큰(tokenProvider, 1L));
+        호출한다("/api/v1/students/2/bus-position", 토큰(tokenProvider, 5L, ACADEMY_A, Role.PARENT));
 
         assertThat(activeAtCall).as("3종의 Redis 호출이 모두 관측돼야 한다").hasSizeGreaterThanOrEqualTo(3).containsOnly(false);
     }
 
     private void 호출한다(String path, String token) throws Exception {
         mockMvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk());
-    }
-
-    private String 토큰(long accountId, Long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }
