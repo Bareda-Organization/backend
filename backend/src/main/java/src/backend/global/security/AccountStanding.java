@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -39,21 +40,31 @@ public class AccountStanding {
     private static final int CACHE_LIMIT = 20_000;
 
     /** 질의 결과와 그 값을 믿을 수 있는 마지막 시각(epoch ms). */
-    private record Cached(boolean lost, long expiresAtMillis) {
+    record Cached(boolean lost, long expiresAtMillis) {
     }
 
     private final AccountRepository accountRepository;
     private final Clock clock;
     private final Duration cacheTtl;
-    private final Map<Long, Cached> cache = new ConcurrentHashMap<>();
-    /** 비움이 일어날 때마다 오른다 — 질의 도중에 비움이 끼어들면 그 질의 결과를 보관하지 않는다(옛 값이 비움 뒤에 되살아나는 것을 막는다). */
+    private final Map<Long, Cached> cache;
+    /**
+     * 비움이 일어날 때마다 오른다 — 질의를 시작할 때 읽어 둔 값과 보관하는 순간의 값이 다르면 그 질의 결과를 보관하지 않는다(옛 값이 비움 뒤에 되살아나는 것을 막는다).
+     * 비교와 보관은 같은 키의 {@code compute} 안에서 하고 {@link #evict} 의 {@code remove} 도 같은 키 잠금을 쓰므로, 비움은 비교 앞이거나 보관 뒤일 수밖에 없다.
+     */
     private final AtomicLong evictions = new AtomicLong();
 
+    @Autowired
     public AccountStanding(AccountRepository accountRepository, Clock clock,
             @Value("${app.security.account-standing-cache-ttl:5s}") Duration cacheTtl) {
+        this(accountRepository, clock, cacheTtl, new ConcurrentHashMap<>());
+    }
+
+    /** 보관 맵을 바꿔 끼울 수 있는 생성자 — 시험이 비움이 보관 직전에 끼어드는 순간을 만들어 낸다. */
+    AccountStanding(AccountRepository accountRepository, Clock clock, Duration cacheTtl, Map<Long, Cached> cache) {
         this.accountRepository = accountRepository;
         this.clock = clock;
         this.cacheTtl = cacheTtl;
+        this.cache = cache;
     }
 
     /** 이 계정이 권한을 잃었으면 참 — 계정 행이 없으면 거짓(알 수 없는 것을 잃었다고 읽지 않는다). */
@@ -68,9 +79,7 @@ public class AccountStanding {
         }
         long epoch = evictions.get();
         boolean lost = queryLost(accountId);
-        if (epoch == evictions.get()) {
-            store(accountId, new Cached(lost, now + cacheTtl.toMillis()), now);
-        }
+        store(accountId, new Cached(lost, now + cacheTtl.toMillis()), now, epoch);
         return lost;
     }
 
@@ -94,13 +103,14 @@ public class AccountStanding {
         return !accountRepository.findIdsWithLostStanding(List.of(accountId)).isEmpty();
     }
 
-    private void store(Long accountId, Cached entry, long now) {
+    /** 질의를 시작한 뒤 비움이 한 번도 없었을 때만 보관한다 — 비교와 보관을 한 키 안에서 한꺼번에 해 그 사이에 비움이 끼어들 수 없다. */
+    private void store(Long accountId, Cached entry, long now, long epochAtQueryStart) {
         if (cache.size() >= CACHE_LIMIT) {
             cache.values().removeIf(cached -> now >= cached.expiresAtMillis());
             if (cache.size() >= CACHE_LIMIT) {
                 cache.clear();
             }
         }
-        cache.put(accountId, entry);
+        cache.compute(accountId, (id, current) -> epochAtQueryStart == evictions.get() ? entry : current);
     }
 }
