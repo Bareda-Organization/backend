@@ -45,13 +45,13 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     Optional<EmergencyAlert> findByClientKey(UUID clientKey);
 
     /**
-     * 취소 대상 1건(목표 9) — 발신자 자신의 회차·학원으로 다시 좁힌다. 남의 신고를 {@code id} 로
+     * 취소 대상 1건 — 발신자 자신의 회차·학원으로 다시 좁힌다. 남의 신고를 {@code id} 로
      * 지목해도 이 조회가 빈 결과를 내 {@code 404 EMERGENCY_NOT_FOUND} 로 응답한다(존재 여부를
      * 드러내지 않는다, {@code StopNotFound} 와 같은 형태).
      */
     Optional<EmergencyAlert> findByIdAndRunIdAndAcademyId(Long id, Long runId, Long academyId);
 
-    /** 확인 처리 대상 1건(목표 10) — 학원 관계자 화면은 회차를 모르고 신고 id 만 안다. */
+    /** 확인 처리 대상 1건 — 학원 관계자 화면은 회차를 모르고 신고 id 만 안다. */
     Optional<EmergencyAlert> findByIdAndAcademyId(Long id, Long academyId);
 
     /**
@@ -109,7 +109,7 @@ public interface EmergencyAlertRepository extends JpaRepository<EmergencyAlert, 
     List<EmergencyAlert> findAllByRunIdAndAcademyIdOrderByReceivedAtDesc(Long runId, Long academyId);
 
     /**
-     * 메인 관리자 콘솔의 전 학원 비상 알림 목록(목표 11, {@code GET /admin/emergencies}) —
+     * 메인 관리자 콘솔의 전 학원 비상 알림 목록({@code GET /admin/emergencies}) —
      * {@code /admin} 은 학원 격리의 명시적 예외다(§1.5, {@code AcademyStaffRepository
      * #findStaffAccountsForConsole} 과 같은 근거). 좁힐 학원이 없는 이유도 같다: 이 화면 자체가
      * 여러 학원을 한 목록에서 보기 위한 것이다.

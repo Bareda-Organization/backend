@@ -20,7 +20,7 @@ import src.backend.exception.entity.NoShowCase;
 import src.backend.exception.repository.NoShowCaseRepository;
 
 /**
- * 미승차 에스컬레이션 폴링의 진입점(목표 1, API_SPEC §4.8) — 대기 만료 + 무응답 케이스를 모아
+ * 미승차 에스컬레이션 폴링의 진입점(API_SPEC §4.8) — 대기 만료 + 무응답 케이스를 모아
  * {@link NoShowEscalationPersistence#escalateOne} 을 건별로 부른다. {@code ChangeRequestAutoRejectionScheduler}
  * 와 같은 골격(배치 상한 · 건별 격리 · 초기 지연 설정 · 전용 스레드 풀 없음)이다.
  *

@@ -48,7 +48,7 @@ import src.backend.student.repository.StopRepository;
 
 /**
  * 승인 상세(§5.5 상세)의 온디맨드 미리보기 계산 오케스트레이션 — 명단·기준점을 만들고, 캐시를 먼저
- * 보고 없을 때만 {@link RouteComputationPipeline} 을 부른다(목표 12 의 호출 수 계약 본체가 여기 있다).
+ * 보고 없을 때만 {@link RouteComputationPipeline} 을 부른다(호출 수 계약 본체가 여기 있다).
  *
  * <p>같은 계산 코드를 확정 배치({@link src.backend.run.command.RunConfirmationService})와 공유하되
  * 실행 정책만 다르다(ARCHITECTURE §8.3) — 관리자가 화면 앞에서 기다리므로 배치보다 짧은 타임아웃의
@@ -161,7 +161,7 @@ public class ApprovalPreviewResolver {
 
     /**
      * 캐시 조회·계산을 한곳에 모은다 — 지문이 일치하는 캐시가 있으면 파이프라인을 <b>부르지 않고</b>
-     * 같은 토큰을 돌려준다(호출 수 검증의 본체, 목표 12). 지문이 어긋나거나 캐시가 없으면 새로
+     * 같은 토큰을 돌려준다(호출 수 검증의 본체). 지문이 어긋나거나 캐시가 없으면 새로
      * 계산하고, <b>기존 값을 대체하는 경우에만</b> {@code stale=true} 를 돌려준다 — 첫 조회는 대체할
      * 낡은 값 자체가 없으므로 낡았다고 말할 수 없다.
      */

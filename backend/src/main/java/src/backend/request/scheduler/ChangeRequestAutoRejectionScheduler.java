@@ -28,7 +28,7 @@ import src.backend.request.repository.ChangeRequestRepository;
  * <b>전용 스레드 풀을 두지 않는다</b> — 그쪽은 외부 지도 API 호출(느린 I/O)을 여러 건 동시에 흘려보낼
  * 이유가 있었지만, 이쪽은 DB 조건부 UPDATE 하나뿐이라 순차 처리로도 한 틱(30초)을 넘길 근거가 없다.
  *
- * <p><b>한 건의 실패가 다른 건을 막지 않는다</b>(목표 5) — 건마다 개별 {@code try-catch} 로 감싼다.
+ * <p><b>한 건의 실패가 다른 건을 막지 않는다</b> — 건마다 개별 {@code try-catch} 로 감싼다.
  * 실패한 건은 {@code pending} 으로 남아(그 건의 트랜잭션만 롤백) 다음 틱에 다시 대상이 된다 —
  * {@code Run} 과 달리 이 엔티티에는 실패 횟수 카운터가 없어 별도로 기록할 것도 없다.
  */
@@ -40,7 +40,7 @@ public class ChangeRequestAutoRejectionScheduler {
     private static final String REJECTED_METRIC = "schoolbus.change_request.auto_rejected";
 
     /**
-     * 한 틱이 한 번에 집는 상한(목표 6) — 상한 없이 전건을 집으면 마감이 몰린 틱 하나가 커넥션을
+     * 한 틱이 한 번에 집는 상한 — 상한 없이 전건을 집으면 마감이 몰린 틱 하나가 커넥션을
      * 오래 붙든다({@code ChangeRequestRepository.findByStatusAndDeadlineAtLessThanEqual} 의
      * {@code pageable} 이 이 값을 받는다).
      */
@@ -82,7 +82,7 @@ public class ChangeRequestAutoRejectionScheduler {
     }
 
     /**
-     * 요청 1건을 자동 거절하고, 무엇이 됐든 실패를 삼켜 다음 틱으로 넘긴다(목표 5).
+     * 요청 1건을 자동 거절하고, 무엇이 됐든 실패를 삼켜 다음 틱으로 넘긴다.
      *
      * <p>{@code BusinessException} 처럼 예상한 실패로 좁히지 않고 {@link Exception} 전체를 잡는다 —
      * 좁히면 예상 못 한 버그가 이 루프를 끊어 <b>이 틱의 나머지 건 처리 여부와 무관하게 배치 자체가

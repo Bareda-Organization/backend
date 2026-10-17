@@ -24,7 +24,7 @@ public record RiderStatusUpdateResponse(Long riderId, String status, OffsetDateT
         return new RiderStatusUpdateResponse(riderId, status, changedAt, null, stopSkipped);
     }
 
-    /** 미승차 응답 — {@link NoShowCaseSummary} 를 함께 싣는다(목표 7). */
+    /** 미승차 응답 — {@link NoShowCaseSummary} 를 함께 싣는다. */
     public static RiderStatusUpdateResponse withNoShowCase(Long riderId, OffsetDateTime changedAt,
             NoShowCaseSummary noShowCase, boolean stopSkipped) {
         return new RiderStatusUpdateResponse(riderId, "no_show", changedAt, noShowCase, stopSkipped);

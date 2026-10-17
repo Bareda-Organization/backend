@@ -124,8 +124,8 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     Optional<RunRider> findByIdAndRunIdAndStatusNot(Long id, Long runId, RiderStatus excludedStatus);
 
     /**
-     * 회차 1건의 명단 전체(목표 11, 하원 시작 시 일괄 승차) — {@link #findAllByRunIdAndAcademyId} 와
-     * 달리 학원 조인이 없다. 호출부(T2 의 회차 시작 커맨드)가 이미 {@code RunRepository
+     * 회차 1건의 명단 전체(하원 시작 시 일괄 승차) — {@link #findAllByRunIdAndAcademyId} 와
+     * 달리 학원 조인이 없다. 호출부(회차 시작 커맨드)가 이미 {@code RunRepository
      * .findByIdAndAcademyId} 로 학원 범위를 확인한 뒤 그 {@code runId} 만 넘긴다는 전제다.
      */
     @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
@@ -165,7 +165,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
 
     /**
      * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자 수 — {@code no_show} 도 잔여 0명 판정에서
-     * 빠져야 한다(목표 7). 다중값 NOT 제외를 메서드명만으로 표현할 수 없어 {@code @Query} 로 직접 쓴다.
+     * 빠져야 한다. 다중값 NOT 제외를 메서드명만으로 표현할 수 없어 {@code @Query} 로 직접 쓴다.
      *
      * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
      */
@@ -262,9 +262,9 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             @Param("stopIds") Collection<Long> stopIds);
 
     /**
-     * 그 승하차지를 출발할 때(Ruling 308, docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 3·9) 확정 결과를 통지할 학생 명단 — 승차·
-     * 하차·미승차 3종만 대상이다. {@code waiting} 인 채 출발한 학생은 발송 대상이 아니다(목표 9)
-     * 이라 이 조회가 이미 걸러 낸다. {@code absent} 도 뺀다 — 결석은 운행 중 승하차 처리 결과가
+     * 그 승하차지를 출발할 때(Ruling 308) 확정 결과를 통지할 학생 명단 — 승차·
+     * 하차·미승차 3종만 대상이다. {@code waiting} 인 채 출발한 학생은 발송 대상이 아니다.
+     * 이 조회가 이미 걸러 낸다. {@code absent} 도 뺀다 — 결석은 운행 중 승하차 처리 결과가
      * 아니라 사전에 확정된 상태라 이 통지의 대상이 아니다(근접 알림의 {@code excludingAbsent} 와
      * 같은 근거).
      *

@@ -118,7 +118,7 @@ public interface ChangeRequestRepository extends JpaRepository<ChangeRequest, Lo
     List<ChangeRequest> findAllByAcademyIdAndRunIdAndStatus(Long academyId, Long runId, ChangeRequestStatus status);
 
     /**
-     * 도래분 자동 거절을 조건부 UPDATE 로 반영한다(목표 6·목표 4 동시성) — 영향받은 행 수로 성공
+     * 도래분 자동 거절을 조건부 UPDATE 로 반영한다(동시성) — 영향받은 행 수로 성공
      * 여부를 판정한다. {@code WHERE status = 'pending'} 조건 하나가 멱등성의 전부다 — 폴링과
      * {@code moving} 종결 서비스가 같은 건을 동시에 집어도, 먼저 행 잠금을 얻은 쪽만 갱신하고
      * 나중 쪽은 0행을 받는다({@code RunRepository.confirmIfIdle} 과 같은 근거). {@code SELECT} 로

@@ -118,7 +118,7 @@ public class RunRider extends BaseTimeEntity {
     }
 
     /**
-     * 하원 회차 시작 시 배치가 명단 전원을 일괄 승차 처리한다(C-07 · BRD-03, 목표 11).
+     * 하원 회차 시작 시 배치가 명단 전원을 일괄 승차 처리한다(C-07 · BRD-03).
      *
      * <p>{@link #board} 와 저장 값 자체는 같지만(상태·{@code changed_at}) 메서드를
      * 따로 둔다 — 동승자가 개별 확인한 것과 시스템이 일괄 반영한 것은 이력에 어떤 {@code actor_type}

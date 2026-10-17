@@ -164,8 +164,8 @@ public class ChangeRequestStore {
     }
 
     /**
-     * ②구간 — 대기 상태로 접수하고 회차당 1회 한도를 소비한다(목표 5). RELOCATE·CANCEL 이 같은 큐·같은
-     * 한도를 공유한다 — 실제 반영은 관리자 승인(T5 소유) 이후다.
+     * ②구간 — 대기 상태로 접수하고 회차당 1회 한도를 소비한다. RELOCATE·CANCEL 이 같은 큐·같은
+     * 한도를 공유한다 — 실제 반영은 관리자 승인 이후다.
      */
     private void applyApprovalRequired(ChangeRequest changeRequest, Student student, Run run, OffsetDateTime now) {
         BoardingIntent boardingIntent = findOrCreateIntent(run.getId(), student.getId(), now);

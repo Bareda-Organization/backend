@@ -96,15 +96,15 @@ public class BoardingCommandService {
     private final RunStopRepository runStopRepository;
 
     /**
-     * 하원 자동 종료 판정(목표 10, T2 소유) 협력자 — 이 클래스는 마지막 하차 뒤 호출만 하고 전이
+     * 하원 자동 종료 판정 협력자 — 이 클래스는 마지막 하차 뒤 호출만 하고 전이
      * 로직 자체는 구현하지 않는다. {@code alighted} 처리마다 무조건 호출해도 안전하다(내부에서
      * 하원·종료 대상이 아니면 no-op).
      */
     private final RunCompletionService runCompletionService;
 
     /**
-     * 운행 종료 시 도착 여부와 무관하게 미출발로 남은 승하차지 전부를 강제로 출발 처리하는 협력자(Ruling 312, 목표
-     * 8) — 마지막 승하차지는 다음 정차지가 없어 {@code RunArrivalCommandService} 의 폴백(목표 7)을
+     * 운행 종료 시 도착 여부와 무관하게 미출발로 남은 승하차지 전부를 강제로 출발 처리하는 협력자(Ruling 312) —
+     * 마지막 승하차지는 다음 정차지가 없어 {@code RunArrivalCommandService} 의 폴백을
      * 못 받으므로, 이 시점에 한 번 더 쓸어낸다.
      */
     private final StopDepartureService stopDepartureService;
@@ -122,7 +122,7 @@ public class BoardingCommandService {
     private final Clock clock;
 
     /**
-     * 승하차 처리(BRD-01·02·04·06) — {@code client_key} 재전송(목표 12)은 새 이력·이벤트를 남기지
+     * 승하차 처리(BRD-01·02·04·06) — {@code client_key} 재전송은 새 이력·이벤트를 남기지
      * 않고 이미 처리된 결과를 그대로 재구성해 돌려준다. 그 재구성이 이 메서드의 <b>가장 먼저</b>
      * 갈리는 분기다 — 회차 상태·탑승자 존재는 최초 처리 시점에 이미 확인됐던 것이라 재확인하면
      * 그 사이 회차가 종료된 정상 재전송까지 {@code 409} 로 막아 버린다.
@@ -222,7 +222,7 @@ public class BoardingCommandService {
                 requester.accountId())));
         syncNoShowAfterRevert(run, rider, fromStatus, targetStatus, now);
 
-        // WebSocket rider_changed 방송(API_SPEC §7.1)의 트리거 표가 revert 도 명시한다 — T2 소유 목표 4·5·6.
+        // WebSocket rider_changed 방송(API_SPEC §7.1)의 트리거 표가 revert 도 명시한다.
         // 알림 로그 적재 리스너(BoardingNotificationListener)는 이제 이 이벤트를 구독하지 않는다 —
         // 출발 전 되돌리기는 발송 전 수정이라 정정할 대상이 없다(Ruling 308 이 Ruling 219 를 대체).
         eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
@@ -239,10 +239,10 @@ public class BoardingCommandService {
     }
 
     /**
-     * 승하차지를 떠난 뒤의 되돌리기를 막는다(목표 6b, Ruling 307) — {@code run_stop.departed_at IS
+     * 승하차지를 떠난 뒤의 되돌리기를 막는다(Ruling 307) — {@code run_stop.departed_at IS
      * NOT NULL} 이 유일한 판정 기준이다({@link src.backend.location.proximity.ProximityNotificationService
      * #judgeRun} 가 도착 후 100m 이탈 최초 1회를 이 컬럼에 기록한다). 뒤 순번 정차지 참조에 기대던 파생 규칙은
-     * 폐기했다 — 마지막 승하차지는 뒤 순번이 없어 영원히 되돌릴 수 있는 구멍이 있었다(목표 6c).
+     * 폐기했다 — 마지막 승하차지는 뒤 순번이 없어 영원히 되돌릴 수 있는 구멍이 있었다.
      *
      * <p>출발 여부를 <b>행 잠금</b>으로 읽는다({@link #isStopDepartedLocked}) — 잠금 없이 읽으면 출발 선점이 이 읽기와 커밋 사이에 끼어
      * 출발 알림이 나간 뒤 되돌려진다. 확정 노선(버전)이 아직 없거나 그 학생의 정차 항목 자체를 찾지 못하면 판정 재료가
@@ -297,7 +297,7 @@ public class BoardingCommandService {
     }
 
     /**
-     * 하원 자동 종료 경계(목표 10, T2 소유) — 방금 처리한 하차·미승차(BR-031)가 그 회차의 마지막 잔여 탑승자였는지를
+     * 하원 자동 종료 경계 — 방금 처리한 하차·미승차(BR-031)가 그 회차의 마지막 잔여 탑승자였는지를
      * {@link RunCompletionService} 에 위임해 묻고, 그 호출로 실제 종료됐을 때만
      * {@link RunEndedEvent} 를 발행한다. 반환값을 무시하고 매번(또는 전혀) 발행하면 알림이 잔류자가
      * 있는 회차에도 나가거나 정작 종료된 회차에서 나가지 않는 결함이 된다 — 이 분기 자체가 T3 이
@@ -306,8 +306,8 @@ public class BoardingCommandService {
     private void notifyIfRunJustEnded(Run run, OffsetDateTime now) {
         boolean justEnded = runCompletionService.completeIfAllAlighted(run, now);
         if (justEnded) {
-            // 마지막 승하차지 강제 출발(Ruling 312, 목표 8) — 이 시점의 최종 지점은 다음 정차지가
-            // 없어 RunArrivalCommandService 의 폴백(목표 7)을 받지 못한다.
+            // 마지막 승하차지 강제 출발(Ruling 312) — 이 시점의 최종 지점은 다음 정차지가
+            // 없어 RunArrivalCommandService 의 폴백을 받지 못한다.
             stopDepartureService.forceAllRemaining(run.getId(), run.getAcademyId(), now);
             // auto_alighted_count 는 등원 종료 때 자동 하차된 수다. 이 경로는 하원의 마지막 수동 하차라 0 이다
             // (하원 종료는 어느 경로든 0 — RunArrivalCommandService 의 하원 최종 지점 도착과 같은 값).
@@ -338,7 +338,7 @@ public class BoardingCommandService {
     }
 
     /**
-     * 미승차 대기 카운트다운을 시작한다 — 학원별 대기 시간(목표 2) 뒤 만료. 탑승자당 케이스는 1개
+     * 미승차 대기 카운트다운을 시작한다 — 학원별 대기 시간 뒤 만료. 탑승자당 케이스는 1개
      * ({@code uk_no_show_case_run_rider})라, 되돌린 뒤 다시 미승차면 기존 케이스를 재개한다(BR-009).
      */
     private NoShowCaseView openNoShowCase(Run run, RunRider rider, OffsetDateTime now) {
@@ -384,7 +384,7 @@ public class BoardingCommandService {
     }
 
     /**
-     * 재전송 응답 재구성(목표 12) — 새로 아무것도 만들지 않고 최초 처리 결과를 그대로 옮긴다.
+     * 재전송 응답 재구성 — 새로 아무것도 만들지 않고 최초 처리 결과를 그대로 옮긴다.
      * {@code no_show_case} 는 최초 처리 때 만들어진 케이스를 다시 찾아 싣는다.
      */
     private RiderStatusUpdateResponse replayResponse(RiderStatusHistory history) {

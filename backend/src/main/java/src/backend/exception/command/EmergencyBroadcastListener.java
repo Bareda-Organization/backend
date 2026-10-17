@@ -23,12 +23,12 @@ import src.backend.global.websocket.WebSocketDestinations;
  * (AFTER_COMMIT)} 근거는 {@code run.command.RunStartedBroadcastListener} 와 같다.
  *
  * <p><b>{@link WebSocketBroadcastGateway#broadcastToRunChannels} 를 쓰지 않는다</b> — 그 메서드는
- * 회차 명단 학생 채널({@code /topic/students/{id}/run})까지 항상 포함하는데, 목표 7(학부모·학생
+ * 회차 명단 학생 채널({@code /topic/students/{id}/run})까지 항상 포함하는데, 비상 알림 수신 제한(학부모·학생
  * 계정은 비상 알림을 받지 않는다)이 이 리스너에도 그대로 적용된다. 채널 4종 팬아웃을 그대로
- * 재사용하면 학생 채널로 비상 상황이 새 나가 목표 7을 어긴다 — 그래서 이 리스너는
+ * 재사용하면 학생 채널로 비상 상황이 새 나가 그 제한을 어긴다 — 그래서 이 리스너는
  * {@link WebSocketBroadcastGateway#send} 를 채널별로 직접 호출해 학생 채널을 구조적으로 뺀다.
  *
- * <p>확인(ack) 방송에만 {@code managerRun(runId)} 를 더한다 — 목표 10 "발신자 앱에 확인이
+ * <p>확인(ack) 방송에만 {@code managerRun(runId)} 를 더한다 — "발신자 앱에 확인이
  * 반영된다" 를 만족하는 자리가 여기다. 접수·취소는 발신자 자신이 이미 그 REST 응답으로 결과를
  * 아는 동작이라 자신의 채널에 다시 쏠 필요가 없다.
  */

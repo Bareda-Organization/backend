@@ -52,7 +52,7 @@ public class RunRiderPersistence {
      * 확정 배치가 처음 만드는 탑승자 명단({@code run} 소유 {@code RunConfirmationPersistence#persist}
      * 전용) — 좌표를 얻지 못해 계산에서 분리된 학생({@code unresolvedStudentIds})은 명단에서도 뺀다.
      * OFF 학생은 {@code absent}, 출발 이동 학생은 {@code absent · removed}, 당일 추가 학생은
-     * {@code added} 로 남긴다(목표 2와 같은 근거).
+     * {@code added} 로 남긴다.
      *
      * <p><b>한 문장 다중 행 INSERT 로 저장한다</b>(DA-8, Ruling 899) — 키가 IDENTITY 라 엔티티 {@code saveAll} 은 학생 수만큼 INSERT 를
      * 따로 내 확정 트랜잭션이 연결을 오래 쥐었다. 만든 행의 키는 호출부가 쓰지 않아 돌려주지 않는다.

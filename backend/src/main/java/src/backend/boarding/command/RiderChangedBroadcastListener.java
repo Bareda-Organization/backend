@@ -22,7 +22,7 @@ import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@code rider_changed} 방송(API_SPEC §7.1) — 매니저·학원·관리자 채널(목표 5, C-08·§1.12: 학부모·
+ * {@code rider_changed} 방송(API_SPEC §7.1) — 매니저·학원·관리자 채널(C-08·§1.12: 학부모·
  * 학생 채널은 이 이벤트를 받지 않는다). {@code @TransactionalEventListener(AFTER_COMMIT)} 근거는
  * {@code run.command.RunStartedBroadcastListener} 와 같다.
  *

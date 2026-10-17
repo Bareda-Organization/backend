@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
- * 비상 신고 접수 응답(API_SPEC §4.14, BE-R1 목표 1) — 취소 호출({@code DELETE
+ * 비상 신고 접수 응답(API_SPEC §4.14) — 취소 호출({@code DELETE
  * /runs/{runId}/emergency/{id}})에 쓸 id 를 준다.
  *
  * <p>{@code emergencyId} 는 문자열이다 — 이 저장소의 확정 관례(§1.1, {@code

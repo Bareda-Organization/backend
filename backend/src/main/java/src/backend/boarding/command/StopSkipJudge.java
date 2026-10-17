@@ -31,7 +31,7 @@ public class StopSkipJudge {
     /** 운행 중 미승차로 잔여 0명이 된 정차지에 남기는 사유(C-05, {@code run_stop.skip_notice}). */
     private static final String SKIP_NOTICE = "운행 중 미승차로 전원 미탑승";
 
-    /** 잔여 판정 시 제외할 상태 — 이미 결석·미승차로 처리된 탑승자는 잔여가 아니다(목표 7). */
+    /** 잔여 판정 시 제외할 상태 — 이미 결석·미승차로 처리된 탑승자는 잔여가 아니다. */
     private static final List<RiderStatus> NOT_REMAINING = List.of(RiderStatus.ABSENT, RiderStatus.NO_SHOW);
 
     private final RunRiderRepository runRiderRepository;
@@ -44,7 +44,7 @@ public class StopSkipJudge {
      * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자가 0명이면 확정 노선의 정차 항목을
      * {@code skipped} 로 표시하고 {@code true} 를 돌려준다(C-05 후자 경로, §4.6 {@code stop_skipped}).
      *
-     * <p>{@code no_show} 도 잔여 판정에서 빼야 한다(목표 7) — 호출 직전에 그 탑승자 자신이 이미
+     * <p>{@code no_show} 도 잔여 판정에서 빼야 한다 — 호출 직전에 그 탑승자 자신이 이미
      * {@code NO_SHOW} 로 바뀐 상태라, {@code ABSENT} 만 빼면 자신을 스스로 "남은 사람"으로 세어
      * 잔여가 영원히 0이 되지 않는다.
      */

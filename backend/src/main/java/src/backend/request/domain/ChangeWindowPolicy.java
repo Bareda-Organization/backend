@@ -37,7 +37,7 @@ public final class ChangeWindowPolicy {
 
     /**
      * {@code now} 는 반드시 주입된 {@code Clock} 에서 얻은 서버 시계여야 한다 — 요청에 실린
-     * {@code requested_at} 을 넘기면 "판정 주체는 서버 시계다"(목표 14, Ruling 194)가 깨진다. 그래서
+     * {@code requested_at} 을 넘기면 "판정 주체는 서버 시계다"(Ruling 194)가 깨진다. 그래서
      * 이 시그니처는 애초에 요청 접수 시각을 받는 파라미터를 두지 않는다.
      *
      * <p>{@code run.confirmAt} 은 컬럼값을 그대로 읽는다 — {@code RunConfirmationPolicy.confirmAtOf}

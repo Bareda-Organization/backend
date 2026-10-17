@@ -24,7 +24,7 @@ import src.backend.exception.dto.StaffNoShowCaseView;
 public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
 
     /**
-     * 그 탑승자의 미승차 케이스 — {@code run_rider_id} 가 UNIQUE 라 한 건 이하다(목표 7·12, 응답의
+     * 그 탑승자의 미승차 케이스 — {@code run_rider_id} 가 UNIQUE 라 한 건 이하다(응답의
      * {@code no_show_case} 조립 근거).
      *
      * <p>{@code runRiderId} 는 호출부가 {@code RunRiderRepository.findByIdAndRunIdAndStatusNot} 으로
@@ -56,7 +56,7 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
     List<NoShowCase> findDueForEscalation(@Param("now") OffsetDateTime now, Pageable pageable);
 
     /**
-     * 에스컬레이션을 조건부 UPDATE 로 반영한다(목표 1, 동시성) — 영향받은 행 수로 성공 여부를
+     * 에스컬레이션을 조건부 UPDATE 로 반영한다(동시성) — 영향받은 행 수로 성공 여부를
      * 판정한다. {@code WHERE escalated_at IS NULL AND resolved_at IS NULL} 재확인이 멱등성의 전부다 —
      * 스케줄러 틱 두 번이 같은 케이스를 동시에 집어도, 먼저 행 잠금을 얻은 쪽만 갱신하고 나중 쪽은
      * 0행을 받는다({@code ChangeRequestRepository#autoRejectIfPending} 과 같은 근거). {@code SELECT}

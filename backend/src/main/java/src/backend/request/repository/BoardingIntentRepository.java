@@ -24,7 +24,7 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
 
     /**
      * (회차, 학생) 단건 조회 — 한도 판정·소비·복구·{@code riding} 적용이 전부 이 행 하나를 기준으로
-     * 이뤄진다({@code uk_boarding_intent_run_student} UNIQUE, 목표 5의 "한도 단위는 회차" 근거).
+     * 이뤄진다({@code uk_boarding_intent_run_student} UNIQUE,"한도 단위는 회차" 근거).
      *
      * <p>{@code runId} 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제 위에 있다 — 탑승
      * 의사 토글({@code BoardingIntentCommandService.toggle})은 이 조회에 닿기 전에
@@ -85,7 +85,7 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
     int claimChangeQuota(@Param("id") Long id);
 
     /**
-     * ①구간 토글이 남긴 {@code riding=false} 학생 목록 — 확정 배치(목표 1)가 명단을 만들기 전에 이
+     * ①구간 토글이 남긴 {@code riding=false} 학생 목록 — 확정 배치가 명단을 만들기 전에 이
      * 목록을 걸러내야 {@code run_rider} 에 그 학생이 아예 생기지 않는다({@code RunConfirmationService}
      * 가 {@code DailyRoster} 를 만들기 직전에 호출).
      *

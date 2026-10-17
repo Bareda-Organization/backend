@@ -17,8 +17,8 @@ import src.backend.boarding.repository.RiderStatusHistoryRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 
 /**
- * 하원 회차 시작 시 명단 전원 일괄 승차(C-07 · BRD-03, 목표 11) — 회차 시작 커맨드(T2 소유)가
- * 이 메서드를 직접 부른다. 이 클래스는 T3(승하차 처리) 소유이고 호출자는 T2 소유라 두 태스크의
+ * 하원 회차 시작 시 명단 전원 일괄 승차(C-07 · BRD-03) — 회차 시작 커맨드가
+ * 이 메서드를 직접 부른다. 이 클래스는 승하차 처리 쪽이고 호출자는 회차 시작 쪽이라 두 쪽의
  * 경계가 이 메서드 시그니처 하나다.
  *
  * <p>{@code runId} 는 호출부(T2)가 이미 {@code RunRepository.findByIdAndAcademyId} 로 학원 범위를
@@ -39,7 +39,7 @@ public class AutoBoardingService {
      * <p>전이마다 {@code rider_status_history} 에 {@code actor_type=system} 행을 남긴다(ERD §3.4) —
      * 호출부가 승차 알림 수신자를 이 반환값으로 정한다.
      *
-     * @return 실제로 승차 처리된 탑승자(목표 11, 호출부의 응답 계산값 재료)
+     * @return 실제로 승차 처리된 탑승자(호출부의 응답 계산값 재료)
      */
     @Transactional
     public List<RunRider> boardAllForDropOff(Long runId, OffsetDateTime now) {

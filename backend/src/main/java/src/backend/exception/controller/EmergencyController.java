@@ -46,7 +46,7 @@ public class EmergencyController {
 
     private final EmergencyRunQueryService emergencyRunQueryService;
 
-    /** 비상 신고 접수(목표 5·8) — 최초 접수는 201, 재전송은 최초 접수 결과를 200 으로 돌려준다(§1.7, BR-137). */
+    /** 비상 신고 접수 — 최초 접수는 201, 재전송은 최초 접수 결과를 200 으로 돌려준다(§1.7, BR-137). */
     @Can(Permissions.EMERGENCY_RAISE)
     @Operation(summary = "비상 알림 발신·취소 (EXC-04, M-15)")
     @PostMapping("/{runId}/emergency")
@@ -57,7 +57,7 @@ public class EmergencyController {
                 .body(ApiResponse.ok(response));
     }
 
-    /** 발신 1분 이내 취소(목표 9) — §4.14 가 요구하는 대로 본문 없이 204 만 돌려준다. */
+    /** 발신 1분 이내 취소 — §4.14 가 요구하는 대로 본문 없이 204 만 돌려준다. */
     @Can(Permissions.EMERGENCY_RAISE)
     @Operation(summary = "비상 알림 취소 (EXC-04, M-15)")
     @DeleteMapping("/{runId}/emergency/{id}")

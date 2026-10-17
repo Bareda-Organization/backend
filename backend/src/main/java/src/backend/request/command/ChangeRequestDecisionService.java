@@ -60,9 +60,9 @@ import src.backend.run.repository.RunRepository;
  * <p><b>확정 배치({@code RunConfirmationPersistence})와 달리 계산·저장을 분리하지 않는다</b> —
  * 그쪽이 분리한 이유는 외부 지도 API 호출을 트랜잭션 밖에 두기 위해서인데, 이 결정 경로는 승인 상세
  * 조회 시점({@code ApprovalQueryService.detail})에 이미 계산해 캐시({@link ApprovalPreviewCache})에
- * 넣어 둔 {@link RouteComputation} 을 <b>그대로 재사용</b>할 뿐 새로 계산하지 않는다(T4 의 온디맨드
+ * 넣어 둔 {@link RouteComputation} 을 <b>그대로 재사용</b>할 뿐 새로 계산하지 않는다(온디맨드
  * 캐싱 설계). 그래서 이 메서드 전체를 하나의 {@code @Transactional} 로 묶어도 커넥션을 오래 붙들
- * 외부 호출이 없고, 그 대신 목표 7(실패 시 원자적 롤백)을 구조적으로 보장한다.
+ * 외부 호출이 없고, 그 대신 실패 시 원자적 롤백을 구조적으로 보장한다.
  *
  * <p><b>{@code preview_token} 검사가 이 클래스에서 가장 위험한 자리다</b> — 캐시에 없거나 토큰이
  * 다르면(완전히 빠진 요청 포함, {@code null} 은 어떤 캐시 토큰과도 같을 수 없다) {@code 409

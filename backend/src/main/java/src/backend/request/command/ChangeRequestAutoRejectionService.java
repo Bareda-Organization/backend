@@ -29,7 +29,7 @@ import src.backend.request.repository.ChangeRequestRepository;
  * <p>처리 로직은 폴링과 동일한 {@link ChangeRequestAutoRejectionPersistence#autoRejectOne} 을
  * 그대로 재사용한다 — 조건부 UPDATE 가 유일한 멱등 장치이므로, 폴링이 이 서비스보다 먼저 같은 건을
  * 집었더라도(먼저 오는 시점이 출발 시각 쪽이었던 경우) 이 서비스의 호출은 0행 갱신으로 조용히
- * 끝난다(목표 3·목표 4).
+ * 끝난다.
  */
 @Component
 @RequiredArgsConstructor

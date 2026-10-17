@@ -17,7 +17,7 @@ import src.backend.global.security.access.AcademyScopeExempt;
 public interface RiderStatusHistoryRepository extends JpaRepository<RiderStatusHistory, Long> {
 
     /**
-     * 오프라인 큐 재전송 멱등 판정의 근거(API_SPEC §1.7, 목표 12) — {@code client_key} 는
+     * 오프라인 큐 재전송 멱등 판정의 근거(API_SPEC §1.7) — {@code client_key} 는
      * {@code uk_rider_status_history_client_key} UNIQUE 라 한 건 이하다. 이 값으로 이미 처리된
      * 요청인지 먼저 확인하고, 있으면 새 이력을 쌓지 않고 저장된 현재 상태로만 응답을 재구성한다.
      */
@@ -27,7 +27,7 @@ public interface RiderStatusHistoryRepository extends JpaRepository<RiderStatusH
     Optional<RiderStatusHistory> findByClientKey(UUID clientKey);
 
     /**
-     * 되돌리기(BRD-05, API_SPEC §4.7, 목표 13)가 되돌아갈 직전 상태의 근거 — 그 탑승자의 가장 최근
+     * 되돌리기(BRD-05, API_SPEC §4.7)가 되돌아갈 직전 상태의 근거 — 그 탑승자의 가장 최근
      * 이력 행 1건. {@code fromStatus} 가 되돌린 뒤의 새 상태가 된다.
      *
      * <p>{@code runRiderId} 는 호출부가 {@link RunRiderRepository#findByIdAndRunIdAndStatusNot} 으로

@@ -54,8 +54,8 @@ public class StaffApprovalController {
      * 상한을 넘긴 {@code size} 는 잘라 주지 않고 {@code 422 VALIDATION_FAILED} 로 거부한다
      * ({@code Ruling 358}).
      *
-     * <p>세 파라미터를 각각 손으로 적는 이유는 {@code status} 하나만 있던 시절과 같다
-     * ({@code StaffRunController} 의 근거는 여러 개로 묶일 때 문제였다), 대문자 enum
+     * <p>세 파라미터를 각각 손으로 적는 이유는 {@code StaffRunController} 와 같다
+     * (여러 개로 묶으면 문제가 된다), 대문자 enum
      * ({@code PENDING})과 쿼리 값(소문자 {@code pending})의 표기가 다르므로 문자열로 받아 직접
      * 변환한다.
      */

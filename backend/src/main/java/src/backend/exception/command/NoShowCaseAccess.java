@@ -59,7 +59,7 @@ public class NoShowCaseAccess {
                 .ifPresent(noShowCase -> noShowCase.resolveByRevert(resolvedAt));
     }
 
-    /** 재전송 응답 재구성(목표 12)이 최초 처리 때 만들어진 케이스를 다시 찾을 때 쓴다. */
+    /** 재전송 응답 재구성이 최초 처리 때 만들어진 케이스를 다시 찾을 때 쓴다. */
     public Optional<NoShowCaseView> find(Long runRiderId) {
         return noShowCaseRepository.findByRunRiderId(runRiderId).map(this::toView);
     }

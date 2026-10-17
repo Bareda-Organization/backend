@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
- * 학원 관계자 화면의 비상 알림 1건(목표 8·10·13, API_SPEC §5.16) — 발신자·확인자 연락처는
+ * 학원 관계자 화면의 비상 알림 1건(API_SPEC §5.16) — 발신자·확인자 연락처는
  * {@code emergency_alert} 테이블 컬럼이 아니다(스키마에 연락처 칼럼이 없다) — 조회 시점에
  * {@code raisedBy}(manager.id)로 {@code Manager} 를 다시 읽어 채운다.
  *

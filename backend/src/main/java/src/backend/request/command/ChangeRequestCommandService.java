@@ -32,8 +32,8 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
  * 알림 발행은 {@link ChangeRequestStore} 의 짧은 트랜잭션에 맡긴다(BR-074 — 검증을 기다리는 사이 구간이
  * 바뀔 수 있다).
  *
- * <p>③구간 판정은 {@code type} 을 가리지 않는다(목표 9) — {@code cancel} 도 여기서 막힌다. ③구간의
- * 탑승 취소는 이 엔드포인트가 아니라 별도 탑승 의사 토글 엔드포인트(T2 소유)를 쓴다.
+ * <p>③구간 판정은 {@code type} 을 가리지 않는다 — {@code cancel} 도 여기서 막힌다. ③구간의
+ * 탑승 취소는 이 엔드포인트가 아니라 별도 탑승 의사 토글 엔드포인트를 쓴다.
  */
 @Service
 @RequiredArgsConstructor

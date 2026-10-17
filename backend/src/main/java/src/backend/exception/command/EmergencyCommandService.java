@@ -98,7 +98,7 @@ public class EmergencyCommandService {
     private final Clock clock;
 
     /**
-     * 비상 신고 접수(목표 1·5·8) — 재전송({@code client_key} 재사용)은 새 행을 만들지 않고 최초 접수
+     * 비상 신고 접수 — 재전송({@code client_key} 재사용)은 새 행을 만들지 않고 최초 접수
      * 결과를 그대로 돌려준다({@code BoardingCommandService#updateStatus} 와 같은 재생 형태). 재생은 배치·
      * 회차 확인 <b>뒤</b>에, 같은 회차·같은 종류일 때만 한다(BR-078) — 키가 다른 신고에 재사용됐으면 남의
      * 신고(다른 학원 포함)를 돌려주고 이번 신고를 버리는 대신 422 로 거절한다.
@@ -169,7 +169,7 @@ public class EmergencyCommandService {
     }
 
     /**
-     * 발신 1분 이내 취소(목표 9) — 배치되지 않은 회차를 지목하면 {@code 403 FORBIDDEN}(§4.14(L1059)
+     * 발신 1분 이내 취소 — 배치되지 않은 회차를 지목하면 {@code 403 FORBIDDEN}(§4.14(L1059)
      * "배치되지 않은 회차" 시나리오, Ruling 259(b)), 배치는 맞는데 그 신고가 없거나 다른 회차 것이면
      * {@code 404}, 창을 넘겼으면 {@code 409}, 이미 취소됐으면 그 결과를 그대로 재반환한다(재전송과
      * 같은 이유로 재취소도 멱등하게 둔다 — 취소 응답을 놓친 클라이언트가 다시 눌러도 두 번째
@@ -208,7 +208,7 @@ public class EmergencyCommandService {
     }
 
     /**
-     * 학원 관계자의 확인 처리(목표 10) — {@code /staff/emergencies/{id}/ack}. 확인 주체는 발신 학원의 관계자뿐이다(Ruling 884) —
+     * 학원 관계자의 확인 처리 — {@code /staff/emergencies/{id}/ack}. 확인 주체는 발신 학원의 관계자뿐이다(Ruling 884) —
      * 메인 관리자는 열람만 하며, {@link Permissions#EMERGENCY_ACK} 를 갖지 않아 컨트롤러에서 {@code 403} 으로 막힌다. 그래서 대상은
      * 호출자의 학원으로 좁혀 찾는다(타 학원 신고는 {@code 404}).
      *
@@ -264,7 +264,7 @@ public class EmergencyCommandService {
     }
 
     /**
-     * 발신 응답 {@code notified}(목표 1, API_SPEC §4.14) — 이 신고가 실제로 도달할 수신자 수다.
+     * 발신 응답 {@code notified}(API_SPEC §4.14) — 이 신고가 실제로 도달할 수신자 수다.
      * {@link src.backend.notification.command.EmergencyNotificationListener} 가 팬아웃하는 대상과
      * 같은 기준(재직 관계자 + 알림을 받는 상태의 메인관리자 전원 — 차단 포함, {@link AccountStatus#NOTIFIABLE})으로 센다 — 그 리스너는 이벤트 발행 후 별도로
      * 실행돼 개수를 되돌려주지 않으므로, 응답을 만드는 이 자리에서 같은 조건으로 다시 센다(판단
@@ -294,7 +294,7 @@ public class EmergencyCommandService {
 
     /**
      * 최신 좌표를 읽는다 — Redis 가 죽으면 {@link RunPositionStore} 가 DB 최신 행으로 대체한다(BR-167). 신고 자체는 반드시
-     * 성공해야 하는 안전 요구(목표 8)라, 그 밖의 <b>읽기 실패</b>도 위치 없이 접수한다(BR-039) — 실패는 경고 로그로만
+     * 성공해야 하는 안전 요구라, 그 밖의 <b>읽기 실패</b>도 위치 없이 접수한다(BR-039) — 실패는 경고 로그로만
      * 남기고 빈 값을 돌려준다. 트랜잭션 앞에서 부르므로 던져도 행이 롤백되지는 않지만 신고가 막히는 것은 마찬가지다.
      */
     private Optional<RunPositionRedisValue> readCachedPosition(Long runId) {
