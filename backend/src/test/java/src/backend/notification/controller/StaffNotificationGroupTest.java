@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -28,7 +29,6 @@ import jakarta.persistence.PersistenceContext;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.notification.entity.NotificationType;
@@ -78,17 +78,13 @@ class StaffNotificationGroupTest {
                 notificationLogRepository);
     }
 
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
-
     /** 같은 사건(type·run·body·초)은 한 묶음이고, 다른 초·다른 body·다른 type·다른 run 은 다른 묶음이다 — 쪽·total_count 는 묶음 단위. */
     @Test
     void 묶음_키가_같으면_한_묶음이고_쪽_나누기와_total_count_는_묶음_단위다() throws Exception {
         StaffNotificationFixtures fx = fixtures();
         long academyId = fx.academy();
         long staffAccountId = fx.staffAccount(academyId, "관계자");
-        OffsetDateTime t = now();
+        OffsetDateTime t = OffsetDateTime.now(clock);
         for (int i = 1; i <= 5; i++) { // G1 — 5명, 같은 초
             fx.sentNotification(academyId, NotificationType.RUN_STARTED, "수신" + i, Role.PARENT, "출발했습니다", "01호차",
                     t.plusNanos(i * 1_000_000L), t.plusSeconds(5));
@@ -110,7 +106,7 @@ class StaffNotificationGroupTest {
         entityManager.flush();
         jdbcTemplate.update("UPDATE notification_log SET run_id = 77 WHERE id IN (?, ?)", run77a, run77b);
         entityManager.clear();
-        String token = 토큰(staffAccountId, academyId);
+        String token = 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF);
 
         String ungrouped = 본문("/api/v1/staff/notifications?size=100", token);
         assertThat((int) JsonPath.read(ungrouped, "$.data.total_count")).as("묶지 않으면 행 12건").isEqualTo(12);
@@ -146,10 +142,10 @@ class StaffNotificationGroupTest {
         StaffNotificationFixtures fx = fixtures();
         long academyId = fx.academy();
         long staffAccountId = fx.staffAccount(academyId, "관계자");
-        OffsetDateTime t = now();
+        OffsetDateTime t = OffsetDateTime.now(clock);
         fx.sentNotification(academyId, NotificationType.EMERGENCY, "관계자수신", Role.STAFF, "비상", "01호차", t, t);
         fx.sentNotification(academyId, NotificationType.EMERGENCY, "학부모수신", Role.PARENT, "비상", "01호차", t, t);
-        String token = 토큰(staffAccountId, academyId);
+        String token = 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF);
 
         String ungrouped = 본문("/api/v1/staff/notifications?recipient_role=staff", token);
         assertThat(JsonPath.<List<String>>read(ungrouped, "$.data.items[*].recipient_name")).containsExactly("관계자수신");
@@ -172,12 +168,12 @@ class StaffNotificationGroupTest {
         StaffNotificationFixtures fx = fixtures();
         long academyId = fx.academy();
         long staffAccountId = fx.staffAccount(academyId, "관계자");
-        OffsetDateTime t = now();
+        OffsetDateTime t = OffsetDateTime.now(clock);
         fx.ackedNotification(academyId, NotificationType.DELAY, "확인함", Role.PARENT, "지연", "01호차", t, t, t);
         fx.sentNotification(academyId, NotificationType.DELAY, "미확인", Role.PARENT, "지연", "01호차", t, t); // 같은 묶음 — 혼합
         fx.sentNotification(academyId, NotificationType.DELAY, "전원미확인1", Role.PARENT, "다른 지연", "01호차", t, t);
         fx.sentNotification(academyId, NotificationType.DELAY, "전원미확인2", Role.PARENT, "다른 지연", "01호차", t, t);
-        String token = 토큰(staffAccountId, academyId);
+        String token = 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF);
 
         String ackedOnly = 본문("/api/v1/staff/notifications?group=true&acked=true", token);
         assertThat(JsonPath.<List<String>>read(ackedOnly, "$.data.items[*].body")).containsExactly("지연");
@@ -199,9 +195,5 @@ class StaffNotificationGroupTest {
     private String 본문(String url, String token) throws Exception {
         return mockMvc.perform(get(url).header("Authorization", token)).andExpect(status().isOk()).andReturn()
                 .getResponse().getContentAsString(StandardCharsets.UTF_8);
-    }
-
-    private String 토큰(long accountId, long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.STAFF, AccountStatus.ACTIVE);
     }
 }

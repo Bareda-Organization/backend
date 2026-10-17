@@ -3,6 +3,8 @@ package src.backend.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Duration;
 import java.util.List;
@@ -19,7 +21,6 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
@@ -73,7 +74,7 @@ class SignupDecidedOutboxTest {
                 LOGIN_ID_PREFIX + "pok", "P4T1수락학부모", "010-4100-0001", "parent", "staff");
 
         mockMvc.perform(post("/api/v1/staff/signup-requests/" + requestId + "/decide")
-                        .header("Authorization", 관계자_토큰())
+                        .header("Authorization", 토큰(tokenProvider, SignupDecidedFixture.SEED_STAFF_ACCOUNT, SignupDecidedFixture.SEED_ACADEMY_A, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"accept": true, "link": {"student_ids": [%d]}}
@@ -89,7 +90,7 @@ class SignupDecidedOutboxTest {
                 LOGIN_ID_PREFIX + "pno", "P4T1거절학부모", "010-4100-0002", "parent", "staff");
 
         mockMvc.perform(post("/api/v1/staff/signup-requests/" + requestId + "/decide")
-                        .header("Authorization", 관계자_토큰())
+                        .header("Authorization", 토큰(tokenProvider, SignupDecidedFixture.SEED_STAFF_ACCOUNT, SignupDecidedFixture.SEED_ACADEMY_A, Role.STAFF))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accept\": false, \"reject_reason\": \"제출 서류가 부족합니다\"}"))
                 .andExpect(status().isOk());
@@ -103,7 +104,7 @@ class SignupDecidedOutboxTest {
                 LOGIN_ID_PREFIX + "sok", "P4T1수락관계자", "010-4100-0003", "staff", "system_admin");
 
         mockMvc.perform(post("/api/v1/admin/staff-signup-requests/" + requestId + "/decide")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SignupDecidedFixture.SEED_SYSTEM_ADMIN_ACCOUNT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accept\": true}"))
                 .andExpect(status().isOk());
@@ -117,7 +118,7 @@ class SignupDecidedOutboxTest {
                 LOGIN_ID_PREFIX + "sno", "P4T1거절관계자", "010-4100-0004", "staff", "system_admin");
 
         mockMvc.perform(post("/api/v1/admin/staff-signup-requests/" + requestId + "/decide")
-                        .header("Authorization", 메인관리자_토큰())
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SignupDecidedFixture.SEED_SYSTEM_ADMIN_ACCOUNT))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"accept\": false, \"reject_reason\": \"정원이 이미 찼습니다\"}"))
                 .andExpect(status().isOk());
@@ -156,15 +157,5 @@ class SignupDecidedOutboxTest {
         assertThat((String) rows.get(0).get("dedup_key"))
                 .as("dedup_key 는 ERD 의 {event}:{run_id}:{대상}:{판정 시각} 형태여야 한다")
                 .startsWith("signup_decided:na:" + accountId + ":");
-    }
-
-    private String 관계자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(SignupDecidedFixture.SEED_STAFF_ACCOUNT,
-                SignupDecidedFixture.SEED_ACADEMY_A, Role.STAFF, AccountStatus.ACTIVE);
-    }
-
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(SignupDecidedFixture.SEED_SYSTEM_ADMIN_ACCOUNT,
-                null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 }

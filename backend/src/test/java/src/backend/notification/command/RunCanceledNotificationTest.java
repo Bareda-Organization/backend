@@ -3,6 +3,7 @@ package src.backend.notification.command;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -22,7 +23,6 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -127,7 +127,7 @@ class RunCanceledNotificationTest {
         long escortAccountId = fx.assignedManager(academyId, runId, ManagerRole.ESCORT, "동승자1", OffsetDateTime.now());
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
-        mockMvc.perform(delete("/api/v1/staff/runs/" + runId).header("Authorization", 토큰(staffAccountId, academyId)))
+        mockMvc.perform(delete("/api/v1/staff/runs/" + runId).header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isNoContent());
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
@@ -151,7 +151,7 @@ class RunCanceledNotificationTest {
         fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now());
         long staffAccountId = fx.staffAccount(academyId, "관계자1");
 
-        mockMvc.perform(delete("/api/v1/staff/runs/" + runId).header("Authorization", 토큰(staffAccountId, academyId)))
+        mockMvc.perform(delete("/api/v1/staff/runs/" + runId).header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isNoContent());
 
         assertThat(jdbcTemplate.queryForObject(
@@ -172,16 +172,12 @@ class RunCanceledNotificationTest {
 
         for (int i = 0; i < 2; i++) {
             mockMvc.perform(delete("/api/v1/staff/runs/" + runId)
-                            .header("Authorization", 토큰(staffAccountId, academyId)))
+                            .header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                     .andExpect(status().isNoContent());
         }
 
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type = 'run_canceled' AND run_id = ?", Integer.class,
                 runId)).isEqualTo(1);
-    }
-
-    private String 토큰(long accountId, long academyId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, Role.STAFF, AccountStatus.ACTIVE);
     }
 }

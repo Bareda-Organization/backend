@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -73,10 +74,6 @@ class NotificationControllerTest {
         return new NotificationLogFixtures(academyRepository, accountRepository, jdbcTemplate);
     }
 
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
-
     // ── goal 1 — type 필터 ────────────────────────────────────────────────
 
     @Test
@@ -86,12 +83,12 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long matching = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, now(), now(), null);
+                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
         fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null, NotificationType.ALIGHTING,
-                "하차 안내", "하차했습니다", false, now(), now(), null);
+                "하차 안내", "하차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
         mockMvc.perform(get("/api/v1/notifications").param("type", "boarding")
-                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(matching))
@@ -112,14 +109,14 @@ class NotificationControllerTest {
                 VALUES (?, ?, '기사1', 'driver', 7777, 'route_changed', '노선 변경', '노선이 바뀌었습니다', 'r46-run-id-1')
                 """, academyId, accountId);
         fixtures.notification(academyId, accountId, "기사1", Role.DRIVER, null, null, NotificationType.RUN_STARTED,
-                "운행 시작", "시작", false, now(), now(), null);
+                "운행 시작", "시작", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
         mockMvc.perform(get("/api/v1/notifications").param("type", "route_changed")
-                .header("Authorization", 토큰(accountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].run_id").value(7777));
         mockMvc.perform(get("/api/v1/notifications").param("type", "run_started")
-                .header("Authorization", 토큰(accountId, academyId, Role.DRIVER)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.DRIVER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].run_id").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.items[0]", org.hamcrest.Matchers.hasKey("run_id")));
@@ -134,12 +131,12 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long unread = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, now(), now(), null);
+                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
         fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null, NotificationType.ALIGHTING,
-                "하차 안내", "하차했습니다", false, now(), now(), now());
+                "하차 안내", "하차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), OffsetDateTime.now(clock));
 
         mockMvc.perform(get("/api/v1/notifications").param("unread_only", "true")
-                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(unread));
@@ -155,18 +152,18 @@ class NotificationControllerTest {
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         for (int i = 0; i < 3; i++) {
             fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                    NotificationType.BOARDING, "승차 안내" + i, "승차했습니다", false, now().minusMinutes(i), now(), null);
+                    NotificationType.BOARDING, "승차 안내" + i, "승차했습니다", false, OffsetDateTime.now(clock).minusMinutes(i), OffsetDateTime.now(clock), null);
         }
 
         mockMvc.perform(get("/api/v1/notifications").param("size", "2")
-                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(2))
                 .andExpect(jsonPath("$.data.total_count").value(3))
                 .andExpect(jsonPath("$.data.has_next").value(true));
 
         mockMvc.perform(get("/api/v1/notifications").param("size", "2").param("page", "1")
-                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.has_next").value(false));
@@ -181,10 +178,10 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long targetId = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, now(), now(), null);
+                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
         fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null, NotificationType.ALIGHTING,
-                "하차 안내", "하차했습니다", false, now(), now(), null);
-        String token = 토큰(accountId, academyId, Role.PARENT);
+                "하차 안내", "하차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
+        String token = 토큰(tokenProvider, accountId, academyId, Role.PARENT);
 
         mockMvc.perform(get("/api/v1/notifications").header("Authorization", token))
                 .andExpect(status().isOk())
@@ -207,8 +204,8 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long targetId = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, now(), now(), null);
-        String token = 토큰(accountId, academyId, Role.PARENT);
+                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
+        String token = 토큰(tokenProvider, accountId, academyId, Role.PARENT);
 
         mockMvc.perform(patch("/api/v1/notifications/" + targetId + "/read").header("Authorization", token))
                 .andExpect(status().isNoContent());
@@ -226,10 +223,10 @@ class NotificationControllerTest {
         long ownerAccountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long otherAccountId = fixtures.account(academyId, "보호자2", Role.PARENT);
         long targetId = fixtures.notification(academyId, ownerAccountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, now(), now(), null);
+                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
         mockMvc.perform(patch("/api/v1/notifications/" + targetId + "/read")
-                .header("Authorization", 토큰(otherAccountId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, otherAccountId, academyId, Role.PARENT)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -242,7 +239,7 @@ class NotificationControllerTest {
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
 
         mockMvc.perform(patch("/api/v1/notifications/999999999/read")
-                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("NOTIFICATION_NOT_FOUND"));
     }
@@ -258,10 +255,10 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long targetId = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.DELAY, "지연 안내", "출발이 지연됩니다", false, now(), now(), null);
+                NotificationType.DELAY, "지연 안내", "출발이 지연됩니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
         mockMvc.perform(patch("/api/v1/notifications/" + targetId + "/read")
-                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isNoContent());
 
         // PATCH 가 커밋한 변경은 같은 트랜잭션의 영속성 컨텍스트에만 있어, flush 없이 raw JDBC 로
@@ -280,10 +277,10 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long targetId = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, now(), now(), null);
+                NotificationType.BOARDING, "승차 안내", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
         mockMvc.perform(patch("/api/v1/notifications/" + targetId + "/read")
-                .header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isNoContent());
 
         entityManager.flush();
@@ -301,11 +298,11 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long within = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.BOARDING, "13일 전", "승차했습니다", false, now().minusDays(13), now().minusDays(13), null);
+                NotificationType.BOARDING, "13일 전", "승차했습니다", false, OffsetDateTime.now(clock).minusDays(13), OffsetDateTime.now(clock).minusDays(13), null);
         fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null, NotificationType.BOARDING,
-                "15일 전", "승차했습니다", false, now().minusDays(15), now().minusDays(15), null);
+                "15일 전", "승차했습니다", false, OffsetDateTime.now(clock).minusDays(15), OffsetDateTime.now(clock).minusDays(15), null);
 
-        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(within));
@@ -320,11 +317,11 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long popupOn = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.EMERGENCY, "비상", "비상 상황입니다", true, now(), now(), null);
+                NotificationType.EMERGENCY, "비상", "비상 상황입니다", true, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
         fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null, NotificationType.BOARDING,
-                "승차 안내", "승차했습니다", false, now().minusMinutes(1), now(), null);
+                "승차 안내", "승차했습니다", false, OffsetDateTime.now(clock).minusMinutes(1), OffsetDateTime.now(clock), null);
 
-        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(popupOn))
                 .andExpect(jsonPath("$.data.items[0].popup").value(true))
@@ -340,9 +337,9 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long withStudent = fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, 42L, "홍길동",
-                NotificationType.BOARDING, "승차 안내", "홍길동 학생이 승차했습니다", false, now(), now(), null);
+                NotificationType.BOARDING, "승차 안내", "홍길동 학생이 승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
-        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(withStudent))
                 .andExpect(jsonPath("$.data.items[0].student_id").value(42))
@@ -356,9 +353,9 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long accountId = fixtures.account(academyId, "관계자1", Role.STAFF);
         fixtures.notification(academyId, accountId, "관계자1", Role.STAFF, null, null,
-                NotificationType.EXCEPTION_REPORTED, "예외 보고 접수", "도로 통제 상황이 접수됐습니다", false, now(), now(), null);
+                NotificationType.EXCEPTION_REPORTED, "예외 보고 접수", "도로 통제 상황이 접수됐습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
-        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(accountId, academyId, Role.STAFF)))
+        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.STAFF)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].student_id").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].student_name").doesNotExist());
@@ -374,11 +371,11 @@ class NotificationControllerTest {
         long myAccountId = fixtures.account(academyId, "보호자1", Role.PARENT);
         long otherAccountId = fixtures.account(academyId, "보호자2", Role.PARENT);
         long matching = fixtures.notification(academyId, myAccountId, "보호자1", Role.PARENT, null, null,
-                NotificationType.BOARDING, "내 알림", "승차했습니다", false, now(), now(), null);
+                NotificationType.BOARDING, "내 알림", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
         fixtures.notification(academyId, otherAccountId, "보호자2", Role.PARENT, null, null,
-                NotificationType.BOARDING, "남의 알림", "승차했습니다", false, now(), now(), null);
+                NotificationType.BOARDING, "남의 알림", "승차했습니다", false, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
-        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(myAccountId, academyId, Role.PARENT)))
+        mockMvc.perform(get("/api/v1/notifications").header("Authorization", 토큰(tokenProvider, myAccountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(matching));
@@ -403,12 +400,12 @@ class NotificationControllerTest {
         // 정보 손실이 전혀 없어 아래 비교를 오차 없이 정확히 맞출 수 있다(§Goal3 판정, 원래의
         // `within(1, SECONDS)` 는 이 손실이 없는데도 1초라는 헐거운 창을 둬 검증력을 스스로 버리고
         // 있었다).
-        OffsetDateTime createdAt = now().minusMinutes(5).truncatedTo(ChronoUnit.MICROS);
+        OffsetDateTime createdAt = OffsetDateTime.now(clock).minusMinutes(5).truncatedTo(ChronoUnit.MICROS);
         fixtures.notification(academyId, accountId, "보호자1", Role.PARENT, null, null, NotificationType.BOARDING,
                 "승차 안내", "승차했습니다", false, createdAt, null, null);
 
         MvcResult result = mockMvc
-                .perform(get("/api/v1/notifications").header("Authorization", 토큰(accountId, academyId, Role.PARENT)))
+                .perform(get("/api/v1/notifications").header("Authorization", 토큰(tokenProvider, accountId, academyId, Role.PARENT)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -433,7 +430,7 @@ class NotificationControllerTest {
         long academyId = fixtures.academy();
         long adminAccountId = fixtures.account(academyId, "메인관리자", Role.SYSTEM_ADMIN);
         long emergencyId = fixtures.notification(academyId, adminAccountId, "메인관리자", Role.SYSTEM_ADMIN, null, null,
-                NotificationType.EMERGENCY, "비상", "비상 발생", true, now(), now(), null);
+                NotificationType.EMERGENCY, "비상", "비상 발생", true, OffsetDateTime.now(clock), OffsetDateTime.now(clock), null);
 
         mockMvc.perform(get("/api/v1/notifications")
                         .header("Authorization", "Bearer " + tokenProvider.createAccessToken(adminAccountId, null,
@@ -442,9 +439,5 @@ class NotificationControllerTest {
                 .andExpect(jsonPath("$.data.unread_count").value(1))
                 .andExpect(jsonPath("$.data.items.length()").value(1))
                 .andExpect(jsonPath("$.data.items[0].notification_id").value(emergencyId));
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
     }
 }
