@@ -102,7 +102,7 @@ class RunCompletionBoundaryTest {
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다. 이 시험의 본체는 완료 판정 경계이지
         // 전이 표 자체가 아니라, 명단 준비 단계에서 미리 boarded 로 세운다.
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
-        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        // 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
         jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE id = ?", noShowRiderId);
         entityManager.clear();
@@ -119,8 +119,8 @@ class RunCompletionBoundaryTest {
         verify(runCompletionService).completeIfAllAlighted(eq(run), any());
         List<RunEndedEvent> runEndedEvents = applicationEvents.stream(RunEndedEvent.class).toList();
         assertThat(runEndedEvents).as("①true 반환 시 RunEndedEvent 발행").hasSize(1);
-        // R52 L2 — auto_alighted_count 는 "등원 종료 때 자동으로 하차 처리된 수" 다(API_SPEC §4.5·§7). 하원은 자동 하차가 없고 방금 한 하차는
-        // 수동이라 0 이다 — 같은 하원 종료가 도착 처리 경로에서는 0, 마지막 하차 경로에서는 수동 하차 전체로 갈리던 것을 0 하나로 한다.
+        // auto_alighted_count 는 "등원 종료 때 자동으로 하차 처리된 수" 다(API_SPEC §4.5·§7). 하원은 자동 하차가 없고 방금 한 하차는
+        // 수동이라 0 이다.
         assertThat(runEndedEvents.get(0).autoAlightedCount()).as("②하원 종료는 자동 하차가 없어 0").isZero();
     }
 
@@ -136,7 +136,7 @@ class RunCompletionBoundaryTest {
         long alightingRiderId = fixtures().runRider(runId, alightingStudent, stopId);
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다(이 시험의 본체는 완료 판정 경계다).
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
-        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        // 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
         jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         entityManager.clear();
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
@@ -183,7 +183,7 @@ class RunCompletionBoundaryTest {
         entityManager.flush();
         // Ruling 345 — PATCH 는 boarded→alighted 만 받는다(이 시험의 본체는 강제 출발 처리 경계다).
         jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", alightingRiderId);
-        // R51 C3 — 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
+        // 하차 처리는 하원에서만 받는다(종료 보류·완성도 하원의 개념이다).
         jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", runId);
         jdbcTemplate.update("UPDATE run_stop SET arrived_at = ? WHERE id = ?", now.minusMinutes(5), runStopId);
         // entityManager.clear() 뒤에는 updateStatus() 내부가 run 을 다시 조회해 새 인스턴스를 얻으므로

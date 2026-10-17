@@ -48,9 +48,9 @@ import src.backend.run.command.StopDepartureService;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 승하차 처리(§4.6)·되돌리기(§4.7) — Phase 9(T3) 목표 4·7·12·13·14. 목표 11(하원 자동 승차)은
+ * 승하차 처리(§4.6)·되돌리기(§4.7). 하원 자동 승차는
  * {@link src.backend.boarding.command.AutoBoardingServiceTest} 가 별도로 다룬다 — 이 워크트리에는
- * T2 소유의 회차 시작 엔드포인트가 없어 {@link src.backend.boarding.command.AutoBoardingService} 를
+ * 회차 시작 엔드포인트가 없어 {@link src.backend.boarding.command.AutoBoardingService} 를
  * 직접 호출해야 하고, 그 호출은 컨트롤러 계층을 거치지 않기 때문이다.
  */
 @SpringBootTest
@@ -140,7 +140,7 @@ class BoardingControllerTest {
                 .isEqualTo("boarded");
     }
 
-    /** R52 L4 · Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 동승자 전용 호출을 불러도 코드는 {@code 403 ESCORT_ONLY} 다(FORBIDDEN 이 아니다). */
+    /** Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 동승자 전용 호출을 불러도 코드는 {@code 403 ESCORT_ONLY} 다(FORBIDDEN 이 아니다). */
     @Test
     @DisplayName("R52 L4 — 관계자·학부모가 동승자 전용 호출(승하차 처리)을 부르면 403 ESCORT_ONLY 이다")
     void 다른_역할이_동승자_전용_호출을_부르면_ESCORT_ONLY_이다() throws Exception {
@@ -190,9 +190,8 @@ class BoardingControllerTest {
     // ── 목표 7 — no_show 처리 시 케이스 생성 + 학부모·관계자 알림 ────────────
 
     /**
-     * R15-T3(Ruling 308·311) — 미승차는 관계자 갈래만 즉시고, 학부모 갈래는 그 승하차지를 출발할
-     * 때로 옮겨 갔다. {@code no_show_처리하면_케이스와_알림_두_행이_생긴다}(Phase 9 원본)를 이
-     * 시점 분리에 맞게 다시 썼다.
+     * Ruling 308·311 — 미승차는 관계자 갈래만 즉시고, 학부모 갈래는 그 승하차지를 출발할
+     * 때로 옮겨 갔다.
      */
     @Test
     @DisplayName("목표7(Ruling 311) — no_show 처리 즉시는 관계자 알림만 적재되고, 학부모 알림은 출발 시점에 적재된다")
@@ -247,7 +246,7 @@ class BoardingControllerTest {
     }
 
     /**
-     * R51 Ruling 854 — 학부모 미승차 알림은 기사가 그 승하차지를 출발할 때 확정 결과로 나간다. 잘못 누른 미승차를
+     * Ruling 854 — 학부모 미승차 알림은 기사가 그 승하차지를 출발할 때 확정 결과로 나간다. 잘못 누른 미승차를
      * 출발 전에 되돌리면 학부모에게는 아무것도 나가지 않는다(관계자 알림은 표시 즉시 나가 이미 있다).
      */
     @Test
@@ -286,7 +285,7 @@ class BoardingControllerTest {
                 Integer.class, staffAccountId)).as("관계자 알림은 표시 즉시 나가 되돌려도 남아 있다").isEqualTo(1);
     }
 
-    // ── Phase 11 목표 2 — 학원별 미승차 대기 시간(EXC-01, API_SPEC §5.21)이 실제로 적용된다 ──
+    // ── 학원별 미승차 대기 시간(EXC-01, API_SPEC §5.21)이 실제로 적용된다 ──
 
     /**
      * 두 학원에 서로 다른 {@code no_show_wait_minutes} 를 설정하고 각각 no_show 처리하면, 케이스의
@@ -488,7 +487,7 @@ class BoardingControllerTest {
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM rider_status_history WHERE run_rider_id = ?",
                 Integer.class, riderId)).as("③이력 행 수").isEqualTo(1);
-        // R15-T3(Ruling 308) — 승차는 그 승하차지를 출발할 때 통지된다. 이 시험은 출발까지 가지
+        // Ruling 308 — 승차는 그 승하차지를 출발할 때 통지된다. 이 시험은 출발까지 가지
         // 않으므로 재전송을 두 번 반복해도 알림은 여전히 0건이어야 한다.
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
@@ -580,7 +579,7 @@ class BoardingControllerTest {
                 .isEqualTo(4);
     }
 
-    // ── 목표 6b·6c(R14-T2, Ruling 307) — 승하차지를 떠난 뒤에는 되돌리기 거부 ────────────
+    // ── Ruling 307 — 승하차지를 떠난 뒤에는 되돌리기 거부 ────────────
 
     @Test
     @DisplayName("목표6b(Ruling 307) — departed_at 이 기록된 승하차지는 되돌리기가 409 STOP_ALREADY_DEPARTED 이고 저장값은 그대로다")
@@ -662,13 +661,12 @@ class BoardingControllerTest {
                 .andExpect(jsonPath("$.error.code").value("STOP_ALREADY_DEPARTED"));
     }
 
-    // ── R15-T3(Ruling 308) — 출발 전 되돌리기는 알림 없음, 출발 후 확정 결과 1건 ─────────
+    // ── Ruling 308 — 출발 전 되돌리기는 알림 없음, 출발 후 확정 결과 1건 ─────────
 
     /**
-     * docs/archive/rounds/be-rounds-r15-r21.md §8.23 T3 목표 1·3·4 — 출발 전에는 boarded→revert→boarded 를 반복해도 알림이 전혀 나가지
+     * 출발 전에는 boarded→revert→boarded 를 반복해도 알림이 전혀 나가지
      * 않고(정정 알림도 없음, Ruling 219 대체), 출발 시점에야 <b>마지막 상태</b>로 학생당 1건만
-     * 적재된다. Phase 9 원본 {@code 되돌리면_원본_알림은_그대로_두고_취소_알림이_새로_적재된다}를
-     * Ruling 308 에 맞게 다시 썼다.
+     * 적재된다.
      */
     @Test
     @DisplayName("목표1·3·4(Ruling 308) — 출발 전 되돌리기를 반복해도 알림이 없고, 출발 시점에 마지막 상태로 1건만 적재된다")
@@ -922,7 +920,7 @@ class BoardingControllerTest {
     }
 
     /**
-     * R51 C3(등하원 비대칭, C-07 · BRD-01·02) — 승차 처리는 등원에서만, 하차 처리는 하원에서만 받는다. 방향이 맞지 않는
+     * 등하원 비대칭(C-07 · BRD-01·02) — 승차 처리는 등원에서만, 하차 처리는 하원에서만 받는다. 방향이 맞지 않는
      * 요청은 전이 표 안의 화살표여도 {@code 409 RIDER_TRANSITION_NOT_ALLOWED} 이고 상태·이력이 그대로다. 하원의 대기
      * 학생 미승차는 종료 보류를 풀 때 되돌리기 뒤에 쓰는 길(BR-031)이라 막지 않는다.
      */
@@ -959,7 +957,7 @@ class BoardingControllerTest {
     }
 
     /**
-     * 그 승하차지를 실제로 출발 처리한다(Ruling 308, R15-T3 시험 전용) — 근접 알림 스케줄러가 타는
+     * 그 승하차지를 실제로 출발 처리한다(Ruling 308 시험 전용) — 근접 알림 스케줄러가 타는
      * 것과 같은 진입점({@link StopDepartureService#claimAndPublish})을 그대로 불러 {@code
      * StopDepartedEvent} 를 발행시킨다. {@code confirmedRunStop} 으로 만든 확정 노선이 있어야 한다.
      */

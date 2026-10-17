@@ -51,7 +51,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * 승하차 처리·되돌리기(§4.6·§4.7) 시험이 쓰는 실제 행 — {@code BoardingIntentFixtures}(Phase 8)와 같은
+ * 승하차 처리·되돌리기(§4.6·§4.7) 시험이 쓰는 실제 행 — {@code BoardingIntentFixtures}와 같은
  * 이유로 정상 경로의 팩토리로 쌓는다.
  *
  * <p>{@code run.status='moving'} 전이는 이 워크트리에 T2 소유의 회차 시작 커맨드가 없어 팩토리로 만들
@@ -180,9 +180,9 @@ public class BoardingCommandFixtures {
     }
 
     /**
-     * 동승자 계정(배치 없음) — 원래는 Ruling 203("동승자가 없는 회차는 없다고 가정한다")에 따라
-     * 역할만으로 권한을 확인했으나, §1.11·Ruling 259(b)(2026-09-05) 가 이 자원군에 배치 확인을
-     * 우선하는 {@code 403 FORBIDDEN} 을 명시하며 이 계정만으로는 승하차·미승차 엔드포인트를 더 통과할
+     * 동승자 계정(배치 없음) — Ruling 203("동승자가 없는 회차는 없다고 가정한다")은
+     * 역할만으로 권한을 확인하지만, §1.11·Ruling 259(b) 가 이 자원군에 배치 확인을
+     * 우선하는 {@code 403 FORBIDDEN} 을 명시하므로 이 계정만으로는 승하차·미승차 엔드포인트를 더 통과할
      * 수 없다. 역할 거부(§4.6 {@code ESCORT_ONLY})·타 학원 거부처럼 **배치 이전에 걸려야 하는 시험**
      * 에서만 쓴다 — 성공 경로 시험은 {@link #assignedManager} 를 쓴다.
      */

@@ -31,7 +31,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 
 /**
- * 정원 판정의 <b>동시성</b> — 같은 학원에 승인 요청 2건이 겹쳐 들어오는 상황(Phase 3 목표 2).
+ * 정원 판정의 <b>동시성</b> — 같은 학원에 승인 요청 2건이 겹쳐 들어오는 상황.
  *
  * <p>애플리케이션 선검사만으로는 이 형태를 막지 못한다. 두 트랜잭션은 서로의 미커밋 INSERT 를 보지
  * 못해 <b>둘 다</b> "재직자 0명" 을 읽고 지나가며, 그 뒤 조건부 UNIQUE 가 하나를 거부한다. 그 거부가

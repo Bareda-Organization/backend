@@ -43,7 +43,7 @@ import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 운행일이 지난 이동 중 회차 — 메인 관리자의 목록(API_SPEC §6.16)과 강제 종료(§6.17), R47 {@code Ruling 724}.
+ * 운행일이 지난 이동 중 회차 — 메인 관리자의 목록(API_SPEC §6.16)과 강제 종료(§6.17), {@code Ruling 724}.
  *
  * <p>고정 시계가 2030-04-01 이라 "어제" 는 03-31, 처리 대상에서 빠지는 가장 이른 운행일 경계는 03-31 이다 —
  * 대상은 운행일이 <b>03-30 이하</b>인 미취소 {@code moving} 회차다. 목록은 남이 만든 행이 섞여도 흔들리지 않게

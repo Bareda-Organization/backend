@@ -63,7 +63,7 @@ public class AdminMonitoringFixtures {
     /**
      * 이 보조 클래스가 만드는 회차의 서비스 날짜 — 시험의 고정 시계
      * ({@code AdminMonitoringControllerTest.FixedClockConfig}, 2030-04-01 12:00 KST)와 같은 날이어야
-     * 한다. {@code §6.8} 이 <b>오늘</b>로 좁혀 조회하므로(R16 목표 2), 어긋나면 모든 회차가 사라진다.
+     * 한다. {@code §6.8} 이 <b>오늘</b>로 좁혀 조회하므로, 어긋나면 모든 회차가 사라진다.
      */
     private static final LocalDate SERVICE_DATE = LocalDate.of(2030, 4, 1);
 
@@ -185,7 +185,7 @@ public class AdminMonitoringFixtures {
     }
 
     /**
-     * 서비스 날짜를 지정하는 {@link #confirmedRun} — <b>날짜 범위 시험 전용</b>이다(R16 목표 2).
+     * 서비스 날짜를 지정하는 {@link #confirmedRun} — <b>날짜 범위 시험 전용</b>이다.
      * 다른 보조 메서드가 {@link #SERVICE_DATE} 하나로 고정돼 있어, 날짜로 좁히는 조회를 검사하려면
      * 다른 날짜의 회차를 만들 수단이 필요하다.
      */
@@ -198,7 +198,7 @@ public class AdminMonitoringFixtures {
         return runId;
     }
 
-    /** {@code idle}(확정 전) 상태로 남겨 두는 회차 — 노선도 위치도 없는 가장 이른 단계(R16 목표 4). */
+    /** {@code idle}(확정 전) 상태로 남겨 두는 회차 — 노선도 위치도 없는 가장 이른 단계. */
     public long idleRun(long academyId, long busId, Direction direction, OffsetDateTime departTime) {
         Run run = Run.forSchedule(academyId, busId, null, SERVICE_DATE, direction, departTime,
                 departTime.minusMinutes(30), "출발지", "도착지", null);

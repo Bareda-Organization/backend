@@ -70,7 +70,7 @@ import testsupport.clock.FixedClock20300401Config;
 import testsupport.concurrency.RepositoryReadHooks;
 
 /**
- * 승하차 기록(PATCH)·되돌리기가 기사의 도착 처리 · 근접 출발 판정과 겹칠 때의 <b>잠금 순서</b> — R53 게이트 I1(하원 회차 교착)의 재현본이다.
+ * 승하차 기록(PATCH)·되돌리기가 기사의 도착 처리 · 근접 출발 판정과 겹칠 때의 <b>잠금 순서</b> — 하원 회차 교착의 재현본이다.
  * 승하차지 행을 쥔 PATCH 가 회차 행을 기다리는 동안 도착 처리가 회차 행을 쥔 채 그 승하차지 행을 기다리면 서로를 기다리는 교착
  * ({@code deadlock detected})이 되어 한쪽이 500 이 됐다. 전 경로가 회차 행을 먼저 쥐는 순서({@code RunRowLock})를 지키면 두 요청은 줄을 선다.
  *

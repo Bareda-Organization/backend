@@ -40,7 +40,7 @@ import testsupport.clock.FixedClock20300401Config;
 import org.springframework.context.annotation.Import;
 
 /**
- * §5.18 {@code GET /staff/runs/live} — Phase 13 T1 목표 6·7.
+ * §5.18 {@code GET /staff/runs/live}.
  *
  * <p>{@code @Transactional} 을 쓰지 않는다 — {@code RunPositionRedisIntegrationTest} 와 같은 이유로,
  * 실제 {@code POST /runs/{runId}/position} 이 {@code AFTER_COMMIT} 리스너로 Redis 를 갱신하려면

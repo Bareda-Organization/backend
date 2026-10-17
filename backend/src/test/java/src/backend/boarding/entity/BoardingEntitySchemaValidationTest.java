@@ -30,8 +30,8 @@ import testsupport.db.MigratedPostgresTestBase;
  * boarding 모듈 엔티티 2개({@link RunRider} · {@link RiderStatusHistory})가 실제 V1 스키마와
  * 정확히 맞는지 확인한다.
  *
- * <p>{@code @EntityScan} 으로 {@code boarding.entity} 패키지만 매핑 대상에 넣는다 — Phase 1 이
- * 진행 중인 워크트리라 다른 모듈 엔티티가 존재하지 않는다({@code AcademyEntitySchemaValidationTest} 와
+ * <p>{@code @EntityScan} 으로 {@code boarding.entity} 패키지만 매핑 대상에 넣는다 — 다른 모듈
+ * 엔티티는 매핑 대상에 넣지 않는다({@code AcademyEntitySchemaValidationTest} 와
  * 같은 이유). {@code run}·{@code student}·{@code stop} 은 엔티티가 없는 테이블이라 네이티브 SQL로
  * FK 를 만족시키는 최소 행을 직접 넣는다. {@link RunRider} 가 {@code BaseTimeEntity} 를 상속하므로
  * {@code @DataJpaTest} 슬라이스가 스캔하지 않는 {@code JpaAuditingConfig}·{@code ClockConfig} 를

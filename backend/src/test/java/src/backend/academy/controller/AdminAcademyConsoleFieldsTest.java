@@ -26,7 +26,7 @@ import com.jayway.jsonpath.JsonPath;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * R48 리디자인이 학원 목록·상세에 더한 필드(API_SPEC §6.1·§6.3, Ruling 806) — {@code has_address} ·
+ * 학원 목록·상세 응답 필드(API_SPEC §6.1·§6.3, Ruling 806) — {@code has_address} ·
  * {@code pending_signup_count} · 최상위 {@code summary} · {@code staff_accounts[].last_login_at} ·
  * {@code stats.moving_bus_nos[]}.
  *

@@ -29,7 +29,7 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.common.enums.Role;
 
 /**
- * Phase 14 T1 목표 2 음성 대조용 — {@code LoginCommandService.login()} 이 남기는 감사 로그 행 수를
+ * 음성 대조용 — {@code LoginCommandService.login()} 이 남기는 감사 로그 행 수를
  * 분기별로 직접 센다.
  *
  * <p>가장 핵심 단언은 {@link #차단된_계정으로의_로그인_시도는_감사_로그를_한_건도_남기지_않는다} 다 —

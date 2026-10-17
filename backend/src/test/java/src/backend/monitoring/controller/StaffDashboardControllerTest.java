@@ -47,7 +47,7 @@ import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * §5.3 {@code GET /staff/dashboard} — Phase 13 T1 목표 1·2·3·4(뒷항)·5.
+ * §5.3 {@code GET /staff/dashboard}.
  *
  * <p>{@code p13-task-t1.md §6} 완료 기준 3(목표 3은 실제 {@code PATCH .../riders/{riderId}} 호출을
  * 시험 본문에 담아야 함)·4(목표 4 뒷항은 재배포 후 {@code ack_driver=false} 를 검사해야 함)를 그대로
@@ -100,7 +100,7 @@ class StaffDashboardControllerTest {
 
     /**
      * {@code DriverRunFixtures.confirmedRun}·{@code idleRun} 이 {@code serviceDate} 를
-     * {@code 2030-04-01} 로 고정해서 만든다(자바독 없이 하드코딩 — 다른 T1 시험들의 공통 전제) —
+     * {@code 2030-04-01} 로 고정해서 만든다(자바독 없이 하드코딩 — 다른 시험들의 공통 전제) —
      * 대시보드가 기본값으로 쓰는 "오늘"이 이 날짜와 맞아야 {@code runs[]} 가 비지 않는다.
      */
 
@@ -190,10 +190,10 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.metrics.unassigned_managers").value(1));
     }
 
-    // ── R21-B 목표 1·2·4 — 실제 출발·도착 시각(started_at·finished_at) ─────────
+    // ── 실제 출발·도착 시각(started_at·finished_at) ─────────
 
     /**
-     * R21-B 목표 1·2·4 — {@code started_at}·{@code finished_at} 은 회차가 실제로 그 상태를
+     * {@code started_at}·{@code finished_at} 은 회차가 실제로 그 상태를
      * 지나야만 값이 찬다("예정"인 {@code depart_time} 과 구별). 확정 직후엔 둘 다 없고, 출발
      * 처리 후엔 {@code started_at} 만, 종료 처리 후엔 둘 다 채워진다 — 세 상태를 한 시험에서
      * 순서대로 확인해 "출발 전에는 실제 값이 없다"는 완료 조건 4의 전제를 직접 본다.
@@ -233,12 +233,12 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].finished_at").exists());
     }
 
-    // ── R21-B2 목표 1·2 — 예정 도착(est_arrival_time = depart_time + est_duration_min) ──
+    // ── 예정 도착(est_arrival_time = depart_time + est_duration_min) ──
 
     /**
-     * R21-B2 목표 1 — {@code est_duration_min} 이 있으면 {@code depart_time} 에 그 분(分)을 더한
-     * 값이 {@code est_arrival_time} 으로 나온다. R20-A 가 시드의 {@code est_duration_min} 을 실
-     * NCP 응답으로 채워(docs/archive/rounds/be-rounds-r15-r21.md §8.33) 이 값이 이제 실측치라는 전제를 그대로 시험한다.
+     * {@code est_duration_min} 이 있으면 {@code depart_time} 에 그 분(分)을 더한
+     * 값이 {@code est_arrival_time} 으로 나온다. 시드의 {@code est_duration_min} 을 실
+     * NCP 응답으로 채운 실측치라는 전제를 그대로 시험한다.
      */
     @Test
     @DisplayName("R21-B2 목표1 — est_arrival_time 은 depart_time + est_duration_min 이다")
@@ -267,7 +267,7 @@ class StaffDashboardControllerTest {
     }
 
     /**
-     * R21-B2 목표 2 — {@code est_duration_min} 이 없는 회차(확정 전 등, 정본이 {@code null} 허용)는
+     * {@code est_duration_min} 이 없는 회차(확정 전 등, 정본이 {@code null} 허용)는
      * {@code est_arrival_time} 도 {@code null} 로 견딘다 — 예외를 던지지 않는다.
      */
     @Test
@@ -287,7 +287,7 @@ class StaffDashboardControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].est_arrival_time").doesNotExist());
     }
 
-    // ── R48 (Ruling 810) — 회차 표 6필드 + 미승차 케이스 2필드 ─────────────────
+    // ── Ruling 810 — 회차 표 6필드 + 미승차 케이스 2필드 ─────────────────
 
     private com.jayway.jsonpath.DocumentContext 대시보드(long staffAccountId, long academyId) throws Exception {
         return JsonPath.parse(본문(mockMvc.perform(get("/api/v1/staff/dashboard").header("Authorization",
@@ -544,8 +544,7 @@ class StaffDashboardControllerTest {
      * 삭제된 미배치 매니저 1명을 심어 두고, 살아있는 미배치 매니저 1명만 집계되는지 본다.
      *
      * <p>오늘 회차를 1건 만들어야 한다 — {@code StaffDashboardQueryService.dashboard} 는 오늘 회차가
-     * 없으면 {@code countActiveForStaffDashboard}(별도 메서드, 이 시험의 검사 대상이 아니다)로 빠진다
-     * (수정 라운드 1 — 팀리드 재지시, 원래 판은 회차를 안 만들어 검사 대상 쿼리를 한 번도 안 태웠다).
+     * 없으면 {@code countActiveForStaffDashboard}(별도 메서드, 이 시험의 검사 대상이 아니다)로 빠진다.
      */
     @Test
     @DisplayName("목표8 — 소프트 삭제된 미배치 매니저는 unassigned_managers 에 잡히지 않는다")
@@ -741,7 +740,7 @@ class StaffDashboardControllerTest {
      *
      * <p>{@code RosterQueryService.staffRoster} 가 존재 판정({@code findById})과 학원 범위 판정
      * ({@link src.backend.global.security.access.AcademyScope#assertAccessible})을 분리하도록
-     * 고쳐(API_SPEC §1.5, Ruling 239, 2026-09-03 사용자 판정 ②) 타 학원 회차는 {@code 403
+     * 고쳐(API_SPEC §1.5, Ruling 239) 타 학원 회차는 {@code 403
      * ACADEMY_SCOPE_VIOLATION} 을 던진다 — 존재하지 않는 회차 id 만 {@code 404 RUN_NOT_FOUND} 다.
      */
     @Test

@@ -40,10 +40,9 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 메인 관리자 콘솔의 전 학원 비상 알림 조회(EXC-04, Phase 11 T2 목표 11) — {@code GET /admin/emergencies}.
- * 게이트 리뷰(R2)가 지목한 대로 이 컨트롤러를 태우는 시험이 이전 라운드 diff 전체에서 0건이었다 —
- * 그래서 응답 필드명이 정본(API_SPEC.md:1923, {@code elapsed_since_raised})과 어긋난 채
- * ({@code elapsed_seconds_since_raised}) 아무 데도 걸리지 않았다.
+ * 메인 관리자 콘솔의 전 학원 비상 알림 조회(EXC-04) — {@code GET /admin/emergencies}.
+ * 이 컨트롤러를 태우는 시험이 없으면 응답 필드명이 정본(API_SPEC.md:1923, {@code elapsed_since_raised})과 어긋난 채
+ * ({@code elapsed_seconds_since_raised}) 아무 데도 걸리지 않는다.
  *
  * <p>이 조회는 학원으로 좁히지 않는다({@code @AcademyScopeExempt}) — 로컬 시드(V2)가 이미
  * {@code emergency_alert} 행 1건을 심어 두므로, 응답 목록 크기·순서에 기대지 않고 <b>내가 만든
@@ -162,13 +161,11 @@ class AdminEmergencyControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    // ── Phase 13 목표 13 — §6.11 은 §5.16 상속 필드를 독립으로 다시 검증한다 ─────
+    // ── §6.11 은 §5.16 상속 필드를 독립으로 다시 검증한다 ─────
     //
     // 학원 관계자 화면(§5.16)이 통과해도 메인관리자 콘솔(§6.11)이 같은 필드를 담는다는 보장은
     // 되지 않는다 — 두 응답 DTO(EmergencyStaffItemResponse·AdminEmergencyItemResponse)가 서로
-    // 다른 record 라 한쪽만 고치고 한쪽을 빠뜨릴 수 있다(Phase 13 목표 13 goal-table §7 요구,
-    // T2 P13 리뷰의 "§6.11 응답에서 §5.16 상속 필드 하나를 빼면 이 시험만 실패해야 한다" 음성
-    // 대조 대상).
+    // 다른 record 라 한쪽만 고치고 한쪽을 빠뜨릴 수 있다("§6.11 응답에서 §5.16 상속 필드 하나를 빼면 이 시험만 실패해야 한다" 음성 대조 대상).
 
     @Test
     void 목록_응답은_5_16_상속_필드를_academy_own_필드와_함께_담는다() throws Exception {
@@ -340,7 +337,7 @@ class AdminEmergencyControllerTest {
         assertThat(id목록(body)).contains(alertInA).doesNotContain(alertInB);
     }
 
-    // ── R49 — 응답 최상위 counts(Ruling 837) ─────────────────────────────
+    // ── 응답 최상위 counts(Ruling 837) ─────────────────────────────
 
     /**
      * {@code counts} 는 {@code status} 쿼리와 무관하게 같은 학원 조건의 세 상태 건수를 전부 싣는다 — 탭 3개의 숫자를 요청 한 번으로
@@ -492,7 +489,7 @@ class AdminEmergencyControllerTest {
 
     /**
      * emergency_id 로 걸러 elapsed_since_raised 값을 읽는다 — 시드 행이 섞여 있어도 흔들리지
-     * 않는다. 키는 {@code id} 가 아니라 {@code emergency_id} 다(Phase 13 목표 13 판정 ①, §5.16 상속).
+     * 않는다. 키는 {@code id} 가 아니라 {@code emergency_id} 다(§5.16 상속).
      */
     private Long 경과시간(String body, long emergencyId) {
         List<Number> values = JsonPath.read(body,

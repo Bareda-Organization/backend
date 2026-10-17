@@ -41,7 +41,7 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.run.entity.Run;
 
 /**
- * §5.13 {@code /staff/managers} — MGR-01·02·03·04 · A-12 (Phase 5 목표 4).
+ * §5.13 {@code /staff/managers} — MGR-01·02·03·04 · A-12.
  *
  * <p><b>이 클래스의 최우선 단언은 배치된 매니저 삭제가 {@code 409} 이고 {@code deleted_at} 이 NULL 로
  * 남는다는 것</b>이다. 응답 코드만 보면 저장 계층에서 새어 나온 {@code 500} 과 구별되지 않고,

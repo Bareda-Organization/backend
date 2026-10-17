@@ -44,7 +44,7 @@ import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
- * §4.2 {@code GET /runs/{runId}/roster} — RST-01·02·04·M-03, Phase 9 목표 6·15·16.
+ * §4.2 {@code GET /runs/{runId}/roster} — RST-01·02·04·M-03.
  *
  * <p>이 클래스와 {@link StaffRosterControllerTest} 는 <b>같은 원본을 반대로 검사</b>한다 —
  * 이쪽은 보호자 연락처가 <b>가려지는지</b>(목표 6)와 결석 학생이 <b>행에서 빠지고 집계에만

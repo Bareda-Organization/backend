@@ -29,7 +29,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
- * 학원별 설정 조회·수정(API_SPEC §5.21, Phase 11 목표 4) — {@code GET}·{@code PATCH
+ * 학원별 설정 조회·수정(API_SPEC §5.21) — {@code GET}·{@code PATCH
  * /staff/academy-settings}. 완료 조건이 셋(조회·수정·범위 밖 422)이라 이 셋을 각각 시험한다.
  */
 @SpringBootTest

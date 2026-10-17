@@ -43,7 +43,7 @@ import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20330401Config;
 
 /**
- * 카운터 3종(관측 목표 3, Phase 14 이월 ④)이 <b>실제 이벤트 경로</b>로 오르는지 본다 —
+ * 카운터 3종이 <b>실제 이벤트 경로</b>로 오르는지 본다 —
  * {@code metrics.recordX()} 를 직접 부르는 시험은 계측 클래스 자신의 산술만 검증할 뿐, 그 카운터를
  * 올리는 스케줄러·워커 쪽 연결이 빠져도 그대로 통과한다.
  *
@@ -214,7 +214,7 @@ class DomainEventCounterWiringTest {
     @DisplayName("마감이 지난 대기 변경 요청을 자동 거절하면 schoolbus.change_request.auto_rejected 가 오른다")
     void 마감_지난_변경요청_자동거절시_카운터가_오른다() {
         // 시드의 유일한 pending 행(id=1)의 deadline_at 이 실제 벽시계 기준 곧 지난다(실측 확인,
-        // 2026-09-04 db_now 대비 +6분) — 이 시험의 고정 시계(2033년)는 그보다 훨씬 뒤라 함께 걸린다.
+        // db_now 대비 +6분) — 이 시험의 고정 시계(2033년)는 그보다 훨씬 뒤라 함께 걸린다.
         // status 를 잠시 승인 처리해 폴링 대상에서 빼고, 시험이 끝나면 대기중으로 되돌린다.
         jdbcTemplate.update("UPDATE change_request SET status = 'approved' WHERE id = ?", 시드_대기중_변경요청);
         try {

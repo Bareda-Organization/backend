@@ -82,7 +82,7 @@ class MetricsExposureTest {
      * STOMP 팬아웃 송신 실행기({@code WebSocketConfig.outboundTaskExecutor}) 큐 길이 관측(O4).
      *
      * <p>새 코드를 추가한 게 아니다 — Spring Boot 의 {@code TaskExecutorMetricsAutoConfiguration}
-     * 이 {@code ThreadPoolTaskExecutor} 빈을 <b>빈 이름</b>으로 자동 계측한다(실측 확인, 2026-09-26).
+     * 이 {@code ThreadPoolTaskExecutor} 빈을 <b>빈 이름</b>으로 자동 계측한다(실측 확인).
      * 이 시험이 지키는 것은 그 사실이 아니라 <b>빈 이름</b>이다 — {@code outboundTaskExecutor()} 를
      * 리네임하거나 {@code @Bean(name=...)} 을 다르게 주면 {@code name} 태그가 조용히 바뀌어
      * {@code 5-load.json} 의 "팬아웃 실행기 큐 길이" 패널이 빈 그래프가 된다.

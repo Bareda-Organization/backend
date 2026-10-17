@@ -34,7 +34,7 @@ import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 강제 종료와 동승자의 마지막 하차(자동 종료)가 같은 회차에 겹치는 경우(R47 Ruling 724) — 어느 쪽이 먼저 행을 잡든 <b>한쪽만</b>
+ * 강제 종료와 동승자의 마지막 하차(자동 종료)가 같은 회차에 겹치는 경우(Ruling 724) — 어느 쪽이 먼저 행을 잡든 <b>한쪽만</b>
  * 회차를 끝낸다. 먼저 읽어 판정하고 쓰면 둘 다 "이동 중" 을 보고 통과해 회차가 두 번 끝나고(종료 알림 2회 · 감사 행과 실제 종료자의
  * 불일치) 한 번 더 {@code finished_at} 이 덮인다.
  *

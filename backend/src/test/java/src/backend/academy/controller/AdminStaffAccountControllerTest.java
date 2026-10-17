@@ -183,7 +183,7 @@ class AdminStaffAccountControllerTest {
         재발급을_시도한다(refreshToken).andExpect(status().isOk());
     }
 
-    // ── R56 Ruling 894 ② · 퇴사 관계자 푸시 단말 ─────────────────────────────
+    // ── Ruling 894 ② · 퇴사 관계자 푸시 단말 ─────────────────────────────
 
     /**
      * 퇴사 처리는 그 계정의 푸시 단말 행을 지운다 — 단말 등록 API 는 역할을 가리지 않아 퇴사자 기기가 남으면 학생 알림이
