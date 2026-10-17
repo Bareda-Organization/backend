@@ -3,8 +3,10 @@ package src.backend.boarding.command;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +30,12 @@ import src.backend.run.roster.ProjectedRoster;
 @RequiredArgsConstructor
 public class RunRiderPersistence {
 
+    /** 한 INSERT 의 행 수 상한 — 바인딩 파라미터 한도(32,767)를 행당 6개로 나눈 값 안쪽이다. */
+    private static final int INSERT_CHUNK = 1000;
+
     private final RunRiderRepository runRiderRepository;
+
+    private final JdbcTemplate jdbc;
 
     private final RiderStatusHistoryRepository riderStatusHistoryRepository;
 
@@ -37,11 +44,32 @@ public class RunRiderPersistence {
      * 전용) — 좌표를 얻지 못해 계산에서 분리된 학생({@code unresolvedStudentIds})은 명단에서도 뺀다.
      * OFF 학생은 {@code absent}, 출발 이동 학생은 {@code absent · removed}, 당일 추가 학생은
      * {@code added} 로 남긴다(목표 2와 같은 근거).
+     *
+     * <p><b>한 문장 다중 행 INSERT 로 저장한다</b>(DA-8, Ruling 899) — 키가 IDENTITY 라 엔티티 {@code saveAll} 은 학생 수만큼 INSERT 를
+     * 따로 내 확정 트랜잭션이 연결을 오래 쥐었다. 만든 행의 키는 호출부가 쓰지 않아 돌려주지 않는다.
      */
     @Transactional
-    public List<RunRider> confirmRiders(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
+    public void confirmRiders(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
             OffsetDateTime confirmedAt) {
-        return runRiderRepository.saveAll(ridersOf(runId, roster, unresolvedStudentIds, confirmedAt));
+        List<RunRider> riders = ridersOf(runId, roster, unresolvedStudentIds, confirmedAt);
+        for (int from = 0; from < riders.size(); from += INSERT_CHUNK) {
+            insertRows(riders.subList(from, Math.min(from + INSERT_CHUNK, riders.size())));
+        }
+    }
+
+    private void insertRows(List<RunRider> riders) {
+        String values = String.join(", ", java.util.Collections.nCopies(riders.size(), "(?, ?, ?, ?, ?, ?)"));
+        List<Object> args = new ArrayList<>();
+        for (RunRider rider : riders) {
+            args.add(rider.getRunId());
+            args.add(rider.getStudentId());
+            args.add(rider.getStopId());
+            args.add(rider.getStatus().name().toLowerCase(Locale.ROOT));
+            args.add(rider.getChange() == null ? null : rider.getChange().name().toLowerCase(Locale.ROOT));
+            args.add(rider.getChangedAt());
+        }
+        jdbc.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, change, changed_at) VALUES " + values,
+                args.toArray());
     }
 
     /**
