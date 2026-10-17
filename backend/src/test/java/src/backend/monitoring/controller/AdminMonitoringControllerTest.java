@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
+import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -29,7 +31,6 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
@@ -126,16 +127,11 @@ class AdminMonitoringControllerTest {
     @Autowired
     private AssignmentRepository assignmentRepository;
 
-
     private AdminMonitoringFixtures fixtures() {
         return new AdminMonitoringFixtures(academyRepository, academyStaffRepository, busRepository, stopRepository,
                 studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,
                 confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository,
                 managerRepository, assignmentRepository);
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
     }
 
     // ── 목표 8·9 — GET /admin/academies/{id}/runs/live ─────────────────────
@@ -152,13 +148,13 @@ class AdminMonitoringControllerTest {
         long busId = f.bus(academyId);
         long stopId = f.stop(academyId, "37.500000", "127.030000");
 
-        OffsetDateTime departTime = now().minusMinutes(20);
-        OffsetDateTime startedAt = now().minusMinutes(15);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
+        OffsetDateTime startedAt = OffsetDateTime.now(clock).minusMinutes(15);
         int estDurationMin = 40;
         long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
                 startedAt, estDurationMin);
-        long versionId = f.confirmedRouteWithVersion(runId, now().minusMinutes(25));
-        OffsetDateTime eta = now().plusMinutes(5);
+        long versionId = f.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock).minusMinutes(25));
+        OffsetDateTime eta = OffsetDateTime.now(clock).plusMinutes(5);
         f.runStopForStop(versionId, stopId, 1, eta);
 
         AdminMonitoringFixtures.ManagerAccount driver = f.manager(academyId, ManagerRole.DRIVER, "박정우");
@@ -166,13 +162,13 @@ class AdminMonitoringControllerTest {
         f.assign(runId, driver.managerId(), ManagerRole.DRIVER);
         f.assign(runId, escort.managerId(), ManagerRole.ESCORT);
 
-        OffsetDateTime received = now().minusSeconds(30);
+        OffsetDateTime received = OffsetDateTime.now(clock).minusSeconds(30);
         위치를_기록한다(runId, received);
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
         MvcResult result = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization",
-                        메인관리자_토큰(adminAccountId)))
+                        메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(runId))
                 .andExpect(jsonPath("$.data.runs[0].run_status").value("moving"))
@@ -213,13 +209,13 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
         f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), 40);
+                OffsetDateTime.now(clock).minusMinutes(15), 40);
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
         MvcResult result = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization",
-                        메인관리자_토큰(adminAccountId)))
+                        메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -238,13 +234,13 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
         long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), null);
+                OffsetDateTime.now(clock).minusMinutes(15), null);
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(runId))
                 .andExpect(jsonPath("$.data.runs[0].destination_eta").doesNotExist());
@@ -256,14 +252,14 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        OffsetDateTime departTime = now().plusHours(2);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(2);
         long liveRunId = f.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
         long canceledRunId = f.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        runRepository.findById(canceledRunId).orElseThrow().cancel(now(), src.backend.run.entity.RunCancelSource.STAFF);
+        runRepository.findById(canceledRunId).orElseThrow().cancel(OffsetDateTime.now(clock), src.backend.run.entity.RunCancelSource.STAFF);
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(1))
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(liveRunId));
@@ -279,16 +275,16 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
         long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), 30);
-        OffsetDateTime received = now().minusMinutes(3);
+                OffsetDateTime.now(clock).minusMinutes(15), 30);
+        OffsetDateTime received = OffsetDateTime.now(clock).minusMinutes(3);
         위치를_기록한다(runId, received);
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
         MvcResult result = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization",
-                        메인관리자_토큰(adminAccountId)))
+                        메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(runId))
                 .andExpect(jsonPath("$.data.runs[0].position").doesNotExist())
@@ -309,16 +305,16 @@ class AdminMonitoringControllerTest {
         long busId = f.bus(academyId);
         long stopId = f.stop(academyId, "37.500000", "127.030000");
 
-        OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
         long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), 40);
-        long versionId = f.confirmedRouteWithVersion(runId, now().minusMinutes(25));
-        long runStopId = f.runStopForStop(versionId, stopId, 1, now().plusMinutes(5));
-        f.markArrived(runStopId, now().minusMinutes(1));
+                OffsetDateTime.now(clock).minusMinutes(15), 40);
+        long versionId = f.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock).minusMinutes(25));
+        long runStopId = f.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock).plusMinutes(5));
+        f.markArrived(runStopId, OffsetDateTime.now(clock).minusMinutes(1));
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].stops[0].arrived_at").exists())
                 .andExpect(jsonPath("$.data.runs[0].stops[0].eta").doesNotExist());
@@ -334,7 +330,7 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(20);
 
         f.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime.plusMinutes(10));
         f.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
@@ -345,7 +341,7 @@ class AdminMonitoringControllerTest {
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(4))
                 // depart_time 오름차순(목표 5) — finished(-90) · moving(-20) · confirmed(0) · idle(+10)
@@ -365,7 +361,7 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(20);
 
         long todayRunId = f.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
@@ -376,7 +372,7 @@ class AdminMonitoringControllerTest {
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(1))
                 // ⚠ run_id 로 못박는다 — 세 회차가 전부 confirmed 라 개수·상태만 보면 조회 날짜가
@@ -394,12 +390,12 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        OffsetDateTime departTime = now().plusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).plusMinutes(20);
         f.idleRun(academyId, busId, Direction.TO_ACADEMY, departTime);
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(1))
                 .andExpect(jsonPath("$.data.runs[0].run_status").value("idle"))
@@ -420,23 +416,23 @@ class AdminMonitoringControllerTest {
         long academyId = f.academy();
         long stopId = f.stop(academyId, "37.500000", "127.030000");
 
-        OffsetDateTime movingDepart = now().minusMinutes(40);
+        OffsetDateTime movingDepart = OffsetDateTime.now(clock).minusMinutes(40);
         long movingRun = f.movingRun(academyId, f.bus(academyId), Direction.TO_ACADEMY, movingDepart,
                 movingDepart.minusMinutes(30), movingDepart.plusMinutes(7), 40);
         long versionId = f.confirmedRouteWithVersion(movingRun, movingDepart.minusMinutes(25));
         long runStopId = f.runStopForStop(versionId, stopId, 1, movingDepart.plusMinutes(10));
         f.markArrived(runStopId, movingDepart.plusMinutes(14));
 
-        OffsetDateTime finishedDepart = now().minusMinutes(90);
+        OffsetDateTime finishedDepart = OffsetDateTime.now(clock).minusMinutes(90);
         OffsetDateTime finishedAt = finishedDepart.plusMinutes(45);
         long finishedRun = f.finishedRun(academyId, f.bus(academyId), Direction.FROM_ACADEMY, finishedDepart,
                 finishedDepart.minusMinutes(30), finishedDepart.plusMinutes(2), finishedAt);
-        long confirmedRun = f.confirmedRun(academyId, f.bus(academyId), Direction.TO_ACADEMY, now().plusMinutes(30),
-                now().minusMinutes(5));
-        long idleRun = f.idleRun(academyId, f.bus(academyId), Direction.FROM_ACADEMY, now().plusMinutes(50));
+        long confirmedRun = f.confirmedRun(academyId, f.bus(academyId), Direction.TO_ACADEMY, OffsetDateTime.now(clock).plusMinutes(30),
+                OffsetDateTime.now(clock).minusMinutes(5));
+        long idleRun = f.idleRun(academyId, f.bus(academyId), Direction.FROM_ACADEMY, OffsetDateTime.now(clock).plusMinutes(50));
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        String body = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        String body = mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -463,14 +459,14 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        long runId = f.idleRun(academyId, busId, Direction.TO_ACADEMY, now().plusMinutes(20));
+        long runId = f.idleRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock).plusMinutes(20));
         // recordFailure 는 REQUIRES_NEW 라 이 시험 트랜잭션의 미커밋 행을 못 본다 — 같은 연결로 직접 올린다.
         jdbcTemplate.update("UPDATE run SET consecutive_failures = 2 WHERE id = ?", runId);
         entityManager.clear();
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs[0].consecutive_failures").value(2));
     }
@@ -483,15 +479,15 @@ class AdminMonitoringControllerTest {
         long academyB = f.academy();
         long busA = f.bus(academyA);
         long busB = f.bus(academyB);
-        OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
         long runA = f.movingRun(academyA, busA, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), 30);
+                OffsetDateTime.now(clock).minusMinutes(15), 30);
         f.movingRun(academyB, busB, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), 30);
+                OffsetDateTime.now(clock).minusMinutes(15), 30);
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(academyA)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(academyA)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.runs.length()").value(1))
                 .andExpect(jsonPath("$.data.runs[0].run_id").value(runA));
@@ -502,7 +498,7 @@ class AdminMonitoringControllerTest {
     void 없는_학원의_관제_조회는_404다() throws Exception {
         long adminAccountId = fixtures().systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(LIVE.formatted(999_999_999L)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(LIVE.formatted(999_999_999L)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("ACADEMY_NOT_FOUND"));
     }
@@ -516,11 +512,11 @@ class AdminMonitoringControllerTest {
         long academyId = f.academy();
         long busId = f.bus(academyId);
         long stopId = f.stop(academyId, "37.500000", "127.030000");
-        OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
         long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), 30);
-        long versionId = f.confirmedRouteWithVersion(runId, now().minusMinutes(25));
-        f.runStopForStop(versionId, stopId, 1, now().plusMinutes(5));
+                OffsetDateTime.now(clock).minusMinutes(15), 30);
+        long versionId = f.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock).minusMinutes(25));
+        f.runStopForStop(versionId, stopId, 1, OffsetDateTime.now(clock).plusMinutes(5));
 
         long studentId = f.student(academyId, "김학생", "010-2311-8814", "https://example.com/photo.jpg");
         f.rider(runId, studentId, stopId);
@@ -528,7 +524,7 @@ class AdminMonitoringControllerTest {
 
         long adminAccountId = f.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(ROSTER.formatted(runId)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(ROSTER.formatted(runId)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[0].stop_id").value(stopId))
                 .andExpect(jsonPath("$.data.stops[0].students[0].student_id").value(studentId))
@@ -544,7 +540,7 @@ class AdminMonitoringControllerTest {
     void 없는_회차의_명단_조회는_404다() throws Exception {
         long adminAccountId = fixtures().systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(ROSTER.formatted(999_999_999L)).header("Authorization", 메인관리자_토큰(adminAccountId)))
+        mockMvc.perform(get(ROSTER.formatted(999_999_999L)).header("Authorization", 메인관리자_토큰(tokenProvider, adminAccountId)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_FOUND"));
     }
@@ -557,8 +553,7 @@ class AdminMonitoringControllerTest {
         long academyId = f.academy();
         long staffAccountId = f.staffAccount(academyId, "직원");
 
-        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 토큰(staffAccountId, academyId,
-                        Role.STAFF)))
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isForbidden());
     }
 
@@ -567,13 +562,12 @@ class AdminMonitoringControllerTest {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
         long busId = f.bus(academyId);
-        OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
         long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
-                now().minusMinutes(15), 30);
+                OffsetDateTime.now(clock).minusMinutes(15), 30);
         long staffAccountId = f.staffAccount(academyId, "직원");
 
-        mockMvc.perform(get(ROSTER.formatted(runId)).header("Authorization", 토큰(staffAccountId, academyId,
-                        Role.STAFF)))
+        mockMvc.perform(get(ROSTER.formatted(runId)).header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
                 .andExpect(status().isForbidden());
     }
 
@@ -585,13 +579,5 @@ class AdminMonitoringControllerTest {
                 {"lat":37.400000,"lng":127.400000,"recordedAt":"%1$s","receivedAt":"%1$s","currentStopName":"중앙 집결지"}"""
                 .formatted(receivedAt);
         stringRedisTemplate.opsForValue().set(key, json);
-    }
-
-    private String 토큰(long accountId, long academyId, Role role) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, academyId, role, AccountStatus.ACTIVE);
-    }
-
-    private String 메인관리자_토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 }

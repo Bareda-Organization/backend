@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -18,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
@@ -127,12 +127,8 @@ class AdminRunRosterControllerTest {
         long runId = fx.confirmedRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
 
-        mockMvc.perform(get("/api/v1/admin/runs/" + runId + "/roster").header("Authorization", 메인관리자_토큰()))
+        mockMvc.perform(get("/api/v1/admin/runs/" + runId + "/roster").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[0].students[0].guardian_phone").value(nullValue()));
-    }
-
-    private String 메인관리자_토큰() {
-        return "Bearer " + tokenProvider.createAccessToken(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 }

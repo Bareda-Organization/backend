@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -113,7 +114,7 @@ class AdminRunAttentionControllerTest {
         회차(fixtures, academyId, TODAY.minusDays(1), 6, "idle", false); // 어제 회차
         지연_알림(회차(fixtures, academyId, TODAY.minusDays(1), 0, "moving", false), senderId);
 
-        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -134,7 +135,7 @@ class AdminRunAttentionControllerTest {
         지연_알림(회차(fixtures, delayOnly, TODAY, 0, "moving", false), senderId);
         회차(fixtures, failureOnly, TODAY, 2, "idle", false);
 
-        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -153,7 +154,7 @@ class AdminRunAttentionControllerTest {
         회차(fixtures, quietAcademy, TODAY, 0, "idle", false);
         long adminId = fixtures.systemAdminAccount("메인관리자");
 
-        mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+        mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[?(@.academy_id == %d)]".formatted(quietAcademy)).isEmpty());
     }
@@ -184,7 +185,7 @@ class AdminRunAttentionControllerTest {
         academyRepository.findById(quietAcademy).orElseThrow().changeStatus(src.backend.academy.entity.AcademyStatus.INACTIVE);
         academyRepository.flush();
 
-        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(adminId)))
+        String body = mockMvc.perform(get(ATTENTION).header("Authorization", 메인관리자_토큰(tokenProvider, adminId)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
@@ -246,9 +247,5 @@ class AdminRunAttentionControllerTest {
                 INSERT INTO delay_notice (run_id, sent_by_account_id, minutes, reason)
                 VALUES (?, ?, 10, 'traffic')
                 """, runId, senderAccountId);
-    }
-
-    private String 메인관리자_토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 }

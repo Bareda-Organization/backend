@@ -3,6 +3,7 @@ package src.backend.monitoring.query;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -115,19 +116,18 @@ class AdminAcademyLiveQueryCountTest {
     @Autowired
     private AssignmentRepository assignmentRepository;
 
-
     @Test
     void 정차지가_늘어도_관제_쿼리_수는_같다() throws Exception {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
-        String token = 메인관리자_토큰(f.systemAdminAccount("메인관리자"));
+        String token = 메인관리자_토큰(tokenProvider, f.systemAdminAccount("메인관리자"));
         long versionId = 운행_중_회차(f, academyId);
-        f.runStopForStop(versionId, f.stop(academyId, "37.500000", "127.030000"), 1, now().plusMinutes(5));
+        f.runStopForStop(versionId, f.stop(academyId, "37.500000", "127.030000"), 1, OffsetDateTime.now(clock).plusMinutes(5));
 
         long oneStop = 관제_쿼리_수(academyId, token);
         for (int seq = 2; seq <= 4; seq++) {
             f.runStopForStop(versionId, f.stop(academyId, "37.50" + seq + "000", "127.030000"), seq,
-                    now().plusMinutes(5 + seq));
+                    OffsetDateTime.now(clock).plusMinutes(5 + seq));
         }
 
         assertThat(관제_쿼리_수(academyId, token)).isEqualTo(oneStop);
@@ -138,14 +138,14 @@ class AdminAcademyLiveQueryCountTest {
     void 회차가_늘어도_관제_쿼리_수는_같다() throws Exception {
         AdminMonitoringFixtures f = fixtures();
         long academyId = f.academy();
-        String token = 메인관리자_토큰(f.systemAdminAccount("메인관리자"));
+        String token = 메인관리자_토큰(tokenProvider, f.systemAdminAccount("메인관리자"));
         f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.500000", "127.030000"), 1,
-                now().plusMinutes(5));
+                OffsetDateTime.now(clock).plusMinutes(5));
 
         long oneRun = 관제_쿼리_수(academyId, token);
         for (int i = 0; i < 3; i++) {
             f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.51" + i + "000", "127.030000"), 1,
-                    now().plusMinutes(5));
+                    OffsetDateTime.now(clock).plusMinutes(5));
         }
 
         assertThat(관제_쿼리_수(academyId, token)).isEqualTo(oneRun);
@@ -159,22 +159,22 @@ class AdminAcademyLiveQueryCountTest {
         String token = "Bearer " + tokenProvider.createAccessToken(f.staffAccount(academyId, "관계자"), academyId,
                 Role.STAFF, AccountStatus.ACTIVE);
         f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.500000", "127.030000"), 1,
-                now().plusMinutes(5));
+                OffsetDateTime.now(clock).plusMinutes(5));
 
         long oneRun = 쿼리_수("/api/v1/staff/runs/live", token);
         for (int i = 0; i < 3; i++) {
             f.runStopForStop(운행_중_회차(f, academyId), f.stop(academyId, "37.51" + i + "000", "127.030000"), 1,
-                    now().plusMinutes(5));
+                    OffsetDateTime.now(clock).plusMinutes(5));
         }
 
         assertThat(쿼리_수("/api/v1/staff/runs/live", token)).isEqualTo(oneRun);
     }
 
     private long 운행_중_회차(AdminMonitoringFixtures f, long academyId) {
-        OffsetDateTime departTime = now().minusMinutes(20);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
         long runId = f.movingRun(academyId, f.bus(academyId), Direction.TO_ACADEMY, departTime,
-                departTime.minusMinutes(30), now().minusMinutes(15), 40);
-        return f.confirmedRouteWithVersion(runId, now().minusMinutes(25));
+                departTime.minusMinutes(30), OffsetDateTime.now(clock).minusMinutes(15), 40);
+        return f.confirmedRouteWithVersion(runId, OffsetDateTime.now(clock).minusMinutes(25));
     }
 
     private long 관제_쿼리_수(long academyId, String token) throws Exception {
@@ -189,14 +189,6 @@ class AdminAcademyLiveQueryCountTest {
         statistics.clear();
         mockMvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk());
         return statistics.getPrepareStatementCount();
-    }
-
-    private OffsetDateTime now() {
-        return OffsetDateTime.now(clock);
-    }
-
-    private String 메인관리자_토큰(long accountId) {
-        return "Bearer " + tokenProvider.createAccessToken(accountId, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE);
     }
 
     private AdminMonitoringFixtures fixtures() {
