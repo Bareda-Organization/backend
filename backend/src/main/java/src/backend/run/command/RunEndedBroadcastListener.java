@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.event.RunEndedEvent;
@@ -40,7 +41,7 @@ public class RunEndedBroadcastListener {
     /** 운행 종료를 학생·매니저·학원·관리자 채널 4종 전부에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunEndedEvent event) {
-        broadcastExecutor.execute(() -> deliverRunEndedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(EVENT, event.runId(), () -> deliverRunEndedEvent(event)));
     }
 
     private void deliverRunEndedEvent(RunEndedEvent event) {

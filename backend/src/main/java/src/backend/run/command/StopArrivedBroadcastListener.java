@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.run.event.StopArrivedEvent;
 
@@ -38,7 +39,7 @@ public class StopArrivedBroadcastListener {
     /** 승하차지 도착을 학생·매니저·학원·관리자 채널 4종 전부에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(StopArrivedEvent event) {
-        broadcastExecutor.execute(() -> deliverStopArrivedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(EVENT, event.runId(), () -> deliverStopArrivedEvent(event)));
     }
 
     private void deliverStopArrivedEvent(StopArrivedEvent event) {

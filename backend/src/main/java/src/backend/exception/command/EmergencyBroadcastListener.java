@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import src.backend.exception.event.EmergencyAckedEvent;
 import src.backend.exception.event.EmergencyCanceledEvent;
 import src.backend.exception.event.EmergencyRaisedEvent;
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 
@@ -50,7 +51,7 @@ public class EmergencyBroadcastListener {
     /** 비상 신고 접수를 관계자·관리자 채널에만 방송한다(학생 채널 제외). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastRaised(EmergencyRaisedEvent event) {
-        broadcastExecutor.execute(() -> deliverEmergencyRaisedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(RAISED_EVENT, event.runId(), () -> deliverEmergencyRaisedEvent(event)));
     }
 
     private void deliverEmergencyRaisedEvent(EmergencyRaisedEvent event) {
@@ -62,7 +63,7 @@ public class EmergencyBroadcastListener {
     /** 비상 신고 확인을 발신자가 보는 매니저 채널에만 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastAcked(EmergencyAckedEvent event) {
-        broadcastExecutor.execute(() -> deliverEmergencyAckedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(ACKED_EVENT, event.runId(), () -> deliverEmergencyAckedEvent(event)));
     }
 
     private void deliverEmergencyAckedEvent(EmergencyAckedEvent event) {
@@ -74,7 +75,7 @@ public class EmergencyBroadcastListener {
     /** 비상 신고 취소를 관계자·관리자 채널에만 방송한다(학생 채널 제외). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcastCanceled(EmergencyCanceledEvent event) {
-        broadcastExecutor.execute(() -> deliverEmergencyCanceledEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(CANCELED_EVENT, event.runId(), () -> deliverEmergencyCanceledEvent(event)));
     }
 
     private void deliverEmergencyCanceledEvent(EmergencyCanceledEvent event) {

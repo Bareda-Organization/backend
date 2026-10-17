@@ -10,6 +10,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.run.event.RunRouteConfirmedEvent;
@@ -39,7 +40,7 @@ public class RunRouteChangedBroadcastListener {
     /** 노선 확정 이벤트를 매니저 채널 1곳에 방송한다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RunRouteConfirmedEvent event) {
-        broadcastExecutor.execute(() -> deliverRunRouteConfirmedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(EVENT, event.runId(), () -> deliverRunRouteConfirmedEvent(event)));
     }
 
     private void deliverRunRouteConfirmedEvent(RunRouteConfirmedEvent event) {

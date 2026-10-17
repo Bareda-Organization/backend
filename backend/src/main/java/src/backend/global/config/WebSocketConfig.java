@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.global.error.StompErrorFrameHandler;
 import src.backend.global.security.StompAuthChannelInterceptor;
 import src.backend.global.security.StompSessionExpiry;
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.ConnectDeadlineFactory;
 import src.backend.global.websocket.OpenWebSocketSessions;
 
@@ -162,7 +163,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             try {
                 task.run();
             } catch (RuntimeException e) {
-                log.warn("방송 리스너 작업 실패", e);
+                if (task instanceof BroadcastTask broadcast) {
+                    log.warn("{} 방송 작업 실패 — runId={}", broadcast.event(), broadcast.runId(), e);
+                } else {
+                    log.warn("방송 리스너 작업 실패", e);
+                }
             }
         });
         executor.initialize();

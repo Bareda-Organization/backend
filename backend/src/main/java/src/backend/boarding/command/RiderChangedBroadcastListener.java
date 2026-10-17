@@ -16,6 +16,7 @@ import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.event.RiderMarkedNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.websocket.BroadcastTask;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.student.repository.StudentRepository;
@@ -51,7 +52,7 @@ public class RiderChangedBroadcastListener {
     /** 승하차 상태 변경을 매니저·학원·관리자 채널에 방송한다({@code stop_skipped} 는 항상 false). */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RiderStatusChangedEvent event) {
-        broadcastExecutor.execute(() -> deliverRiderStatusChangedEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(EVENT, event.runId(), () -> deliverRiderStatusChangedEvent(event)));
     }
 
     private void deliverRiderStatusChangedEvent(RiderStatusChangedEvent event) {
@@ -80,7 +81,7 @@ public class RiderChangedBroadcastListener {
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void broadcast(RiderMarkedNoShowEvent event) {
-        broadcastExecutor.execute(() -> deliverRiderMarkedNoShowEvent(event));
+        broadcastExecutor.execute(new BroadcastTask(EVENT, event.runId(), () -> deliverRiderMarkedNoShowEvent(event)));
     }
 
     private void deliverRiderMarkedNoShowEvent(RiderMarkedNoShowEvent event) {
