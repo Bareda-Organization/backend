@@ -49,15 +49,14 @@ import src.backend.student.repository.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
- * 관계자용 확정 노선 조회(API_SPEC §5.19 {@code GET /staff/runs/{runId}/route}, RTE-02, F1 S3 목표
- * 11).
+ * 관계자용 확정 노선 조회(API_SPEC §5.19 {@code GET /staff/runs/{runId}/route}, RTE-02).
  *
  * <p>존재 판정과 학원 범위 판정을 분리한다({@code RosterQueryService#staffRoster} 와 같은 근거) —
  * 회차 자체가 없으면 {@code 404 RUN_NOT_FOUND}, 있는데 타 학원 소속이면
  * {@link AcademyScope#assertAccessible} 이 {@code 403 ACADEMY_SCOPE_VIOLATION} 을 던진다.
  *
  * <p>{@code 409 RUN_NOT_CONFIRMED} 는 배포된 확정 노선(route_version)도 없고 <b>고정 노선으로 낼
- * 예정 경로도 없을 때</b>다(R20-A, Ruling 321) — 매니저용 {@link RunRouteQueryService#route} 는 같은
+ * 예정 경로도 없을 때</b>다(Ruling 321) — 매니저용 {@link RunRouteQueryService#route} 는 같은
  * 상태에서 빈 200 을 돌려주지만(운행 중 단말의 일시적 공백을 허용), 관계자는 확정 노선을 "보는"
  * 용도라 둘 다 없으면 아직 볼 것이 없다는 뜻이다.
  *
@@ -124,7 +123,7 @@ public class StaffRunRouteQueryService {
     }
 
     /**
-     * 확정 전(idle) 회차의 <b>예정 경로</b>(R20-A, Ruling 321) — 고정 노선(§7 규칙 12 교체 축과
+     * 확정 전(idle) 회차의 <b>예정 경로</b>(Ruling 321) — 고정 노선(§7 규칙 12 교체 축과
      * 무관하게 {@code route}·{@code route_stop} 이 이미 갖고 있는 데이터)과 오늘 자 요일별 주소만으로
      * 계산한다. 강제 추가·버스 간 이동·승인된 경유지 재배치 같은 당일 변경(RTE-06·07, P-06)은 반영하지
      * 않는다 — 확정 배치가 그 순간의 명단으로 다시 계산하므로 이 값은 처음부터 "예정"일 뿐이고, 그
@@ -214,7 +213,7 @@ public class StaffRunRouteQueryService {
      * {@code Assignment.ackedRouteVersionId == 현재 확정 버전} — 대시보드가 쓰는 것과 같은 비교(§5.3,
      * {@code StaffDashboardQueryService#ackedOf} 참고).
      *
-     * <p>R22 — 요청자의 {@code academyId} 가 아니라 <b>회차가 속한 학원</b>으로 찾는다. 메인 관리자는
+     * <p>요청자의 {@code academyId} 가 아니라 <b>회차가 속한 학원</b>으로 찾는다. 메인 관리자는
      * {@code academyId} 가 {@code null} 이라(그 역할만 null 이 허용된다, {@link AuthUser}) 요청자 기준으로
      * 찾으면 일치하는 행이 없어 확인 현황이 늘 "둘 다 미확인" 으로 나온다 — 권한이 없어서가 아니라
      * 조회 조건이 안 맞아서인데, 빈 결과라 구별할 수단이 부재하다. 이 지점에 닿기 전에

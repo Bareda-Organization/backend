@@ -54,7 +54,7 @@ public class RunAssignmentAccess {
 
     /**
      * {@link #assertAssignedDriver} 와 같은 판정(역할 → {@code DRIVER_ONLY} · 미배치 → {@code FORBIDDEN})을 <b>배치 행을 꺼내지 않고
-     * 존재 확인 한 문장</b>으로 한다 — 행이 필요 없는 위치 수신(2초마다)용이다(R46-LATERBE L2). 미배치의 세 사유(매니저 없음 · 그 회차
+     * 존재 확인 한 문장</b>으로 한다 — 행이 필요 없는 위치 수신(2초마다)용이다. 미배치의 세 사유(매니저 없음 · 그 회차
      * 배치 없음 · 다른 매니저 배치)가 전부 같은 {@code FORBIDDEN} 이라 한 문장으로 합쳐도 응답 의미가 같다.
      */
     public void assertAssignedDriverExists(AuthUser requester, Long runId) {
@@ -83,7 +83,7 @@ public class RunAssignmentAccess {
     }
 
     /**
-     * 그 회차에 배치된 동승자인지(F3 S1, API_SPEC §4.9 지연 알림 — 기사 호출은 대상 밖). 역할이 아니면
+     * 그 회차에 배치된 동승자인지(API_SPEC §4.9 지연 알림 — 기사 호출은 대상 밖). 역할이 아니면
      * {@link #assertAssignedDriver} 와 대칭으로 전용 코드({@code ESCORT_ONLY})를, 역할은 맞지만 이
      * 회차에 배치되지 않았으면 일반 {@code FORBIDDEN} 을 던진다 — 배치 여부를 응답에서 드러내지
      * 않는다는 이 클래스의 규칙(위 클래스 자바독)을 그대로 잇는다.

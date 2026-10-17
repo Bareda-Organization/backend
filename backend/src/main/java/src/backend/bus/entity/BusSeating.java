@@ -31,7 +31,7 @@ public record BusSeating(int capacity, int driverCount, int escortCount) {
      * 학생 정원이 0 이하가 되는 구성을 저장 전에 거부한다 — DB CHECK({@code ck_bus_capacity})와 같은
      * 조건이나, 여기서 막지 않으면 제약 위반이 예외 번역을 거치지 않아 {@code 500} 으로 샌다.
      *
-     * <p>그 차량이 저장되면 Phase 7 확정 배치가 <b>0명짜리 버스를 편성</b>하고, 그때는 원인이 배치
+     * <p>그 차량이 저장되면 확정 배치가 <b>0명짜리 버스를 편성</b>하고, 그때는 원인이 배치
      * 로직으로 보인다.
      */
     public BusSeating {

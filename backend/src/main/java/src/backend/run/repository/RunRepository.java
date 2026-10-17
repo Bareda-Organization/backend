@@ -31,7 +31,7 @@ import src.backend.run.entity.RunStatus;
 public interface RunRepository extends JpaRepository<Run, Long> {
 
     /**
-     * <b>끝나지 않은 이동 중 회차</b>의 조건 한 벌(R46-KFIXBE K-1 Ruling 701 · R47 Ruling 724) — 미취소 {@code moving} 이고 운행일이
+     * <b>끝나지 않은 이동 중 회차</b>의 조건 한 벌(Ruling 701 · Ruling 724) — 미취소 {@code moving} 이고 운행일이
      * {@code :before} 보다 이르다. {@link #countStaleMoving}(경보 지표) · {@link #findStaleMoving}(관리자 목록) ·
      * {@link #finishIfStaleMoving}(강제 종료)가 이 문자열을 같이 이어 쓴다 — 조건이 두 벌이면 경보가 센 회차와 목록에 뜬 회차가
      * 어긋나고, 강제 종료가 목록에 없는 회차를 끝낼 수 있다. {@code :before} 는 {@code MovingRunWindowPolicy#earliestServiceDate}.
@@ -63,7 +63,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     /**
      * 한 학원에서 그 상태인 미취소 회차가 있는 <b>차량의 호차 이름</b>(학원 상세 {@code stats.moving_bus_nos[]}, §6.3 · Ruling 806) — 운행일이
      * {@code since} 이후인 회차만 센다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate} 라
-     * 근접 판정·유실 집계·노선 잠금과 같은 범위다(R46-KFIXBE K-1, Ruling 701) — 그보다 이른 {@code moving} 회차는 끝나지 않은 회차로
+     * 근접 판정·유실 집계·노선 잠금과 같은 범위다(Ruling 701) — 그보다 이른 {@code moving} 회차는 끝나지 않은 회차로
      * {@link #countStaleMoving} 이 센다. 차량이 같으면 한 번만 나온다(회차 수가 아니다, BR-057). 호차 이름은 학원 안에서 유일하다
      * ({@code uk_bus_academy_bus_no}) — 그래서 이 목록의 크기가 곧 {@code moving_bus_count} 이고, 두 값이 같은 범위일 수밖에 없다.
      */
@@ -124,7 +124,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * (ARCHITECTURE §9.2 두 시계). 여기서 {@code depart_time - 30분} 을 다시 계산하지 않는다 — 실행
      * 시각으로 재계산하면 배치가 늦게 돈 회차의 판정 기준이 실행 시각 쪽으로 밀린다.
      *
-     * <p>{@code pageable} 은 한 틱이 한 번에 집는 상한이다(목표 6) — 상한 없이 전건을 집으면 회차가
+     * <p>{@code pageable} 은 한 틱이 한 번에 집는 상한이다 — 상한 없이 전건을 집으면 회차가
      * 몰린 틱 하나가 커넥션·워커 풀을 오래 붙든다. {@code ix_run_status_confirm_at} 이 이 조회를 받친다 — 상태는 enum 리터럴이다(바인딩 파라미터면 일반 계획이 부분 인덱스를 못 쓴다, DA-3).
      *
      * <p><b>영구 실패 회차가 상한을 차지하지 못하게</b> 두 조건을 건다(BR-001, ARCHITECTURE §9.4 회차 단위
@@ -134,7 +134,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 이유는 관계자가 노선을 편성한 뒤에도 그 회차가 확정돼야 하기 때문이다.
      *
      * <p>③ {@code confirm_retry_at} — 실패한 회차는 실패 횟수에 따라 늘어나는 간격(30초부터 두 배 · 최대 10분)이 지난 뒤에야 다시
-     * 집힌다(R46-KFIXBE K-2, Ruling 703). 영구 실패 회차를 30초마다 다시 시도하면 하루 2,880회 시도와 스택 로그가 쌓인다. 이 시각은
+     * 집힌다(Ruling 703). 영구 실패 회차를 30초마다 다시 시도하면 하루 2,880회 시도와 스택 로그가 쌓인다. 이 시각은
      * <b>실행 시각</b>이고 판정 시각({@code confirm_at})은 그대로다 — 노선·학원 좌표를 저장하면 {@link #resetConfirmationFailures}
      * 가 비워 다음 틱에 바로 다시 시도한다.
      */
@@ -149,7 +149,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             Pageable pageable);
 
     /**
-     * 근접 알림 스케줄러(NTF-04, 목표 13·15)의 조회 대상 — 시각 문턱이 없다는 점이
+     * 근접 알림 스케줄러(NTF-04)의 조회 대상 — 시각 문턱이 없다는 점이
      * {@link #findDueForConfirmation} 와 다르다.
      * 근접 판정은 "판정 시각이 지났는가" 가 아니라 "지금 운행 중인가" 만 묻는다({@code RunStatus.MOVING}) —
      * 실제 좌표가 300m 안에 들어왔는지는 이 조회가 아니라 정차 항목별 판정이 담당한다.
@@ -162,13 +162,13 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * (BR-011). 쪽 번호 대신 id 를 쓰는 이유는 읽는 사이에 회차가 끝나 목록이 줄어도 건너뛰는 행이 없게
      * 하려는 것이다.
      *
-     * <p><b>{@code service_date >= since}</b> 로 지난 운행일의 이동 중 회차를 뺀다(R46-KFIXBE K-1, Ruling 701) — 잔류 인원을
+     * <p><b>{@code service_date >= since}</b> 로 지난 운행일의 이동 중 회차를 뺀다(Ruling 701) — 잔류 인원을
      * 정리하지 못해 끝나지 않은 회차가 처리 집합에 영구히 남으면 틱마다 읽는 양이 날마다 늘고, 위치가 없는 그 회차가 유실
      * 경보를 계속 켜 둔다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate} 다. 빠진 회차의 수는
      * {@link #countStaleMoving} 이 센다. {@code ix_run_moving}(부분 인덱스)이 이동 중 회차만 골라 주므로 날짜 조건은 그 소수에
      * 대한 걸러내기다. {@code status} 를 바인딩 파라미터가 아니라 <b>리터럴</b>로 둔 것도 이 인덱스 때문이다 — 부분 인덱스는 리터럴일 때만 쓰여, 파라미터로 받으면
      * 일반(generic) 계획이 {@code run_pkey} 로 전 행을 훑는다(14.6만 행 실측 20.7ms · 리터럴은 0.033ms, {@code ix_run_status_confirm_at} 주석과 같은
-     * 근거). 읽기 전용 트랜잭션 한 개로 묶는다 — 근접 판정 시험(R46-LATERBE L5)이 한 틱의 트랜잭션 수를 세는데, 이 조회가
+     * 근거). 읽기 전용 트랜잭션 한 개로 묶는다 — 근접 판정 시험이 한 틱의 트랜잭션 수를 세는데, 이 조회가
      * 그중 하나다.
      */
     @AcademyScopeExempt(reason = "근접 알림 스케줄러는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
@@ -182,7 +182,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
 
     /**
      * 처리 집합에서 빠진 <b>끝나지 않은 이동 중 회차</b> 수 — 운행일이 {@code before} 보다 이른 미취소 {@code moving} 회차
-     * (R46-KFIXBE K-1, Ruling 701). {@link #findMovingFromServiceDate} 가 집지 않는 바로 그 회차라, 근접 판정·유실 집계·노선
+     * (Ruling 701). {@link #findMovingFromServiceDate} 가 집지 않는 바로 그 회차라, 근접 판정·유실 집계·노선
      * 잠금이 못 보는 대신 {@code schoolbus.run.moving.stale} 게이지로 사람에게 드러낸다.
      */
     @AcademyScopeExempt(reason = "끝나지 않은 이동 중 회차 게이지는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 부재하다 — "
@@ -191,7 +191,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     long countStaleMoving(@Param("before") LocalDate before);
 
     /**
-     * 끝나지 않은 이동 중 회차 목록(R47 Ruling 724) — {@link #countStaleMoving} 이 세는 바로 그 회차를 운행일 오름차순으로,
+     * 끝나지 않은 이동 중 회차 목록(Ruling 724) — {@link #countStaleMoving} 이 세는 바로 그 회차를 운행일 오름차순으로,
      * 학원 이름 · 호차 · 아직 {@code boarded} 인 탑승자 수와 함께 읽는다(그 상태는 §9.1 대로 파라미터 — 호출부가 {@code BOARDED} 를 넘긴다). 학원·차량은 theta 조인이라 회차마다 한 번에 읽힌다.
      * {@code limit} 은 목록 상한이다({@code PageParams#UNPAGED_LIST_MAX}) — 오래된 회차부터 자르므로 처리하면 다음 회차가 올라온다.
      */
@@ -207,7 +207,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             Limit limit);
 
     /**
-     * 끝나지 않은 이동 중 회차 1건을 {@code finished} 로 닫는다(R47 Ruling 724) — 영향받은 행 수가 성공 여부다.
+     * 끝나지 않은 이동 중 회차 1건을 {@code finished} 로 닫는다(Ruling 724) — 영향받은 행 수가 성공 여부다.
      *
      * <p><b>{@link #STALE_MOVING} 이 조건에 그대로 들어 있는 것이 동시성 방어의 전부다.</b> 동승자가 같은 순간 마지막 하차를
      * 눌러 {@code RunCompletionService} 가 회차 행을 잠그고 종료하면, 이 갱신은 그 커밋을 기다렸다가 {@code status = 'moving'}
@@ -225,7 +225,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             @Param("finishedAt") OffsetDateTime finishedAt);
 
     /**
-     * 회차를 idle → confirmed 로 전이한다 — 영향받은 행 수로 성공 여부를 판정한다(목표 2).
+     * 회차를 idle → confirmed 로 전이한다 — 영향받은 행 수로 성공 여부를 판정한다.
      *
      * <p><b>{@code WHERE status = 'idle'} 조건이 멱등성의 전부다.</b> 같은 회차를 동시에 두 스레드가
      * 부르면 먼저 행 잠금을 얻은 쪽만 {@code status='idle'} 을 보고 갱신하며, 나중 스레드는 커밋된
@@ -235,7 +235,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * <p><b>{@code REQUIRES_NEW} 를 쓰지 않는다</b> — {@code NotificationLogRepository} 의 조건부
      * UPDATE 들과 다르게, 이 갱신은 호출자({@code RunConfirmationService.confirmOne})의 트랜잭션에
      * <b>그대로 참여</b>해야 한다. 확정을 먼저 표시해 두고 그 뒤 노선 계산이 실패하면, 참여한
-     * 트랜잭션이 롤백되며 이 UPDATE 도 함께 취소되어 회차가 자동으로 idle 로 되돌아간다(목표 5) —
+     * 트랜잭션이 롤백되며 이 UPDATE 도 함께 취소되어 회차가 자동으로 idle 로 되돌아간다 —
      * 별도 트랜잭션이었다면 그 롤백에 묻어가지 못하고 확정 표시만 남는다.
      *
      * <p>{@code canceled_at IS NULL} 을 조건에 더한 이유는 조회와 이 갱신 사이의 경합이다 — 관계자가
@@ -301,7 +301,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             Long busId, LocalDate today, Collection<RunStatus> statuses);
 
     /**
-     * 확정 실패 1회를 기록한다(목표 4) — {@code consecutive_failures} 만 올린다.
+     * 확정 실패 1회를 기록한다 — {@code consecutive_failures} 만 올린다.
      *
      * <p>상태를 여기서 다시 {@code idle} 로 되돌리지 않는다 — {@link #confirmIfIdle} 이 참여한
      * 트랜잭션이 이미 롤백되어 DB 의 상태는 갱신 전 {@code idle} 그대로다. 이 메서드가 하는 일은
@@ -320,8 +320,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     int recordFailure(@Param("id") Long id, @Param("retryAt") OffsetDateTime retryAt);
 
     /**
-     * 그 학원의 확정 실패 이력을 지운다 — 노선·학원 좌표를 저장해 영구 실패의 원인이 고쳐졌을 수 있을 때 호출한다(R46-KFIXBE K-2,
-     * Ruling 703). 아직 {@code idle} 인 회차의 {@code consecutive_failures} 를 0 으로, {@code confirm_retry_at} 을 비워 다음 틱에 바로
+     * 그 학원의 확정 실패 이력을 지운다 — 노선·학원 좌표를 저장해 영구 실패의 원인이 고쳐졌을 수 있을 때 호출한다(Ruling 703). 아직 {@code idle} 인 회차의 {@code consecutive_failures} 를 0 으로, {@code confirm_retry_at} 을 비워 다음 틱에 바로
      * 다시 시도하게 한다. 고쳐지지 않았으면 다시 실패해 간격이 처음부터 늘어난다.
      *
      * <p>호출자의 트랜잭션에 참여한다({@code recordFailure} 와 달리 {@code REQUIRES_NEW} 가 아니다) — 저장이 롤백되면 이 초기화도 함께
@@ -389,7 +388,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 회차 중 {@code finished} 가 아니고 {@code delay_notice} 가 1건 이상인 것. 알림이 여러 건이어도 회차는 한 번만
      * 센다({@code EXISTS}). 상태를 파라미터가 아니라 enum 리터럴로 쓰는 이유는 부분 인덱스
      * {@code ix_run_open_service_date}({@code status <> 'finished'} 조건)가 일반(generic) 계획에서도 쓰이게 하려는 것이다 —
-     * 파라미터이면 플래너가 조건이 인덱스 조건을 함의하는지 알 수 없다(R46-LATERBE, Ruling 673).
+     * 파라미터이면 플래너가 조건이 인덱스 조건을 함의하는지 알 수 없다(Ruling 673).
      */
     @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15)가 전 학원을 학원별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
             + "countConfirmFailedByAcademy 와 같은 근거와 같은 호출부 전제")

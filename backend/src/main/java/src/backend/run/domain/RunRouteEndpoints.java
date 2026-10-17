@@ -5,8 +5,7 @@ import src.backend.global.location.GeoPoint;
 
 /**
  * 회차의 원점·목적지 좌표(Ruling 190) — 반대쪽 끝은 언제나 노선의 첫/마지막 정차지다: 등원은
- * 첫 승차지→학원, 하원은 학원→마지막 하차지(BR-101, 2026-09-25 검사 — 확정 배치·예정 경로 조회
- * 2벌 중복 통합).
+ * 첫 승차지→학원, 하원은 학원→마지막 하차지(BR-101 — 확정 배치·예정 경로 조회가 같은 규칙을 쓰도록 한 곳에 둔다).
  */
 public final class RunRouteEndpoints {
 

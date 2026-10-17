@@ -38,7 +38,7 @@ import src.backend.run.repository.RunTransferRepository;
  * 취소하면(그 학생은 어차피 그 버스에 없다) 도착 회차도 취소할 수 있다. 스케줄 경로는 확정된 회차를 건드리지 않는 것과
  * 같은 이유로 조용히 건너뛴다.
  *
- * <p><b>확정된({@code confirmed}) 회차를 취소하면</b> 배치된 기사·동승자에게 알린다({@link RunCanceledEvent}, R56 Ruling 894 ⑤) —
+ * <p><b>확정된({@code confirmed}) 회차를 취소하면</b> 배치된 기사·동승자에게 알린다({@link RunCanceledEvent}, Ruling 894 ⑤) —
  * 확정 전 취소는 매니저가 그 회차를 아직 모르므로 알리지 않는다.
  */
 @Component

@@ -31,8 +31,7 @@ import src.backend.run.event.RunStartedEvent;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 기사의 운행 시작 처리(API_SPEC §4.4, RUN-02·M-10) — Phase 9 goal 1(±10분 창) · goal 2(운행 시작
- * 알림) · goal 3(미결 변경 요청 즉시 종결) · goal 11(하원 전원 자동 탑승, C-07)을 한 트랜잭션에 묶는다.
+ * 기사의 운행 시작 처리(API_SPEC §4.4, RUN-02·M-10) — ±10분 창 · 운행 시작 알림 · 미결 변경 요청 즉시 종결 · 하원 전원 자동 탑승(C-07)을 한 트랜잭션에 묶는다.
  *
  * <p>{@link ChangeRequestAutoRejectionService#terminateForRun} 을 <b>같은 트랜잭션에서 동기
  * 호출</b>하는 것이 그 서비스 자신의 javadoc 이 요구하는 배선이다 — moving 전이와 분리하면 최대
@@ -110,7 +109,7 @@ public class RunStartCommandService {
     /**
      * 하원 회차 시작 시 대기 중인 탑승자 전원을 태운다(C-07·BRD-03) — 이미 다른 상태인 행은 건드리지 않는다.
      * 전이 이력(actor_type=system)은 {@link AutoBoardingService} 가 남기고, 태운 학생이 있으면 승차 알림의
-     * 재료({@link RunAutoBoardedEvent})를 발행한다(NTF-01, R51 H1).
+     * 재료({@link RunAutoBoardedEvent})를 발행한다(NTF-01).
      */
     private int autoBoardWaitingRiders(Run run, OffsetDateTime now) {
         List<RunRider> boarded = autoBoardingService.boardAllForDropOff(run.getId(), now);

@@ -23,7 +23,7 @@ import src.backend.run.event.RunRouteConfirmedEvent;
  *
  * <p>{@code @TransactionalEventListener(AFTER_COMMIT)} 근거는 {@link RunStartedBroadcastListener} 와 같다 —
  * 롤백된 확정이 화면에 남지 않게 한다. 방송 실패는 여기서 WARN 한 줄로 기록하고 삼킨다 — 삼키지 않아도 응답은
- * 바뀌지 않지만 스프링이 오류 스택으로 남긴다(2026-09-30 F8 관측).
+ * 바뀌지 않지만 스프링이 오류 스택으로 남긴다.
  */
 @Component
 @RequiredArgsConstructor
@@ -33,7 +33,7 @@ public class RunRouteChangedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
-    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기 — 단일 스레드라 커밋 순서가 유지된다. */
     @Qualifier("broadcastListenerExecutor")
     private final Executor broadcastExecutor;
 

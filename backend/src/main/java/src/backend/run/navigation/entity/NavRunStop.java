@@ -16,8 +16,7 @@ import src.backend.global.common.enums.ChangeType;
 
 /**
  * {@code run_stop} 을 내비 조회 전용으로 읽는 엔티티(API_SPEC §4.16) — 확정 노선의 정차 순번·
- * 도착·변경 여부만 본다. 이 모듈이 이 표에 <b>쓰지 않는다</b> — {@code change='skipped'} 는 다른
- * Phase 9 작업 갈래가 쓰는 값이고, 여기는 그 저장된 값만 읽어 제외 판단에 쓴다(경계 계약: 저장된
+ * 도착·변경 여부만 본다. 이 모듈이 이 표에 <b>쓰지 않는다</b> — {@code change='skipped'} 는 다른 쓰기 경로가 넣는 값이고, 여기는 그 저장된 값만 읽어 제외 판단에 쓴다(경계 계약: 저장된
  * 컬럼 값에만 의존하고 그 작업 갈래의 코드는 부르지 않는다).
  *
  * <p>{@code @Entity(name = "NavRunStop")} 을 명시한 이유는 같은 표를 매핑하는 엔티티가 다른

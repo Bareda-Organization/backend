@@ -61,7 +61,7 @@ public interface BusRepository extends JpaRepository<Bus, Long> {
      * 차량은 행이 없으니 호출부가 0 으로 읽는다. 학원 조건을 쿼리에 고정한다.
      *
      * <p>편성·스케줄·회차 테이블을 차량 모듈에서 네이티브 질의로 읽는 이유 — 그 모듈의 저장소를 import 하면 차량↔노선 ·
-     * 차량↔스케줄 · 차량↔회차 양방향 참조가 생긴다(그 모듈들이 이미 차량을 참조한다, {@code ModuleMutualDependencyTest} · R48 병합).
+     * 차량↔스케줄 · 차량↔회차 양방향 참조가 생긴다(그 모듈들이 이미 차량을 참조한다, {@code ModuleMutualDependencyTest}).
      */
     @Query(value = "SELECT bus_id AS busId, COUNT(*) AS total FROM route "
             + "WHERE academy_id = :academyId AND bus_id IN (:busIds) AND active GROUP BY bus_id", nativeQuery = true)

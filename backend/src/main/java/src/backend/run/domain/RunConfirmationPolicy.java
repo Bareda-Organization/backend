@@ -45,8 +45,8 @@ public final class RunConfirmationPolicy {
     }
 
     /**
-     * 확정이 {@code consecutiveFailures} 번째로 실패한 회차를 다시 시도하기까지의 간격(R46-KFIXBE K-2, Ruling 703) — 30초부터 두 배씩 늘어
-     * 10분에서 멈춘다. 첫 실패는 다음 틱(30초)이라 일시적 실패는 전과 같은 속도로 회복하고, 노선·학원 좌표를 사람이 고칠 때까지 같은 결과인
+     * 확정이 {@code consecutiveFailures} 번째로 실패한 회차를 다시 시도하기까지의 간격(Ruling 703) — 30초부터 두 배씩 늘어
+     * 10분에서 멈춘다. 첫 실패는 다음 틱(30초)이라 일시적 실패는 30초 틱 속도로 회복하고, 노선·학원 좌표를 사람이 고칠 때까지 같은 결과인
      * 영구 실패만 하루 2,880회 → 약 150회로 줄어든다. <b>실행 시각</b>을 정하는 값이다 — 판정 시각({@link #confirmAtOf})과 섞지 않는다.
      */
     public static Duration retryDelayAfter(int consecutiveFailures) {

@@ -34,7 +34,7 @@ public class RunEndedBroadcastListener {
 
     private final WebSocketBroadcastGateway gateway;
 
-    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기(R57 RT-4) — 단일 스레드라 커밋 순서가 유지된다. */
+    /** 커밋 콜백이 요청 스레드의 트랜잭션 · 커넥션을 쥐고 방송하지 않도록 방송 작업을 넘기는 전용 실행기 — 단일 스레드라 커밋 순서가 유지된다. */
     @Qualifier("broadcastListenerExecutor")
     private final Executor broadcastExecutor;
 

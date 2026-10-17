@@ -38,7 +38,7 @@ import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 
 /**
- * 확정 배치의 오케스트레이터(RTE-08, Phase 7) — 회차 1건을 idle → confirmed 로 전이시키는 전체
+ * 확정 배치의 오케스트레이터(RTE-08) —회차 1건을 idle → confirmed 로 전이시키는 전체
  * 흐름(읽기 → 노선 계산 → 저장 → 이벤트 발행)을 잇는다({@code RunConfirmationScheduler} 가 회차마다
  * {@link #confirmOne} 을 부른다).
  *
@@ -51,7 +51,7 @@ import src.backend.student.repository.StopRepository;
  * 알려진 함정).
  *
  * <p>도중에 어디서 실패하든(학원 좌표 미등록·노선 미편성·계산 실패·저장 실패) 이 회차만 실패로
- * 끝난다 — 스케줄러가 회차별로 이 메서드를 개별 호출하고 예외를 그 자리에서 잡으므로(목표 4), 다른
+ * 끝난다 — 스케줄러가 회차별로 이 메서드를 개별 호출하고 예외를 그 자리에서 잡으므로, 다른
  * 회차의 확정에는 영향을 주지 않는다.
  */
 @Service
@@ -91,7 +91,7 @@ public class RunConfirmationService {
      * 회차 1건을 확정한다 — 이미 취소됐거나 존재하지 않으면 조용히 건너뛴다(취소·삭제와 경합해도
      * 예외로 배치를 막지 않는다).
      *
-     * @throws BusinessException 학원 좌표 미등록({@code ACADEMY_COORDINATES_MISSING}, 목표 5) ·
+     * @throws BusinessException 학원 좌표 미등록({@code ACADEMY_COORDINATES_MISSING}) ·
      *                            대응 고정 노선 미편성({@code ROUTE_NOT_CONFIGURED_FOR_RUN}) 일 때
      */
     public void confirmOne(Long runId) {
@@ -100,7 +100,7 @@ public class RunConfirmationService {
 
     /**
      * {@link #confirmOne(Long)} 과 같은 흐름에 <b>강제 폴백</b> 축 하나를 더한 오버로드
-     * (API_SPEC §6.14, 관리자 강제 확정 콘솔 개입, F3 S2) — {@code forceFallback=true} 면
+     * (API_SPEC §6.14, 관리자 강제 확정 콘솔 개입) — {@code forceFallback=true} 면
      * {@link ComputationPolicy} 를 통해 지도 API 를 건너뛰고 직선거리 근사를 강제한다. 그 밖의 흐름
      * (읽기 → 계산 → {@link RunConfirmationPersistence#persist} → 지표)은 배치 경로와 완전히 같다 —
      * {@link #confirmOne(Long)} 은 {@code forceFallback=false} 로 이 메서드를 그대로 통과한다.
@@ -114,7 +114,7 @@ public class RunConfirmationService {
      *         진 경쟁이거나 회차가 이미 취소·삭제됐으면 {@code false} — 관리자 강제 확정 컨트롤러는
      *         이 값이 {@code false} 면 {@code RUN_NOT_IDLE} 로 답한다(호출 전에 idle 을 이미 확인했는데도
      *         이 값이 false 라면 그 사이 다른 확정이 경쟁에서 이겼다는 뜻이다)
-     * @throws BusinessException 학원 좌표 미등록({@code ACADEMY_COORDINATES_MISSING}, 목표 5) ·
+     * @throws BusinessException 학원 좌표 미등록({@code ACADEMY_COORDINATES_MISSING}) ·
      *                            대응 고정 노선 미편성({@code ROUTE_NOT_CONFIGURED_FOR_RUN}) 일 때
      */
     public boolean confirmOne(Long runId, boolean forceFallback) {
@@ -174,7 +174,7 @@ public class RunConfirmationService {
         RouteComputation computation = pipeline.compute(input);
 
         // run.getConfirmAt()(판정 시각)과 이 confirmedAt(완료 시각)이 동시에 확보되는 유일한
-        // 자리라 배치 지연 지표(목표 8)를 여기서 계측한다.
+        // 자리라 배치 지연 지표를 여기서 계측한다.
         OffsetDateTime confirmedAt = OffsetDateTime.now(clock);
 
         boolean persisted = persistence.persist(run, computation, endpoints, weekday, projected, confirmedAt);
