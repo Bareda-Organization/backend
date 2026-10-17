@@ -3,8 +3,10 @@ package src.backend.global.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -49,6 +51,29 @@ class DbSessionTimeoutsTest {
                 assertThat(show(statement, "statement_timeout")).as("%s statement_timeout", profile)
                         .isEqualTo("30s");
             }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"prod", "demo", "staging"})
+    @DisplayName("F4 — 운영·demo·staging 의 Flyway 연결(init-sqls)도 lock_timeout 5초 · 유휴 트랜잭션 30초를 갖고 statement_timeout 은 없다")
+    void Flyway_연결에도_세션_시간_상한이_걸린다(String profile) throws Exception {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(profileDocument(profile));
+        List<String> initSqls = Binder.get(environment).bind("spring.flyway.init-sqls", Bindable.listOf(String.class))
+                .orElseThrow(() -> new AssertionError(profile + " 의 spring.flyway.init-sqls 가 없다"));
+
+        // Flyway 가 새 연결을 열 때 init-sqls 를 그 연결에서 실행한다 — 같은 SQL 을 새 연결에서 실행해 효과를 SHOW 로 본다
+        // (Flyway 의 initSql 적용 자체는 라이브러리 기능이라 여기서 다시 확인하지 않는다)
+        try (Connection connection = DriverManager.getConnection(System.getProperty("spring.datasource.url"), "schoolbus",
+                "schoolbus"); Statement statement = connection.createStatement()) {
+            for (String sql : initSqls) {
+                statement.execute(sql);
+            }
+            assertThat(show(statement, "lock_timeout")).as("%s Flyway lock_timeout", profile).isEqualTo("5s");
+            assertThat(show(statement, "idle_in_transaction_session_timeout"))
+                    .as("%s Flyway idle_in_transaction_session_timeout", profile).isEqualTo("30s");
+            assertThat(show(statement, "statement_timeout")).as("%s Flyway statement_timeout", profile).isEqualTo("0");
         }
     }
 
