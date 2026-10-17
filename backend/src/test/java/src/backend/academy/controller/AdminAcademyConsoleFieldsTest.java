@@ -23,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.jayway.jsonpath.JsonPath;
 
-import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**

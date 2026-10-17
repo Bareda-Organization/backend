@@ -97,7 +97,7 @@ class StaffNotificationControllerTest {
         StaffNotificationFixtures fixtures = fixtures();
         long academyId = fixtures.academy();
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
-        // OffsetDateTime.now(clock) 는 2030-04-01 12:00 KST 로 고정돼 있다 — 매칭은 같은 날 발송, 비매칭은 하루 전날 발송.
+        // clock 은 2030-04-01 12:00 KST 로 고정돼 있다 — 매칭은 같은 날 발송, 비매칭은 하루 전날 발송.
         long matchingSent = fixtures.sentNotification(academyId, NotificationType.RUN_STARTED, "학생1", Role.PARENT,
                 "운행 시작", "01호차", OffsetDateTime.now(clock), OffsetDateTime.now(clock));
         fixtures.sentNotification(academyId, NotificationType.RUN_STARTED, "학생1", Role.PARENT, "운행 시작", "01호차",

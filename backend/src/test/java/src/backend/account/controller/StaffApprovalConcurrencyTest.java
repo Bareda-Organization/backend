@@ -26,7 +26,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 
 /**

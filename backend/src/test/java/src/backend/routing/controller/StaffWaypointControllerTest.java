@@ -40,7 +40,6 @@ import src.backend.academy.repository.AcademyRepository;
 
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
-import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.authz.Permissions;

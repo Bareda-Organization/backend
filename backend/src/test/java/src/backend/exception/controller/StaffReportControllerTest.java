@@ -155,7 +155,7 @@ class StaffReportControllerTest {
         long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, OffsetDateTime.now(clock), OffsetDateTime.now(clock).minusMinutes(30));
         long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
         long staffAccountId = fixtures.staffAccount(academyId, "관계자");
-        // OffsetDateTime.now(clock) 는 2030-04-01 12:00 KST 로 고정돼 있다 — 매칭은 같은 날, 비매칭은 하루 전날.
+        // clock 은 2030-04-01 12:00 KST 로 고정돼 있다 — 매칭은 같은 날, 비매칭은 하루 전날.
         long matching = fixtures.exceptionReport(academyId, runId, ExceptionReportType.ETC, "오늘 보고",
                 driverAccountId, OffsetDateTime.now(clock), null);
         fixtures.exceptionReport(academyId, runId, ExceptionReportType.ETC, "어제 보고", driverAccountId,
