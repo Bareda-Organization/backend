@@ -77,17 +77,26 @@ jobs:
           PROMETHEUS_VERSION: 3.15.0
           PROMETHEUS_SHA256: 2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0
         run: |
-          curl -fsSL -o "$RUNNER_TEMP/prometheus.tar.gz" "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          curl -fsSL --retry 3 --retry-delay 2 -o "$RUNNER_TEMP/prometheus.tar.gz" "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
           echo "${PROMETHEUS_SHA256}  $RUNNER_TEMP/prometheus.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/prometheus.tar.gz" -C "$RUNNER_TEMP" --strip-components=1 "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool"
           # 시험 파일마다 promtool 프로세스 하나 — 25~80시간 구간 시험은 alerts.long-N.test.yml 로 나눠 평가 간격 1분으로 돈다(파일 안 그룹은 순서대로 돈다).
+          # 출력은 파일별로 모았다가 끝난 뒤 파일 이름을 붙여 찍는다 — 실패한 파일을 로그에서 이름으로 찾는다.
+          files=(infra/observability/prometheus/alerts*.test.yml)
           pids=()
-          for f in infra/observability/prometheus/alerts*.test.yml; do
-            "$RUNNER_TEMP/promtool" test rules "$f" &
+          for f in "${files[@]}"; do
+            "$RUNNER_TEMP/promtool" test rules "$f" > "$RUNNER_TEMP/$(basename "$f").log" 2>&1 &
             pids+=($!)
           done
           failed=0
-          for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
+          for i in "${!files[@]}"; do
+            f="${files[$i]}"
+            if wait "${pids[$i]}"; then status=통과; else status=실패; failed=1; fi
+            echo "::group::promtool $f — $status"
+            cat "$RUNNER_TEMP/$(basename "$f").log"
+            echo "::endgroup::"
+            if [ "$status" = 실패 ]; then echo "::error::promtool 시험 실패 — $f"; fi
+          done
           exit "$failed"
 
       # 서비스 컨테이너 대신 저장소 compose 를 쓴다 — postgres 접속 상한(max_connections=300)이 compose 의 command 에 있고,

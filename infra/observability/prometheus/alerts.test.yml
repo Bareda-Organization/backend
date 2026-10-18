@@ -282,6 +282,8 @@ tests:
             exp_annotations:
               summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
 
+  # ── 백엔드 가용성 5종 ─────────────────────────────────────────────────────────────
+
   # 백엔드 다운: up=0 이 1분 유지돼야 발화한다. 한 번의 스크레이프 실패(15초)는 조용하다.
   - interval: 15s
     input_series:
@@ -479,6 +481,8 @@ tests:
               outcome: SUCCESS
             exp_annotations:
               summary: 스케줄러(src.backend.run.scheduler.RunConfirmationScheduler)가 주기의 3배 넘게 성공하지 않았다
+
+  # ── 시리즈가 1 이상으로 태어나는 경우(기본 계측 · 지연 등록 카운터는 첫 사건 때 1 로 생긴다) — 0 → 1 이 아니라 `_ → 1` 이라 increase() 만으로는 0 이다.
 
   # 일일 회차 생성의 첫 실패(outcome=ERROR 시리즈가 1 로 태어남)도 1시간 창 안에서는 발화하고, 창을 지나면 꺼진다.
   - interval: 1m
