@@ -121,7 +121,7 @@ class ChangeRequestAutoRejectionConcurrencyTest {
      * UPDATE 하나가 멱등성의 전부라는 그 메서드 javadoc 의 단언을, 실제 동시 스레드로 직접 검증한다.
      */
     @Test
-    @DisplayName("목표4 — 같은 변경 요청을 동시에 거절해도 전이는 정확히 한 번이다")
+    @DisplayName("같은 변경 요청을 동시에 거절해도 전이는 정확히 한 번이다")
     void 같은_요청을_동시에_거절해도_한_번만_성공한다() throws Exception {
         ChangeRequestAutoRejectFixtures fixtures = new ChangeRequestAutoRejectFixtures(academyRepository,
                 busRepository, studentRepository, accountRepository, runRepository, boardingIntentRepository,

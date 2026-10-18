@@ -44,7 +44,7 @@ class ApprovalRequestedBroadcastListenerTest {
             studentRepository, runRiderRepository, stopRepository, changeRequestRepository, gateway, Runnable::run);
 
     @Test
-    @DisplayName("목표 4 — 학원 관제 채널로만 나간다, 다른 3채널은 호출조차 되지 않는다")
+    @DisplayName("학원 관제 채널로만 나간다, 다른 3채널은 호출조차 되지 않는다")
     void 학원_채널_전용으로_방송된다() {
         Long changeRequestId = 1L;
         Long academyId = 1L;

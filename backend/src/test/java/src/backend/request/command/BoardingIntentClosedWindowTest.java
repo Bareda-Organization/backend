@@ -271,7 +271,7 @@ class BoardingIntentClosedWindowTest {
     }
 
     @Test
-    @DisplayName("R51 M-B2 — ③구간 미등원 부여는 상태 이력에 actor_type=system(waiting→absent)으로 남는다")
+    @DisplayName("③구간 미등원 부여는 상태 이력에 actor_type=system(waiting→absent)으로 남는다")
     void 마감구간_미등원_부여는_상태_이력에_system_으로_남는다() {
         OffsetDateTime now = OffsetDateTime.now();
         ClosedRun run = closedRun(now, "37.572500", "126.982500");

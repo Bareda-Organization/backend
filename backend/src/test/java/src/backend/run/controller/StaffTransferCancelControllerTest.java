@@ -107,7 +107,7 @@ class StaffTransferCancelControllerTest {
     }
 
     @Test
-    @DisplayName("목표 1 — staged · 두 회차 idle 이면 204, 행이 지워지고 감사 1행(data_access·delete)이 남는다")
+    @DisplayName("staged · 두 회차 idle 이면 204, 행이 지워지고 감사 1행(data_access·delete)이 남는다")
     void 이동_대기를_취소하면_204_이고_행이_지워지며_감사가_남는다() throws Exception {
         Scene scene = 이동_대기_장면();
 
@@ -122,7 +122,7 @@ class StaffTransferCancelControllerTest {
     }
 
     @Test
-    @DisplayName("목표 6 — 취소 뒤 그 학생이 출발 회차 예정 명단에 다시 보이고 도착 회차에서 빠지며 다시 이동 등록할 수 있다")
+    @DisplayName("취소 뒤 그 학생이 출발 회차 예정 명단에 다시 보이고 도착 회차에서 빠지며 다시 이동 등록할 수 있다")
     void 취소하면_학생이_출발_명단으로_돌아오고_다시_이동_등록할_수_있다() throws Exception {
         Scene scene = 이동_대기_장면();
         assertThat(예정_명단_학생_id(scene.fromRunId(), scene.academyId())).doesNotContain(scene.studentId());
@@ -136,7 +136,7 @@ class StaffTransferCancelControllerTest {
     }
 
     @Test
-    @DisplayName("목표 2 — 없는 이동은 404 TRANSFER_NOT_FOUND")
+    @DisplayName("없는 이동은 404 TRANSFER_NOT_FOUND")
     void 없는_이동은_404_이다() throws Exception {
         Scene scene = 이동_대기_장면();
 
@@ -145,7 +145,7 @@ class StaffTransferCancelControllerTest {
     }
 
     @Test
-    @DisplayName("목표 2 — 타 학원 관계자가 취소하면 404 TRANSFER_NOT_FOUND 이고 행은 남는다(존재 비노출)")
+    @DisplayName("타 학원 관계자가 취소하면 404 TRANSFER_NOT_FOUND 이고 행은 남는다(존재 비노출)")
     void 타_학원_이동은_404_이고_행이_남는다() throws Exception {
         Scene scene = 이동_대기_장면();
         long otherAcademyId = new RunConfirmationFixtures(academyRepository, busRepository, routeRepository,
@@ -159,7 +159,7 @@ class StaffTransferCancelControllerTest {
     }
 
     @Test
-    @DisplayName("목표 3 — 도착 회차만 confirmed 여도 403 CHANGE_WINDOW_CLOSED 이고 행이 남는다")
+    @DisplayName("도착 회차만 confirmed 여도 403 CHANGE_WINDOW_CLOSED 이고 행이 남는다")
     void 도착_회차만_확정됐어도_403_이다() throws Exception {
         Scene scene = 이동_대기_장면();
         회차_상태를_바꾼다(scene.toRunId(), RunStatus.CONFIRMED);
@@ -171,7 +171,7 @@ class StaffTransferCancelControllerTest {
     }
 
     @Test
-    @DisplayName("목표 3 — 출발 회차만 confirmed 여도 403 CHANGE_WINDOW_CLOSED 이고 행이 남는다")
+    @DisplayName("출발 회차만 confirmed 여도 403 CHANGE_WINDOW_CLOSED 이고 행이 남는다")
     void 출발_회차만_확정됐어도_403_이다() throws Exception {
         Scene scene = 이동_대기_장면();
         회차_상태를_바꾼다(scene.fromRunId(), RunStatus.CONFIRMED);
@@ -183,7 +183,7 @@ class StaffTransferCancelControllerTest {
     }
 
     @Test
-    @DisplayName("목표 3 — 이미 applied 인 이동은 403 CHANGE_WINDOW_CLOSED 이고 행이 남는다")
+    @DisplayName("이미 applied 인 이동은 403 CHANGE_WINDOW_CLOSED 이고 행이 남는다")
     void 이미_반영된_이동은_403_이다() throws Exception {
         Scene scene = 이동_대기_장면();
         동기화한다();
@@ -197,7 +197,7 @@ class StaffTransferCancelControllerTest {
     }
 
     @Test
-    @DisplayName("목표 4 — 학부모·기사 토큰은 403 이고 행이 남는다")
+    @DisplayName("학부모·기사 토큰은 403 이고 행이 남는다")
     void 학부모와_기사는_403_이다() throws Exception {
         Scene scene = 이동_대기_장면();
 

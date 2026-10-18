@@ -106,7 +106,7 @@ class StudentRetentionAnonymizationTest {
     private long stopId;
 
     @Test
-    @DisplayName("목표1·2 — 퇴원 91일은 익명화·89일과 재학생은 한 필드도 안 바뀜·승하차 이력 행 수 불변·사진 파일 삭제")
+    @DisplayName("퇴원 91일은 익명화·89일과 재학생은 한 필드도 안 바뀜·승하차 이력 행 수 불변·사진 파일 삭제")
     void 퇴원_91일은_익명화되고_89일_재학생은_그대로다() {
         OffsetDateTime now = OffsetDateTime.now(clock);
         준비한다();
@@ -172,7 +172,7 @@ class StudentRetentionAnonymizationTest {
     }
 
     @Test
-    @DisplayName("목표1 — 다시 실행해도 같은 결과(멱등) · 파기 실행은 시스템 행위로 감사 기록에 남고 건수가 정확하다")
+    @DisplayName("다시 실행해도 같은 결과(멱등) · 파기 실행은 시스템 행위로 감사 기록에 남고 건수가 정확하다")
     void 재실행은_같은_결과이고_파기는_감사_기록에_남는다() {
         OffsetDateTime now = OffsetDateTime.now(clock);
         준비한다();

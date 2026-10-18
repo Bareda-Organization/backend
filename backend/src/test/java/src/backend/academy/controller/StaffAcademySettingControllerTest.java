@@ -81,7 +81,7 @@ class StaffAcademySettingControllerTest {
     // ── 조회: 설정 행이 없으면 기본값(3분)으로 자가 치유해 돌려준다 ─────────
 
     @Test
-    @DisplayName("목표4 — 설정 행이 없는 학원도 GET 하면 기본 3분을 돌려주고 행을 자가 치유한다")
+    @DisplayName("설정 행이 없는 학원도 GET 하면 기본 3분을 돌려주고 행을 자가 치유한다")
     void 설정_행이_없어도_GET_하면_기본값을_돌려준다() throws Exception {
         long academyId = academy();
         long staffAccountId = staffAccount(academyId);
@@ -97,7 +97,7 @@ class StaffAcademySettingControllerTest {
     // ── 수정: PATCH 로 바뀐 값이 다음 조회에 그대로 반영된다 ────────────────
 
     @Test
-    @DisplayName("목표4 — PATCH 로 값을 바꾸면 그 응답과 다음 GET 조회 모두 바뀐 값을 돌려준다")
+    @DisplayName("PATCH 로 값을 바꾸면 그 응답과 다음 GET 조회 모두 바뀐 값을 돌려준다")
     void PATCH_로_바꾼_값이_다음_조회에도_반영된다() throws Exception {
         long academyId = academy();
         long staffAccountId = staffAccount(academyId);
@@ -119,7 +119,7 @@ class StaffAcademySettingControllerTest {
     // ── 범위 밖 값은 422 VALIDATION_FAILED ──────────────────────────
 
     @Test
-    @DisplayName("목표4 — 0 이하 값을 PATCH 하면 422 VALIDATION_FAILED 이고 값은 기본값(3분)으로 자가 치유만 된다")
+    @DisplayName("0 이하 값을 PATCH 하면 422 VALIDATION_FAILED 이고 값은 기본값(3분)으로 자가 치유만 된다")
     void 범위_밖_값은_422_VALIDATION_FAILED_이다() throws Exception {
         long academyId = academy();
         long staffAccountId = staffAccount(academyId);
@@ -142,7 +142,7 @@ class StaffAcademySettingControllerTest {
     // ── 상한 30분(X-06, Ruling 257): 경계값은 통과, 31분은 422 ──────────────
 
     @Test
-    @DisplayName("목표9 — 30분은 통과하고 31분은 422 VALIDATION_FAILED 이다(X-06 상한)")
+    @DisplayName("30분은 통과하고 31분은 422 VALIDATION_FAILED 이다(X-06 상한)")
     void 상한_30분_경계_밖은_422_VALIDATION_FAILED_이다() throws Exception {
         long academyId = academy();
         long staffAccountId = staffAccount(academyId);
@@ -165,7 +165,7 @@ class StaffAcademySettingControllerTest {
     // ── 권한: 학원 관계자(STAFF) 전용, 다른 역할은 거부된다 ────────────────
 
     @Test
-    @DisplayName("목표4 — 기사 토큰으로 조회·수정하면 403 FORBIDDEN 이다")
+    @DisplayName("기사 토큰으로 조회·수정하면 403 FORBIDDEN 이다")
     void STAFF_가_아니면_403_FORBIDDEN_이다() throws Exception {
         long academyId = academy();
         long driverAccountId = driverAccount(academyId);
@@ -184,7 +184,7 @@ class StaffAcademySettingControllerTest {
     // ── 학원 범위: 자기 학원 값만 바뀌고 남의 학원과 섞이지 않는다 ──────────
 
     @Test
-    @DisplayName("목표4 — 한 학원의 PATCH 가 다른 학원의 설정에 영향을 주지 않는다")
+    @DisplayName("한 학원의 PATCH 가 다른 학원의 설정에 영향을 주지 않는다")
     void 학원별_설정이_서로_섞이지_않는다() throws Exception {
         long academyA = academy();
         long staffA = staffAccount(academyA);

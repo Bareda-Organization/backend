@@ -84,7 +84,7 @@ class StaffRunRouteControllerTest {
 
 
     @Test
-    @DisplayName("목표11 — 200: §4.3 정차 구조 + route_version·published_at·ack 전부 채워진다")
+    @DisplayName("200: §4.3 정차 구조 + route_version·published_at·ack 전부 채워진다")
     void 확정_노선을_route_version과_ack과_함께_돌려준다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -119,7 +119,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("R56 K1 — 경유 행만 waypoint_id 에 그 경유 지점 id 를 싣고 승하차지 행은 null 이다")
+    @DisplayName("경유 행만 waypoint_id 에 그 경유 지점 id 를 싣고 승하차지 행은 null 이다")
     void 경유_행은_waypoint_id_를_싣고_승하차지_행은_null_이다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -149,7 +149,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("R15 T1 목표 5 — 응답이 road_path·fallback_used 를 계약대로 낸다")
+    @DisplayName("응답이 road_path·fallback_used 를 계약대로 낸다")
     void 응답이_road_path와_fallback_used를_계약대로_낸다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -173,7 +173,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("R15 T1 목표 6 — 근사 경로도 좌표를 주고 fallback_used=true 다")
+    @DisplayName("근사 경로도 좌표를 주고 fallback_used=true 다")
     void 근사_경로도_좌표를_주고_fallback_used가_true다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -200,7 +200,7 @@ class StaffRunRouteControllerTest {
      * 요일(MON)로 등록해야 매칭된다.
      */
     @Test
-    @DisplayName("R20-A — idle 회차도 고정 노선이 있으면 200 이고 confirmed=false 인 예정 경로를 낸다")
+    @DisplayName("idle 회차도 고정 노선이 있으면 200 이고 confirmed=false 인 예정 경로를 낸다")
     void idle_회차도_고정_노선이_있으면_200이고_confirmed가_false인_예정_경로를_낸다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -238,7 +238,7 @@ class StaffRunRouteControllerTest {
 
     /** 고정 노선도 없으면 idle 회차는 여전히 409 다(조용한 빈 값이 아니라 명시적 오류). */
     @Test
-    @DisplayName("R20-A — idle 회차에 고정 노선도 없으면 409 RUN_NOT_CONFIRMED 다")
+    @DisplayName("idle 회차에 고정 노선도 없으면 409 RUN_NOT_CONFIRMED 다")
     void idle_회차에_고정_노선도_없으면_409다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -254,7 +254,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("목표11 — ack 비대칭의 반대 방향: 동승자만 확인하면 driver=false·escort=true 다")
+    @DisplayName("ack 비대칭의 반대 방향: 동승자만 확인하면 driver=false·escort=true 다")
     void ack은_기사와_동승자를_각자_실제로_읽는다() throws Exception {
         // 위 200 시험은 기사만 확인해 ack.driver=true·ack.escort=false 만 실측한다 — 이 시험이 반대
         // 방향(동승자만 확인)을 채워야 "ack.driver 를 항상 true 로 고정" 같은 결함이 실제로 걸린다.
@@ -281,7 +281,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("목표11 — 409: 확정 노선(route_version) 미배포는 RUN_NOT_CONFIRMED 다")
+    @DisplayName("409: 확정 노선(route_version) 미배포는 RUN_NOT_CONFIRMED 다")
     void 확정_노선이_없으면_409_RUN_NOT_CONFIRMED_다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -299,7 +299,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("목표11 — 404: 존재하지 않는 회차")
+    @DisplayName("404: 존재하지 않는 회차")
     void 존재하지_않는_회차는_404_RUN_NOT_FOUND_다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -312,7 +312,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("목표11 — 403: 타 학원 관계자는 ACADEMY_SCOPE_VIOLATION")
+    @DisplayName("403: 타 학원 관계자는 ACADEMY_SCOPE_VIOLATION")
     void 타_학원_관계자는_403_ACADEMY_SCOPE_VIOLATION_이다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long myAcademyId = fx.academy();
@@ -332,7 +332,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("목표11 — 403: 매니저(기사) 토큰은 관계자 전용 엔드포인트에 진입 불가")
+    @DisplayName("403: 매니저(기사) 토큰은 관계자 전용 엔드포인트에 진입 불가")
     void 매니저_토큰은_403_이다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -349,7 +349,7 @@ class StaffRunRouteControllerTest {
     }
 
     @Test
-    @DisplayName("R22 — 200: 메인 관리자도 회차 노선을 본다(전체 관제 화면이 이 조회를 쓴다)")
+    @DisplayName("200: 메인 관리자도 회차 노선을 본다(전체 관제 화면이 이 조회를 쓴다)")
     void 메인_관리자는_200_이다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();

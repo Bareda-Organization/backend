@@ -49,7 +49,7 @@ class AutoBoardingServiceTest {
     }
 
     @Test
-    @DisplayName("목표11 — 하원 회차 시작 시 대기 중인 탑승자 전원이 자동 승차 처리된다")
+    @DisplayName("하원 회차 시작 시 대기 중인 탑승자 전원이 자동 승차 처리된다")
     void 하원_시작_시_대기중인_탑승자_전원이_자동_승차된다() {
         OffsetDateTime now = OffsetDateTime.parse("2030-04-01T12:00:00+09:00");
         long academyId = fixtures().academy();

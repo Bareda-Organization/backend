@@ -44,7 +44,7 @@ public class AdminStaleMovingRunController {
 
     /** 끝나지 않은 이동 중 회차 목록(§6.16) — {@code StaleMovingRun} 경보가 세는 회차와 같다. */
     @Can(Permissions.MONITOR_ALL)
-    @Operation(summary = "끝나지 않은 이동 중 회차 목록 (Ruling 724, 2026-10-02)")
+    @Operation(summary = "끝나지 않은 이동 중 회차 목록 (Ruling 724)")
     @GetMapping("/stale-moving")
     public ApiResponse<StaleMovingRunListResponse> list() {
         return ApiResponse.ok(adminStaleMovingRunQueryService.list());
@@ -52,7 +52,7 @@ public class AdminStaleMovingRunController {
 
     /** 강제 종료(§6.17) — {@code 200}. 탑승자 상태·알림은 건드리지 않는다. */
     @Can(Permissions.RUN_FORCE_FINISH)
-    @Operation(summary = "끝나지 않은 이동 중 회차 강제 종료 (Ruling 724, 2026-10-02)")
+    @Operation(summary = "끝나지 않은 이동 중 회차 강제 종료 (Ruling 724)")
     @PostMapping("/{runId}/force-finish")
     public ApiResponse<ForceFinishResponse> forceFinish(@PathVariable Long runId,
             @Valid @RequestBody ForceFinishRequest request, @AuthenticationPrincipal AuthUser authUser) {

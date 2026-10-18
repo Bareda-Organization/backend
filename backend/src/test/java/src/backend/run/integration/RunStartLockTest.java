@@ -65,7 +65,7 @@ class RunStartLockTest {
 
 
     @Test
-    @DisplayName("목표18 — 실제 시작 호출로 moving 이 된 회차는, 그 직후 학부모의 변경 신청이 403 CHANGE_WINDOW_CLOSED 다")
+    @DisplayName("실제 시작 호출로 moving 이 된 회차는, 그 직후 학부모의 변경 신청이 403 CHANGE_WINDOW_CLOSED 다")
     void 실제_시작_직후_변경_신청이_잠긴다() throws Exception {
         long academyId = DriverRunFixtures.of(applicationContext).academy();
         long busId = DriverRunFixtures.of(applicationContext).bus(academyId);

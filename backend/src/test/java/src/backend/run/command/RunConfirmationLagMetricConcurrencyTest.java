@@ -127,7 +127,7 @@ class RunConfirmationLagMetricConcurrencyTest {
     }
 
     @Test
-    @DisplayName("목표8-동시성 — 같은 회차를 두 스레드가 동시에 확정해도 지표 표본은 1건만 늘어난다")
+    @DisplayName("같은 회차를 두 스레드가 동시에 확정해도 지표 표본은 1건만 늘어난다")
     void 같은_회차를_동시에_확정해도_표본은_1건만_늘어난다() throws Exception {
         long academyId = fixtures.academyWithCoordinates();
         long busId = fixtures.bus(academyId);

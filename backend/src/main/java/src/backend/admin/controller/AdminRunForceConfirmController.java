@@ -42,7 +42,7 @@ public class AdminRunForceConfirmController {
 
     /** 강제 확정(§6.14) — {@code 201}, {@code route_version} 신규 생성을 반영한다. */
     @Can(Permissions.RUN_FORCE_CONFIRM)
-    @Operation(summary = "강제 확정 콘솔 개입 (Ruling 254, 2026-09-04)")
+    @Operation(summary = "강제 확정 콘솔 개입 (Ruling 254)")
     @PostMapping("/{runId}/force-confirm")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ForceConfirmResponse> forceConfirm(@PathVariable Long runId,

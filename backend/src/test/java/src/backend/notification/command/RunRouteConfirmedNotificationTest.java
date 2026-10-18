@@ -161,7 +161,7 @@ class RunRouteConfirmedNotificationTest {
     }
 
     @Test
-    @DisplayName("목표7 — 확정하면 배치된 기사·동승자 앞으로 route_changed 알림이 적재된다")
+    @DisplayName("확정하면 배치된 기사·동승자 앞으로 route_changed 알림이 적재된다")
     void 확정하면_배치된_기사_동승자에게_알림이_적재된다() {
         RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
@@ -187,7 +187,7 @@ class RunRouteConfirmedNotificationTest {
      * 기사·동승자에게 노선 알림을 보내지 않는다(이미 시작할 수 없는 회차라 알려 봐야 소음이다).
      */
     @Test
-    @DisplayName("R52 L1 — 운행 시작 창이 닫힌 회차를 확정해도 확정은 되고 route_changed 알림은 적재되지 않는다")
+    @DisplayName("운행 시작 창이 닫힌 회차를 확정해도 확정은 되고 route_changed 알림은 적재되지 않는다")
     void 시작_창이_닫힌_회차는_확정되어도_알림을_보내지_않는다() {
         long runId = 지난_회차를_배치해_만든다(PolicyConstants.START_WINDOW.plusMinutes(1));
 
@@ -199,7 +199,7 @@ class RunRouteConfirmedNotificationTest {
 
     /** 경계 — 출발 + 10분 정각은 아직 시작할 수 있는 마지막 시각이라 알림이 나간다. */
     @Test
-    @DisplayName("R52 L1 — 출발 + 10분 정각(시작 창 마지막 시각)에 확정하면 알림이 적재된다")
+    @DisplayName("출발 + 10분 정각(시작 창 마지막 시각)에 확정하면 알림이 적재된다")
     void 시작_창_마지막_시각의_확정은_알림을_보낸다() {
         long runId = 지난_회차를_배치해_만든다(PolicyConstants.START_WINDOW);
 
@@ -226,7 +226,7 @@ class RunRouteConfirmedNotificationTest {
     }
 
     @Test
-    @DisplayName("R46-FUFEAT ③ — route_changed 알림 행에는 확정한 회차의 식별자가 실린다(매니저 앱이 눌러서 그 회차로 간다)")
+    @DisplayName("route_changed 알림 행에는 확정한 회차의 식별자가 실린다(매니저 앱이 눌러서 그 회차로 간다)")
     void route_changed_알림에는_회차_식별자가_실린다() {
         RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
@@ -244,7 +244,7 @@ class RunRouteConfirmedNotificationTest {
     }
 
     @Test
-    @DisplayName("목표7 급소 — 확정 트랜잭션이 롤백되면 알림도 적재되지 않는다")
+    @DisplayName("확정 트랜잭션이 롤백되면 알림도 적재되지 않는다")
     void 확정_트랜잭션이_롤백되면_알림도_적재되지_않는다() {
         RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
@@ -264,7 +264,7 @@ class RunRouteConfirmedNotificationTest {
     }
 
     @Test
-    @DisplayName("목표7 판단3 — 계정이 연결되지 않은 매니저는 알림을 받지 않는다")
+    @DisplayName("계정이 연결되지 않은 매니저는 알림을 받지 않는다")
     void 계정이_연결되지_않은_매니저는_알림을_받지_않는다() {
         RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
@@ -279,7 +279,7 @@ class RunRouteConfirmedNotificationTest {
     }
 
     @Test
-    @DisplayName("목표17 — 배치 뒤 곧바로 삭제된 매니저(MGR-04 가 정상 흐름에서는 막는 상태)는 알림을 받지 않는다")
+    @DisplayName("배치 뒤 곧바로 삭제된 매니저(MGR-04 가 정상 흐름에서는 막는 상태)는 알림을 받지 않는다")
     void 삭제된_매니저는_알림을_받지_않는다() {
         RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();
@@ -296,7 +296,7 @@ class RunRouteConfirmedNotificationTest {
     }
 
     @Test
-    @DisplayName("목표7 판단4 — 배정이 없는 회차는 확정은 성공하고 알림도 없다")
+    @DisplayName("배정이 없는 회차는 확정은 성공하고 알림도 없다")
     void 배정이_없는_회차는_확정은_성공하고_알림도_없다() {
         RunConfirmationFixtures fixtures = RunConfirmationFixtures.of(applicationContext);
         long academyId = fixtures.academyWithCoordinates();

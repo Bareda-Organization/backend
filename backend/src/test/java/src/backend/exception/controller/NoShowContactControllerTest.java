@@ -116,7 +116,7 @@ class NoShowContactControllerTest {
     // ── 적재:연락 시도가 no_show_contact 에 실제로 쌓인다 ──────────────
 
     @Test
-    @DisplayName("목표3 — 동승자가 연락 시도를 기록하면 no_show_contact 행이 생기고 201 을 응답한다")
+    @DisplayName("동승자가 연락 시도를 기록하면 no_show_contact 행이 생기고 201 을 응답한다")
     void 연락_시도를_기록하면_no_show_contact_행이_생긴다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long[] s = caseScenario(now);
@@ -173,7 +173,7 @@ class NoShowContactControllerTest {
     // ── 중단:result=answered 면 카운트다운을 멈춘다 ────────────────────
 
     @Test
-    @DisplayName("목표3 — result=answered 로 기록하면 케이스가 즉시 종결되고 다음 폴링에서 제외된다")
+    @DisplayName("result=answered 로 기록하면 케이스가 즉시 종결되고 다음 폴링에서 제외된다")
     void 응답이_answered_면_카운트다운이_중단된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long[] s = caseScenario(now);
@@ -202,7 +202,7 @@ class NoShowContactControllerTest {
 
     /** answered 와 짝을 이루는 시험 — no_answer 는 중단시키지 않는다("항상 중단"으로 구현해도 통과하는 함정 방지). */
     @Test
-    @DisplayName("목표3 — result=no_answer 는 카운트다운을 멈추지 않고 다음 폴링 대상에 그대로 남는다")
+    @DisplayName("result=no_answer 는 카운트다운을 멈추지 않고 다음 폴링 대상에 그대로 남는다")
     void 응답이_no_answer_면_카운트다운이_유지된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long[] s = caseScenario(now);
@@ -232,7 +232,7 @@ class NoShowContactControllerTest {
     // ── 권한:동승자 전용, 다른 역할은 거부된다 ──────────────────────
 
     @Test
-    @DisplayName("목표3 — 기사 토큰으로 연락 시도를 기록하려 하면 403 ESCORT_ONLY 이고 아무 행도 생기지 않는다")
+    @DisplayName("기사 토큰으로 연락 시도를 기록하려 하면 403 ESCORT_ONLY 이고 아무 행도 생기지 않는다")
     void 동승자가_아니면_403_ESCORT_ONLY_이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long[] s = caseScenario(now);
@@ -257,7 +257,7 @@ class NoShowContactControllerTest {
     // ── 학원 범위:남의 학원 회차에는 접근할 수 없다 ────────────────────
 
     @Test
-    @DisplayName("목표3 — 다른 학원 동승자가 접근하면 403 FORBIDDEN 이고 아무 행도 생기지 않는다(§1.11, Ruling 259(b))")
+    @DisplayName("다른 학원 동승자가 접근하면 403 FORBIDDEN 이고 아무 행도 생기지 않는다(§1.11, Ruling 259(b))")
     void 다른_학원_동승자는_403_FORBIDDEN_이다() throws Exception {
         // 배치는 매니저·회차가 같은 학원일 때만 생성되므로(NoShowContactCommandService 판정 순서),
         // 다른 학원 동승자는 회차 존재 여부와 무관하게 배치 확인에서 걸려 403 이다 — 404 가 아니다.
@@ -284,7 +284,7 @@ class NoShowContactControllerTest {
     // ── Ruling 894 ⑧ — 오프라인 큐 재전송 키 ─────────────────────────────
 
     @Test
-    @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 행은 1개이고 두 번째는 200 으로 최초 결과를 돌려준다")
+    @DisplayName("같은 client_key 를 두 번 보내면 행은 1개이고 두 번째는 200 으로 최초 결과를 돌려준다")
     void 같은_client_key_재전송은_행을_늘리지_않고_200이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long[] s = caseScenario(now);
@@ -315,7 +315,7 @@ class NoShowContactControllerTest {
     }
 
     @Test
-    @DisplayName("R56 K4 — 같은 client_key 로 다른 내용(결과)을 보내면 422 VALIDATION_FAILED 이고 새 행이 생기지 않는다")
+    @DisplayName("같은 client_key 로 다른 내용(결과)을 보내면 422 VALIDATION_FAILED 이고 새 행이 생기지 않는다")
     void 같은_client_key_다른_내용은_422다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long[] s = caseScenario(now);
@@ -345,7 +345,7 @@ class NoShowContactControllerTest {
     }
 
     @Test
-    @DisplayName("R56 K4 — client_key 없이 같은 요청을 두 번 보내면 지금처럼 두 번 다 201 이고 행이 2개다")
+    @DisplayName("client_key 없이 같은 요청을 두 번 보내면 지금처럼 두 번 다 201 이고 행이 2개다")
     void client_key_가_없으면_지금과_같다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long[] s = caseScenario(now);

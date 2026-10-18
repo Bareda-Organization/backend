@@ -114,7 +114,7 @@ class BoardingControllerTest {
     // ── 동승자 전용, 그 외 역할은 403 ESCORT_ONLY ──────────────────
 
     @Test
-    @DisplayName("목표4 — 동승자 토큰으로 승하차 상태를 변경하면 성공한다")
+    @DisplayName("동승자 토큰으로 승하차 상태를 변경하면 성공한다")
     void 동승자_토큰으로_승하차_상태를_변경하면_성공한다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -141,7 +141,7 @@ class BoardingControllerTest {
 
     /** Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 동승자 전용 호출을 불러도 코드는 {@code 403 ESCORT_ONLY} 다(FORBIDDEN 이 아니다). */
     @Test
-    @DisplayName("R52 L4 — 관계자·학부모가 동승자 전용 호출(승하차 처리)을 부르면 403 ESCORT_ONLY 이다")
+    @DisplayName("관계자·학부모가 동승자 전용 호출(승하차 처리)을 부르면 403 ESCORT_ONLY 이다")
     void 다른_역할이_동승자_전용_호출을_부르면_ESCORT_ONLY_이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.parse("2030-04-01T12:00:00+09:00");
         long academyId = fixtures().academy();
@@ -162,7 +162,7 @@ class BoardingControllerTest {
     }
 
     @Test
-    @DisplayName("목표4 — 기사 토큰으로 승하차 상태를 바꾸려 하면 403 ESCORT_ONLY 이고 저장값은 그대로다")
+    @DisplayName("기사 토큰으로 승하차 상태를 바꾸려 하면 403 ESCORT_ONLY 이고 저장값은 그대로다")
     void 기사_토큰으로_바꾸려_하면_403이고_저장값은_불변이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -193,7 +193,7 @@ class BoardingControllerTest {
      * 때로 옮겨 갔다.
      */
     @Test
-    @DisplayName("목표7(Ruling 311) — no_show 처리 즉시는 관계자 알림만 적재되고, 학부모 알림은 출발 시점에 적재된다")
+    @DisplayName("Ruling 311 — no_show 처리 즉시는 관계자 알림만 적재되고, 학부모 알림은 출발 시점에 적재된다")
     void no_show_처리하면_관계자_알림은_즉시_학부모_알림은_출발_시점에_적재된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -249,7 +249,7 @@ class BoardingControllerTest {
      * 출발 전에 되돌리면 학부모에게는 아무것도 나가지 않는다(관계자 알림은 표시 즉시 나가 이미 있다).
      */
     @Test
-    @DisplayName("R51 854 — 미승차를 출발 전에 되돌리면 학부모 알림은 나가지 않는다(관계자 알림은 표시 즉시 1건)")
+    @DisplayName("미승차를 출발 전에 되돌리면 학부모 알림은 나가지 않는다(관계자 알림은 표시 즉시 1건)")
     void 미승차를_출발_전에_되돌리면_학부모_알림은_나가지_않는다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -292,7 +292,7 @@ class BoardingControllerTest {
      * 결함도 우연히 통과하므로, 서로 다른 두 값을 함께 확인해 "학원별로 실제로 갈린다"를 검증한다.
      */
     @Test
-    @DisplayName("Phase11 목표2 — 학원마다 다른 대기 시간을 설정하면 no_show 만료 시각에 각자 값이 그대로 반영된다")
+    @DisplayName("학원마다 다른 대기 시간을 설정하면 no_show 만료 시각에 각자 값이 그대로 반영된다")
     void 학원별_미승차_대기_시간이_다르면_만료_시각도_각자_다르게_반영된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
 
@@ -343,7 +343,7 @@ class BoardingControllerTest {
 
     /** 학원 설정 행이 아예 없으면 {@link AcademySetting#DEFAULT_NO_SHOW_WAIT_MINUTES}(3분)로 떨어진다. */
     @Test
-    @DisplayName("Phase11 목표2 — 학원 설정 행이 없으면 기본 대기 시간(3분)이 적용된다")
+    @DisplayName("학원 설정 행이 없으면 기본 대기 시간(3분)이 적용된다")
     void 학원_설정이_없으면_기본_3분이_적용된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -383,7 +383,7 @@ class BoardingControllerTest {
      * 0명이 되어 {@code stop_skipped=true} 이고 {@code run_stop.change='skipped'} 로 실제 전환된다.
      */
     @Test
-    @DisplayName("목표7 — 정차지 잔여가 0명이 되는 미승차는 stop_skipped=true 이고 run_stop 이 실제로 skipped 전환된다")
+    @DisplayName("정차지 잔여가 0명이 되는 미승차는 stop_skipped=true 이고 run_stop 이 실제로 skipped 전환된다")
     void 미승차로_정차지_잔여가_0명이면_stop_skipped_true_이고_run_stop_이_skipped_로_전환된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -419,7 +419,7 @@ class BoardingControllerTest {
      * {@code run_stop} 은 전환되지 않는다.
      */
     @Test
-    @DisplayName("목표7 — 정차지에 잔여 탑승자가 남으면 stop_skipped=false 이고 run_stop 은 전환되지 않는다")
+    @DisplayName("정차지에 잔여 탑승자가 남으면 stop_skipped=false 이고 run_stop 은 전환되지 않는다")
     void 정차지에_잔여_탑승자가_남으면_stop_skipped_false_이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -452,7 +452,7 @@ class BoardingControllerTest {
     // ── client_key 재전송 멱등 ──────────────────────────────────
 
     @Test
-    @DisplayName("목표12 — 같은 client_key 로 재전송하면 상태가 두 번 바뀌지 않고 동일한 200 응답이다")
+    @DisplayName("같은 client_key 로 재전송하면 상태가 두 번 바뀌지 않고 동일한 200 응답이다")
     void 같은_client_key_재전송은_상태를_두번_바꾸지_않는다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -496,7 +496,7 @@ class BoardingControllerTest {
     // ── 되돌리기가 직전 상태로 실제로 되돌린다 ─────────────────────
 
     @Test
-    @DisplayName("목표13 — 되돌리기는 직전 상태로 실제로 되돌리고 이력을 남긴다")
+    @DisplayName("되돌리기는 직전 상태로 실제로 되돌리고 이력을 남긴다")
     void 되돌리기는_직전_상태로_되돌리고_이력을_남긴다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -546,7 +546,7 @@ class BoardingControllerTest {
     // ── 되돌리기 횟수·시간 제한 부재 ──────────────────────────────
 
     @Test
-    @DisplayName("목표14 — 되돌리기를 반복해도 횟수 제한 없이 매번 200 이고 이력이 계속 쌓인다")
+    @DisplayName("되돌리기를 반복해도 횟수 제한 없이 매번 200 이고 이력이 계속 쌓인다")
     void 되돌리기를_반복해도_제한이_없다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -581,7 +581,7 @@ class BoardingControllerTest {
     // ── Ruling 307 — 승하차지를 떠난 뒤에는 되돌리기 거부 ────────────
 
     @Test
-    @DisplayName("목표6b(Ruling 307) — departed_at 이 기록된 승하차지는 되돌리기가 409 STOP_ALREADY_DEPARTED 이고 저장값은 그대로다")
+    @DisplayName("Ruling 307 — departed_at 이 기록된 승하차지는 되돌리기가 409 STOP_ALREADY_DEPARTED 이고 저장값은 그대로다")
     void 출발_처리된_승하차지는_되돌리기가_409이고_저장값은_불변이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -609,7 +609,7 @@ class BoardingControllerTest {
     }
 
     @Test
-    @DisplayName("목표6b(Ruling 307) — 확정 노선이 있어도 아직 출발 처리 전이면 되돌리기는 그대로 성공한다")
+    @DisplayName("Ruling 307 — 확정 노선이 있어도 아직 출발 처리 전이면 되돌리기는 그대로 성공한다")
     void 출발_처리_전이면_확정_노선이_있어도_되돌리기가_성공한다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -636,7 +636,7 @@ class BoardingControllerTest {
     }
 
     @Test
-    @DisplayName("목표6c(Ruling 307) — 뒤 순번이 없는 마지막 승하차지도 출발 처리되면 되돌리기가 거부된다(파생 규칙의 구멍이 막혔는지)")
+    @DisplayName("Ruling 307 — 뒤 순번이 없는 마지막 승하차지도 출발 처리되면 되돌리기가 거부된다(파생 규칙의 구멍이 막혔는지)")
     void 마지막_승하차지도_출발_처리되면_되돌리기가_거부된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -668,7 +668,7 @@ class BoardingControllerTest {
      * 적재된다.
      */
     @Test
-    @DisplayName("목표1·3·4(Ruling 308) — 출발 전 되돌리기를 반복해도 알림이 없고, 출발 시점에 마지막 상태로 1건만 적재된다")
+    @DisplayName("Ruling 308 — 출발 전 되돌리기를 반복해도 알림이 없고, 출발 시점에 마지막 상태로 1건만 적재된다")
     void 출발_전_되돌리기를_반복해도_알림이_없고_출발_시점에_마지막_상태로_1건만_적재된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -696,7 +696,7 @@ class BoardingControllerTest {
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
-                guardian.accountId())).as("①승차 직후에도 알림 미발행(목표1)").isEqualTo(0);
+                guardian.accountId())).as("①승차 직후에도 알림 미발행").isEqualTo(0);
 
         mockMvc.perform(post(REVERT.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
@@ -705,7 +705,7 @@ class BoardingControllerTest {
         entityManager.flush();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
-                guardian.accountId())).as("②되돌린 뒤에도 정정 알림 미발행(목표4)").isEqualTo(0);
+                guardian.accountId())).as("②되돌린 뒤에도 정정 알림 미발행").isEqualTo(0);
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId)).header("Authorization", escortToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -728,10 +728,10 @@ class BoardingControllerTest {
 
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE type IN ('boarding_canceled', 'alighting_canceled')",
-                Integer.class)).as("⑤취소 정정 알림 종류는 이제 적재되지 않는다(목표4)").isEqualTo(0);
+                Integer.class)).as("⑤취소 정정 알림 종류는 이제 적재되지 않는다").isEqualTo(0);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM notification_log WHERE recipient_account_id = ?", Integer.class,
-                waitingGuardian.accountId())).as("⑥waiting 인 채 출발한 학생은 발송 대상이 아니다(목표9)").isEqualTo(0);
+                waitingGuardian.accountId())).as("⑥waiting 인 채 출발한 학생은 발송 대상이 아니다").isEqualTo(0);
     }
 
     // ── BR-009 — 미승차를 되돌리면 케이스·미정차 표시도 함께 풀린다 ──────────────────
@@ -925,7 +925,7 @@ class BoardingControllerTest {
      */
     @ParameterizedTest(name = "{0}: {1} → {2} 는 409 RIDER_TRANSITION_NOT_ALLOWED")
     @CsvSource({ "to_academy, boarded, alighted", "from_academy, waiting, boarded" })
-    @DisplayName("R51 C3 — 방향이 맞지 않는 승하차 처리는 409 RIDER_TRANSITION_NOT_ALLOWED 이고 상태·이력이 그대로다")
+    @DisplayName("방향이 맞지 않는 승하차 처리는 409 RIDER_TRANSITION_NOT_ALLOWED 이고 상태·이력이 그대로다")
     void 방향이_맞지_않는_승하차_처리는_409다(String direction, String fromStatus, String targetStatus) throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();

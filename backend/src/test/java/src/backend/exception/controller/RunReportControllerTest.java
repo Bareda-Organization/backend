@@ -115,7 +115,7 @@ class RunReportControllerTest {
     // ── Ruling 894 ⑧ — 오프라인 큐 재전송 키 ───────────────────────────
 
     @Test
-    @DisplayName("R56 K4 — 같은 client_key 를 두 번 보내면 보고 1개·관계자 알림 1건이고 두 번째는 200 으로 같은 report_id 를 돌려준다")
+    @DisplayName("같은 client_key 를 두 번 보내면 보고 1개·관계자 알림 1건이고 두 번째는 200 으로 같은 report_id 를 돌려준다")
     void 같은_client_key_재전송은_보고를_늘리지_않고_200이다() throws Exception {
         ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -147,7 +147,7 @@ class RunReportControllerTest {
     }
 
     @Test
-    @DisplayName("R56 K4 — 같은 client_key 로 다른 내용(종류)을 보내면 422 VALIDATION_FAILED 이고 새 보고가 생기지 않는다")
+    @DisplayName("같은 client_key 로 다른 내용(종류)을 보내면 422 VALIDATION_FAILED 이고 새 보고가 생기지 않는다")
     void 같은_client_key_다른_내용은_422다() throws Exception {
         ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -174,7 +174,7 @@ class RunReportControllerTest {
     }
 
     @Test
-    @DisplayName("R56 K4 — client_key 없이 같은 요청을 두 번 보내면 지금처럼 두 번 다 201 이고 보고가 2개다")
+    @DisplayName("client_key 없이 같은 요청을 두 번 보내면 지금처럼 두 번 다 201 이고 보고가 2개다")
     void client_key_가_없으면_지금과_같다() throws Exception {
         ExceptionReportFixtures fixtures = ExceptionReportFixtures.of(applicationContext);
         long academyId = fixtures.academy();

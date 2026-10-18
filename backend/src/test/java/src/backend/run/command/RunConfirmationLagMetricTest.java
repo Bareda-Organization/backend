@@ -84,7 +84,7 @@ class RunConfirmationLagMetricTest {
     }
 
     @Test
-    @DisplayName("목표8 — 도래(confirm_at)로부터 17분 밀려 확정된 회차의 지연이 정확히 기록된다")
+    @DisplayName("도래(confirm_at)로부터 17분 밀려 확정된 회차의 지연이 정확히 기록된다")
     void 확정_지연이_판정_시각부터_완료_시각까지의_차로_기록된다() {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -115,7 +115,7 @@ class RunConfirmationLagMetricTest {
     }
 
     @Test
-    @DisplayName("목표8-보완 — 실패한 시도는 기록되지 않고, 재시도 성공분이 실패 구간까지 포함한 누적 지연으로 잡힌다")
+    @DisplayName("실패한 시도는 기록되지 않고, 재시도 성공분이 실패 구간까지 포함한 누적 지연으로 잡힌다")
     void 실패한_시도는_기록되지_않고_재시도_성공은_누적_지연을_기록한다() {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);

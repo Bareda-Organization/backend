@@ -110,7 +110,7 @@ class RunConfirmationSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표3 — 실행 시각이 아니라 저장된 confirm_at 이 대상을 가른다")
+    @DisplayName("실행 시각이 아니라 저장된 confirm_at 이 대상을 가른다")
     void 판정_시각이_지난_회차만_확정된다() {
         long[] academyAndBus = fullyConfiguredAcademyAndBus();
         long academyId = academyAndBus[0];
@@ -138,7 +138,7 @@ class RunConfirmationSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표4 — 한 회차의 실패가 다른 회차를 막지 않고, 실패 횟수는 재실행에 걸쳐 누적된다")
+    @DisplayName("한 회차의 실패가 다른 회차를 막지 않고, 실패 횟수는 재실행에 걸쳐 누적된다")
     void 한_회차의_실패가_다른_회차를_막지_않는다() {
         long[] academyAndBus = fullyConfiguredAcademyAndBus();
         long academyId = academyAndBus[0];
@@ -266,7 +266,7 @@ class RunConfirmationSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6-a — 한 틱이 집는 회차 수는 BATCH_SIZE 를 넘지 않는다")
+    @DisplayName("한 틱이 집는 회차 수는 BATCH_SIZE 를 넘지 않는다")
     void 한_틱은_배치_크기_상한을_넘지_않는다() {
         long[] academyAndBus = fullyConfiguredAcademyAndBus();
         long academyId = academyAndBus[0];

@@ -107,7 +107,7 @@ class ChangeRequestAutoRejectionSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표1 — 마감이 지난 대기 요청을 폴링이 거절하고 세 결과를 함께 남긴다")
+    @DisplayName("마감이 지난 대기 요청을 폴링이 거절하고 세 결과를 함께 남긴다")
     void 마감이_지난_요청을_폴링이_거절한다() {
         long[] s = baseScenario();
         long academyId = s[0];
@@ -149,7 +149,7 @@ class ChangeRequestAutoRejectionSchedulerTest {
      * 알림이 없어(API_SPEC §9.7) 알림을 빼면 그 학부모는 취소도 거절도 모른다. 상태 전이·한도 환원은 그대로다.
      */
     @Test
-    @DisplayName("R51 864 — 취소된 회차의 대기 요청도 마감에 자동 거절되고 change_decided 알림이 나간다")
+    @DisplayName("취소된 회차의 대기 요청도 마감에 자동 거절되고 change_decided 알림이 나간다")
     void 취소된_회차의_대기_요청도_알림과_함께_자동_거절된다() {
         long[] s = baseScenario();
         long academyId = s[0];
@@ -174,7 +174,7 @@ class ChangeRequestAutoRejectionSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표1 경계 — 마감이 지금 이 순간이면(같음) 폴링이 즉시 거절한다")
+    @DisplayName("마감이 지금 이 순간이면(같음) 폴링이 즉시 거절한다")
     void 마감이_지금과_같아도_폴링이_거절한다() {
         long[] s = baseScenario();
         long academyId = s[0];
@@ -194,7 +194,7 @@ class ChangeRequestAutoRejectionSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6 — 이미 처리된 요청은 폴링 질의에 다시 걸리지 않는다")
+    @DisplayName("이미 처리된 요청은 폴링 질의에 다시 걸리지 않는다")
     void 이미_처리된_요청은_다시_걸리지_않는다() {
         long[] s = baseScenario();
         long academyId = s[0];
@@ -223,7 +223,7 @@ class ChangeRequestAutoRejectionSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표5 — 한 건의 실패가 다른 건을 막지 않는다")
+    @DisplayName("한 건의 실패가 다른 건을 막지 않는다")
     void 한_건의_실패가_다른_건을_막지_않는다() {
         long[] good = baseScenario();
         long goodAcademyId = good[0];

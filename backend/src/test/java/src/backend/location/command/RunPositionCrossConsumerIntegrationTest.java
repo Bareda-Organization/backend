@@ -112,7 +112,7 @@ class RunPositionCrossConsumerIntegrationTest {
     }
 
     @Test
-    @DisplayName("T1 실제 쓰기 → T3(근접 알림)·T4(학부모 위치 조회) 실제 읽기가 한 값으로 이어진다")
+    @DisplayName("위치 쓰기 → 근접 알림·학부모 위치 조회 읽기가 한 값으로 이어진다")
     void 실제_송신_값을_T3_T4_가_각자_읽어낸다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -153,7 +153,7 @@ class RunPositionCrossConsumerIntegrationTest {
         String dedupKey = "approaching:%d:%d:%d:parent:%%".formatted(runId, stopId, studentId);
         Integer notificationCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notification_log WHERE dedup_key LIKE ?", Integer.class, dedupKey);
-        assertThat(notificationCount).as("근접 판정(RunPositionStore 경유)이 T1 이 실제로 쓴 값을 파싱해 근접 알림을 적재해야 한다")
+        assertThat(notificationCount).as("근접 판정(RunPositionStore 경유)이 위치 쓰기가 실제로 쓴 값을 파싱해 근접 알림을 적재해야 한다")
                 .isEqualTo(1);
 
         // 3. 학부모 위치 조회의 실제 읽기 — RunPositionStore 를 거쳐 GET 응답에 좌표가 그대로 나와야 한다.

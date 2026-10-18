@@ -51,7 +51,7 @@ class RunCanceledNotificationTest {
 
 
     @Test
-    @DisplayName("R56 K3 — confirmed 회차를 취소하면 배치된 기사·동승자에게 run_canceled 가 각 1건 적재된다")
+    @DisplayName("confirmed 회차를 취소하면 배치된 기사·동승자에게 run_canceled 가 각 1건 적재된다")
     void 확정_회차_취소는_기사와_동승자에게_통지한다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -76,7 +76,7 @@ class RunCanceledNotificationTest {
     }
 
     @Test
-    @DisplayName("R56 K3 — idle(확정 전) 회차를 취소하면 알림이 한 건도 적재되지 않는다")
+    @DisplayName("idle(확정 전) 회차를 취소하면 알림이 한 건도 적재되지 않는다")
     void 확정_전_회차_취소는_통지하지_않는다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -95,7 +95,7 @@ class RunCanceledNotificationTest {
     }
 
     @Test
-    @DisplayName("R56 K3 — 이미 취소된 확정 회차를 다시 취소해도(멱등) 알림이 늘지 않는다")
+    @DisplayName("이미 취소된 확정 회차를 다시 취소해도(멱등) 알림이 늘지 않는다")
     void 두_번_취소해도_통지는_한_번이다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();

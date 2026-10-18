@@ -27,7 +27,7 @@ class WebSocketOutboundQueueCapacityTest {
     void 팬아웃_실행기_큐는_속성으로_정한_만큼만_받는다() {
         ThreadPoolExecutor delegate = outboundExecutor.getThreadPoolExecutor();
         assertThat(delegate.getQueue().remainingCapacity())
-                .as("큐 상한이 없으면 무한 큐라 힙이 느린 구독자만큼 계속 자란다(2026-09-09 부하 한계 측정)")
+                .as("큐 상한이 없으면 무한 큐라 힙이 느린 구독자만큼 계속 자란다")
                 .isEqualTo(123);
     }
 

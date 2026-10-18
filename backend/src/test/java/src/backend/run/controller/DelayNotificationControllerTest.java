@@ -75,7 +75,7 @@ class DelayNotificationControllerTest {
     // ── 엔드포인트 전체 행동 ─────────────────────────────────────
 
     @Test
-    @DisplayName("목표1 — 배치된 동승자의 정상 신고는 201 이고 세 수신 갈래 모두 발신되며 이력이 저장된다")
+    @DisplayName("배치된 동승자의 정상 신고는 201 이고 세 수신 갈래 모두 발신되며 이력이 저장된다")
     void 정상_신고는_성공하고_이력이_저장된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -107,7 +107,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 — 관계자·학생 갈래도 notification_log 에 실제로 적재된다(응답 불린만이 아니라 행 자체)")
+    @DisplayName("관계자·학생 갈래도 notification_log 에 실제로 적재된다(응답 불린만이 아니라 행 자체)")
     void 관계자와_학생도_notification_log_에_실제로_적재된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -171,7 +171,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 ESCORT_ONLY — 기사가 신고하면 403 ESCORT_ONLY 이고 이력이 남지 않는다")
+    @DisplayName("기사가 신고하면 403 ESCORT_ONLY 이고 이력이 남지 않는다")
     void 기사는_신고할_수_없다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -191,7 +191,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 FORBIDDEN — 같은 학원 동승자이지만 이 회차에 배치되지 않으면 403 FORBIDDEN(ESCORT_ONLY 아님)")
+    @DisplayName("같은 학원 동승자이지만 이 회차에 배치되지 않으면 403 FORBIDDEN(ESCORT_ONLY 아님)")
     void 배치되지_않은_같은_학원_동승자는_FORBIDDEN_이다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -221,7 +221,7 @@ class DelayNotificationControllerTest {
      * 존재하지 않는 회차를 RUN_NOT_FOUND 로 기대하는 시험이 없다(같은 이유).
      */
     @Test
-    @DisplayName("목표1 FORBIDDEN — 존재하지 않는 회차는 배치 조회가 먼저 걸려 404 가 아니라 403 이다")
+    @DisplayName("존재하지 않는 회차는 배치 조회가 먼저 걸려 404 가 아니라 403 이다")
     void 존재하지_않는_회차는_FORBIDDEN_이다() throws Exception {
         mockMvc.perform(post(DELAY.formatted(999_999_999L))
                         .header("Authorization", 토큰(tokenProvider, 1L, 1L, Role.ESCORT))
@@ -232,7 +232,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 RUN_NOT_MOVING — 아직 시작하지 않은(confirmed) 회차는 409 다")
+    @DisplayName("아직 시작하지 않은(confirmed) 회차는 409 다")
     void 시작하지_않은_회차는_RUN_NOT_MOVING_이다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -249,7 +249,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 급소 — minutes 가 5의 배수가 아니면 422 VALIDATION_FAILED 다")
+    @DisplayName("minutes 가 5의 배수가 아니면 422 VALIDATION_FAILED 다")
     void minutes_가_5의_배수가_아니면_422_다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -269,7 +269,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 급소 — 정의되지 않은 reason 문자열은 422 VALIDATION_FAILED 다")
+    @DisplayName("정의되지 않은 reason 문자열은 422 VALIDATION_FAILED 다")
     void 정의되지_않은_reason_은_422_다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -289,7 +289,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 — minutes 가 아예 없으면(빈 검증 단계) 422 다 — GlobalExceptionHandler 가 "
+    @DisplayName("minutes 가 아예 없으면(빈 검증 단계) 422 다 — GlobalExceptionHandler 가 "
             + "MethodArgumentNotValidException 도 VALIDATION_FAILED 로 합류시킨다")
     void minutes_가_없으면_422_다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
@@ -308,7 +308,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 — reason 이 빈 문자열이면(빈 검증 단계) 422 다")
+    @DisplayName("reason 이 빈 문자열이면(빈 검증 단계) 422 다")
     void reason_이_빈_문자열이면_422_다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -328,7 +328,7 @@ class DelayNotificationControllerTest {
     // ── 수신 범위 3조건(각각 독립으로 실패해야 한다) ───────────────
 
     @Test
-    @DisplayName("목표2-a — 이미 지난(도착 완료) 정류장의 학생은 수신 대상에서 빠진다")
+    @DisplayName("이미 지난(도착 완료) 정류장의 학생은 수신 대상에서 빠진다")
     void 이미_지난_정류장의_학생은_제외된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -363,7 +363,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("R51 H2 부작용 — 도착 없이 강제 출발된(departed_at 만 있는) 정류장의 학생도 이미 지나친 곳이라 수신 대상에서 빠진다")
+    @DisplayName("도착 없이 강제 출발된(departed_at 만 있는) 정류장의 학생도 이미 지나친 곳이라 수신 대상에서 빠진다")
     void 도착_없이_강제_출발된_정류장의_학생은_제외된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -401,7 +401,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표2-b — 이미 탑승한(BOARDED) 학생은 수신 대상에서 빠진다")
+    @DisplayName("이미 탑승한(BOARDED) 학생은 수신 대상에서 빠진다")
     void 이미_탑승한_학생은_제외된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -433,7 +433,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("R51 856 — 하원은 아직 하차하지 않은(탑승 중) 학생의 학부모·학생이 받고, 이미 하차한 학생·대기 학생은 받지 않는다")
+    @DisplayName("하원은 아직 하차하지 않은(탑승 중) 학생의 학부모·학생이 받고, 이미 하차한 학생·대기 학생은 받지 않는다")
     void 하원_지연은_탑승_중인_학생만_받는다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -469,7 +469,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("R51 M-B1 — 보호자가 둘인 학생은 보호자 전원이 지연 알림을 받는다")
+    @DisplayName("보호자가 둘인 학생은 보호자 전원이 지연 알림을 받는다")
     void 지연_알림은_학생의_보호자_전원에게_간다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -500,7 +500,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표2-c — 결석 처리된(ABSENT) 학생은 수신 대상에서 빠진다")
+    @DisplayName("결석 처리된(ABSENT) 학생은 수신 대상에서 빠진다")
     void 결석_처리된_학생은_제외된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -534,7 +534,7 @@ class DelayNotificationControllerTest {
     // ── 중복·갱신 판정(Ruling 253) ─────────────────────────────
 
     @Test
-    @DisplayName("목표3-a — 직전 신고와 minutes·reason·message 가 전부 같으면 409 DELAY_DUPLICATE 다")
+    @DisplayName("직전 신고와 minutes·reason·message 가 전부 같으면 409 DELAY_DUPLICATE 다")
     void 완전히_같은_내용의_재신고는_409_다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -562,7 +562,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표3-b — minutes 만 달라도 새 신고로 처리된다")
+    @DisplayName("minutes 만 달라도 새 신고로 처리된다")
     void minutes_만_다르면_새_신고다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -589,7 +589,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표3-c — reason 만 달라도 새 신고로 처리된다")
+    @DisplayName("reason 만 달라도 새 신고로 처리된다")
     void reason_만_다르면_새_신고다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -616,7 +616,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표3-d — message 만 달라도(둘 다 채워짐) 새 신고로 처리된다")
+    @DisplayName("message 만 달라도(둘 다 채워짐) 새 신고로 처리된다")
     void message_만_다르면_새_신고다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -643,7 +643,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표3-e — message 가 둘 다 같은 값으로 채워져 있어도 나머지가 같으면 409 다(동치 비교가 null 전용이 아님)")
+    @DisplayName("message 가 둘 다 같은 값으로 채워져 있어도 나머지가 같으면 409 다(동치 비교가 null 전용이 아님)")
     void message_가_같은_값이어도_나머지가_같으면_중복이다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -671,7 +671,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표3-f — message 가 null 에서 채워진 값으로 바뀌면(그 반대도) 다른 신고로 처리된다")
+    @DisplayName("message 가 null 에서 채워진 값으로 바뀌면(그 반대도) 다른 신고로 처리된다")
     void message_유무가_다르면_새_신고다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -698,7 +698,7 @@ class DelayNotificationControllerTest {
     }
 
     @Test
-    @DisplayName("목표3-g — message 가 빈 문자열·공백뿐·null 이면 전부 같은 신고로 취급돼 두 번째부터 409 다")
+    @DisplayName("message 가 빈 문자열·공백뿐·null 이면 전부 같은 신고로 취급돼 두 번째부터 409 다")
     void message_가_빈_문자열_공백_null_이면_전부_동치다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();

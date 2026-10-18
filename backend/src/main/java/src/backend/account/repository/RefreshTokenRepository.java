@@ -89,7 +89,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * 않은 토큰은 <b>만료 시각</b> 기준으로 가른다 — 둘 다 만료됐다고 해서 즉시 지우면 안 되는 이유는
      * 폐기 직후 재사용 시도를 감사할 여지를 남기기 위함이다({@link src.backend.global.retention.RetentionPolicy} 자바독 참고).
      */
-    @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료·폐기 토큰 전건이 대상이고, "
+    @AcademyScopeExempt(reason = "보존 정리 배치 — 전 학원의 만료·폐기 토큰 전건이 대상이고, "
             + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
     @Query("select t.id from RefreshToken t "
             + "where (t.revokedAt is not null and t.revokedAt < :cutoff) "
@@ -101,7 +101,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * 남은 행 수(Ruling 742) — 보존 정리 직후 운영 지표 {@code schoolbus.refresh.token.rows} 용이다. {@code count()} 를 직접 부르지 않는 것은
      * 학원 범위 저장소의 상속 전건 조회 호출을 막는 규칙({@code AcademyScopeRepositoryConventionTest})이 있어, 예외 근거를 적은 전용 조회로 둔다.
      */
-    @AcademyScopeExempt(reason = "운영 지표(R47 Ruling 742) — 보존 정리가 끝난 직후 전 학원의 refresh_token 남은 행 수를 센다. 개별 행·개인정보를 읽지 않고 "
+    @AcademyScopeExempt(reason = "운영 지표(Ruling 742) — 보존 정리가 끝난 직후 전 학원의 refresh_token 남은 행 수를 센다. 개별 행·개인정보를 읽지 않고 "
             + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
     @Query("select count(t) from RefreshToken t")
     long countAllRows();

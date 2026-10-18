@@ -68,7 +68,7 @@ class NotificationSettingControllerTest {
     // ── 조회: 설정 행이 없어도 기본값(전부 on)을 돌려준다(저장은 하지 않는다, BR-096) ─────
 
     @Test
-    @DisplayName("목표7 — 설정 행이 없는 계정도 GET 하면 기본값(전부 on)을 돌려주되 행을 만들지 않는다")
+    @DisplayName("설정 행이 없는 계정도 GET 하면 기본값(전부 on)을 돌려주되 행을 만들지 않는다")
     void 설정_행이_없어도_GET_하면_기본값을_돌려준다() throws Exception {
         long accountId = parentAccount();
         assertThat(notificationSettingRepository.findById(accountId)).as("사전 조건 — 설정 행이 없다").isEmpty();
@@ -86,7 +86,7 @@ class NotificationSettingControllerTest {
     // ── 수정: PATCH 로 바뀐 값이 응답과 다음 GET 조회 모두에 반영된다 ─────
 
     @Test
-    @DisplayName("목표7 — PATCH 로 바꾼 값이 그 응답과 다음 GET 조회 모두에 반영된다")
+    @DisplayName("PATCH 로 바꾼 값이 그 응답과 다음 GET 조회 모두에 반영된다")
     void PATCH_로_바꾼_값이_다음_조회에도_반영된다() throws Exception {
         long accountId = parentAccount();
         String token = 토큰(tokenProvider, accountId, 1L, Role.PARENT);
@@ -111,7 +111,7 @@ class NotificationSettingControllerTest {
     // ── 학생 계정도 같은 화면을 쓸 수 있다(API_SPEC §3.14 "학부모·학생") ───
 
     @Test
-    @DisplayName("목표7 — 학생 계정도 조회·수정할 수 있다")
+    @DisplayName("학생 계정도 조회·수정할 수 있다")
     void 학생_계정도_조회_수정할_수_있다() throws Exception {
         String loginId = "p12t1student" + SEQUENCE.incrementAndGet() + "-" + System.nanoTime();
         long accountId = accountRepository.save(Account.forSignup(1L, loginId, "{noop}password", "학생",
@@ -137,7 +137,7 @@ class NotificationSettingControllerTest {
     // ── 설정 대상 밖 항목을 PATCH 하면 422 VALIDATION_FAILED ────────────
 
     @Test
-    @DisplayName("목표9 — 설정 대상 밖 항목(delay)을 섞어 PATCH 하면 422 VALIDATION_FAILED 이고 값은 바뀌지 않는다")
+    @DisplayName("설정 대상 밖 항목(delay)을 섞어 PATCH 하면 422 VALIDATION_FAILED 이고 값은 바뀌지 않는다")
     void 설정_대상_밖_항목을_PATCH_하면_422_VALIDATION_FAILED_이다() throws Exception {
         long accountId = parentAccount();
         String token = 토큰(tokenProvider, accountId, 1L, Role.PARENT);
@@ -220,7 +220,7 @@ class NotificationSettingControllerTest {
     // ── 3개 항목만 정확히 보내면(대상 안) 200 이다 — 위 422 의 대응하는 양성 사례 ───
 
     @Test
-    @DisplayName("목표9 — 3개 항목만 정확히 PATCH 하면 200 이다")
+    @DisplayName("3개 항목만 정확히 PATCH 하면 200 이다")
     void 대상_안_3개_항목만_PATCH_하면_200_이다() throws Exception {
         long accountId = parentAccount();
 

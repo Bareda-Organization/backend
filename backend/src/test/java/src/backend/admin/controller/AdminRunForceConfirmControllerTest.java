@@ -135,7 +135,7 @@ class AdminRunForceConfirmControllerTest {
      * 조용히 빠져 일반 확정으로 떨어지는 결함은 DB 값을 직접 읽어야만 드러난다.
      */
     @Test
-    @DisplayName("목표11 — idle·confirm_at 경과 회차의 강제 확정은 201 이고 fallback_used 가 실제로 true 로 저장된다")
+    @DisplayName("idle·confirm_at 경과 회차의 강제 확정은 201 이고 fallback_used 가 실제로 true 로 저장된다")
     void 강제_확정하면_201_이고_route_version_이_fallback_used_true_로_생긴다() throws Exception {
         long runId = dueIdleRun();
 
@@ -179,7 +179,7 @@ class AdminRunForceConfirmControllerTest {
      * {@code detail_route_version_id} 와 값이 같은지 직접 비교한다.
      */
     @Test
-    @DisplayName("목표11 — 강제 확정은 audit_log 에 action=update·target_type=run·detail 을 담은 행을 남긴다")
+    @DisplayName("강제 확정은 audit_log 에 action=update·target_type=run·detail 을 담은 행을 남긴다")
     void 강제_확정하면_audit_log_에_행이_남는다() throws Exception {
         long runId = dueIdleRun();
 
@@ -222,7 +222,7 @@ class AdminRunForceConfirmControllerTest {
      * 강제로 확정시킬 수 있다.
      */
     @Test
-    @DisplayName("목표11 — confirm_at 이 지나지 않은 idle 회차의 강제 확정은 409 RUN_NOT_DUE 다")
+    @DisplayName("confirm_at 이 지나지 않은 idle 회차의 강제 확정은 409 RUN_NOT_DUE 다")
     void confirm_at_이_안_지난_회차는_409_RUN_NOT_DUE_다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -252,7 +252,7 @@ class AdminRunForceConfirmControllerTest {
 
     /** idle 이 아닌(이미 confirmed) 회차의 강제 확정은 {@code 409 RUN_NOT_IDLE} 다(§6.14). */
     @Test
-    @DisplayName("목표11 — idle 이 아닌 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
+    @DisplayName("idle 이 아닌 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
     void idle_이_아닌_회차는_409_RUN_NOT_IDLE_다() throws Exception {
         long runId = dueIdleRun();
         runConfirmationService.confirmOne(runId);
@@ -269,7 +269,7 @@ class AdminRunForceConfirmControllerTest {
 
     /** moving 회차의 강제 확정은 {@code 409 RUN_NOT_IDLE} 다(§6.14 — idle 이 아닌 상태는 confirmed 하나가 아니다). */
     @Test
-    @DisplayName("목표11 — moving 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
+    @DisplayName("moving 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
     void moving_회차는_409_RUN_NOT_IDLE_다() throws Exception {
         long runId = dueIdleRunWithoutCoordinates();
         int updated = jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
@@ -286,7 +286,7 @@ class AdminRunForceConfirmControllerTest {
 
     /** finished 회차의 강제 확정은 {@code 409 RUN_NOT_IDLE} 다(§6.14 — idle 이 아닌 상태는 confirmed 하나가 아니다). */
     @Test
-    @DisplayName("목표11 — finished 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
+    @DisplayName("finished 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
     void finished_회차는_409_RUN_NOT_IDLE_다() throws Exception {
         long runId = dueIdleRunWithoutCoordinates();
         int updated = jdbcTemplate.update("UPDATE run SET status = 'finished' WHERE id = ?", runId);
@@ -320,7 +320,7 @@ class AdminRunForceConfirmControllerTest {
 
     /** 미존재 회차는 {@code 404 RUN_NOT_FOUND} 다(§6.14). */
     @Test
-    @DisplayName("목표11 — 없는 회차의 강제 확정은 404 RUN_NOT_FOUND 다")
+    @DisplayName("없는 회차의 강제 확정은 404 RUN_NOT_FOUND 다")
     void 없는_회차는_404_RUN_NOT_FOUND_다() throws Exception {
         mockMvc.perform(post(FORCE_CONFIRM.formatted(999_999_999L))
                         .header("Authorization", 메인관리자_토큰(tokenProvider, 1L))
@@ -351,7 +351,7 @@ class AdminRunForceConfirmControllerTest {
 
     /** {@code reason} 이 공백뿐이면 {@code 422 VALIDATION_FAILED} 다(§6.14). */
     @Test
-    @DisplayName("목표11 — reason 이 공백뿐이면 422 VALIDATION_FAILED 다")
+    @DisplayName("reason 이 공백뿐이면 422 VALIDATION_FAILED 다")
     void reason_이_공백뿐이면_422_VALIDATION_FAILED_다() throws Exception {
         long runId = dueIdleRun();
 
@@ -374,7 +374,7 @@ class AdminRunForceConfirmControllerTest {
      * 구역이 조용히 넓어지는 형태다.
      */
     @Test
-    @DisplayName("목표11 — 메인 관리자가 아닌 계정의 강제 확정은 403 이다")
+    @DisplayName("메인 관리자가 아닌 계정의 강제 확정은 403 이다")
     void 메인_관리자가_아닌_계정의_강제_확정은_403_이다() throws Exception {
         long runId = dueIdleRun();
         String staffToken = "Bearer " + tokenProvider.createAccessToken(2L, 1L, Role.STAFF, AccountStatus.ACTIVE);

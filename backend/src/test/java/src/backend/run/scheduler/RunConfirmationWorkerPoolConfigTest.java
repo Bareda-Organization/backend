@@ -79,7 +79,7 @@ class RunConfirmationWorkerPoolConfigTest {
     }
 
     @Test
-    @DisplayName("목표6-b — 동시 실행 수는 설정된 풀 크기를 실제로 넘지 않는다")
+    @DisplayName("동시 실행 수는 설정된 풀 크기를 실제로 넘지 않는다")
     void 동시_실행_수는_설정된_풀_크기를_넘지_않는다() throws InterruptedException {
         int configuredPoolSize = ((ThreadPoolExecutor) runConfirmationExecutor).getMaximumPoolSize();
         int taskCount = configuredPoolSize + 5; // 풀 크기보다 많이 던져야 "상한이 실제로 막는지" 를 잰다.

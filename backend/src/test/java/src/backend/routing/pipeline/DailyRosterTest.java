@@ -45,7 +45,7 @@ class DailyRosterTest {
     }
 
     @Test
-    @DisplayName("안전망은 중복만 배제한다 — null 원소까지 거르도록 범위를 넓히지 않아 생성 시점에 그대로 터진다 (Phase 8 목표 15)")
+    @DisplayName("안전망은 중복만 배제한다 — null 원소까지 거르도록 범위를 넓히지 않아 생성 시점에 그대로 터진다")
     void doesNotWidenDedupToSwallowNullStudentId() {
         List<Long> withNull = new ArrayList<>(List.of(10L, 10L, 20L));
         withNull.add(1, null);

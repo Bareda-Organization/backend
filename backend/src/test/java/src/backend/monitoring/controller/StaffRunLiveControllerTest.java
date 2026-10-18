@@ -117,7 +117,7 @@ class StaffRunLiveControllerTest {
      * 만든다.
      */
     @Test
-    @DisplayName("목표6 — moving 회차만 담고 §5.18 필드가 전부 채워진다")
+    @DisplayName("moving 회차만 담고 §5.18 필드가 전부 채워진다")
     void moving_회차만_담고_필드가_전부_채워진다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -189,7 +189,7 @@ class StaffRunLiveControllerTest {
      * 코드로는 재현할 수단이 아예 없어 부득이한 선택이다(확신 없는 지점, 보고서 §2).
      */
     @Test
-    @DisplayName("목표7 — 2분 이상 유실이면 position=null, last_seen_at 은 채워진다")
+    @DisplayName("2분 이상 유실이면 position=null, last_seen_at 은 채워진다")
     void 유실_2분_이상이면_position_이_null_이고_last_seen_at_은_채워진다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();

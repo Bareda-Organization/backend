@@ -53,7 +53,7 @@ class RunCompletionServiceTest {
 
 
     @Test
-    @DisplayName("목표10 회귀 — absent 1명이 섞인 하원 회차는 마지막 탑승자가 하차하는 순간에만 종료된다")
+    @DisplayName("absent 1명이 섞인 하원 회차는 마지막 탑승자가 하차하는 순간에만 종료된다")
     void absent가_섞인_회차는_마지막_탑승자_하차_순간에만_종료된다() {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();

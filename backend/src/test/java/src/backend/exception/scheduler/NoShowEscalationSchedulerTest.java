@@ -128,7 +128,7 @@ class NoShowEscalationSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표1 — 대기가 만료된 케이스를 폴링이 에스컬레이션하고 관계자 알림을 남긴다")
+    @DisplayName("대기가 만료된 케이스를 폴링이 에스컬레이션하고 관계자 알림을 남긴다")
     void 대기가_만료된_케이스를_폴링이_에스컬레이션한다() {
         long[] s = baseScenario();
         long staffAccountId = s[1];
@@ -156,7 +156,7 @@ class NoShowEscalationSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표1 경계 — 만료가 지금 이 순간이면(같음) 폴링이 즉시 에스컬레이션한다")
+    @DisplayName("만료가 지금 이 순간이면(같음) 폴링이 즉시 에스컬레이션한다")
     void 만료가_지금과_같아도_폴링이_에스컬레이션한다() {
         long[] s = baseScenario();
         long riderId = s[2];
@@ -169,7 +169,7 @@ class NoShowEscalationSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6 — 이미 에스컬레이션됐거나 해소된 케이스는 폴링 질의에 다시 걸리지 않는다")
+    @DisplayName("이미 에스컬레이션됐거나 해소된 케이스는 폴링 질의에 다시 걸리지 않는다")
     void 이미_처리된_케이스는_다시_걸리지_않는다() {
         long[] alreadyEscalated = baseScenario();
         long escalatedCaseId = fixtures.noShowCase(alreadyEscalated[2], now.minusMinutes(10), now.minusMinutes(1));
@@ -197,7 +197,7 @@ class NoShowEscalationSchedulerTest {
      * 곧바로 관계자에게 올린다.
      */
     @Test
-    @DisplayName("R51 L1 — 집은 뒤 만료 시각이 미래로 밀린(재개된) 케이스는 조건부 UPDATE 가 0행이라 에스컬레이션되지 않는다")
+    @DisplayName("집은 뒤 만료 시각이 미래로 밀린(재개된) 케이스는 조건부 UPDATE 가 0행이라 에스컬레이션되지 않는다")
     void 만료가_미래로_밀린_케이스는_에스컬레이션하지_않는다() {
         long[] s = baseScenario();
         long caseId = fixtures.noShowCase(s[2], now.minusMinutes(10), now.plusMinutes(3));
@@ -212,7 +212,7 @@ class NoShowEscalationSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표5 — 한 건의 실패가 다른 건을 막지 않는다")
+    @DisplayName("한 건의 실패가 다른 건을 막지 않는다")
     void 한_건의_실패가_다른_건을_막지_않는다() {
         long[] good = baseScenario();
         long goodRiderId = good[2];
@@ -248,7 +248,7 @@ class NoShowEscalationSchedulerTest {
      * 직접 확인한다.
      */
     @Test
-    @DisplayName("목표1 — 이미 처리된 케이스가 배치 상한만큼 쌓여 있어도 새로 만료된 케이스는 이번 틱에서 밀리지 않는다")
+    @DisplayName("이미 처리된 케이스가 배치 상한만큼 쌓여 있어도 새로 만료된 케이스는 이번 틱에서 밀리지 않는다")
     void 이미_처리된_케이스가_배치를_채워도_새_케이스는_밀리지_않는다() {
         long academyId = fixtures.academy();
         fixtures.staffAccount(academyId);

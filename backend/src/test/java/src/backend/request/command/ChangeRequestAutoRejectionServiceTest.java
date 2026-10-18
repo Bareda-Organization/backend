@@ -118,7 +118,7 @@ class ChangeRequestAutoRejectionServiceTest {
     }
 
     @Test
-    @DisplayName("목표2 — moving 종결도 폴링과 같은 세 결과를 남긴다")
+    @DisplayName("moving 종결도 폴링과 같은 세 결과를 남긴다")
     void moving_종결도_같은_결과를_남긴다() {
         OffsetDateTime now = OffsetDateTime.now();
         long academyId = fixtures.academy();
@@ -160,7 +160,7 @@ class ChangeRequestAutoRejectionServiceTest {
     }
 
     @Test
-    @DisplayName("목표3 — 출발 시각 도달과 moving 전이 중 먼저 오는 시점이 종결한다: moving 이 먼저면 즉시 종결된다")
+    @DisplayName("출발 시각 도달과 moving 전이 중 먼저 오는 시점이 종결한다: moving 이 먼저면 즉시 종결된다")
     void moving_이_출발_전에_먼저_오면_즉시_종결된다() {
         OffsetDateTime now = OffsetDateTime.now();
         long academyId = fixtures.academy();

@@ -173,7 +173,7 @@ class ProximityNotificationServiceTest {
                 .containsExactlyInAnyOrder("parent", "student");
         assertThat(rows).as("문구에 자녀 이름이 실린다(ATT-03)")
                 .allSatisfy(row -> assertThat((String) row.get("body")).contains("근접학생4"));
-        assertThat(rows).as("문구 속 이름과 student_name 컬럼이 같다(목표 3)")
+        assertThat(rows).as("문구 속 이름과 student_name 컬럼이 같다")
                 .allSatisfy(row -> assertThat((String) row.get("body")).contains((String) row.get("student_name")));
     }
 

@@ -87,7 +87,7 @@ class NotificationDispatchGateTest {
      * 거치지 않는다는 판단 근거를 그대로 고정한다(발송 시도 자체가 없었다).
      */
     @Test
-    @DisplayName("목표8 — 도착 알림 설정을 끄면 푸시는 막히지만 로그 행은 skipped 로 남는다")
+    @DisplayName("도착 알림 설정을 끄면 푸시는 막히지만 로그 행은 skipped 로 남는다")
     void 설정이_꺼져_있으면_푸시는_막히고_로그_행은_남는다() {
         long accountId = 계정을_만든다("off");
         설정을_저장한다(accountId, false, true, true);
@@ -116,7 +116,7 @@ class NotificationDispatchGateTest {
      * 이 사례가 없으면 위 단언은 "항상 skipped 로 만드는 결함" 이 섞여도 통과한다.
      */
     @Test
-    @DisplayName("목표8 — 도착 알림 설정을 켜면 같은 종류의 알림이 정상적으로 발송된다")
+    @DisplayName("도착 알림 설정을 켜면 같은 종류의 알림이 정상적으로 발송된다")
     void 설정이_켜져_있으면_같은_종류의_알림은_정상적으로_발송된다() {
         long accountId = 계정을_만든다("on");
         설정을_저장한다(accountId, true, true, true);
@@ -138,7 +138,7 @@ class NotificationDispatchGateTest {
      * 전부 조용히 막힌다.
      */
     @Test
-    @DisplayName("목표8 — 설정 행이 아예 없는 계정도 기본값(on)으로 발송된다")
+    @DisplayName("설정 행이 아예 없는 계정도 기본값(on)으로 발송된다")
     void 설정_행이_없는_계정도_기본값_on_으로_발송된다() {
         long accountId = 계정을_만든다("norow");
         assertThat(notificationSettingRepository.findById(accountId)).as("사전 조건 — 설정 행이 없다").isEmpty();
@@ -156,7 +156,7 @@ class NotificationDispatchGateTest {
      * 경로에서도 그대로 지켜지는지를 본다.
      */
     @Test
-    @DisplayName("목표9 — 지연 알림은 3종 토글을 전부 꺼도 항상 발송된다")
+    @DisplayName("지연 알림은 3종 토글을 전부 꺼도 항상 발송된다")
     void 지연_알림은_3종_토글을_전부_꺼도_항상_발송된다() {
         long accountId = 계정을_만든다("delay");
         설정을_저장한다(accountId, false, false, false);
@@ -172,7 +172,7 @@ class NotificationDispatchGateTest {
 
     /** 비상 알림도 같은 이유(NTF-07)로 항상 발송돼야 한다 — 지연과 별개 종류라 따로 겨냥한다. */
     @Test
-    @DisplayName("목표9 — 비상 알림도 3종 토글을 전부 꺼도 항상 발송된다")
+    @DisplayName("비상 알림도 3종 토글을 전부 꺼도 항상 발송된다")
     void 비상_알림도_3종_토글을_전부_꺼도_항상_발송된다() {
         long accountId = 계정을_만든다("emrg");
         설정을_저장한다(accountId, false, false, false);
