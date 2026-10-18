@@ -42,8 +42,6 @@ public class StubMapRouteLoadMetrics {
 
     private final Counter failureInjectedCounter;
 
-    private final Counter callsCounter;
-
     // 생성자에서 즉시 등록한다 — 부하 프로파일이 아니라 이벤트가 한 번도 없어도 /actuator/prometheus
     // 에 이름이 0으로 나와야 관측 스크립트가 "지표가 아예 없다"와 "0건 발생"을 구별할 수 있다.
     public StubMapRouteLoadMetrics(MeterRegistry registry) {
@@ -53,9 +51,10 @@ public class StubMapRouteLoadMetrics {
         for (CallerPolicy caller : CallerPolicy.values()) {
             throttledCounter(caller);
         }
-        this.callsCounter = Counter.builder(CALLS_METRIC)
-                .description("스텁 지도 클라이언트가 받은 경로 계산 요청 수 — 실 지도 API 호출 수의 대역이라 Redis 장애 연습이 호출이 늘지 않았는지 이 값으로 본다")
-                .register(registry);
+        // 호출자별 계수도 미리 등록한다 — 한쪽 caller 가 한 번도 안 걸려도 0 으로 나와야 한다.
+        for (CallerPolicy caller : CallerPolicy.values()) {
+            callsCounter(caller);
+        }
         this.timeoutCounter = Counter.builder(TIMEOUT_METRIC)
                 .description("주입 지연이 호출자 타임아웃(RoadRouteRequest.timeout)을 넘겨 시간 초과를 모사한 횟수")
                 .register(registry);
@@ -64,9 +63,9 @@ public class StubMapRouteLoadMetrics {
                 .register(registry);
     }
 
-    /** 경로 계산 요청 1건을 센다. */
-    public void recordCall() {
-        callsCounter.increment();
+    /** 경로 계산 요청 1건을 호출자별로 센다. */
+    public void recordCall(CallerPolicy caller) {
+        callsCounter(caller).increment();
     }
 
     /** 격벽 상한 초과로 거절된 호출 1건을 호출자별로 센다. */
@@ -86,6 +85,13 @@ public class StubMapRouteLoadMetrics {
 
     // MeterRegistry.register 는 같은 이름+태그 조합이면 기존 Counter 를 그대로 돌려주므로
     // (Micrometer Id 동일성), 생성자 사전 등록과 record 시점 호출이 같은 인스턴스를 공유한다.
+    private Counter callsCounter(CallerPolicy caller) {
+        return Counter.builder(CALLS_METRIC)
+                .description("스텁 지도 클라이언트가 받은 경로 계산 요청 수 — 실 지도 API 호출 수의 대역이라 Redis 장애 연습이 호출이 늘지 않았는지 이 값으로 본다")
+                .tag(CALLER_TAG, caller.name().toLowerCase(Locale.ROOT))
+                .register(registry);
+    }
+
     private Counter throttledCounter(CallerPolicy caller) {
         return Counter.builder(THROTTLED_METRIC)
                 .description("동시 처리 상한(app.routing.map.stub.load.max-concurrent) 초과로 격벽 거부를 모사한 횟수")

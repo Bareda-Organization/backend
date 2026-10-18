@@ -128,7 +128,7 @@ public class StubMapRouteClient implements MapRouteClient {
     @Override
     public RoadRoute route(RoadRouteRequest request) {
         if (loadMetrics != null) {
-            loadMetrics.recordCall();
+            loadMetrics.recordCall(request.caller());
         }
         if (request.forceFallback() || hasUnavailableMarker(request.points())) {
             return StraightLineLegs.approximate(request.points());
