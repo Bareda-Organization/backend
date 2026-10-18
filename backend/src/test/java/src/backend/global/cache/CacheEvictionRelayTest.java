@@ -34,6 +34,10 @@ class CacheEvictionRelayTest extends RedisTestContainerBase {
 
     private static final long ACCOUNT = 4_242L;
 
+    private static final long OWN_KEY = 7_001L;
+
+    private static final long FOREIGN_KEY = 7_002L;
+
     private static final String FOREIGN_ORIGIN = "other-instance";
 
     private final String channelSuffix = ":" + UUID.randomUUID();
@@ -68,20 +72,21 @@ class CacheEvictionRelayTest extends RedisTestContainerBase {
     }
 
     @Test
-    @DisplayName("다른 인스턴스가 낸 신호는 처리하고, 자기가 낸 신호는 Redis 를 돌아와도 한 번 더 비우지 않는다")
+    @DisplayName("다른 인스턴스가 낸 신호는 처리하고, 자기가 낸 신호는 Redis 를 돌아와도 처리하지 않는다")
     void 자기_신호는_건너뛴다() {
-        AtomicLong evicted = new AtomicLong();
+        Set<Long> evictedKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
         AtomicLong probes = new AtomicLong();
-        instance.relay.register(CacheEvictionRelay.ACCOUNT_STANDING, key -> evicted.incrementAndGet());
+        instance.relay.register(CacheEvictionRelay.ACCOUNT_STANDING, evictedKeys::add);
         instance.relay.register("probe", key -> probes.incrementAndGet());
         awaitSubscribed(probes);
 
-        instance.relay.publish(CacheEvictionRelay.ACCOUNT_STANDING, ACCOUNT);
-        instance.foreignSignal(CacheEvictionRelay.ACCOUNT_STANDING, ACCOUNT);
+        instance.relay.publish(CacheEvictionRelay.ACCOUNT_STANDING, OWN_KEY);
+        instance.foreignSignal(CacheEvictionRelay.ACCOUNT_STANDING, FOREIGN_KEY);
 
-        // 같은 채널의 메시지는 발행 순서대로 오므로, 다른 인스턴스 신호가 처리됐을 때는 앞서 낸 자기 신호도 이미 도착한 뒤다.
-        await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> assertThat(evicted.get()).as("다른 인스턴스 신호 처리 횟수").isEqualTo(1));
-        assertThat(evicted.get()).as("자기 신호까지 처리했다면 2").isEqualTo(1);
+        // 같은 채널의 메시지는 발행 순서대로 오므로, 다른 인스턴스 신호(FOREIGN_KEY)가 처리됐을 때는 앞서 낸 자기 신호(OWN_KEY)도 이미 도착한 뒤다.
+        await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                assertThat(evictedKeys).as("다른 인스턴스 신호 처리").contains(FOREIGN_KEY));
+        assertThat(evictedKeys).as("자기 신호는 처리하지 않는다").doesNotContain(OWN_KEY);
     }
 
     /** 이 인스턴스의 구독이 성립할 때까지 다른 인스턴스 이름의 탐침을 보낸다 — 구독이 성립하기 전의 메시지는 Redis 가 버린다. */
