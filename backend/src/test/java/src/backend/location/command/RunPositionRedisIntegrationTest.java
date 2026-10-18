@@ -115,7 +115,7 @@ class RunPositionRedisIntegrationTest {
     }
 
     @Test
-    @DisplayName("목표3 — 위치 송신 한 번으로 run_position 적재와 Redis 최신 좌표 갱신이 함께 일어난다")
+    @DisplayName("위치 송신 한 번으로 run_position 적재와 Redis 최신 좌표 갱신이 함께 일어난다")
     void 위치_송신_한_번으로_DB_적재와_Redis_갱신이_함께_일어난다() throws Exception {
         MovingRun moving = 움직이는_회차를_만든다();
         long academyId = moving.academyId();
@@ -146,7 +146,7 @@ class RunPositionRedisIntegrationTest {
         // 다형 타입 태그가 없는 평문 camelCase JSON 이어야 한다(RunPositionRedisValue 자바독).
         String raw = stringRedisTemplate.opsForValue().get("run:" + runId + ":position");
         assertThat(raw).as("같은 송신에서 Redis 최신 좌표도 갱신돼야 한다").isNotNull();
-        assertThat(raw).as("다형 타입 태그(@class)가 없어야 한다 — T3·T4 는 평문만 파싱한다").doesNotContain("@class");
+        assertThat(raw).as("다형 타입 태그(@class)가 없어야 한다 — 읽는 쪽은 평문 JSON 만 파싱한다").doesNotContain("@class");
         RunPositionRedisValue value = JSON_MAPPER.readValue(raw, RunPositionRedisValue.class);
         assertThat(value.lat()).isEqualByComparingTo(lat);
         assertThat(value.lng()).isEqualByComparingTo(lng);
