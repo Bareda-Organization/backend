@@ -82,8 +82,7 @@ jobs:
           docker push "$REGISTRY/$ECR_REPOSITORY:$TAG"
           docker push "$REGISTRY/$ECR_REPOSITORY:latest"
 
-      # compose·nginx·스크립트 변경분을 EC2 에 전달하는 통로. deploy.sh 가 `-f $APP_DIR/<파일>` 로 읽는 compose 파일은 전부 여기서 보낸다 —
-      # 백엔드 2대 모드가 읽는 docker-compose.scale.yml 이 빠지면 2대 배포가 파일 없음으로 멈춘다(infra/scripts/check-deploy-delivery.sh 가 이 대응을 본다).
+      # compose·nginx·스크립트 변경분을 EC2 에 전달하는 통로. deploy.sh 가 `-f $APP_DIR/<파일>` 로 읽는 compose 파일은 전부 여기서 보낸다.
       # 저장소를 EC2 에 클론하지 않는다 — 비공개 저장소 자격증명을 서버에 두지 않기 위해서다.
       #
       # infra/proxy/.htpasswd(Swagger Basic Auth 계정 파일)는 운영자가 EC2 에 직접
@@ -96,7 +95,6 @@ jobs:
         run: |
           aws s3 sync infra "s3://$BUCKET/infra" --delete --exclude "proxy/.htpasswd"
           aws s3 cp docker-compose.prod.yml "s3://$BUCKET/docker-compose.prod.yml"
-          aws s3 cp docker-compose.scale.yml "s3://$BUCKET/docker-compose.scale.yml"
 
       - name: EC2 배포 (SSM Send Command)
         env:
@@ -112,7 +110,6 @@ jobs:
               'set -e',
               'aws s3 sync s3://$BUCKET/infra /opt/school-bus/infra --delete --exclude proxy/.htpasswd',
               'aws s3 cp s3://$BUCKET/docker-compose.prod.yml /opt/school-bus/docker-compose.prod.yml',
-              'aws s3 cp s3://$BUCKET/docker-compose.scale.yml /opt/school-bus/docker-compose.scale.yml',
               'chmod +x /opt/school-bus/infra/scripts/*.sh /opt/school-bus/infra/certbot/*.sh',
               '/opt/school-bus/infra/scripts/deploy.sh $TAG'
             ]" \
