@@ -106,26 +106,6 @@ tests:
         alertname: DailyRunGenerationFailing
         exp_alerts: []
 
-  # 일일 회차 생성 정지(BR-333): 성공 실행이 25시간 창에 없으면 발화한다. 하루 한 번 도는 작업이라 for 가 없다. 다른 job 의 성공은 보지 않는다.
-  - interval: 1h
-    input_series:
-      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="generateTodayAndTomorrow",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",error="none",exception="none",outcome="SUCCESS"}'
-        values: '1x23 2x24 3x80'   # 0시·24시에 한 번씩 성공하고 48시 뒤로 멈춘다
-    alert_rule_test:
-      - eval_time: 70h   # 48시의 성공이 25시간 창(45~70시) 안에 있다
-        alertname: DailyRunGenerationStalled
-        exp_alerts: []
-      - eval_time: 80h   # 창(55~80시)에 증가가 없다
-        alertname: DailyRunGenerationStalled
-        exp_alerts:
-          - exp_labels:
-              severity: critical
-              job: backend
-              code_namespace: src.backend.schedule.scheduler.DailyRunGenerator
-            exp_annotations:
-              summary: 일일 회차 생성(DailyRunGenerator)이 25시간 넘게 성공하지 않았다 — 오늘 회차가 없을 수 있다(DailyRunStartupCatchUp 은 재기동 때만 보충한다)
-
-
   # 푸시 실패: 누적 카운터가 늘어난 구간에서만 발화하고, 10분 창을 지나 증가가 멈추면 꺼진다.
   - interval: 15s
     input_series:
@@ -268,27 +248,6 @@ tests:
             exp_annotations:
               summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
 
-  # 인증서 갱신(BR-334): certbot 컨테이너가 12시간마다 시도하고 오류 없이 끝났을 때만 성공 시각을 쓴다. 2일(172800초) 넘게 성공하지 않으면 — 연속 4번 실패 — for(5m)를 채운 뒤 울린다.
-  # 갱신은 만료 30일 전부터 시도하므로 이 시점에도 만료까지 28일 가까이 남아 있다. 시험에서 시각 0 = 시계 원점.
-  - interval: 1m   # 샘플 간격이 5분(조회 한도)보다 길면 시계열이 사라져 for(5m)가 안 찬다 — 하루를 넘는 시험도 1분 간격으로 둔다
-    input_series:
-      - series: 'schoolbus_certbot_renew_last_success_timestamp_seconds{instance="stale"}'
-        values: '0x3000'
-      - series: 'schoolbus_certbot_renew_last_success_timestamp_seconds{instance="healthy"}'
-        values: '0+60x3000'   # 값이 시계와 같이 올라간다 — 방금 성공한 것
-    alert_rule_test:
-      - eval_time: 47h   # 한두 번 실패한 정도(경과 169200초)
-        alertname: CertbotRenewStale
-        exp_alerts: []
-      - eval_time: 49h   # 172800초를 넘은 지 1시간 — for(5m)를 채웠다
-        alertname: CertbotRenewStale
-        exp_alerts:
-          - exp_labels:
-              severity: critical
-              instance: stale
-            exp_annotations:
-              summary: 인증서 갱신(certbot)이 2일 넘게 성공하지 않았다 — 만료 전에 고치지 않으면 모든 클라이언트의 HTTPS 연결이 한꺼번에 거절된다
-
   # 지표가 아예 없으면(certbot 컨테이너가 안 돈다 · 지표 폴더가 안 맞는다) 같은 경보다.
   - interval: 1m
     input_series:
@@ -322,27 +281,6 @@ tests:
               severity: critical
             exp_annotations:
               summary: DB 백업이 2시간 넘게 성공하지 않았다 — 목표 유실 1시간(RPO)이 깨지고 있다
-
-  # 사진 백업(매일): 26시간(93600초) 넘게 성공하지 않으면 발화한다. 25시간은 조용하다.
-  # (입력 간격은 1분 — 15분이면 시계열이 5분 조회 허용 시간 밖으로 끊겨 보여 경보 상태가 계속 초기화된다)
-  - interval: 1m
-    input_series:
-      - series: 'schoolbus_backup_photos_last_success_timestamp_seconds{instance="h"}'
-        values: '0x1700'
-    alert_rule_test:
-      - eval_time: 25h
-        alertname: BackupPhotosStale
-        exp_alerts: []
-      - eval_time: 27h
-        alertname: BackupPhotosStale
-        exp_alerts:
-          - exp_labels:
-              severity: warning
-              instance: h
-            exp_annotations:
-              summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다
-
-  # ── R46-FIXOPS(S-1) — 백엔드 가용성 5종 ─────────────────────────────────────────────────────────────
 
   # 백엔드 다운: up=0 이 1분 유지돼야 발화한다. 한 번의 스크레이프 실패(15초)는 조용하다.
   - interval: 15s
@@ -542,49 +480,6 @@ tests:
             exp_annotations:
               summary: 스케줄러(src.backend.run.scheduler.RunConfirmationScheduler)가 주기의 3배 넘게 성공하지 않았다
 
-  # 보존 정리(매일 00:15) · 위치 이력 파티션(매일 00:10): 성공 실행이 3일 창에 없으면 발화한다. 하루 한 번 도는 작업이라 for 가 없다.
-  - interval: 1h
-    input_series:
-      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",error="none",exception="none",outcome="SUCCESS"}'
-        values: '1+1x24 25x150'   # 하루 24번 도는 것처럼 오르다 24시간째 멈춘다
-      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="ensureAhead",code_namespace="src.backend.location.scheduler.RunPositionPartitionScheduler",error="none",exception="none",outcome="SUCCESS"}'
-        values: '1+1x170'   # 계속 돈다
-      - series: 'tasks_scheduled_execution_seconds_count{job="school-bus-load",application="school-bus",code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",error="none",exception="none",outcome="SUCCESS"}'
-        values: '5x170'   # 부하 시험 job 이 멈춰 있어도 조용하다
-    alert_rule_test:
-      - eval_time: 60h   # 창(−12~60시) 안에 24시까지의 증가가 있다
-        alertname: RetentionCleanupStalled
-        exp_alerts: []
-      - eval_time: 100h   # 창(28~100시)에 증가가 없다
-        alertname: RetentionCleanupStalled
-        exp_alerts:
-          - exp_labels:
-              severity: warning
-              job: backend
-              code_namespace: src.backend.global.retention.RetentionCleanupScheduler
-            exp_annotations:
-              summary: 보존 정리(retention-cleanup)가 3일 넘게 성공하지 않았다 — 보존 기간이 지난 데이터 삭제와 퇴원 학생 개인정보 파기가 멈췄다
-      - eval_time: 150h   # 파티션은 계속 돈다 — 조용
-        alertname: RunPositionPartitionStalled
-        exp_alerts: []
-
-  - interval: 1h
-    input_series:
-      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="ensureAhead",code_namespace="src.backend.location.scheduler.RunPositionPartitionScheduler",error="none",exception="none",outcome="SUCCESS"}'
-        values: '1+1x24 25x150'
-    alert_rule_test:
-      - eval_time: 100h
-        alertname: RunPositionPartitionStalled
-        exp_alerts:
-          - exp_labels:
-              severity: warning
-              job: backend
-              code_namespace: src.backend.location.scheduler.RunPositionPartitionScheduler
-            exp_annotations:
-              summary: 위치 이력 파티션 미리 만들기(run-position-partition)가 3일 넘게 성공하지 않았다 — 남은 미리 만든 파티션이 4일치 이하
-
-  # ── 시리즈가 1 이상으로 태어나는 경우(기본 계측 · 지연 등록 카운터는 첫 사건 때 1 로 생긴다) — 0 → 1 이 아니라 `_ → 1` 이라 increase() 만으로는 0 이다.
-
   # 일일 회차 생성의 첫 실패(outcome=ERROR 시리즈가 1 로 태어남)도 1시간 창 안에서는 발화하고, 창을 지나면 꺼진다.
   - interval: 1m
     input_series:
@@ -647,44 +542,6 @@ tests:
       - eval_time: 12m
         alertname: NoShowEscalationFailing
         exp_alerts: []
-
-  # 일일 회차 생성의 첫 성공(SUCCESS 시리즈가 1 로 태어남)은 정지가 아니다 — 태어난 지 25시간이 지나도 더 안 오르면 그때 정지다.
-  - interval: 1h
-    input_series:
-      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="generateTodayAndTomorrow",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",error="none",exception="none",outcome="SUCCESS"}'
-        values: '_x2 1x100'
-    alert_rule_test:
-      - eval_time: 10h   # 태어난 지 8시간 — 성공이 있었다
-        alertname: DailyRunGenerationStalled
-        exp_alerts: []
-      - eval_time: 40h   # 태어난 지 38시간 · 25시간 창에 증가 없음
-        alertname: DailyRunGenerationStalled
-        exp_alerts:
-          - exp_labels:
-              severity: critical
-              job: backend
-              code_namespace: src.backend.schedule.scheduler.DailyRunGenerator
-            exp_annotations:
-              summary: 일일 회차 생성(DailyRunGenerator)이 25시간 넘게 성공하지 않았다 — 오늘 회차가 없을 수 있다(DailyRunStartupCatchUp 은 재기동 때만 보충한다)
-
-  # 보존 정리의 첫 성공도 같다 — 태어난 지 3일 안에는 조용하다.
-  - interval: 1h
-    input_series:
-      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",error="none",exception="none",outcome="SUCCESS"}'
-        values: '_x20 1x200'
-    alert_rule_test:
-      - eval_time: 30h   # 태어난 지 10시간
-        alertname: RetentionCleanupStalled
-        exp_alerts: []
-      - eval_time: 100h   # 태어난 지 80시간 · 3일 창에 증가 없음
-        alertname: RetentionCleanupStalled
-        exp_alerts:
-          - exp_labels:
-              severity: warning
-              job: backend
-              code_namespace: src.backend.global.retention.RetentionCleanupScheduler
-            exp_annotations:
-              summary: 보존 정리(retention-cleanup)가 3일 넘게 성공하지 않았다 — 보존 기간이 지난 데이터 삭제와 퇴원 학생 개인정보 파기가 멈췄다
 
   # 지도 API 서킷: 닫혀 있지 않은 상태(open · half_open)가 2분 유지돼야 발화한다.
   # 장애가 이어지면 open(10초) → half_open(시험 호출) → open 으로 오가며 `open` 게이지만 보면 매번 끊겨 for 가 안 찬다 — 그래서 closed 가 0 인지를 본다.

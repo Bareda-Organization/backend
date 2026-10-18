@@ -1,0 +1,54 @@
+# alerts.yml 규칙 단위 시험 중 시험 구간이 25~80시간인 "정지 · 낡음" 경보 — 평가 간격을 1분으로 둔다(alerts.long-N.test.yml 3개는 같은 성격이고 CI 가 따로 병렬로 돌린다).
+#   15초 간격(alerts.test.yml)으로 돌리면 이 그룹들만 4분 넘게 걸린다. 그룹마다 sample 간격이 1분 이상이고 기대 결과는 같다.
+#   docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.0 test rules /p/alerts.long-1.test.yml
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # 보존 정리(매일 00:15) · 위치 이력 파티션(매일 00:10): 성공 실행이 3일 창에 없으면 발화한다. 하루 한 번 도는 작업이라 for 가 없다.
+  - interval: 1h
+    input_series:
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",error="none",exception="none",outcome="SUCCESS"}'
+        values: '1+1x24 25x150'   # 하루 24번 도는 것처럼 오르다 24시간째 멈춘다
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="ensureAhead",code_namespace="src.backend.location.scheduler.RunPositionPartitionScheduler",error="none",exception="none",outcome="SUCCESS"}'
+        values: '1+1x170'   # 계속 돈다
+      - series: 'tasks_scheduled_execution_seconds_count{job="school-bus-load",application="school-bus",code_function="cleanUp",code_namespace="src.backend.global.retention.RetentionCleanupScheduler",error="none",exception="none",outcome="SUCCESS"}'
+        values: '5x170'   # 부하 시험 job 이 멈춰 있어도 조용하다
+    alert_rule_test:
+      - eval_time: 60h   # 창(−12~60시) 안에 24시까지의 증가가 있다
+        alertname: RetentionCleanupStalled
+        exp_alerts: []
+      - eval_time: 100h   # 창(28~100시)에 증가가 없다
+        alertname: RetentionCleanupStalled
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+              code_namespace: src.backend.global.retention.RetentionCleanupScheduler
+            exp_annotations:
+              summary: 보존 정리(retention-cleanup)가 3일 넘게 성공하지 않았다 — 보존 기간이 지난 데이터 삭제와 퇴원 학생 개인정보 파기가 멈췄다
+      - eval_time: 150h   # 파티션은 계속 돈다 — 조용
+        alertname: RunPositionPartitionStalled
+        exp_alerts: []
+
+  # 사진 백업(매일): 26시간(93600초) 넘게 성공하지 않으면 발화한다. 25시간은 조용하다.
+  # (입력 간격은 1분 — 15분이면 시계열이 5분 조회 허용 시간 밖으로 끊겨 보여 경보 상태가 계속 초기화된다)
+  - interval: 1m
+    input_series:
+      - series: 'schoolbus_backup_photos_last_success_timestamp_seconds{instance="h"}'
+        values: '0x1700'
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: BackupPhotosStale
+        exp_alerts: []
+      - eval_time: 27h
+        alertname: BackupPhotosStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              instance: h
+            exp_annotations:
+              summary: 학생 사진 백업이 26시간 넘게 성공하지 않았다
+
+  # ── R46-FIXOPS(S-1) — 백엔드 가용성 5종 ─────────────────────────────────────────────────────────────

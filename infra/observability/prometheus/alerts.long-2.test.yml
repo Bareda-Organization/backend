@@ -1,0 +1,63 @@
+# alerts.yml 규칙 단위 시험 중 시험 구간이 25~80시간인 "정지 · 낡음" 경보 — 평가 간격을 1분으로 둔다(alerts.long-N.test.yml 3개는 같은 성격이고 CI 가 따로 병렬로 돌린다).
+#   15초 간격(alerts.test.yml)으로 돌리면 이 그룹들만 4분 넘게 걸린다. 그룹마다 sample 간격이 1분 이상이고 기대 결과는 같다.
+#   docker run --rm -v "$PWD/infra/observability/prometheus:/p" --entrypoint promtool prom/prometheus:v3.15.0 test rules /p/alerts.long-2.test.yml
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  - interval: 1h
+    input_series:
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="ensureAhead",code_namespace="src.backend.location.scheduler.RunPositionPartitionScheduler",error="none",exception="none",outcome="SUCCESS"}'
+        values: '1+1x24 25x150'
+    alert_rule_test:
+      - eval_time: 100h
+        alertname: RunPositionPartitionStalled
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+              code_namespace: src.backend.location.scheduler.RunPositionPartitionScheduler
+            exp_annotations:
+              summary: 위치 이력 파티션 미리 만들기(run-position-partition)가 3일 넘게 성공하지 않았다 — 남은 미리 만든 파티션이 4일치 이하
+
+  # ── 시리즈가 1 이상으로 태어나는 경우(기본 계측 · 지연 등록 카운터는 첫 사건 때 1 로 생긴다) — 0 → 1 이 아니라 `_ → 1` 이라 increase() 만으로는 0 이다.
+
+  # 일일 회차 생성 정지(BR-333): 성공 실행이 25시간 창에 없으면 발화한다. 하루 한 번 도는 작업이라 for 가 없다. 다른 job 의 성공은 보지 않는다.
+  - interval: 1h
+    input_series:
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="generateTodayAndTomorrow",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",error="none",exception="none",outcome="SUCCESS"}'
+        values: '1x23 2x24 3x80'   # 0시·24시에 한 번씩 성공하고 48시 뒤로 멈춘다
+    alert_rule_test:
+      - eval_time: 70h   # 48시의 성공이 25시간 창(45~70시) 안에 있다
+        alertname: DailyRunGenerationStalled
+        exp_alerts: []
+      - eval_time: 80h   # 창(55~80시)에 증가가 없다
+        alertname: DailyRunGenerationStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              code_namespace: src.backend.schedule.scheduler.DailyRunGenerator
+            exp_annotations:
+              summary: 일일 회차 생성(DailyRunGenerator)이 25시간 넘게 성공하지 않았다 — 오늘 회차가 없을 수 있다(DailyRunStartupCatchUp 은 재기동 때만 보충한다)
+
+
+  # 일일 회차 생성의 첫 성공(SUCCESS 시리즈가 1 로 태어남)은 정지가 아니다 — 태어난 지 25시간이 지나도 더 안 오르면 그때 정지다.
+  - interval: 1h
+    input_series:
+      - series: 'tasks_scheduled_execution_seconds_count{job="backend",application="school-bus",code_function="generateTodayAndTomorrow",code_namespace="src.backend.schedule.scheduler.DailyRunGenerator",error="none",exception="none",outcome="SUCCESS"}'
+        values: '_x2 1x100'
+    alert_rule_test:
+      - eval_time: 10h   # 태어난 지 8시간 — 성공이 있었다
+        alertname: DailyRunGenerationStalled
+        exp_alerts: []
+      - eval_time: 40h   # 태어난 지 38시간 · 25시간 창에 증가 없음
+        alertname: DailyRunGenerationStalled
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              code_namespace: src.backend.schedule.scheduler.DailyRunGenerator
+            exp_annotations:
+              summary: 일일 회차 생성(DailyRunGenerator)이 25시간 넘게 성공하지 않았다 — 오늘 회차가 없을 수 있다(DailyRunStartupCatchUp 은 재기동 때만 보충한다)
