@@ -155,7 +155,7 @@ services:
       # ExitOnOutOfMemoryError — OutOfMemoryError 를 던진 스레드만 죽고 JVM 이 살아 있으면 스케줄러·발송 스레드가 하나씩 사라진 반쯤 죽은 서버가 되는데
       # 컨테이너는 계속 "실행 중"이라 재시작 정책이 못 본다. 프로세스를 끝내면 `restart: unless-stopped` 가 되살린다(review-stab S-6).
       # 힙 덤프(HeapDumpOnOutOfMemoryError)는 일부러 켜지 않는다 — 덤프에 학생·보호자 개인정보와 JWT 서명 키·FCM 개인 키가 그대로 담기고,
-      # 파일이 힙 크기(약 2.1GB)라 루트 디스크(30GB)를 재시작 반복 때 채운다. 필요하면 스테이징에서 재현해 뜬다.
+      # 파일이 힙 크기(약 4GB, Ruling 927)라 루트 디스크(30GB)를 재시작 반복 때 채운다. 필요하면 스테이징에서 재현해 뜬다.
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=50 -XX:InitialRAMPercentage=40 -XX:MaxDirectMemorySize=256m -XX:+ExitOnOutOfMemoryError"
     volumes:
       # 학생 사진 — 컨테이너 안(/app/var/photos)에만 두면 배포로 컨테이너가 새로 만들어질 때마다 전부 사라진다.

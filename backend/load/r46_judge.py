@@ -55,15 +55,25 @@ def judge(label):
     ok2 = ratio is not None and ratio >= MIN_SENT_RATIO and p95 is not None and p95 < NFR03_PERIOD_MS
     rows.append((2, 'NFR-03 송신 주기 유지', f'달성률 {100 * (ratio or 0):.1f}% · POST p95 {p95:.0f}ms', ok2))
 
-    channels = []
-    for name, m, key in (('학원 채널(관측자)', pos, 'ws_fanout_latency_ms'), ('관제 채널(admin 세션)', ses, 'ws_message_latency_ms'),
-                         ('학부모 학생 채널', poll, 'viewer_ws_latency_ms'), ('관계자·관리자 채널', poll, 'control_ws_latency_ms')):
+    # 회차 방식(r3_mixed.sh 머리 줄의 `(realistic)` · `(admin)`)에 따라 재야 할 채널이 정해진다 — 학원 채널(관측자)은 항상, realistic 이면 학부모 학생 채널 · 관계자·관리자 채널,
+    # admin 이면 관제 채널(admin 세션). 재야 할 채널에 표본이 없으면 그 채널은 "데이터 없음" 이고 3항은 미통과다(관측자 VU 가 위치를 못 보내 학원 채널 지연이 비었는데도
+    # 나머지 채널만으로 통과하던 결함 — 빈 채널은 통과로 치지 않는다).
+    realistic = bool(re.search(r'세션=\d+\(realistic\)', out))
+    expected = [('학원 채널(관측자)', pos, 'ws_fanout_latency_ms')]
+    expected += ([('학부모 학생 채널', poll, 'viewer_ws_latency_ms'), ('관계자·관리자 채널', poll, 'control_ws_latency_ms')] if realistic
+                 else [('관제 채널(admin 세션)', ses, 'ws_message_latency_ms')])
+    channels, missing = [], []
+    for name, m, key in expected:
         v = (m or {}).get(key)
-        if v:
+        if v and v.get('p(95)') is not None:
             channels.append((name, v.get('p(95)'), v.get('p(99)'), v.get('max')))
+        else:
+            missing.append(name)
     worst = max((c[1] for c in channels if c[1] is not None), default=None)
     detail = ' · '.join(f"{n} p95 {a:.0f}" + (f"/p99 {b:.0f}" if b is not None else '') + f"/max {c:.0f}ms" for n, a, b, c in channels)
-    rows.append((3, 'NFR-02 WS 배달 ≤ 5초', detail or '측정 채널 없음', worst is not None and worst <= NFR02_MS))
+    if missing:
+        detail = (detail + ' · ' if detail else '') + ' · '.join(f'{n} 데이터 없음' for n in missing)
+    rows.append((3, 'NFR-02 WS 배달 ≤ 5초', detail or '측정 채널 없음', not missing and worst is not None and worst <= NFR02_MS))
 
     drain = re.search(r'배치 드레인: (\S+)초 \(미확정 (-?\d+)건\)', out)
     drain_sec = float(drain.group(1)) if drain and drain.group(1).isdigit() else None
