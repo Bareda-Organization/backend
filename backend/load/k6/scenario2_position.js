@@ -105,7 +105,10 @@ export default function () {
     // target.academyId 를 그대로 써도 같은 값이다(현재 시드가 academy_id=1 단일 고정).
     // 관측자 VU 만 로그인한다 — 안 쓰는 토큰까지 발급받으면 BCrypt 검증이 VU 수만큼 더 돌아
     // 회차 시작 구간의 CPU 를 이 시나리오가 재려는 것과 무관하게 밀어 올린다.
-    const staffToken = isObserver ? login(STAFF_OBSERVER_LOGIN_ID, SEED_PASSWORD) : null;
+    // 회차가 학원 1 에 있으면 staffA, 아니면 메인 관리자 — 위치용 회차를 LOADCAP 학원마다 나눠 심는 realistic 모드(R46-LATERBE)에서는 staffA(학원 1)가 다른 학원 채널을
+    // 구독하면 ACADEMY_SCOPE_VIOLATION(4403)으로 닫히고, 그 소켓 안에서 돌던 위치 송신(setInterval)도 시작하지 못해 관측자 VU 의 회차가 위치를 한 건도 못 받았다.
+    // 메인 관리자는 어느 학원 채널이든 구독할 수 있다(API_SPEC §7, Ruling 860).
+    const staffToken = isObserver ? (target.academyId === 1 ? login(STAFF_OBSERVER_LOGIN_ID, SEED_PASSWORD) : login('sysadmin', SEED_PASSWORD)) : null;
 
     const durationSec = Number(__ENV.SCENARIO2_DURATION_SEC || 60);
     // NFR-03(위치 송신 주기)을 그대로 쓰지 않는다 — 이 값은 그 규정을 재현하는 것이 아니라 부하
