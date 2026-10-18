@@ -110,7 +110,7 @@ class StaffPlannedRosterTransferMarkTest {
     }
 
     @Test
-    @DisplayName("목표 7 — idle 도착 회차: 이동 행 change=added + transfer_id(문자열) · 강제 추가 행 added + null · 요일별 주소 행 둘 다 null")
+    @DisplayName("idle 도착 회차: 이동 행 change=added + transfer_id(문자열) · 강제 추가 행 added + null · 요일별 주소 행 둘 다 null")
     void 예정_명단이_세_종류를_구분해_표시한다() throws Exception {
         Scene scene = 장면을_만든다();
 
@@ -129,7 +129,7 @@ class StaffPlannedRosterTransferMarkTest {
     }
 
     @Test
-    @DisplayName("목표 8 — 확정 뒤 명단은 run_rider 그대로이고 transfer_id 는 null 이다")
+    @DisplayName("확정 뒤 명단은 run_rider 그대로이고 transfer_id 는 null 이다")
     void 확정_뒤_명단은_transfer_id_가_없다() throws Exception {
         Scene scene = 장면을_만든다();
         entityManager.flush();

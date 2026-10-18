@@ -110,7 +110,7 @@ class DailyStopResolverTest {
     }
 
     @Test
-    @DisplayName("같은 학생이 명단에 두 번 실려도 정차지 인원이 부풀지 않는다 (Phase 7 목표 11)")
+    @DisplayName("같은 학생이 명단에 두 번 실려도 정차지 인원이 부풀지 않는다")
     void doesNotInflateRiderCountWhenSameStudentDuplicated() {
         DailyStopResolution resolution = resolver.resolve(DailyRoster.of(academyId, Weekday.MON,
                 Direction.TO_ACADEMY, List.of(studentId, studentId, studentId)));

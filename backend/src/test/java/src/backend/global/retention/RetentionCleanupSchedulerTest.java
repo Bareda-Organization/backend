@@ -98,7 +98,7 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6 — notification_log 는 14일 초과 행만 지워지고 기한 안 행은 남는다")
+    @DisplayName("notification_log 는 14일 초과 행만 지워지고 기한 안 행은 남는다")
     void 알림_로그는_14일_초과_행만_지워진다() {
         long inWindow = insertNotificationLog(now.minusDays(13));
         long outOfWindow = insertNotificationLog(now.minusDays(15));
@@ -110,7 +110,7 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6 — 파티션이 없는 기간의 run_position(기본 파티션 행)은 90일 초과 행만 지워지고 기한 안 행은 남는다")
+    @DisplayName("파티션이 없는 기간의 run_position(기본 파티션 행)은 90일 초과 행만 지워지고 기한 안 행은 남는다")
     void 위치_이력은_90일_초과_행만_지워진다() {
         long inWindow = insertRunPosition(now.minusDays(89));
         long outOfWindow = insertRunPosition(now.minusDays(91));
@@ -122,7 +122,7 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6 — refresh_token 은 만료·폐기 후 30일이 지난 행만 지워진다")
+    @DisplayName("refresh_token 은 만료·폐기 후 30일이 지난 행만 지워진다")
     void 재발급_토큰은_만료_또는_폐기_후_30일이_지난_행만_지워진다() {
         long accountId = insertSystemAdminAccount();
 
@@ -142,7 +142,7 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("R47 Ruling 742 — 정리를 마친 뒤 refresh_token 남은 행 수가 게이지로 노출된다(R46 누수 검토 R-4)")
+    @DisplayName("Ruling 742 — 정리를 마친 뒤 refresh_token 남은 행 수가 게이지로 노출된다")
     void 정리_뒤_재발급_토큰_남은_행_수가_게이지로_노출된다() {
         long accountId = insertSystemAdminAccount();
         insertRefreshToken(accountId, now.minusDays(31), null);
@@ -159,7 +159,7 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표6 — link_code 는 만료되면 다음 틱에 즉시 지워진다")
+    @DisplayName("link_code 는 만료되면 다음 틱에 즉시 지워진다")
     void 연결_코드는_만료되면_즉시_지워진다() {
         long academyId = insertAcademy();
         long studentId = insertStudent(academyId);
@@ -174,7 +174,7 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("R46 감사 B — audit_log 는 2년 초과 행만 지워지고 2년 안 행은 남는다(두 category 모두)")
+    @DisplayName("audit_log 는 2년 초과 행만 지워지고 2년 안 행은 남는다(두 category 모두)")
     void 감사_로그는_2년_초과_행만_지워진다() {
         long inWindow = insertAuditLog(now.minusDays(725), "login");
         long outOfWindowLogin = insertAuditLog(now.minusDays(736), "login");
@@ -188,7 +188,7 @@ class RetentionCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("목표7 — 한 번의 조회는 배치 상한을 넘지 않는다")
+    @DisplayName("한 번의 조회는 배치 상한을 넘지 않는다")
     void 보존_정리_후보_조회는_배치_상한을_넘지_않는다() {
         int total = RetentionPolicy.BATCH_SIZE + 1;
         List<Object[]> rows = new ArrayList<>(total);
@@ -220,7 +220,7 @@ class RetentionCleanupSchedulerTest {
      * {@code Limit.of(RetentionPolicy.BATCH_SIZE)} 인자를 넘겨 호출하는지 직접 본다.
      */
     @Test
-    @DisplayName("Ruling 251 — cleanUp 1회 안에서 상한 조회가 여러 회차로 반복되는지 spy 로 본다(F1 S1 목표1)")
+    @DisplayName("Ruling 251 — cleanUp 1회 안에서 상한 조회가 여러 회차로 반복되는지 spy 로 본다")
     void 보존_정리는_한_번의_호출_안에서_상한_조회를_반복한다() {
         int total = RetentionPolicy.BATCH_SIZE + 1;
         List<Object[]> rows = new ArrayList<>(total);

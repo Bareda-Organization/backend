@@ -123,6 +123,6 @@ class StopDepartureForceAllRemainingTest {
         assertThat(runStopRepository.findById(runStop3).orElseThrow().getDepartedAt())
                 .as("③seq 3 개별 확인").isNotNull();
         assertThat(runStopRepository.findById(runStop4).orElseThrow().getDepartedAt())
-                .as("④도착 처리를 한 번도 안 한 정차지도 운행 종료 때 출발 처리(R51 H2)").isNotNull();
+                .as("④도착 처리를 한 번도 안 한 정차지도 운행 종료 때 출발 처리").isNotNull();
     }
 }

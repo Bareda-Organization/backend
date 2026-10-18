@@ -88,7 +88,7 @@ class StaffEmergencyControllerTest {
 
         long emergencyId = 신고를_발신한다(runId, driverAccountId, academyId);
 
-        assertThat(알림_행수(emergencyId, staffAccountId, "staff")).as("학원 관계자는 목표 6 에 따라 항상 받아야 한다")
+        assertThat(알림_행수(emergencyId, staffAccountId, "staff")).as("학원 관계자는 항상 받아야 한다")
                 .isEqualTo(1);
 
         // emergency 는 studentId 대신 busNo 를 채운다. 실제 신고 차량의 bus_no 와
@@ -101,7 +101,7 @@ class StaffEmergencyControllerTest {
                 String.class, staffAccountId);
         assertThat(notifiedBusNo).as("관계자 행의 bus_no 가 신고 차량과 일치한다").isEqualTo(expectedBusNo);
 
-        assertThat(알림_행수(emergencyId, adminAccountId, "system_admin")).as("메인관리자도 목표 6 에 따라 항상 받아야 한다")
+        assertThat(알림_행수(emergencyId, adminAccountId, "system_admin")).as("메인관리자도 항상 받아야 한다")
                 .isEqualTo(1);
     }
 
@@ -143,8 +143,8 @@ class StaffEmergencyControllerTest {
 
         신고를_발신한다(runId, driverAccountId, academyId);
 
-        assertThat(전체_수신자_행수(parentAccountId)).as("목표 7 — 학부모는 비상 알림을 받으면 안 된다").isZero();
-        assertThat(전체_수신자_행수(studentAccountId)).as("목표 7 — 학생은 비상 알림을 받으면 안 된다").isZero();
+        assertThat(전체_수신자_행수(parentAccountId)).as("학부모는 비상 알림을 받으면 안 된다").isZero();
+        assertThat(전체_수신자_행수(studentAccountId)).as("학생은 비상 알림을 받으면 안 된다").isZero();
     }
 
     // ── 확인(ack) 처리 · 이력 반영 · 중복 확인 거절 ────────────────
@@ -377,15 +377,15 @@ class StaffEmergencyControllerTest {
         String body = 목록을_조회한다(staffAccountId, academyId, "status", "acked");
 
         Map<String, Object> item = 항목(body, emergencyId);
-        assertThat(item).as("§5.16 이 요구하는 7키 전부가 있어야 한다(Phase 13 목표 13 완료 기준 2)")
+        assertThat(item).as("§5.16 이 요구하는 7키 전부가 있어야 한다")
                 .containsKeys("emergency_id", "raised_by", "position", "direction", "contacts", "raised_at",
                         "acked_by");
         // type 은 §5.16 표의 소문자 스네이크(accident 등)로 나가야 한다. EmergencyType enum 의 name() 을 그대로 실으면 대문자(ACCIDENT)가 나간다.
         assertThat(item.get("type")).as("type 은 §5.16 대로 소문자여야 한다").isEqualTo("accident");
-        assertThat(item).as("정본 키는 id 가 아니라 emergency_id 다(Phase 13 목표 13 판정 ①)")
+        assertThat(item).as("정본 키는 id 가 아니라 emergency_id 다")
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
-        assertThat(item).as("occurred_at(단말 기록 시각)은 참고값으로 따로 실린다(R47 Ruling 744 — Phase 13 판정 ① 을 이 필드에 한해 바꿈)")
+        assertThat(item).as("occurred_at(단말 기록 시각)은 참고값으로 따로 실린다(Ruling 744)")
                 .containsKey("occurred_at");
 
         Map<String, Object> raisedBy = (Map<String, Object>) item.get("raised_by");
@@ -393,7 +393,7 @@ class StaffEmergencyControllerTest {
         assertThat(raisedBy.get("phone")).isNotNull();
 
         List<Map<String, Object>> contacts = (List<Map<String, Object>>) item.get("contacts");
-        assertThat(contacts).as("그 회차에 배치된 기사·동승자 전원이 담겨야 한다(Phase 13 목표 13 판정 ②)")
+        assertThat(contacts).as("그 회차에 배치된 기사·동승자 전원이 담겨야 한다")
                 .extracting(c -> c.get("role"))
                 .containsExactlyInAnyOrder("driver", "escort");
 
@@ -401,11 +401,11 @@ class StaffEmergencyControllerTest {
         assertThat(new BigDecimal(position.get("lat").toString())).isEqualByComparingTo("37.500000");
         assertThat(position.get("recorded_at")).as("Ruling 236 — 위치 발신 장비가 찍은 시각").isNotNull();
 
-        assertThat(item.get("direction")).as("direction 은 회차의 실제 방향값이어야 한다(수정 라운드 1, R3 Plant #1)")
+        assertThat(item.get("direction")).as("direction 은 회차의 실제 방향값이어야 한다")
                 .isEqualTo("to_academy");
 
         Map<String, Object> ackedBy = (Map<String, Object>) item.get("acked_by");
-        assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다(수정 라운드 1, R3 Plant #5)")
+        assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다")
                 .containsEntry("name", "직원");
     }
 
@@ -474,7 +474,7 @@ class StaffEmergencyControllerTest {
 
         Map<String, Object> item = 항목(body, emergencyId);
         OffsetDateTime raisedAt = OffsetDateTime.parse((String) item.get("raised_at"));
-        assertThat(raisedAt).as("raised_at = received_at(occurred_at 은 조작 가능, Phase 13 목표 13 판정 ①)")
+        assertThat(raisedAt).as("raised_at = received_at(occurred_at 은 조작 가능)")
                 .isCloseTo(receivedAt, within(1, ChronoUnit.SECONDS));
     }
 

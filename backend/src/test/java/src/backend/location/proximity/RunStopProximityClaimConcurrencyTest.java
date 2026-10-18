@@ -105,7 +105,7 @@ class RunStopProximityClaimConcurrencyTest {
     }
 
     @Test
-    @DisplayName("목표15 — 같은 정차 항목을 동시에 선점해도 갱신은 정확히 1행이다")
+    @DisplayName("같은 정차 항목을 동시에 선점해도 갱신은 정확히 1행이다")
     void 같은_정차_항목을_동시에_선점해도_한_번만_성공한다() throws Exception {
         ProximityFixtures fixtures = new ProximityFixtures(academyRepository, busRepository, stopRepository,
                 studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,

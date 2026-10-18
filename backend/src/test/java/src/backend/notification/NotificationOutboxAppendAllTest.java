@@ -118,7 +118,7 @@ class NotificationOutboxAppendAllTest {
     }
 
     @Test
-    @DisplayName("이미 있는 키가 섞여 있어도 같은 트랜잭션의 나머지 적재와 상태 변경은 커밋된다(예전에는 통째로 롤백)")
+    @DisplayName("이미 있는 키가 섞여 있어도 같은 트랜잭션의 나머지 적재와 상태 변경은 커밋된다")
     void 이미_있는_키가_섞여도_같은_트랜잭션은_커밋된다() {
         NotificationDraft existing = draft("exists", NotificationType.RUN_STARTED, null, null, null, null);
         커밋한다(() -> notificationOutbox.appendAll(List.of(existing)));

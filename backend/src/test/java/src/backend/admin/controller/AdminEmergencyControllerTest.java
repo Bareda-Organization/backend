@@ -190,13 +190,13 @@ class AdminEmergencyControllerTest {
         String body = 목록을_조회한다(adminAccountId, "acked");
 
         Map<String, Object> item = 항목(body, emergencyId);
-        assertThat(item).as("§6.11 은 §5.16 상속 7키를 다시 담아야 한다(Phase 13 목표 13 완료 기준 3)")
+        assertThat(item).as("§6.11 은 §5.16 상속 7키를 다시 담아야 한다")
                 .containsKeys("emergency_id", "raised_by", "position", "direction", "contacts", "raised_at",
                         "acked_by");
         assertThat(item).as("§6.11 도 §5.16 과 같은 키를 쓴다 — id 가 아니라 emergency_id")
                 .doesNotContainKey("id")
                 .containsKey("emergency_id");
-        assertThat(item).as("occurred_at(단말 기록 시각)은 참고값으로 따로 실린다(R47 Ruling 744)").containsKey("occurred_at");
+        assertThat(item).as("occurred_at(단말 기록 시각)은 참고값으로 따로 실린다(Ruling 744)").containsKey("occurred_at");
         // §5.16·§6.11 표는 type 값을 소문자 스네이크로 적는다(accident 등). enum 의 name() 을 그대로 실으면
         // 대문자(ACCIDENT)로 나가 이 표와 어긋난다.
         assertThat(item.get("type")).as("type 은 정본대로 소문자여야 한다").isEqualTo("accident");
@@ -216,12 +216,12 @@ class AdminEmergencyControllerTest {
         assertThat(new BigDecimal(position.get("lat").toString())).isEqualByComparingTo("37.500000");
         assertThat(position.get("recorded_at")).isNotNull();
 
-        assertThat(item.get("direction")).as("direction 은 회차의 실제 방향값이어야 한다(수정 라운드 1, R3 Plant #1 연장)")
+        assertThat(item.get("direction")).as("direction 은 회차의 실제 방향값이어야 한다")
                 .isEqualTo("to_academy");
         assertThat(item.get("raised_at")).as("raised_at = received_at").isNotNull();
 
         Map<String, Object> ackedBy = (Map<String, Object>) item.get("acked_by");
-        assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다(수정 라운드 1, R3 Plant #5)")
+        assertThat(ackedBy).as("acked_by 는 확인한 관계자의 이름을 담아야 한다")
                 .containsEntry("name", "직원");
     }
 

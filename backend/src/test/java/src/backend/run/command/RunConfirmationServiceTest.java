@@ -79,7 +79,7 @@ class RunConfirmationServiceTest {
     }
 
     @Test
-    @DisplayName("목표1 — idle 회차를 확정하면 4종 산출물이 정확한 값으로 남는다")
+    @DisplayName("idle 회차를 확정하면 4종 산출물이 정확한 값으로 남는다")
     void 회차를_확정하면_4종_산출물이_전부_생긴다() {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -146,7 +146,7 @@ class RunConfirmationServiceTest {
      * 분기한다) — 그래서 "호출됐는지"가 아니라 저장된 {@code fallback_used} 값으로 판정한다.
      */
     @Test
-    @DisplayName("목표4 — 기본 confirmOne(Long) 은 fallback_used=false 로 확정한다")
+    @DisplayName("기본 confirmOne(Long) 은 fallback_used=false 로 확정한다")
     void 기본_확정_경로는_fallback_used_가_false_다() {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -178,7 +178,7 @@ class RunConfirmationServiceTest {
      * lastStop) 밖의 것을 써서, 노선 재계산이 그 정차지를 실제로 새로 만들었는지까지 본다.
      */
     @Test
-    @DisplayName("게이트 리뷰 #5 — 강제 추가 대기 행이 확정 배치를 거쳐 명단·정차 목록에 실제로 반영된다")
+    @DisplayName("강제 추가 대기 행이 확정 배치를 거쳐 명단·정차 목록에 실제로 반영된다")
     void 강제_추가_대기_행이_확정_배치에서_명단에_반영된다() {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -238,7 +238,7 @@ class RunConfirmationServiceTest {
      * 함께 본다.
      */
     @Test
-    @DisplayName("목표7 — 버스 간 이동 대기 행이 출발·도착 두 확정 배치에 각각 반영되고 도착 확정이 applied 로 바꾼다")
+    @DisplayName("버스 간 이동 대기 행이 출발·도착 두 확정 배치에 각각 반영되고 도착 확정이 applied 로 바꾼다")
     void 버스_간_이동_대기_행이_출발_도착_양쪽_확정_배치에_반영된다() {
         long academyId = fixtures().academyWithCoordinates();
 
@@ -318,7 +318,7 @@ class RunConfirmationServiceTest {
      * 되살리는 것까지 확인한다.
      */
     @Test
-    @DisplayName("F5 S1 목표1 — 강제 추가로 들어온 학생의 이동은 강제 추가 병합 다음에 제외돼야 출발 명단에서 실제로 빠진다")
+    @DisplayName("강제 추가로 들어온 학생의 이동은 강제 추가 병합 다음에 제외돼야 출발 명단에서 실제로 빠진다")
     void 강제_추가_학생의_이동은_강제_추가_병합_다음에_제외돼야_출발_명단에서_빠진다() {
         long academyId = fixtures().academyWithCoordinates();
 
@@ -376,7 +376,7 @@ class RunConfirmationServiceTest {
     }
 
     @Test
-    @DisplayName("목표5 — 학원 좌표가 없으면 대체 기준점 없이 그 회차만 실패한다")
+    @DisplayName("학원 좌표가 없으면 대체 기준점 없이 그 회차만 실패한다")
     void 학원_좌표가_없으면_확정이_실패하고_산출물이_남지_않는다() {
         long academyId = fixtures().academyWithoutCoordinates();
         long busId = fixtures().bus(academyId);

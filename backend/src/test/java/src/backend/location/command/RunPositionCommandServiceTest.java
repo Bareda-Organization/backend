@@ -122,7 +122,7 @@ class RunPositionCommandServiceTest {
     // ── 위치 송신 성공───────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("목표1 — moving 회차에 배치된 기사가 위치를 송신하면 204 이고 이력이 적재된다")
+    @DisplayName("moving 회차에 배치된 기사가 위치를 송신하면 204 이고 이력이 적재된다")
     void moving_회차에_위치를_송신하면_204다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -163,7 +163,7 @@ class RunPositionCommandServiceTest {
      * {@code finish_pending=true})에서도 위치 송신을 받는다. 남은 학생의 학부모가 버스 위치를 봐야 하기 때문이다.
      */
     @Test
-    @DisplayName("R51 855 — 하원 종료 보류(finish_pending) 중인 moving 회차에도 위치 송신은 204 이고 이력이 적재된다")
+    @DisplayName("하원 종료 보류(finish_pending) 중인 moving 회차에도 위치 송신은 204 이고 이력이 적재된다")
     void 하원_종료_보류_중에도_위치를_받는다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -343,7 +343,7 @@ class RunPositionCommandServiceTest {
     // ── idle 회차 거부───────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("목표2 — idle 회차에 위치를 송신하면 409 RUN_NOT_MOVING 이고 이력이 남지 않는다")
+    @DisplayName("idle 회차에 위치를 송신하면 409 RUN_NOT_MOVING 이고 이력이 남지 않는다")
     void idle_회차는_RUN_NOT_MOVING_이다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -365,7 +365,7 @@ class RunPositionCommandServiceTest {
     }
 
     @Test
-    @DisplayName("목표2 — finished 회차에 위치를 송신하면 409 RUN_NOT_MOVING 이고 이력이 남지 않는다")
+    @DisplayName("finished 회차에 위치를 송신하면 409 RUN_NOT_MOVING 이고 이력이 남지 않는다")
     void finished_회차는_RUN_NOT_MOVING_이다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -392,7 +392,7 @@ class RunPositionCommandServiceTest {
     }
 
     @Test
-    @DisplayName("목표2 — 동승자가 위치를 송신하면 403 DRIVER_ONLY 이고 이력이 남지 않는다")
+    @DisplayName("동승자가 위치를 송신하면 403 DRIVER_ONLY 이고 이력이 남지 않는다")
     void 동승자_호출은_DRIVER_ONLY_이다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();

@@ -142,7 +142,7 @@ class RunGenerationServiceTest {
         assertThat(생성).isEqualTo(1);
         assertThat(회차_수(활성)).as("활성 스케줄에서는 회차가 나와야 한다").isEqualTo(1);
         assertThat(회차_수(비활성))
-                .as("쉬는 스케줄에서 회차가 나오면 운행하지 않는 회차가 확정 배치(Phase 7)의 대상이 된다")
+                .as("쉬는 스케줄에서 회차가 나오면 운행하지 않는 회차가 확정 배치의 대상이 된다")
                 .isZero();
     }
 

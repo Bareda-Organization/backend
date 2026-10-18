@@ -113,7 +113,7 @@ class StaffDashboardControllerTest {
      * 여럿을 묶어 실제 JSON 리프 키는 14개다).
      */
     @Test
-    @DisplayName("목표1 — metrics 5종과 runs[] 14개 필드가 전부 채워진다")
+    @DisplayName("metrics 5종과 runs[] 14개 필드가 전부 채워진다")
     void 대시보드_응답이_정본_필드를_전부_담는다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -199,7 +199,7 @@ class StaffDashboardControllerTest {
      * 순서대로 확인해 "출발 전에는 실제 값이 없다"는 완료 조건 4의 전제를 직접 본다.
      */
     @Test
-    @DisplayName("R21-B 목표1·2·4 — started_at·finished_at 이 회차 진행 상태에 맞춰 채워진다")
+    @DisplayName("started_at·finished_at 이 회차 진행 상태에 맞춰 채워진다")
     void 실제_출발_도착_시각이_회차_진행에_맞춰_채워진다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -241,7 +241,7 @@ class StaffDashboardControllerTest {
      * NCP 응답으로 채운 실측치라는 전제를 그대로 시험한다.
      */
     @Test
-    @DisplayName("R21-B2 목표1 — est_arrival_time 은 depart_time + est_duration_min 이다")
+    @DisplayName("est_arrival_time 은 depart_time + est_duration_min 이다")
     void 예정_도착_시각이_출발_시각과_소요시간의_합이다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -271,7 +271,7 @@ class StaffDashboardControllerTest {
      * {@code est_arrival_time} 도 {@code null} 로 견딘다 — 예외를 던지지 않는다.
      */
     @Test
-    @DisplayName("R21-B2 목표2 — est_duration_min 이 없으면 est_arrival_time 도 null 로 견딘다")
+    @DisplayName("est_duration_min 이 없으면 est_arrival_time 도 null 로 견딘다")
     void 소요시간이_없으면_예정_도착_시각도_null_이다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -547,7 +547,7 @@ class StaffDashboardControllerTest {
      * 없으면 {@code countActiveForStaffDashboard}(별도 메서드, 이 시험의 검사 대상이 아니다)로 빠진다.
      */
     @Test
-    @DisplayName("목표8 — 소프트 삭제된 미배치 매니저는 unassigned_managers 에 잡히지 않는다")
+    @DisplayName("소프트 삭제된 미배치 매니저는 unassigned_managers 에 잡히지 않는다")
     void 소프트_삭제된_매니저는_unassigned_managers_에_잡히지_않는다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -574,7 +574,7 @@ class StaffDashboardControllerTest {
      * §5.4 필드 키를 대조한다. 새 컨트롤러를 만들지 않는다.
      */
     @Test
-    @DisplayName("목표2 — 대시보드 run_id 로 기존 명단 API 를 호출하면 §5.4 필드가 전부 있다")
+    @DisplayName("대시보드 run_id 로 기존 명단 API 를 호출하면 §5.4 필드가 전부 있다")
     void 대시보드_run_id_로_기존_명단_API_를_검증한다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -619,7 +619,7 @@ class StaffDashboardControllerTest {
      * 실제 {@code POST .../no-show-contacts} 응답(해소) 뒤에는 제외된다.
      */
     @Test
-    @DisplayName("목표3 — 실제 승하차 PATCH 로 boarded_count 가 반영되고 미승차는 해소되면 제외된다")
+    @DisplayName("실제 승하차 PATCH 로 boarded_count 가 반영되고 미승차는 해소되면 제외된다")
     void 실제_승하차_처리가_대시보드에_반영된다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -698,7 +698,7 @@ class StaffDashboardControllerTest {
      * (DataIntegrityViolationException)이 나기 때문이다.
      */
     @Test
-    @DisplayName("목표4뒷항 — 재배포 후 ack_driver·ack_escort 가 false 로 되돌아간다")
+    @DisplayName("재배포 후 ack_driver·ack_escort 가 false 로 되돌아간다")
     void 재배포_후_ack_이_리셋된다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long academyId = fx.academy();
@@ -744,7 +744,7 @@ class StaffDashboardControllerTest {
      * ACADEMY_SCOPE_VIOLATION} 을 던진다 — 존재하지 않는 회차 id 만 {@code 404 RUN_NOT_FOUND} 다.
      */
     @Test
-    @DisplayName("목표5 — 타 학원 회차는 대시보드에 없고 그 회차 명단 조회는 403 이다")
+    @DisplayName("타 학원 회차는 대시보드에 없고 그 회차 명단 조회는 403 이다")
     void 타_학원_회차는_보이지_않고_명단_조회는_실패한다() throws Exception {
         DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
         long myAcademyId = fx.academy();

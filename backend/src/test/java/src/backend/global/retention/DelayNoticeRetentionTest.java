@@ -130,7 +130,7 @@ class DelayNoticeRetentionTest {
     }
 
     @Test
-    @DisplayName("R56 ⑦ — delay_notice 는 14일 초과 행만 지워지고 기한 안 행은 남는다 (notification_log 와 같은 주기)")
+    @DisplayName("delay_notice 는 14일 초과 행만 지워지고 기한 안 행은 남는다 (notification_log 와 같은 주기)")
     void 지연_알림_발신_기록은_14일_초과_행만_지워진다() {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long inWindow = 발신_기록(now.minusDays(13));
@@ -143,7 +143,7 @@ class DelayNoticeRetentionTest {
     }
 
     @Test
-    @DisplayName("R56 ⑦ — delay_notice 의 보존 주기는 notification_log 의 상수와 같은 값을 읽는다")
+    @DisplayName("delay_notice 의 보존 주기는 notification_log 의 상수와 같은 값을 읽는다")
     void 보존_주기는_알림_로그의_상수를_그대로_읽는다() {
         assertThat(RetentionPolicy.NOTIFICATION_LOG_RETENTION.toDays()).as("알림 로그 보존 일수").isEqualTo(14);
         OffsetDateTime now = OffsetDateTime.now(clock);

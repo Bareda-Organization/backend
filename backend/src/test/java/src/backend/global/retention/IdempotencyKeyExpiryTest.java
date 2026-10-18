@@ -149,7 +149,7 @@ class IdempotencyKeyExpiryTest {
     }
 
     @Test
-    @DisplayName("R56 ⑥ — 회차가 24시간 1분 전에 끝났으면 승하차 이력·연락 기록 키만 비워지고 행은 남으며 비상·예외 보고 키는 그대로다")
+    @DisplayName("회차가 24시간 1분 전에 끝났으면 승하차 이력·연락 기록 키만 비워지고 행은 남으며 비상·예외 보고 키는 그대로다")
     void 종료_24시간_뒤의_키는_비워지고_행은_남는다() {
         Rows rows = 회차와_키를_심는다(NOW.minusHours(24).minusMinutes(1));
 
@@ -166,7 +166,7 @@ class IdempotencyKeyExpiryTest {
     }
 
     @Test
-    @DisplayName("R56 ⑥ — 회차가 23시간 59분 전에 끝났으면 키가 그대로 남는다(24시간 하한)")
+    @DisplayName("회차가 23시간 59분 전에 끝났으면 키가 그대로 남는다(24시간 하한)")
     void 종료_24시간_안의_키는_남는다() {
         Rows rows = 회차와_키를_심는다(NOW.minusHours(23).minusMinutes(59));
 
@@ -179,7 +179,7 @@ class IdempotencyKeyExpiryTest {
     }
 
     @Test
-    @DisplayName("R56 ⑥ — 행을 만든 시각이 아니라 회차 종료 시각이 기준이다(오래전 만든 행도 회차가 24시간 안에 끝났으면 남는다)")
+    @DisplayName("행을 만든 시각이 아니라 회차 종료 시각이 기준이다(오래전 만든 행도 회차가 24시간 안에 끝났으면 남는다)")
     void 기준은_행을_만든_시각이_아니라_회차_종료_시각이다() {
         Rows rows = 회차와_키를_심는다(NOW.minusHours(1));
         jdbcTemplate.update("UPDATE rider_status_history SET changed_at = ? WHERE id = ?", NOW.minusDays(3),
@@ -194,7 +194,7 @@ class IdempotencyKeyExpiryTest {
     }
 
     @Test
-    @DisplayName("R56 ⑥ — 보존 정리 배치가 이 정리를 실제로 부른다(배선)")
+    @DisplayName("보존 정리 배치가 이 정리를 실제로 부른다(배선)")
     void 보존_정리_배치가_멱등_키를_비운다() {
         // 배치는 실제 시각을 쓴다 — 회차가 실제 now 기준 25시간 전에 끝난 것으로 심는다
         Rows rows = 회차와_키를_심는다(OffsetDateTime.now(clock).minusHours(25));

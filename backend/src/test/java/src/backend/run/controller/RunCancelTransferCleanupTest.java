@@ -79,7 +79,7 @@ class RunCancelTransferCleanupTest {
     }
 
     @Test
-    @DisplayName("목표 10a-1 — 관계자가 도착 회차를 임시 취소하면 들어오는 staged 이동이 지워지고 감사가 남고 학생이 출발 명단으로 돌아온다")
+    @DisplayName("관계자가 도착 회차를 임시 취소하면 들어오는 staged 이동이 지워지고 감사가 남고 학생이 출발 명단으로 돌아온다")
     void 관계자_경로로_도착_회차를_취소하면_들어오는_이동_대기가_지워진다() throws Exception {
         Scene scene = 오늘_장면();
 
@@ -92,7 +92,7 @@ class RunCancelTransferCleanupTest {
     }
 
     @Test
-    @DisplayName("목표 10a-2 — 스케줄 삭제가 도착 회차를 취소해도 같은 결과다")
+    @DisplayName("스케줄 삭제가 도착 회차를 취소해도 같은 결과다")
     void 스케줄_경로로_도착_회차가_취소돼도_들어오는_이동_대기가_지워진다() throws Exception {
         ScheduleScene scheduled = 내일_스케줄_도착_장면();
         Scene scene = scheduled.scene();
@@ -106,7 +106,7 @@ class RunCancelTransferCleanupTest {
     }
 
     @Test
-    @DisplayName("목표 10a-3 — 출발 회차가 임시 취소된 이동은 §5.8.1 로 지워 204 이고, 도착 회차가 confirmed 면 여전히 403 이다")
+    @DisplayName("출발 회차가 임시 취소된 이동은 §5.8.1 로 지워 204 이고, 도착 회차가 confirmed 면 여전히 403 이다")
     void 출발_회차가_취소된_이동은_지울_수_있고_도착이_확정이면_막힌다() throws Exception {
         Scene erasable = 오늘_장면();
         mockMvc.perform(delete("/api/v1/staff/runs/" + erasable.fromRunId())
@@ -133,7 +133,7 @@ class RunCancelTransferCleanupTest {
     }
 
     @Test
-    @DisplayName("목표 10a-4 — applied 이동은 도착 회차를 임시 취소해도 지워지지 않는다")
+    @DisplayName("applied 이동은 도착 회차를 임시 취소해도 지워지지 않는다")
     void 반영된_이동은_회차_취소로_지워지지_않는다() throws Exception {
         Scene scene = 오늘_장면();
         동기화한다();

@@ -92,7 +92,7 @@ class RunConfirmationConcurrencyTest {
      * UPDATE 하나가 멱등성의 전부라는 그 메서드 javadoc 의 단언을, 실제 동시 스레드로 직접 검증한다.
      */
     @Test
-    @DisplayName("목표2 — 같은 회차를 동시에 확정해도 갱신은 정확히 1행이다")
+    @DisplayName("같은 회차를 동시에 확정해도 갱신은 정확히 1행이다")
     void 같은_회차를_동시에_확정해도_한_번만_성공한다() throws Exception {
         RunConfirmationFixtures fixtures = new RunConfirmationFixtures(academyRepository, busRepository,
                 routeRepository, routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository,

@@ -83,7 +83,7 @@ class DriverRunControllerTest {
     // ── 출발 ±10분 창 ──────────────────────────────────────────
 
     @Test
-    @DisplayName("목표1 — 출발 9분 전은 창 안이라 시작이 성공한다")
+    @DisplayName("출발 9분 전은 창 안이라 시작이 성공한다")
     void 출발_9분_전은_시작이_성공한다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -118,7 +118,7 @@ class DriverRunControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 급소 — 출발 11분 전은 창 밖이라 403 이고 시작 시각이 기록되지 않는다")
+    @DisplayName("출발 11분 전은 창 밖이라 403 이고 시작 시각이 기록되지 않는다")
     void 출발_11분_전은_창_밖이라_거부된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -135,7 +135,7 @@ class DriverRunControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 반대편 경계 — 출발 9분 후는 창 안이라 시작이 성공한다")
+    @DisplayName("출발 9분 후는 창 안이라 시작이 성공한다")
     void 출발_9분_후는_시작이_성공한다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -152,7 +152,7 @@ class DriverRunControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 반대편 경계 급소 — 출발 11분 후는 창 밖이라 403 이고 시작 시각이 기록되지 않는다")
+    @DisplayName("출발 11분 후는 창 밖이라 403 이고 시작 시각이 기록되지 않는다")
     void 출발_11분_후는_창_밖이라_거부된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -169,7 +169,7 @@ class DriverRunControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 경계값 — 정확히 출발 10분 후(창의 끝)는 양끝 포함이라 시작이 성공한다")
+    @DisplayName("정확히 출발 10분 후(창의 끝)는 양끝 포함이라 시작이 성공한다")
     void 출발_정확히_10분_후_경계는_시작이_성공한다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -186,7 +186,7 @@ class DriverRunControllerTest {
     }
 
     @Test
-    @DisplayName("목표1 경계값 — 정확히 출발 10분 전(창의 시작)은 양끝 포함이라 시작이 성공한다")
+    @DisplayName("정확히 출발 10분 전(창의 시작)은 양끝 포함이라 시작이 성공한다")
     void 출발_정확히_10분_전_경계는_시작이_성공한다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -205,7 +205,7 @@ class DriverRunControllerTest {
     // ── 운행 시작 알림 3종 ──────────────────────────────────────
 
     @Test
-    @DisplayName("목표2 — 운행 시작 시 관계자·보호자·학생 앞으로 run_started 알림이 각 1건씩 적재된다")
+    @DisplayName("운행 시작 시 관계자·보호자·학생 앞으로 run_started 알림이 각 1건씩 적재된다")
     void 운행_시작하면_세_수신자_범주에_알림이_적재된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -274,7 +274,7 @@ class DriverRunControllerTest {
     // ── 미결 변경 요청 즉시 종결 ─────────────────────────────────
 
     @Test
-    @DisplayName("목표3 — 운행을 시작하면 그 회차의 미결 변경 요청이 폴링 없이 즉시 자동거절된다")
+    @DisplayName("운행을 시작하면 그 회차의 미결 변경 요청이 폴링 없이 즉시 자동거절된다")
     void 운행_시작하면_미결_변경요청이_즉시_자동거절된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -300,7 +300,7 @@ class DriverRunControllerTest {
 
     /** Ruling 874 ⑧ — 관계자·학부모 같은 다른 역할이 기사 전용 호출을 불러도 코드는 {@code 403 DRIVER_ONLY} 다(FORBIDDEN 이 아니다). */
     @Test
-    @DisplayName("R52 L4 — 관계자·학부모가 기사 전용 호출(도착 처리)을 부르면 403 DRIVER_ONLY 이다")
+    @DisplayName("관계자·학부모가 기사 전용 호출(도착 처리)을 부르면 403 DRIVER_ONLY 이다")
     void 다른_역할이_기사_전용_호출을_부르면_DRIVER_ONLY_이다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -319,7 +319,7 @@ class DriverRunControllerTest {
     }
 
     @Test
-    @DisplayName("목표5 — 동승자는 도착 처리를 할 수 없고(403), 배치된 기사만 성공한다")
+    @DisplayName("동승자는 도착 처리를 할 수 없고(403), 배치된 기사만 성공한다")
     void 도착_처리는_배치된_기사만_할_수_있다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -348,7 +348,7 @@ class DriverRunControllerTest {
     }
 
     @Test
-    @DisplayName("목표5 FORBIDDEN — 같은 학원의 기사이지만 이 회차에 배치되지 않으면 403 FORBIDDEN 이다(DRIVER_ONLY 아님)")
+    @DisplayName("같은 학원의 기사이지만 이 회차에 배치되지 않으면 403 FORBIDDEN 이다(DRIVER_ONLY 아님)")
     void 배치되지_않은_같은_학원_기사는_FORBIDDEN_이다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -375,7 +375,7 @@ class DriverRunControllerTest {
     // ── 등원 최종 지점 전원 자동 하차 ────────────────────────────
 
     @Test
-    @DisplayName("목표9 · BR-002 — 등원은 마지막 승차지가 아니라 학원 항목 도착에서 전원 자동 하차·종료된다(Ruling 327)")
+    @DisplayName("BR-002 — 등원은 마지막 승차지가 아니라 학원 항목 도착에서 전원 자동 하차·종료된다(Ruling 327)")
     void 등원_최종지점_도착시_전원_자동하차하고_종료된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -475,7 +475,7 @@ class DriverRunControllerTest {
      * 앱이 짝(403 + DUPLICATE_ARRIVE)만 성공으로 흡수하므로 이미 처리된 도착이 "처리 안 됨" 으로 집계된다.
      */
     @Test
-    @DisplayName("R51 — 회차가 끝난 뒤 이미 처리된 도착(최종 도착 · 앞 도착)의 재전송은 403 DUPLICATE_ARRIVE 다")
+    @DisplayName("회차가 끝난 뒤 이미 처리된 도착(최종 도착 · 앞 도착)의 재전송은 403 DUPLICATE_ARRIVE 다")
     void 종료된_회차에_이미_처리된_도착을_다시_보내면_DUPLICATE_ARRIVE_이다() throws Exception {
         long[] s = 최종_도착으로_종료된_등원_회차();
         long academyId = s[0];
@@ -493,7 +493,7 @@ class DriverRunControllerTest {
     }
 
     @Test
-    @DisplayName("R51 — 회차가 끝난 뒤 도착하지 않은 정차 항목에 보내면 그대로 409 RUN_NOT_MOVING 이다")
+    @DisplayName("회차가 끝난 뒤 도착하지 않은 정차 항목에 보내면 그대로 409 RUN_NOT_MOVING 이다")
     void 종료된_회차에_도착하지_않은_정차지를_보내면_RUN_NOT_MOVING_이다() throws Exception {
         long[] s = 최종_도착으로_종료된_등원_회차();
 
@@ -513,7 +513,7 @@ class DriverRunControllerTest {
      * "하차"로 잘못 나가고, {@code RunAutoAlightedEvent} 의 ALIGHTING 과 중복까지 된다.
      */
     @Test
-    @DisplayName("R15-T3 후속 — 등원 최종 지점 도착 시 그 지점 강제 출발 적용이 자동 하차보다 먼저 일어나 중복·오분류가 없다")
+    @DisplayName("등원 최종 지점 도착 시 그 지점 강제 출발 적용이 자동 하차보다 먼저 일어나 중복·오분류가 없다")
     void 등원_최종지점_도착시_그_지점_강제_출발_적용이_자동하차보다_먼저_일어난다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -564,7 +564,7 @@ class DriverRunControllerTest {
     // ── 하원 최종 지점 미하차 잔류 시 종료 보류 ──────────────────
 
     @Test
-    @DisplayName("목표10 — 하원 최종 지점에 도착해도 미하차 탑승자가 남아 있으면 종료가 보류된다")
+    @DisplayName("하원 최종 지점에 도착해도 미하차 탑승자가 남아 있으면 종료가 보류된다")
     void 하원_최종지점_미하차_잔류시_종료가_보류된다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -638,7 +638,7 @@ class DriverRunControllerTest {
     // ── Ruling 308 — 다음 승하차지 도착이 이전 정차지의 출발을 강제한다 ──────
 
     @Test
-    @DisplayName("목표7(Ruling 308) — 위치 신호로 출발 판정이 안 된 이전 정차지도 다음 도착 처리가 강제로 출발시킨다")
+    @DisplayName("Ruling 308 — 위치 신호로 출발 판정이 안 된 이전 정차지도 다음 도착 처리가 강제로 출발시킨다")
     void 다음_정차지_도착이_이전_정차지의_출발을_강제한다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -677,7 +677,7 @@ class DriverRunControllerTest {
     // ── Ruling 312 — 마지막 승하차지는 운행 종료가 출발로 갈음한다 ───────────
 
     @Test
-    @DisplayName("목표8(Ruling 312) — 다음 정차지가 없는 마지막 승하차지도 운행 종료 시 강제로 출발 처리된다")
+    @DisplayName("Ruling 312 — 다음 정차지가 없는 마지막 승하차지도 운행 종료 시 강제로 출발 처리된다")
     void 마지막_승하차지는_운행_종료가_출발로_갈음한다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();

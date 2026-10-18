@@ -169,7 +169,7 @@ class BoardingIntentControllerTest {
      * 번도</b> 불리지 않는다 — 이 회차는 아직 idle 이라 재최적화할 확정 노선 자체가 없다(Ruling 198).
      */
     @Test
-    @DisplayName("목표1 — 즉시반영구간에서 토글하면 재최적화 없이 즉시 반영된다")
+    @DisplayName("즉시반영구간에서 토글하면 재최적화 없이 즉시 반영된다")
     void 즉시반영구간에서_토글하면_재최적화_없이_즉시_반영된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -210,7 +210,7 @@ class BoardingIntentControllerTest {
      * 그 집에 들르는" 형태의 사각지대를 잡을 수 있다.
      */
     @Test
-    @DisplayName("목표1(후반부) — ①구간 제외 학생은 확정 배치의 run_rider·run_stop 양쪽에서 빠진다")
+    @DisplayName("①구간 제외 학생은 확정 배치의 run_rider·run_stop 양쪽에서 빠진다")
     void 즉시반영구간_제외_학생은_확정배치_산출물_양쪽에서_빠진다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = confirmationFixtures().academyWithCoordinates();
@@ -308,7 +308,7 @@ class BoardingIntentControllerTest {
      * 않은 기존 값</b>이어야 한다(§3.6) — 실제 반영은 승인 이후다.
      */
     @Test
-    @DisplayName("목표2 — 승인대기구간에서 토글하면 대기 접수되고 응답은 기존값을 유지한다")
+    @DisplayName("승인대기구간에서 토글하면 대기 접수되고 응답은 기존값을 유지한다")
     void 승인대기구간에서_토글하면_대기_접수되고_기존값을_응답한다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -370,7 +370,7 @@ class BoardingIntentControllerTest {
      * 남지만, 매번 새로 생성하는 식별자를 쓰므로 이후 실행과 충돌하지 않는다.
      */
     @Test
-    @DisplayName("목표2 — 트랜잭션이 롤백되면 approval_requested 알림도 남지 않는다")
+    @DisplayName("트랜잭션이 롤백되면 approval_requested 알림도 남지 않는다")
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void 승인대기_처리가_롤백되면_알림도_남지_않는다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
@@ -409,7 +409,7 @@ class BoardingIntentControllerTest {
      * 끄기다 — ②구간 켜기는 승인 경로 자체가 없어 한도와 무관하게 무변경·403 으로 갈린다(BR-029).
      */
     @Test
-    @DisplayName("목표5 — 한도 소진 후 승인대기 재요청은 403 CHANGE_LIMIT_REACHED 다")
+    @DisplayName("한도 소진 후 승인대기 재요청은 403 CHANGE_LIMIT_REACHED 다")
     void 한도_소진_후_승인대기_재요청은_403_이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -609,7 +609,7 @@ class BoardingIntentControllerTest {
      * 손대지 않는다. {@code riding=true}(되돌리기)는 {@code 403 CHANGE_WINDOW_CLOSED} 다.
      */
     @Test
-    @DisplayName("목표8 — 마감구간에서 riding=false는 재최적화 없이 수용되고 riding=true는 403이다")
+    @DisplayName("마감구간에서 riding=false는 재최적화 없이 수용되고 riding=true는 403이다")
     void 마감구간에서_미등원은_즉시수용되고_되돌리기는_403이다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();
@@ -645,7 +645,7 @@ class BoardingIntentControllerTest {
         Long versionIdAfterToggle = jdbcTemplate.queryForObject(
                 "SELECT current_version_id FROM confirmed_route WHERE run_id = ?", Long.class, runId);
         assertThat(jdbcTemplate.queryForObject("SELECT version_no FROM route_version WHERE id = ?", Integer.class,
-                versionIdAfterToggle)).as("③구간은 재최적화가 없으니 route_version 도 불변이어야 한다(목표 8)").isEqualTo(1);
+                versionIdAfterToggle)).as("③구간은 재최적화가 없으니 route_version 도 불변이어야 한다").isEqualTo(1);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰)
@@ -872,7 +872,7 @@ class BoardingIntentControllerTest {
      * {@code notification_log} 적재만 본다. 웹소켓 발행은 단언하지 않는다.
      */
     @Test
-    @DisplayName("목표9(부분) — 즉시반영·승인대기 모두 notification_log 에 적재된다")
+    @DisplayName("즉시반영·승인대기 모두 notification_log 에 적재된다")
     void 즉시반영과_승인대기_모두_알림이_적재된다() throws Exception {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long academyId = fixtures().academy();

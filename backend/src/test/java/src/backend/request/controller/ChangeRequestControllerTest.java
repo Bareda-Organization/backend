@@ -133,7 +133,7 @@ class ChangeRequestControllerTest {
     // ── ①구간 즉시 반영 + 재최적화 미호출 + 다음 확정 배치에 반영 ──────────────
 
     @Test
-    @DisplayName("목표1 — ①구간 relocate 는 즉시 승인되고, 재최적화를 부르지 않으며, 다음 확정 배치에 반영된다")
+    @DisplayName("①구간 relocate 는 즉시 승인되고, 재최적화를 부르지 않으며, 다음 확정 배치에 반영된다")
     void 즉시구간_경유지_이동은_바로_승인되고_다음_확정에_반영된다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -189,7 +189,7 @@ class ChangeRequestControllerTest {
     // ── ②구간 승인 대기 + 관계자 approval_requested 적재 ──────────────────────
 
     @Test
-    @DisplayName("목표2 — ②구간 신청은 승인 대기로 접수되고 관계자에게 approval_requested 가 적재된다")
+    @DisplayName("②구간 신청은 승인 대기로 접수되고 관계자에게 approval_requested 가 적재된다")
     void 승인대기구간_신청은_대기_상태로_접수되고_관계자에게_알림이_적재된다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -267,7 +267,7 @@ class ChangeRequestControllerTest {
     // ── ③구간은 타입을 가리지 않는다 ──────────────────────────────────────────
 
     @Test
-    @DisplayName("목표9 — moving 회차는 type=cancel 도 403 CHANGE_WINDOW_CLOSED 다")
+    @DisplayName("moving 회차는 type=cancel 도 403 CHANGE_WINDOW_CLOSED 다")
     void 운행중_회차는_탑승취소_신청도_거절된다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -296,7 +296,7 @@ class ChangeRequestControllerTest {
     }
 
     @Test
-    @DisplayName("목표9 — moving 회차는 type=relocate 도 403 CHANGE_WINDOW_CLOSED 다(전 타입 차단)")
+    @DisplayName("moving 회차는 type=relocate 도 403 CHANGE_WINDOW_CLOSED 다(전 타입 차단)")
     void 운행중_회차는_경유지_이동_신청도_거절된다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);
@@ -325,7 +325,7 @@ class ChangeRequestControllerTest {
     // ── ②구간 회차당 1회 한도 ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("목표5 — ②구간 같은 회차 2번째 신청은 403 CHANGE_LIMIT_REACHED, 다른 회차는 201")
+    @DisplayName("②구간 같은 회차 2번째 신청은 403 CHANGE_LIMIT_REACHED, 다른 회차는 201")
     void 같은_회차_두번째_신청은_한도로_막히고_다른_회차는_통과한다() throws Exception {
         long academyId = fixtures().academyWithCoordinates();
         long busId = fixtures().bus(academyId);

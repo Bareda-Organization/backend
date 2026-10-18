@@ -98,7 +98,7 @@ class NotificationControllerTest {
     // ── 매니저 알림이 회차를 가리킨다(Ruling 542) ──────────────
 
     @Test
-    @DisplayName("R46-FUFEAT ③ — run_id 가 있는 알림은 목록에 run_id 를 싣고, 없는 알림은 키는 있고 값은 null 이다")
+    @DisplayName("run_id 가 있는 알림은 목록에 run_id 를 싣고, 없는 알림은 키는 있고 값은 null 이다")
     void run_id_는_회차를_가리키는_알림에만_값이_있다() throws Exception {
         NotificationLogFixtures fixtures = fixtures();
         long academyId = fixtures.academy();

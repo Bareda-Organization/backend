@@ -299,7 +299,7 @@ class StagingCapacityConcurrencyTest {
     }
 
     @Test
-    @DisplayName("R46 A-1 — 같은 학생의 이동 신청 두 건(도착 회차가 서로 다름)이 동시에 와도 대기 행은 하나만 남고 나머지는 409 TRANSFER_ALREADY_STAGED 다")
+    @DisplayName("같은 학생의 이동 신청 두 건(도착 회차가 서로 다름)이 동시에 와도 대기 행은 하나만 남고 나머지는 409 TRANSFER_ALREADY_STAGED 다")
     void 같은_학생의_이동_두_건이_동시에_와도_대기_행은_하나만_남는다() throws Exception {
         long academyId = fixtures.academyWithCoordinates();
         long firstToRunId = idleRun(academyId, fixtures.bus(academyId));

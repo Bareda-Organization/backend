@@ -87,7 +87,7 @@ class RunConfirmationLagMetricExposureTest {
     }
 
     @Test
-    @DisplayName("목표8 — 확정 1건 이후 /actuator/prometheus 응답에 지표 이름이 실제로 나타난다")
+    @DisplayName("확정 1건 이후 /actuator/prometheus 응답에 지표 이름이 실제로 나타난다")
     void 확정_후_지표_이름이_프로메테우스_응답에_노출된다() {
         RunConfirmationFixtures fixtures = new RunConfirmationFixtures(academyRepository, busRepository,
                 routeRepository, routeStopRepository, stopRepository, studentRepository, weeklyAddressRepository,

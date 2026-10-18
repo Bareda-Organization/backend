@@ -41,7 +41,7 @@ class PositionBroadcastListenerTest {
             new RunBroadcastCache(java.time.Clock.systemUTC()), gateway);
 
     @Test
-    @DisplayName("목표 6 — 학부모·학생 채널은 eta 키가 없고, 관제 채널(academy·admin)만 eta 를 갖는다. 매니저 채널은 아예 받지 않는다")
+    @DisplayName("학부모·학생 채널은 eta 키가 없고, 관제 채널(academy·admin)만 eta 를 갖는다. 매니저 채널은 아예 받지 않는다")
     void 채널별_payload_가_다르다() {
         Long runId = 10L;
         Long academyId = 1L;

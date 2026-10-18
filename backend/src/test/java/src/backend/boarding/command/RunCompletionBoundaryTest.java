@@ -161,7 +161,7 @@ class RunCompletionBoundaryTest {
      * {@code departed_at} 이 비고 확정 알림도 나가지 않는다.
      */
     @Test
-    @DisplayName("§8.23 T3 목표8 — 보류됐던 종료가 완성되면 도착·미출발 정차지도 강제로 출발 처리된다")
+    @DisplayName("보류됐던 종료가 완성되면 도착·미출발 정차지도 강제로 출발 처리된다")
     void 보류됐던_종료가_완성되면_정차지도_강제로_출발_처리된다() {
         OffsetDateTime now = OffsetDateTime.parse("2030-04-01T12:00:00+09:00");
         long academyId = fixtures().academy();
