@@ -10,7 +10,7 @@ TAG="${ROUND_LABEL:?ROUND_LABEL 필요}"
 DESTINATIONS="${DESTINATIONS:-3200}"
 PG="docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q"
 PGQ="docker exec school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -t -A -c"
-PROM="http://localhost:18080/actuator/prometheus"
+PROM="${PROM_URL:-http://localhost:18080/actuator/prometheus}"
 prom_sum() { curl -sf "$PROM" | awk -v n="$1" -v f="${2:-}" '$0 ~ "^"n"[ {]" { if (f == "" || index($0, f) > 0) { s += $NF; k = 1 } } END { if (!k) print 0; else printf "%.10g", s }'; }
 counters() { echo "$(prom_sum hikaricp_connections_timeout_total) $(prom_sum http_server_requests_seconds_count 'status="5') $(prom_sum schoolbus_ws_outbound_dropped_total)"; }
 

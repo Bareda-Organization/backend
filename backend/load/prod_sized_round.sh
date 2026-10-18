@@ -33,7 +33,7 @@ noise() {
 BEFORE_NOISE="$(noise)"; echo "[$(date +%H:%M:%S)] 시작 전 호스트 잡음 $BEFORE_NOISE" | tee "$RES/${LABEL}_host_noise.log"
 [ "${BEFORE_NOISE%%%*}" -le "$NOISE_MAX_PCT" ] || { echo "호스트 잡음 ${BEFORE_NOISE%%%*}% > ${NOISE_MAX_PCT}% — 시작하지 않는다" >&2; exit 3; }
 
-export ROUND_LABEL="$LABEL" CGROUP_CPU=1
+export ROUND_LABEL="$LABEL" CGROUP_CPU=1 PROM_URL="${PROM_URL:-http://localhost:18081/actuator/prometheus}"   # 관리 포트(start_prod_sized.sh)
 [ -z "${PRE_HOOK:-}" ] || "$PRE_HOOK"   # 토큰 발급처럼 측정 구간 밖에서 끝낼 일
 "$DIR/cgroup_sampler.sh" start "$LABEL" "$SAMPLE_SECS"
 T0="$(date +%s)"

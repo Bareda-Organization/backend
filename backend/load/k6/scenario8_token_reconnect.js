@@ -61,6 +61,9 @@ const precheckFailed = new Counter('precheck_failed');
 const sessionScenario = (exec, vus) => ({ executor: 'ramping-vus', exec, startVUs: 0, gracefulRampDown: '5s',
     stages: [{ duration: `${RAMP_SEC}s`, target: vus }, { duration: `${Math.ceil((END_AT - Date.now()) / 1000) + 30}s`, target: vus }] });
 export const options = {
+    // REST 연결을 VU 마다 붙들어 두지 않는다 — 운영은 nginx 가 클라이언트의 REST 를 작은 업스트림 연결 묶음으로 모아 톰캣에 보내므로(톰캣 동시 연결 상한 4,000 은 WebSocket 위주로 찬다),
+    // k6 가 클라이언트 2,000개의 REST 연결을 각자 유지하면 상한에 닿는 것이 시험 방식 때문에 앞당겨진다.
+    noVUConnectionReuse: true,
     scenarios: {
         student_sessions: sessionScenario('studentSession', N.student),
         staff_sessions: sessionScenario('staffSession', N.staff),
@@ -108,9 +111,11 @@ function lifecycle(kind, base, slot, session, destination, snapshotPath) {
                             resubscribeMs.add(now - closedAt);
                             reconnectGapMs.add(now - closedAt);
                             if (now - closedAt > RESUBSCRIBE_LIMIT_MS) overLimit.add(1);
-                            const snap = http.get(`${BASE_URL}${snapshotPath}`, { headers: { Authorization: `Bearer ${token}` } });
-                            snapshotMs.add(snap.timings.duration);
-                            if (snap.status !== 200) snapshotFailures.add(1);
+                            // 비동기 — 동기로 부르면 응답이 느릴 때 이 VU 의 하트비트가 멈춰 서버가 세션을 끊는다(실제 앱 · 웹은 재구독과 REST 를 따로 돌린다).
+                            http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}` } }).then((snap) => {
+                                snapshotMs.add(snap.timings.duration);
+                                if (snap.status !== 200) snapshotFailures.add(1);
+                            });
                         }
                     } else if (frame.command === 'ERROR') {
                         errorFrames.add(1);

@@ -34,7 +34,7 @@ ADMINS="${R3_ADMINS:-0}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PG="docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q"
 PGQ="docker exec school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -t -A -c"
-PROM="http://localhost:18080/actuator/prometheus"
+PROM="${PROM_URL:-http://localhost:18080/actuator/prometheus}"
 TAG="${ROUND_LABEL:-r3_s${SESSIONS}_x${MULT}}"
 
 POS_VUS=$((100 * MULT))
