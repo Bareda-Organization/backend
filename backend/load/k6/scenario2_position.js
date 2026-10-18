@@ -139,6 +139,9 @@ export default function () {
     const res = ws.connect(WS_URL, {}, function (socket) {
         socket.on('open', function () {
             socket.send(connectFrame(staffToken));
+            // 클라이언트 하트비트 — 서버는 하트비트를 협상하지 않은 세션을 무수신 60초에 닫는다(API_SPEC §7.2). 이게 없으면 관측자 소켓이 60초 안팎에 닫혀
+            // 그 안에서 돌던 위치 송신(setInterval)도 함께 멈춰, 관측자 VU 2개의 회차가 시험 중간부터 위치를 받지 못한다. 실제 앱 · 웹은 10초마다 보낸다.
+            socket.setInterval(function () { socket.send('\n'); }, 10000);
         });
 
         socket.on('message', function (raw) {
