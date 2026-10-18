@@ -49,8 +49,8 @@ def sample_window(label, lo_ms, hi_ms):
 def thresholds_ok(doc):
     bad = []
     for name, metric in doc['metrics'].items():
-        for expr, ok in (metric.get('thresholds') or {}).items():
-            if not ok:
+        for expr, breached in (metric.get('thresholds') or {}).items():
+            if breached:  # --summary-export 의 임계 값은 true = 어겼다(false = 지켰다)
                 bad.append(f'{name} {expr}')
     return bad
 
