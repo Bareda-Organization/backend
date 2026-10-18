@@ -79,7 +79,8 @@ export const options = {
             executor: 'per-vu-iterations',
             vus: runs.length,
             iterations: 1,
-            maxDuration: '10m',
+            // 송신 지속 시간(SCENARIO2_DURATION_SEC)보다 길게 — 고정 10분이면 10분 넘게 송신하는 회차에서 VU 가 중간에 끊겨 송신 달성률이 인위적으로 떨어진다.
+            maxDuration: `${Number(__ENV.SCENARIO2_DURATION_SEC || 60) + 180}s`,
         },
     },
     thresholds: {
