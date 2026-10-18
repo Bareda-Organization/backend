@@ -6,6 +6,10 @@
 발급해야 한다(`app.jwt.access-token-validity-seconds: 900`).
 
 실행: ./r46_mint_tokens.py <출력.json> [학부모 수=600]
+환경변수 PARENT_NAME_LIKES — 학부모를 뽑을 학생 이름 패턴(쉼표로 여럿 · 기본 'LOADCAP-%'). 학생 목적지 시험은 'LOADCAP-%,L3DEST-%'.
+학부모 항목에는 접근 토큰(token) 말고 재발급 토큰(refresh)도 담긴다 — 토큰 재발급을 걸어 보는 시험(scenario8)이 쓴다.
+환경변수 STAFF_SESSIONS · ADMIN_SESSIONS — 세션마다 따로 로그인한 관계자(학원 순환)·메인 관리자 항목을 staff_sessions · admin_sessions 로 더 담는다(기본 0).
+재발급 토큰은 쓸 때마다 바뀌어 한 로그인을 여러 세션이 나눠 쓸 수 없다 — 실제 탭도 로그인마다 재발급 토큰이 따로다.
 """
 import json
 import os
@@ -25,18 +29,23 @@ def query(sql):
     return [line.split(',') for line in out.splitlines() if line.strip()]
 
 
-def login(login_id):
+def login_data(login_id):
     req = urllib.request.Request(
         f'{BASE}/auth/login',
         data=json.dumps({'login_id': login_id, 'password': PASSWORD}).encode(),
         headers={'Content-Type': 'application/json', 'X-Client-Type': 'app'})
-    with urllib.request.urlopen(req, timeout=30) as res:
-        return json.load(res)['data']['access_token']
+    with urllib.request.urlopen(req, timeout=60) as res:
+        return json.load(res)['data']
+
+
+def login(login_id):
+    return login_data(login_id)['access_token']
 
 
 def main(out_path, parent_count):
     # md5 순서 — 첫 학원·첫 버스 쪽으로 쏠리지 않게 2,000명 중 고르게 뽑는다.
-    parents = query(f"SELECT s.id, lower(s.name) || '-par' FROM student s WHERE s.name LIKE 'LOADCAP-%' "
+    likes = ' OR '.join(f"s.name LIKE '{p}'" for p in os.environ.get('PARENT_NAME_LIKES', 'LOADCAP-%').split(','))
+    parents = query(f"SELECT s.id, lower(s.name) || '-par' FROM student s WHERE {likes} "
                     f"ORDER BY md5(s.id::text) LIMIT {parent_count}")
     staff = query("SELECT a.id, lower(a.code) || '-staff', "
                   "(SELECT min(r.id) FROM run r JOIN bus b ON b.id = r.bus_id "
@@ -46,11 +55,18 @@ def main(out_path, parent_count):
     # 학원 10곳이 각 10대를 읽는 총량과 같아지게 폴링 탭 한 개로 넣는다. 명단 조회용 회차는 없다(runId 빈칸).
     staff += [[row[0], row[1], ''] for row in query("SELECT academy_id, login_id FROM account WHERE login_id = 'staffA'")]
     with ThreadPoolExecutor(8) as pool:
-        parent_tokens = list(pool.map(login, [row[1] for row in parents]))
+        parent_logins = list(pool.map(login_data, [row[1] for row in parents]))
         staff_tokens = list(pool.map(login, [row[1] for row in staff]))
     admin_token = login('sysadmin')
+    n_staff, n_admin = int(os.environ.get('STAFF_SESSIONS', 0)), int(os.environ.get('ADMIN_SESSIONS', 0))
+    loadcap = [s for s in staff if s[2]]  # runId 가 있는 LOADCAP 학원 계정만 — 학원마다 돌아가며 쓴다
+    with ThreadPoolExecutor(8) as pool:
+        staff_sessions = list(pool.map(login_data, [loadcap[i % len(loadcap)][1] for i in range(n_staff)]))
+        admin_sessions = list(pool.map(login_data, ['sysadmin'] * n_admin))
     doc = {
-        'parents': [{'studentId': int(p[0]), 'token': t} for p, t in zip(parents, parent_tokens)],
+        'staff_sessions': [{'academyId': int(loadcap[i % len(loadcap)][0]), 'token': d['access_token'], 'refresh': d.get('refresh_token')} for i, d in enumerate(staff_sessions)],
+        'admin_sessions': [{'token': d['access_token'], 'refresh': d.get('refresh_token')} for d in admin_sessions],
+        'parents': [{'studentId': int(p[0]), 'token': d['access_token'], 'refresh': d.get('refresh_token')} for p, d in zip(parents, parent_logins)],
         'staff': [{'academyId': int(s[0]), 'runId': int(s[2]) if s[2] else None, 'token': t} for s, t in zip(staff, staff_tokens)],
         'admin': admin_token,
     }

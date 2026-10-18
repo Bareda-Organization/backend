@@ -24,7 +24,7 @@ NFR02_MS = 5000
 NFR03_PERIOD_MS = 2000
 CONFIRM_DEADLINE_SEC = 30 * 60
 MIN_SENT_RATIO = 0.95
-POS_DURATION_SEC = 120  # r3_mixed.sh 의 POS_DUR
+POS_DURATION_SEC = 120  # r3_mixed.sh 의 POS_DUR 기본값 — 출력에 "위치 지속 N초" 가 있으면 그 값을 쓴다
 
 
 def metrics(path):
@@ -48,7 +48,8 @@ def judge(label):
     rows.append((1, '위치 POST 실패 0', f'{fail}건', fail == 0))
 
     sent = stat(pos, 'positions_sent_total', 'count') or 0
-    target = vus * POS_DURATION_SEC / interval if vus else None
+    dur = re.search(r'위치 지속 (\d+)초', out)
+    target = vus * (int(dur.group(1)) if dur else POS_DURATION_SEC) / interval if vus else None
     ratio = sent / target if target else None
     p95 = stat(pos, 'position_post_duration_ms', 'p(95)')
     ok2 = ratio is not None and ratio >= MIN_SENT_RATIO and p95 is not None and p95 < NFR03_PERIOD_MS

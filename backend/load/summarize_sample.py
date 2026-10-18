@@ -22,6 +22,8 @@ def main(path):
         ('hikari_active', 'hikariAct', '{:.0f}'), ('hikari_pending', 'hikariPend', '{:.0f}'),
         ('hikari_acquire_max_s', 'acquireMax', '{:.3f}s'),
         ('out_queued', 'outQ', '{:.0f}'), ('established', 'conns', '{:.0f}'),
+        ('heap_committed_mb', 'heapCommitted', '{:.0f}MB'), ('nonheap_mb', 'nonheap', '{:.0f}MB'),
+        ('direct_mb', 'direct', '{:.0f}MB'), ('gc_pause_max_s', 'gcPauseMax', '{:.3f}s'),
     ]:
         vals = col(rows, name)
         if not vals:

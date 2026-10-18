@@ -18,6 +18,8 @@
 #   R3_MODE       admin(기본) = 09-09 처럼 세션 전원이 /topic/admin/live 를 구독
 #                 realistic    = 세션 수만큼 학부모가 자기 학생 채널을 구독 + 관계자 R3_WS_STAFF 명(학원 채널)
 #                                + 메인 관리자 R3_WS_ADMIN 명(관제 채널) — 조사 D "다음 측정 3"의 실제 구독 분포
+#   R3_HOLD       세션·폴링을 유지하는 시간(초). 기본 180. 위치 부하보다 길게 두려면 R3_POS_DUR 와 함께 올린다
+#   R3_POS_DUR    위치 부하 지속 시간(초). 기본 120. r46_judge.py 가 출력의 "위치 지속 N초" 로 목표 송신 건수를 계산한다
 #   ROUND_LABEL   결과 파일 이름표(기본 r3_s<세션>_x<배율>)
 set -euo pipefail
 SESSIONS="${1:?세션 수 필요}"
@@ -36,10 +38,10 @@ PROM="http://localhost:18080/actuator/prometheus"
 TAG="${ROUND_LABEL:-r3_s${SESSIONS}_x${MULT}}"
 
 POS_VUS=$((100 * MULT))
-RAMP=60; HOLD=180; POS_DUR=120; TOTAL=$((RAMP + HOLD + 30))
+RAMP=60; HOLD="${R3_HOLD:-180}"; POS_DUR="${R3_POS_DUR:-120}"; TOTAL=$((RAMP + HOLD + 30))
 SCENARIO5_DUR=$((RAMP + HOLD + 10))
 
-echo "== R3 세션=${SESSIONS}(${MODE}) · 위치 VU=${POS_VUS}(${INTERVAL}초 주기 = $((POS_VUS / INTERVAL)) req/s) · 배치=$((100 * MULT))회차 · 폴링=${POLL} · 관리자=${ADMINS} =="
+echo "== R3 세션=${SESSIONS}(${MODE}) · 위치 VU=${POS_VUS}(${INTERVAL}초 주기 = $((POS_VUS / INTERVAL)) req/s) · 배치=$((100 * MULT))회차 · 폴링=${POLL} · 관리자=${ADMINS} · 위치 지속 ${POS_DUR}초 =="
 
 # ① 위치용 회차를 심는다(moving 상태, 기사 계정 포함). 앞 회차가 심은 위치용 회차는 먼저 종료한다 — 근접 판정 스케줄러가
 #    움직이는 회차 수에 비례해 일하므로, 안 끝내면 회차를 거듭할수록 배경 부하가 늘어 회차끼리 비교가 안 된다.
@@ -101,6 +103,7 @@ fi
 "$DIR/sampler.sh" "$TAG" "$TOTAL" > /dev/null &
 SAMP=$!
 CPU0="$(cpu_ns)"; T0="$(date +%s)"
+[ "${CGROUP_CPU:-0}" != "1" ] || CG0="$("$DIR/cgroup_sampler.sh" cpu-all)"   # 컨테이너 앱 + Postgres + Redis 의 CPU 를 측정 구간(위 CPU0 와 같은 순간)으로 잘라 읽는다
 SRV0="$(server_counters)"
 OUT0="$(metric executor_completed_tasks_total)"
 LAG_C0="$(metric schoolbus_run_confirmation_lag_seconds_count)"; LAG_S0="$(metric schoolbus_run_confirmation_lag_seconds_sum)"
@@ -170,6 +173,7 @@ wait $K6_P || true
 [ -n "$K6_S" ] && { wait $K6_S || true; }
 [ -n "$K6_Q" ] && { wait $K6_Q || true; }
 CPU1="$(cpu_ns)"; T1="$(date +%s)"
+[ "${CGROUP_CPU:-0}" != "1" ] || echo "$T0 $T1 $CG0 $("$DIR/cgroup_sampler.sh" cpu-all)" > "$DIR/results/${TAG}_cg_cpu.txt"
 SRV1="$(server_counters)"
 OUT1="$(metric executor_completed_tasks_total)"
 LAG_C1="$(metric schoolbus_run_confirmation_lag_seconds_count)"; LAG_S1="$(metric schoolbus_run_confirmation_lag_seconds_sum)"
