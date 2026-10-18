@@ -8,6 +8,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -72,7 +73,7 @@ class ApprovalPreviewOutageTest {
             RouteComputationPipeline pipeline = mock(RouteComputationPipeline.class);
             given(pipeline.compute(any())).willReturn(computation());
             RedisApprovalPreviewCache cache = new RedisApprovalPreviewCache(context.getBean(StringRedisTemplate.class),
-                    JsonMapper.builder().build());
+                    JsonMapper.builder().build(), Clock.systemUTC());
             ApprovalPreviewResolver resolver = new ApprovalPreviewResolver(mock(StopRepository.class), pipeline, cache,
                     mock(ConfirmedRouteRepository.class), mock(RunStopRepository.class), mock(WaypointRepository.class));
             Run run = mock(Run.class);

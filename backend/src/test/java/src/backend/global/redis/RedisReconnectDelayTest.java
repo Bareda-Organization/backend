@@ -16,8 +16,8 @@ import io.lettuce.core.resource.ClientResources;
 import src.backend.location.infrastructure.RedisClientConfig;
 
 /**
- * 오래 멈췄던 Redis 가 돌아와도 연결이 곧바로 다시 서도록 재접속 대기에 상한을 둔다 — Lettuce 기본값은 시도 횟수에 따라 지수로 늘어 30초까지 가서, 60초 멈춘 뒤에는
- * Redis 가 돌아와도 중계 구독과 명령 연결이 10초 넘게 늦게 돌아왔다. 상한은 2초라 어떤 긴 장애 뒤에도 복구 지연이 그 안이다.
+ * 오래 멈췄던 Redis 가 돌아와도 연결이 곧바로 다시 서도록 재접속 대기에 상한(2초)을 둔다 — Lettuce 기본값은 시도 횟수에 따라 지수로 늘어 30초까지 가서, 오래 멈춘 뒤에는
+ * Redis 가 돌아와도 중계 구독과 명령 연결이 그 대기만큼 늦게 돌아온다. 상한이 있으면 어떤 긴 장애 뒤에도 복구 지연이 그 안이다.
  */
 class RedisReconnectDelayTest {
 

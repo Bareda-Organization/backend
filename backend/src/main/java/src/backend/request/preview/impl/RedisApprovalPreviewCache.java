@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -43,12 +44,18 @@ public class RedisApprovalPreviewCache implements ApprovalPreviewCache {
     private final StringRedisTemplate redis;
     private final JsonMapper mapper;
     private final ObjectReader reader;
-    private final LocalFallbackMemory<ApprovalPreview> whileRedisIsDown = new LocalFallbackMemory<>(Clock.systemUTC(),
-            FALLBACK_MAX_ENTRIES);
+    private final LocalFallbackMemory<ApprovalPreview> whileRedisIsDown;
 
+    /** 시험이 시계를 따로 만들지 않고 쓰는 생성자 — 운영은 아래 시계를 받는 생성자다. */
     public RedisApprovalPreviewCache(StringRedisTemplate redis, JsonMapper mapper) {
+        this(redis, mapper, Clock.systemUTC());
+    }
+
+    @Autowired
+    public RedisApprovalPreviewCache(StringRedisTemplate redis, JsonMapper mapper, Clock clock) {
         this.redis = redis;
         this.mapper = mapper;
+        this.whileRedisIsDown = new LocalFallbackMemory<>(clock, FALLBACK_MAX_ENTRIES);
         this.reader = mapper.readerFor(ApprovalPreview.class).without(DateTimeFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE);
     }
 
