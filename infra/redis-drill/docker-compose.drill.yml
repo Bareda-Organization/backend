@@ -1,0 +1,69 @@
+# Redis 멈춤 연습 전용 오버레이 — docker-compose.prod.yml(백엔드 1대)에 얹는다. 배포에는 쓰지 않는다.
+#
+# prod 정의를 그대로 두고 로컬에서 막히는 것만 바꾼다: CloudWatch 로그 드라이버(자격 증명 없음) · ECR 이미지 · 영속 볼륨 · 인증서/계정 파일 · 호스트 포트.
+# 이 스택은 infra/scripts/check-redis-outage.sh 가 띄우고 내린다(프로젝트 이름 r60-redis · `down` 만 쓰고 `-v` 는 쓰지 않는다 — 볼륨을 만들지 않으므로 지울 것도 없다).
+#   - 백엔드: 로컬에서 빌드한 이미지 · `load` 프로파일(시험 시드 db/fixture + 지도 스텁) · 메모리 한도 3072m(운영 비율 축소판)
+#   - 호스트 포트: nginx 38080(http)·38443(https) · 백엔드 직접 38081 · postgres 35432 · redis 36379 · prometheus 39090
+#   - nginx: 운영과 같은 nginx.prod.conf 를 쓴다. 인증서는 연습 때마다 만드는 자체 서명 인증서(DRILL_DIR)다.
+services:
+  postgres:
+    logging: !override
+      driver: json-file
+    volumes: !override
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    tmpfs:
+      - /var/lib/postgresql
+    ports:
+      - "35432:5432"
+
+  redis:
+    logging: !override
+      driver: json-file
+    ports:
+      - "36379:6379"
+
+  backend:
+    image: school-bus-backend:r60-redis
+    build: ./backend
+    mem_limit: ${DRILL_MEM:-3072m}
+    logging: !override
+      driver: json-file
+    volumes: !reset []
+    tmpfs:
+      - /app/var/photos
+    ports:
+      - "38081:8080"
+    environment:
+      # load 프로파일은 localhost DB · 포트 18080 을 박아 둔다 — 컨테이너 이름과 운영 포트(앱 8080 · 관리 8081)로 덮는다.
+      SPRING_PROFILES_ACTIVE: load
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/schoolbus
+      SPRING_DATASOURCE_USERNAME: schoolbus
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SERVER_PORT: "8080"
+      MANAGEMENT_SERVER_PORT: "8081"
+
+  proxy:
+    logging: !override
+      driver: json-file
+    ports: !override
+      - "38080:80"
+      - "38443:443"
+    volumes:
+      # 같은 목적지를 가진 prod 의 named volume · 저장소 밖 계정 파일을 연습용 파일로 바꾼다.
+      - ${DRILL_DIR:?DRILL_DIR 미설정 — infra/scripts/check-redis-outage.sh 로 띄운다}/letsencrypt:/etc/letsencrypt:ro
+      - ${DRILL_DIR}/www:/var/www/certbot:ro
+      - ${DRILL_DIR}/htpasswd:/etc/nginx/.htpasswd:ro
+
+  prometheus:
+    logging: !override
+      driver: json-file
+    ports: !override
+      - "39090:9090"
+    volumes:
+      # nobody(65534)로 도는 Prometheus 가 쓸 수 있게 tmpfs 에 쓰기 권한을 준다(기본은 root 소유 755).
+      - type: tmpfs
+        target: /prometheus
+        tmpfs:
+          mode: 01777
