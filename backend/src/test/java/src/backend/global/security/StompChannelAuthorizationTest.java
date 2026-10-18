@@ -357,10 +357,9 @@ class StompChannelAuthorizationTest {
 
             // 실제 시간을 기다리지 않는다 — 서버 시계를 access 토큰 유효 기간 밖으로 민다(BR-265).
             advanceableClock.advance(Duration.ofDays(1));
-            received.clear();
             messagingTemplate.convertAndSend(destination, "after-expiry");
 
-            String outcome = take(received);
+            String outcome = takeAfterProbes(received);
             assertThat(outcome).as("만료 뒤에도 방송이 배달되면 권한 회수가 세션에 닿지 않는다")
                     .startsWith("ERROR").contains("message:TOKEN_EXPIRED").doesNotContain("after-expiry");
             for (int i = 0; i < 25 && session.isOpen(); i++) {
@@ -419,6 +418,15 @@ class StompChannelAuthorizationTest {
         } finally {
             session.close();
         }
+    }
+
+    /** 구독 확인 표식 MESSAGE 를 건너뛰고 그 뒤 첫 프레임을 돌려준다 — 표식은 여러 개 날아가 있을 수 있고, 시계를 민 뒤 도착한 표식은 그 자체로 ERROR 가 된다. */
+    private static String takeAfterProbes(BlockingQueue<String> received) throws InterruptedException {
+        String frame = take(received);
+        while (frame.startsWith("MESSAGE") && frame.contains("subscribed-probe")) {
+            frame = take(received);
+        }
+        return frame;
     }
 
     private static String take(BlockingQueue<String> received) throws InterruptedException {

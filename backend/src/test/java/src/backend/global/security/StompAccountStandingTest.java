@@ -137,10 +137,9 @@ class StompAccountStandingTest {
 
             retire();
             sweepScheduler.sweep(); // 30초마다 도는 스케줄러를 직접 한 번 돌린다(시험 JVM 에서는 하루 뒤로 미뤄져 있다)
-            frames.clear();
             messagingTemplate.convertAndSend(DESTINATION, "after-retire");
 
-            assertThat(take(frames)).as("퇴사한 계정의 세션에 방송이 배달되면 권한 회수가 열린 세션에 닿지 않는다")
+            assertThat(takeAfterProbes(frames)).as("퇴사한 계정의 세션에 방송이 배달되면 권한 회수가 열린 세션에 닿지 않는다")
                     .startsWith("ERROR").contains("message:TOKEN_EXPIRED").doesNotContain("after-retire");
             for (int i = 0; i < 25 && session.isOpen(); i++) {
                 Thread.sleep(200);
@@ -194,6 +193,15 @@ class StompAccountStandingTest {
             }
         }
         throw new AssertionError("구독이 성립하지 않았다: " + DESTINATION);
+    }
+
+    /** 구독 확인 표식 MESSAGE 를 건너뛰고 그 뒤 첫 프레임을 돌려준다 — 표식은 여러 개 날아가 있을 수 있고, 시계를 민 뒤 도착한 표식은 그 자체로 ERROR 가 된다. */
+    private static String takeAfterProbes(BlockingQueue<String> frames) throws InterruptedException {
+        String frame = take(frames);
+        while (frame.startsWith("MESSAGE") && frame.contains("subscribed-probe")) {
+            frame = take(frames);
+        }
+        return frame;
     }
 
     private static String take(BlockingQueue<String> frames) throws InterruptedException {
