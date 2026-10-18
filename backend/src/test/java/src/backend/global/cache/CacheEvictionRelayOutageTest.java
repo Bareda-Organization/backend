@@ -1,6 +1,7 @@
 package src.backend.global.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.time.Duration;
 
@@ -50,7 +51,10 @@ class CacheEvictionRelayOutageTest {
                 int publishes = OutageRedisContext.CALLS_TO_OPEN + 3;
                 for (int i = 1; i <= publishes; i++) {
                     long key = i;
-                    Duration elapsed = OutageRedisContext.timeOf(() -> relay.publish(CacheEvictionRelay.ACCOUNT_STANDING, key));
+                    long start = System.nanoTime();
+                    assertThatCode(() -> relay.publish(CacheEvictionRelay.ACCOUNT_STANDING, key)).as("%d번째 발행은 예외를 던지지 않는다".formatted(i))
+                            .doesNotThrowAnyException();
+                    Duration elapsed = Duration.ofNanos(System.nanoTime() - start);
 
                     assertThat(elapsed).as("%d번째 발행 시간".formatted(i))
                             .isLessThan(i <= OutageRedisContext.CALLS_TO_OPEN ? OutageRedisContext.BOUNDED_CALL
