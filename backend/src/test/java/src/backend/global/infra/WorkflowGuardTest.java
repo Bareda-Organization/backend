@@ -41,6 +41,18 @@ class WorkflowGuardTest {
         }
     }
 
+    @org.junit.jupiter.api.Test
+    @DisplayName("CI 가 내려받는 promtool 버전은 운영 compose 의 Prometheus 이미지 버전과 같고, 내려받은 파일은 SHA-256 으로 검증한다")
+    void promtoolVersionMatchesProductionPrometheusImage() throws IOException {
+        String ci = stripComments(Files.readString(WORKFLOWS.resolve("ci.yml")));
+        Matcher version = Pattern.compile("(?m)^\\s*PROMETHEUS_VERSION:\\s*(\\S+)").matcher(ci);
+        assertThat(version.find()).as("ci.yml 에 PROMETHEUS_VERSION 이 있다").isTrue();
+        Matcher image = Pattern.compile("image:\\s*prom/prometheus:v(\\S+)").matcher(Files.readString(Path.of("..", "docker-compose.prod.yml")));
+        assertThat(image.find()).as("docker-compose.prod.yml 에 Prometheus 이미지가 있다").isTrue();
+        assertThat(version.group(1)).as("promtool 버전 = 운영 Prometheus 이미지 버전").isEqualTo(image.group(1));
+        assertThat(ci).as("내려받은 파일 검증").containsPattern("PROMETHEUS_SHA256:\\s*[0-9a-f]{64}").contains("sha256sum -c");
+    }
+
     /** `#` 로 시작하는 줄(YAML 주석)을 걷어 낸다. */
     private static String stripComments(String text) {
         return text.lines().filter(line -> !line.strip().startsWith("#")).collect(Collectors.joining("\n"));
