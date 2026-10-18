@@ -89,6 +89,7 @@ export const options = {
 // 세션 하나 — session.slot(0..종류별 수-1)이 시작 위치를 정한다. 종류가 섞인 TOTAL 개를 한 줄로 세워 흩는다(종류별 오프셋이 겹치지 않게 base 를 더한다).
 function lifecycle(kind, base, slot, session, destination, snapshotPath) {
     if (Date.now() >= END_AT) return; // 시험이 끝난 뒤 VU 가 새 반복을 시작해도 재발급 · 세션을 열지 않는다
+    errorFrames.add(0); // 0건이어도 요약에 지표가 남게 한다(없음과 0건을 가르기 위해)
     let token = session.token; let refresh = session.refresh;
     // 시작할 때 한 번 재발급해 접근 토큰 나이를 0 으로 맞춘다 — 발급 뒤 시험 시작까지의 시간이 길어 첫 재접속 전에 토큰이 만료되는 것을 막는다(재접속 일정 밖의 요청이다).
     // 실제 클라이언트처럼 실패하면 다시 시도한다(최대 5번, 1초 간격). 이 첫 재발급의 실패는 재접속 일정 밖이라 initial_reissue_failures 로 따로 센다.
@@ -113,7 +114,7 @@ function lifecycle(kind, base, slot, session, destination, snapshotPath) {
                 const now = Date.now();
                 for (const frame of parseFrames(raw)) {
                     if (frame.command === 'CONNECTED') {
-                        socket.send(subscribeFrame('sub-0', destination).replace('\n\n\0', '\nreceipt:r-0\n\n\0'));
+                        socket.send(subscribeFrame('sub-0', destination));
                     } else if (frame.command === 'MESSAGE' && !gotSubscribe) {
                         gotSubscribe = true;
                         if (closedAt === 0) {

@@ -80,6 +80,7 @@ export const options = {
         resubscribed_total: [`count>=${TOTAL}`],
         resubscribe_ms: [`max<${RESUBSCRIBE_LIMIT_MS}`],
         precheck_failed: ['count==0'],
+        // 아래 둘은 어길 수 없는 임계다(max>=0 · rate>=0) — 통과 · 미통과를 가르려는 것이 아니라, k6 가 요청 태그별 하위 지표(스냅샷 응답 시간 · 실패율)를 요약 파일에 내보내게 하려는 것이다.
         'http_req_duration{name:snapshot}': ['max>=0'],
         'http_req_failed{name:snapshot}': ['rate>=0'],
     },
@@ -89,6 +90,7 @@ export const options = {
 // 세션 한 개의 일생 — 접속 · 구독 → 닫는 순간까지 유지 → 닫히면 곧바로 재접속 · 재구독 · 스냅샷 → 끝까지 유지.
 function lifecycle(kind, token, destination, snapshotPath, who) {
     if (Date.now() >= END_AT) return; // 시험이 끝난 뒤 VU 가 새 반복을 시작해도 세션을 열지 않는다
+    errorFrames.add(0); errorFramesAfterClose.add(0); // 0건이어도 요약에 지표가 남게 한다(없음과 0건을 가르기 위해)
     // 첫 접속은 실제 클라이언트처럼 실패하면 다시 시도한다(올리는 단계의 실패는 시험 대상이 아니다 — 시도 실패 수는 initial_attempt_failures 로 남긴다).
     // 닫기 3초 전까지 구독을 못 세운 세션은 닫기 전 확인에서 걸린다.
     while (Date.now() < CLOSE_AT - 4000) {

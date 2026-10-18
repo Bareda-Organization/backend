@@ -45,7 +45,6 @@ R3_EXIT=${PIPESTATUS[0]}
 set -e
 T1="$(date +%s)"
 read -r W0 W1 APP_CPU0 PG_CPU0 RD_CPU0 APP_CPU1 PG_CPU1 RD_CPU1 < "$RES/${LABEL}_cg_cpu.txt"   # r3_mixed.sh 가 측정 구간 시작·끝에 남긴 값
-[ -z "${HOOK_OUT:-}" ] || true
 sleep $(( SAMPLE_SECS - (T1 - T0) > 0 ? SAMPLE_SECS - (T1 - T0) + 2 : 2 ))   # 컨테이너 안 표본이 끝날 때까지
 "$DIR/cgroup_sampler.sh" collect "$LABEL" > /dev/null
 echo "[$(date +%H:%M:%S)] 끝난 뒤 호스트 잡음 $(noise)" | tee -a "$RES/${LABEL}_host_noise.log"
