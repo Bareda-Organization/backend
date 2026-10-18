@@ -1,0 +1,129 @@
+# 엔드포인트 → 권한 고정표. 코드의 모든 HTTP 핸들러와 1:1 (EndpointPermissionTableTest).
+# 열: 엔드포인트(METHOD 경로, 접두 /api/v1 제외) <TAB> 권한 <TAB> API_SPEC 절
+#   can:A[,B]  = @Can 권한(여럿이면 하나만 가져도 통과) · public = @PublicEndpoint · authenticated = @AuthenticatedOnly
+#   4열(선택) = 이 권한보다 좁게 막는 클래스#메서드 — 시험이 검사하지 않는 안내 메모. 표의 권한이 검사 전부가 아니라는 표시다
+#   service    = 애너테이션 없음, 서비스 계층(RunAssignmentAccess)이 판정
+# 값은 API_SPEC 해당 절 「권한」 줄과 FEATURE_SPEC §6.2 권한 카탈로그에서 옮겼다. 코드를 고쳐 권한이 바뀌면 사양과 이 표를 함께 고친다.
+DELETE /me/devices/{token}	can:DEVICE_REGISTER	§2.11
+DELETE /runs/{runId}/emergency/{id}	can:EMERGENCY_RAISE	§4.14
+DELETE /staff/managers/{id}	can:MANAGER_MANAGE	§5.13
+DELETE /staff/routes/{id}	can:ROUTE_MANAGE	§5.9
+DELETE /staff/runs/{id}	can:SCHEDULE_MANAGE	§5.10
+DELETE /staff/runs/{runId}/waypoints/{waypointId}	can:ROUTE_MANAGE	§5.15
+DELETE /staff/schedules/{id}	can:SCHEDULE_MANAGE	§5.10
+DELETE /staff/students/{id}	can:STUDENT_WRITE	§5.11
+DELETE /staff/students/{id}/photo	can:STUDENT_WRITE	§5.11
+DELETE /staff/transfers/{transferId}	can:ROUTE_MANAGE	§5.8.1
+GET /academies/search	public	§2.1
+GET /admin/academies	can:ACADEMY_MANAGE	§6.1
+GET /admin/academies/{id}	can:ACADEMY_MANAGE	§6.3
+GET /admin/academies/{id}/runs/live	can:MONITOR_ALL	§6.8
+GET /admin/audit-actors	can:AUDIT_READ	§6.13
+GET /admin/audit-logs	can:AUDIT_READ	§6.13
+GET /admin/blocked-accounts	can:ACCOUNT_UNBLOCK	§6.10
+GET /admin/dashboard	can:MONITOR_ALL	§6.18
+GET /admin/emergencies	can:MONITOR_ALL	§6.11
+GET /admin/login-history	can:AUDIT_READ	§6.13
+GET /admin/runs/attention	can:MONITOR_ALL	§6.15
+GET /admin/runs/stale-moving	can:MONITOR_ALL	§6.16
+GET /admin/runs/{runId}/roster	can:MONITOR_ALL	§6.9
+GET /admin/staff-accounts	can:STAFF_APPROVE	§6.6
+GET /admin/staff-signup-requests	can:STAFF_APPROVE	§6.4
+GET /auth/signup-status	authenticated	§2.3
+GET /files/photos/{fileName}	can:STUDENT_READ_PHOTO	§5.11.1
+GET /manager/runs	can:ROSTER_READ	§4.1	ManagerRunAccess#requireManager
+GET /me	authenticated	§2.10
+GET /me/notification-settings	can:NOTIFICATION_SETTING_WRITE	§3.14
+GET /me/students	can:STUDENT_READ_BASIC	§3.1	GuardianChildAccess#requireGuardian
+GET /notifications	authenticated	§3.12
+GET /runs/{runId}/emergencies	authenticated	§4.15	RunAssignmentAccess#assertAssignedDriverOrEscort
+GET /runs/{runId}/navigation	can:ROUTE_READ	§4.16	NavigationQueryService#assertAssigned
+GET /runs/{runId}/riders/{riderId}/guardian-phone	can:ROSTER_READ	§4.2.1
+GET /runs/{runId}/roster	can:ROSTER_READ	§4.2	ManagerRunAccess#requireAssignedRun
+GET /runs/{runId}/route	can:ROUTE_READ	§4.3	ManagerRunAccess#requireAssignedRun
+GET /staff/academy-settings	authenticated	§5.21	AcademySettingQueryService#requireStaff
+GET /staff/approvals	can:CHANGE_APPROVE	§5.5
+GET /staff/approvals/{id}	can:CHANGE_APPROVE	§5.5
+GET /staff/buses	can:BUS_MANAGE	§5.12
+GET /staff/dashboard	can:MONITOR_ACADEMY	§5.3
+GET /staff/emergencies	can:EMERGENCY_ACK	§5.16
+GET /staff/managers	can:MANAGER_MANAGE	§5.13
+GET /staff/notifications	can:NOTIFICATION_LOG_READ	§5.17
+GET /staff/reports	can:EXCEPTION_REPORT_READ	§5.20
+GET /staff/routes	can:ROUTE_MANAGE	§5.9
+GET /staff/routes/{id}	can:ROUTE_MANAGE	§5.9
+GET /staff/routes/{id}/path	can:ROUTE_MANAGE	§5.9
+GET /staff/runs	can:SCHEDULE_MANAGE	§5.10
+GET /staff/runs/live	can:MONITOR_ACADEMY	§5.18
+GET /staff/runs/{runId}/roster	can:STUDENT_READ_SENSITIVE	§5.4
+GET /staff/runs/{runId}/route	can:MONITOR_ACADEMY,MONITOR_ALL	§5.19
+GET /staff/schedules	can:SCHEDULE_MANAGE	§5.10
+GET /staff/signup-requests	can:SIGNUP_APPROVE	§5.1
+GET /staff/stops	can:ROUTE_MANAGE	§5.9
+GET /staff/stops/suggest	can:ROUTE_MANAGE	§5.9
+GET /staff/students	can:STUDENT_READ_SENSITIVE	§5.11
+GET /staff/students/{id}	can:STUDENT_READ_SENSITIVE	§5.11
+GET /staff/students/{id}/weekly-address	can:STUDENT_READ_SENSITIVE	§5.11
+GET /staff/students/{id}/withdrawal-preview	can:STUDENT_READ_SENSITIVE	§5.11
+GET /students/{id}/bus-position	authenticated	§3.11	StudentRunsAccess#resolve
+GET /students/{id}/change-requests	authenticated	§3.9	LinkedChildLookup#linkedChild
+GET /students/{id}/route	can:ROUTE_READ	§3.10	StudentRunsAccess#resolve
+GET /students/{id}/runs	can:STUDENT_READ_BASIC	§3.5	StudentRunsAccess#resolve
+GET /students/{id}/weekly-address	authenticated	§3.7	LinkedChildLookup#linkedChild
+PATCH /admin/academies/{id}	can:ACADEMY_MANAGE	§6.3
+PATCH /admin/staff-accounts/{id}	can:STAFF_APPROVE	§6.7
+PATCH /me/notification-settings	can:NOTIFICATION_SETTING_WRITE	§3.14
+PATCH /notifications/{id}/read	authenticated	§3.13
+PATCH /runs/{runId}/riders/{riderId}	authenticated	§4.6	BoardingCommandService#requireEscort
+PATCH /staff/academy-settings	authenticated	§5.21	AcademySettingCommandService#requireStaff
+PATCH /staff/buses/{id}	can:BUS_MANAGE	§5.12
+PATCH /staff/managers/{id}	can:MANAGER_MANAGE	§5.13
+PATCH /staff/routes/{id}	can:ROUTE_MANAGE	§5.9
+PATCH /staff/runs/{runId}/assignment	can:MANAGER_MANAGE	§5.14
+PATCH /staff/schedules/{id}	can:SCHEDULE_MANAGE	§5.10
+PATCH /staff/stops/{id}	can:ROUTE_MANAGE	§5.9
+PATCH /staff/students/{id}	can:STUDENT_WRITE	§5.11
+PATCH /students/{id}/runs/{runId}/intent	can:INTENT_WRITE	§3.6
+PATCH /students/{id}/weekly-address	authenticated	§3.7	LinkedChildLookup#linkedChild
+POST /admin/academies	can:ACADEMY_MANAGE	§6.2
+POST /admin/blocked-accounts/{id}/unblock	can:ACCOUNT_UNBLOCK	§6.12
+POST /admin/runs/{runId}/force-confirm	can:RUN_FORCE_CONFIRM	§6.14
+POST /admin/runs/{runId}/force-finish	can:RUN_FORCE_FINISH	§6.17
+POST /admin/staff-signup-requests/{id}/decide	can:STAFF_APPROVE	§6.5
+POST /auth/login	public	§2.5
+POST /auth/logout	authenticated	§2.7
+POST /auth/password	authenticated	§2.8
+POST /auth/recover	public	§2.9
+POST /auth/refresh	public	§2.6
+POST /auth/signup	public	§2.2
+POST /auth/signup/reapply	authenticated	§2.4
+POST /dev/reset	authenticated	§11.1
+POST /me/devices	can:DEVICE_REGISTER	§2.11
+POST /me/link-code	authenticated	§3.3	ChildLinkCommandService#issueCode
+POST /me/students/link	authenticated	§3.4	GuardianChildAccess#requireGuardian
+POST /runs/{runId}/ack-changes	service	§4.11	RunAssignmentAccess#assertAssignedDriverOrEscort
+POST /runs/{runId}/delay	authenticated	§4.9	RunAssignmentAccess#assertAssignedEscort
+POST /runs/{runId}/emergency	can:EMERGENCY_RAISE	§4.14
+POST /runs/{runId}/position	service	§4.12	RunAssignmentAccess#assertAssignedDriverExists
+POST /runs/{runId}/reports	service	§4.13	RunAssignmentAccess#assertAssignedDriverOrEscort
+POST /runs/{runId}/riders/{riderId}/no-show-contacts	authenticated	§4.8	NoShowContactCommandService#requireEscort
+POST /runs/{runId}/riders/{riderId}/revert	authenticated	§4.7	BoardingCommandService#requireEscort
+POST /runs/{runId}/start	service	§4.4	RunAssignmentAccess#assertAssignedDriver
+POST /runs/{runId}/stops/{stopId}/arrive	service	§4.5	RunAssignmentAccess#assertAssignedDriver
+POST /staff/accounts/{accountId}/password-reset	can:ACCOUNT_PASSWORD_RESET	§5.22
+POST /staff/approvals/{id}/decide	can:CHANGE_APPROVE	§5.6
+POST /staff/buses	can:BUS_MANAGE	§5.12
+POST /staff/emergencies/{id}/ack	can:EMERGENCY_ACK	§5.16
+POST /staff/managers	can:MANAGER_MANAGE	§5.13
+POST /staff/reports/{id}/handle	can:EXCEPTION_REPORT_READ	§5.20
+POST /staff/routes	can:ROUTE_MANAGE	§5.9
+POST /staff/routes/{id}/optimize	can:ROUTE_MANAGE	§5.9
+POST /staff/runs	can:SCHEDULE_MANAGE	§5.10
+POST /staff/runs/{runId}/forced-add	can:ROUTE_MANAGE	§5.7
+POST /staff/runs/{runId}/waypoints	can:ROUTE_MANAGE	§5.15
+POST /staff/schedules	can:SCHEDULE_MANAGE	§5.10
+POST /staff/signup-requests/{id}/decide	can:SIGNUP_APPROVE	§5.2
+POST /staff/students	can:STUDENT_WRITE	§5.11
+POST /staff/students/{id}/transfer	can:ROUTE_MANAGE	§5.8
+POST /students/{id}/change-requests	can:CHANGE_REQUEST_WRITE	§3.8
+PUT /staff/routes/{id}/stops	can:ROUTE_MANAGE	§5.9
