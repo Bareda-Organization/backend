@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
@@ -26,10 +27,12 @@ import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
+import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.location.GeoPoint;
 import src.backend.global.security.AuthUser;
+import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
 import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 import src.backend.routing.dto.WaypointRequest;
 import src.backend.routing.engine.spec.OrderedStop;
@@ -37,6 +40,10 @@ import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.pipeline.ComputationSnapshot;
 import src.backend.routing.pipeline.RouteComputation;
 import src.backend.routing.pipeline.RouteComputationPipeline;
+import src.backend.routing.entity.RouteVersion;
+import src.backend.routing.entity.Waypoint;
+import src.backend.routing.pipeline.DailyRoster;
+import src.backend.request.assembly.RoutePreviewAssembler;
 import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
@@ -99,7 +106,8 @@ class WaypointPreviewMapCallsOutageTest {
                             .as("토큰이 다른 배포 요청").isInstanceOfSatisfying(BusinessException.class,
                                     e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PREVIEW_STALE));
                     assertThatThrownBy(() -> service.add(staff, RUN_ID, applyRequest("token-1")))
-                            .as("미리보기는 읽혔지만 후보 지점이 없는 배포 요청").isInstanceOf(BusinessException.class);
+                            .as("미리보기는 읽혔지만 후보 지점이 없는 배포 요청").isInstanceOfSatisfying(BusinessException.class,
+                                    e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.PREVIEW_STALE));
                 }
 
                 verify(pipeline, never()).compute(any());
@@ -107,6 +115,55 @@ class WaypointPreviewMapCallsOutageTest {
                 outage.end(redis);
             }
         });
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(Outage.class)
+    @DisplayName("대조군 — 관리자가 미리보기를 요청(apply=false)하면 장애 중에도 요청 한 번당 지도 API 호출이 정확히 한 번이다")
+    void 미리보기_요청은_한_번에_지도_API_한_번(Outage outage) {
+        OutageRedisContext.runner(redis).run(context -> {
+            RouteComputationPipeline pipeline = mock(RouteComputationPipeline.class);
+            given(pipeline.compute(any())).willReturn(computation());
+            Run run = mock(Run.class);
+            OffsetDateTime departAt = OffsetDateTime.now().plusHours(10);
+            given(run.getId()).willReturn(RUN_ID);
+            given(run.isCanceled()).willReturn(false);
+            given(run.getStatus()).willReturn(RunStatus.IDLE);
+            given(run.getDepartTime()).willReturn(departAt);
+            given(run.getConfirmAt()).willReturn(departAt.minusMinutes(30));
+            given(run.getServiceDate()).willReturn(departAt.toLocalDate());
+            RunRepository runRepository = mock(RunRepository.class);
+            given(runRepository.findByIdAndAcademyId(RUN_ID, 1L)).willReturn(Optional.of(run));
+            GeoPoint point = new GeoPoint(new BigDecimal("37.5"), new BigDecimal("127.0"));
+            RouteContext routeContext = new RouteContext(Weekday.MON, new OriginDestination(point, point), mock(RouteVersion.class),
+                    List.of(), mock(DailyRoster.class), List.of());
+            RouteContextAssembler assembler = mock(RouteContextAssembler.class);
+            given(assembler.contextOf(run)).willReturn(routeContext);
+            Waypoint candidate = mock(Waypoint.class);
+            given(candidate.getId()).willReturn(12L);
+            given(candidate.getLat()).willReturn(new BigDecimal("37.5"));
+            given(candidate.getLng()).willReturn(new BigDecimal("127.0"));
+            WaypointStore store = mock(WaypointStore.class);
+            given(store.saveCandidate(any(), any())).willReturn(candidate);
+            RedisWaypointPreviewCache cache = new RedisWaypointPreviewCache(context.getBean(StringRedisTemplate.class),
+                    JsonMapper.builder().build(), Clock.systemDefaultZone());
+            WaypointCommandService service = new WaypointCommandService(runRepository, mock(WaypointRepository.class),
+                    mock(RoutePreviewAssembler.class), pipeline, null, store, cache, assembler, Clock.systemDefaultZone());
+            AuthUser staff = new AuthUser(2L, 1L, Role.STAFF, AccountStatus.ACTIVE, false);
+            outage.begin(redis);
+            try {
+                for (int request = 1; request <= 3; request++) {
+                    service.add(staff, RUN_ID, previewRequest());
+                    verify(pipeline, times(request)).compute(any());
+                }
+            } finally {
+                outage.end(redis);
+            }
+        });
+    }
+
+    private static WaypointRequest previewRequest() {
+        return new WaypointRequest(null, new BigDecimal("37.5"), new BigDecimal("127.0"), "경유", null, null, false, null);
     }
 
     private static WaypointRequest applyRequest(String token) {
