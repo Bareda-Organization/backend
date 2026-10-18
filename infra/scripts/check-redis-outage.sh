@@ -16,8 +16,8 @@
 #   6. 멈춘 동안 DB 트랜잭션률 ≤ 멈추기 전 × 배수                     DRILL_DB_RATE_FACTOR (기본 1.5 · 실측 1.05배)
 #   7. 멈춘 동안 Hikari 대기 최대값                                   DRILL_HIKARI_PENDING_LIMIT (기본 2 · 실측 0)
 #   8. 멈춘 동안 Redis 무관 읽기(student_runs) p95                    DRILL_P95_LIMIT_MS (기본 500 · 실측 최대 89.5ms)
-#   9. 멈춘 동안 컨테이너 헬스 · /healthz 가 UP(200), 멈춘 채 다시 시작한(`docker restart`) 백엔드와 Redis 를 얼린 채 새로 만든(`up -d --force-recreate backend`) 백엔드가 start_period 안에 건강해지고
-#      compose 종료 코드 0   DRILL_RESTART_HEALTHY_LIMIT_SEC (기본 90 = compose healthcheck start_period · Ruling 932)
+#   9. 멈춘 동안 컨테이너 헬스 · /healthz 가 UP(200), 멈춘 채 다시 시작한(`docker restart`) 백엔드와 Redis 를 얼린 채 새로 만든(`up -d --no-deps --force-recreate backend` 얼린 채 · `up -d --force-recreate backend` 멈춘 채) 백엔드가 start_period 안에 건강해지고
+#      compose 종료 코드 0 (얼린 Redis 에서 `--no-deps` 없이 하면 compose 가 Redis 를 시작하려다 실패한다 — 종료 코드만 적는다)   DRILL_RESTART_HEALTHY_LIMIT_SEC (기본 90 = compose healthcheck start_period · Ruling 932)
 #  10. Redis 가 비어서 돌아온 뒤(kill 뒤 · 멈춘 채 재시작 뒤) 운행 중 회차 위치 조회의 빈 응답(lat 없음) 0건 (DB 최신 행이 메운다)
 # 출력에는 그 밖에 멈춤 구간별 응답 시간 · /healthz 응답 · 서킷이 닫힌 시각 · nginx 가 /healthz 에 낸 상태를 적는다.
 #
@@ -46,7 +46,7 @@ WARMUP=6
 RESTART_WAIT=120
 RESTART_COOL=10
 # k6 가 도는 시간 = 준비 + 기준 + (멈춤 + 회복) × 2 + 멈춘 채 다시 시작 + 마무리
-K6_SECONDS=$(( WARMUP + BASELINE + 2 * (HOLD + COOL) + 2 * (RESTART_WAIT + RESTART_COOL) + 30 ))
+K6_SECONDS=$(( WARMUP + BASELINE + 2 * (HOLD + COOL) + 3 * (RESTART_WAIT + RESTART_COOL) + 30 ))
 
 ANALYZE_ONLY="${DRILL_ANALYZE_ONLY:-}"   # 이미 돈 결과 폴더를 다른 기준값으로 다시 판정만 한다(스택을 띄우지 않는다)
 OUT="${ANALYZE_ONLY:-${DRILL_OUT:-$(mktemp -d "${TMPDIR:-/tmp}/r60-redis-drill.XXXXXX")}}"
@@ -191,23 +191,45 @@ wait_subscribed "$(now_ms)" > /dev/null
 event restart_end
 sleep "$RESTART_COOL"
 
-# 4) Redis 를 얼린 채 백엔드를 새로 만든다 — 배포가 하는 일(`docker compose up -d --force-recreate backend`). backend 의 depends_on 이 Redis healthy 를 요구하면 여기서 실패한다(Ruling 932).
+# 4) 배포가 하는 일(`docker compose up -d --force-recreate backend`)을 Redis 가 없는 상태에서 — 얼린 Redis 에는 compose 가 Redis 를 시작하려다 실패하므로(`cannot start a paused container`) 둘을 나눠 본다.
+#    (가) 얼린 Redis 에서 그대로: 종료 코드만 적는다(정보 — 실패해도 판정에 넣지 않는다, Docker Compose 의 동작이다).
+#    (나) 얼린 Redis 에서 `--no-deps`: 종료 코드 0 이고 start_period 안에 건강해야 한다.
+#    (다) 멈춘 Redis 에서 그대로: compose 가 Redis 를 다시 켜므로 종료 코드 0 이고 건강해야 한다.
+wait_backend_healthy() { # 새로 만든 백엔드가 건강해질 때까지 걸린 ms (RESTART_WAIT 안에 못 되면 -1)
+  local cid t0
+  cid="$(dc ps -q backend)"; t0="$(now_ms)"
+  while (( $(now_ms) < t0 + RESTART_WAIT * 1000 )); do
+    if [[ "$(docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null)" == healthy ]]; then echo $(( $(now_ms) - t0 )); return 0; fi
+    sleep 1
+  done
+  echo -1
+}
 event recreate_begin
 [[ "${DRILL_DRY:-}" == 1 ]] || docker pause "$REDIS_CID" >/dev/null
-RECREATE_EXIT=0
-dc up -d --force-recreate backend > "$OUT/recreate.log" 2>&1 || RECREATE_EXIT=$?
+PAUSED_PLAIN_EXIT=0
+dc up -d --force-recreate backend > "$OUT/recreate-paused-plain.log" 2>&1 || PAUSED_PLAIN_EXIT=$?
+echo "   (가) 얼린 Redis 에서 up -d --force-recreate backend: 종료 코드 ${PAUSED_PLAIN_EXIT} (정보)"
+NODEPS_EXIT=0
+dc up -d --no-deps --force-recreate backend > "$OUT/recreate-nodeps.log" 2>&1 || NODEPS_EXIT=$?
+NODEPS_HEALTHY_MS="$(wait_backend_healthy)"
 BACKEND_CID="$(dc ps -q backend)"
-recreate_t0="$(now_ms)"; RECREATE_HEALTHY_MS=-1
-while (( $(now_ms) < recreate_t0 + RESTART_WAIT * 1000 )); do
-  if [[ "$(docker inspect -f '{{.State.Health.Status}}' "$BACKEND_CID" 2>/dev/null)" == healthy ]]; then RECREATE_HEALTHY_MS=$(( $(now_ms) - recreate_t0 )); break; fi
-  sleep 1
-done
-event recreate_healthy
-echo "   Redis 를 얼린 채 새로 만든 백엔드: compose 종료 코드 ${RECREATE_EXIT} · 건강해진 시간 ${RECREATE_HEALTHY_MS} ms"
-printf 'recreate_exit\t%s\nrecreate_healthy\t%s\n' "$RECREATE_EXIT" "$RECREATE_HEALTHY_MS" >> "$RECOVERY"
+event recreate_nodeps_healthy
+echo "   (나) 얼린 Redis 에서 up -d --no-deps --force-recreate backend: 종료 코드 ${NODEPS_EXIT} · 건강해진 시간 ${NODEPS_HEALTHY_MS} ms"
 docker exec "$PROXY_CID" nginx -s reload >/dev/null 2>&1 || true
 sleep 6
 [[ "${DRILL_DRY:-}" == 1 ]] || docker unpause "$REDIS_CID" >/dev/null
+wait_subscribed "$(now_ms)" > /dev/null
+[[ "${DRILL_DRY:-}" == 1 ]] || docker kill "$REDIS_CID" >/dev/null
+STOPPED_EXIT=0
+dc up -d --force-recreate backend > "$OUT/recreate-stopped.log" 2>&1 || STOPPED_EXIT=$?
+STOPPED_HEALTHY_MS="$(wait_backend_healthy)"
+BACKEND_CID="$(dc ps -q backend)"; REDIS_CID="$(dc ps -q redis)"
+event recreate_stopped_healthy
+echo "   (다) 멈춘 Redis 에서 up -d --force-recreate backend: 종료 코드 ${STOPPED_EXIT} · 건강해진 시간 ${STOPPED_HEALTHY_MS} ms"
+printf 'recreate_paused_plain_exit\t%s\nrecreate_nodeps_exit\t%s\nrecreate_nodeps_healthy\t%s\nrecreate_stopped_exit\t%s\nrecreate_stopped_healthy\t%s\n' \
+  "$PAUSED_PLAIN_EXIT" "$NODEPS_EXIT" "$NODEPS_HEALTHY_MS" "$STOPPED_EXIT" "$STOPPED_HEALTHY_MS" >> "$RECOVERY"
+docker exec "$PROXY_CID" nginx -s reload >/dev/null 2>&1 || true
+sleep 6
 wait_subscribed "$(now_ms)" > /dev/null
 event recreate_end
 sleep "$RESTART_COOL"
@@ -384,13 +406,14 @@ if "restart_healthy" in recovery:
     print(f"   다시 시작 뒤 /healthz 표본 — 백엔드 직접 {[h[2] for h in after_restart]} · nginx(reload 뒤) {[h[1] for h in after_restart]}")
 else:
     print("   (이 결과 폴더에는 멈춘 채 다시 시작한 구간이 없다)")
-if "recreate_healthy" in recovery:
-    rc_ms = int(recovery["recreate_healthy"])
-    print(f"   Redis 를 얼린 채 `up -d --force-recreate backend`: compose 종료 코드 {recovery['recreate_exit']} · 건강해진 시간 {rc_ms / 1000.0:.1f}초 (기준 종료 코드 0 · ≤ {LIM['restart_healthy_sec']}초)")
-    if recovery["recreate_exit"] != "0": fails.append("recreate_compose")
-    if rc_ms < 0 or rc_ms / 1000.0 > LIM["restart_healthy_sec"]: fails.append("recreate_healthy")
+if "recreate_nodeps_healthy" in recovery:
+    print(f"   배포 명령을 Redis 가 없는 상태에서: (가) 얼린 채 그대로 종료 코드 {recovery['recreate_paused_plain_exit']}(정보 — 0 이 아니면 compose 가 얼린 Redis 를 시작하려다 실패한 것) · (나) 얼린 채 --no-deps 종료 코드 {recovery['recreate_nodeps_exit']} · 건강 {int(recovery['recreate_nodeps_healthy']) / 1000.0:.1f}초 · (다) 멈춘 채 그대로 종료 코드 {recovery['recreate_stopped_exit']} · 건강 {int(recovery['recreate_stopped_healthy']) / 1000.0:.1f}초 (기준: (나) (다) 종료 코드 0 · 건강 ≤ {LIM['restart_healthy_sec']}초)")
+    for tag, exit_key, ms_key in (("nodeps", "recreate_nodeps_exit", "recreate_nodeps_healthy"), ("stopped", "recreate_stopped_exit", "recreate_stopped_healthy")):
+        ms_val = int(recovery[ms_key])
+        if recovery[exit_key] != "0": fails.append(f"recreate_{tag}_compose")
+        if ms_val < 0 or ms_val / 1000.0 > LIM["restart_healthy_sec"]: fails.append(f"recreate_{tag}_healthy")
 else:
-    print("   (이 결과 폴더에는 Redis 를 얼린 채 백엔드를 새로 만든 구간이 없다)")
+    print("   (이 결과 폴더에는 Redis 가 없는 채 백엔드를 새로 만든 구간이 없다)")
 
 print("\n/healthz — (시각 초 · nginx 상태 · 백엔드 직접 상태 · 컨테이너 헬스) 구간별 요약:")
 for ph, w in phases.items():
