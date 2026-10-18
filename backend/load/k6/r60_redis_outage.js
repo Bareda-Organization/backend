@@ -43,6 +43,8 @@ const snapshotAgeSec = new Trend('snapshot_age_sec');
 const wsMsgGapMs = new Trend('ws_msg_gap_ms');
 const wsMsgs = new Counter('ws_msgs');
 const wsCloses = new Counter('ws_closes');
+// 위치가 비어 온 응답(운행 중인데 lat 이 null) — 다시 켠 Redis 는 비어 있어 첫 송신이 값을 다시 쓸 때까지 이렇게 온다.
+const snapshotMissing = new Counter('snapshot_missing');
 
 function login(loginId) {
     const res = http.post(`${BE}/api/v1/auth/login`, JSON.stringify({ login_id: loginId, password: 'password' }),
@@ -72,8 +74,12 @@ export function restRead(tokens) {
         { headers: { Authorization: `Bearer ${tokens.parent}` }, timeout: '10s', tags: { name: 'bus_position' } });
     if (res.status === 200) {
         const lat = res.json().data.lat;
-        const sentSec = Math.round((lat - LAT_BASE) * 1e6);
-        snapshotAgeSec.add((nowSecWrapped() - sentSec + SECOND_WRAP) % SECOND_WRAP);
+        if (lat === null || lat === undefined) {
+            snapshotMissing.add(1);
+        } else {
+            const sentSec = Math.round((lat - LAT_BASE) * 1e6);
+            snapshotAgeSec.add((nowSecWrapped() - sentSec + SECOND_WRAP) % SECOND_WRAP);
+        }
     }
     sleep(0.3);
 }

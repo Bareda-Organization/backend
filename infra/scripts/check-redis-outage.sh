@@ -10,7 +10,7 @@
 #   2. 위치 송신(POST) 실패 = 0                                      DRILL_SEND_FAIL_LIMIT (기본 0)            929 D
 #   3. 다시 켠 뒤 중계 구독 복구 시간(Redis PUBSUB NUMSUB)           DRILL_RECOVERY_LIMIT_SEC (기본 10)        929 D (실측 kill 2.1초 · pause 0.1초)
 #   4. 다시 켠 뒤 REST 위치 조회가 낡은 값(나이 2초 초과)을 마지막으로 돌려준 시각   DRILL_FILL_LIMIT_SEC (기본 30 — 클라이언트 안전망 조회 주기, API_SPEC §7.2 · 실측 0초)
-#   5. 멈춘 동안 지도 API(스텁) 온디맨드 호출률 − 멈추기 전 호출률    DRILL_MAP_RATE_MARGIN (기본 0.0167 건/초 = 분당 1건 · 실측 0.015~0.016 = 멈춤 직후 미리보기 1번 다시 계산)
+#   5. 멈춘 구간 안에서 늘어난 지도 API(스텁) 온디맨드 호출 수(멈추기 전 호출률로 기대한 수를 뺀 값)   DRILL_MAP_EXTRA_CALLS (기본 2 · 실측 큰 회차 1건 = 미리보기가 사라진 직후 한 번 다시 계산. 반복 조회는 인스턴스 안 기억이 받는다)
 #   6. 멈춘 동안 DB 트랜잭션률 ≤ 멈추기 전 × 배수                     DRILL_DB_RATE_FACTOR (기본 1.5 · 실측 1.05배)
 #   7. 멈춘 동안 Hikari 대기 최대값                                   DRILL_HIKARI_PENDING_LIMIT (기본 2 · 실측 0)
 #   8. 멈춘 동안 Redis 무관 읽기(student_runs) p95                    DRILL_P95_LIMIT_MS (기본 500 · 실측 최대 89.5ms)
@@ -203,7 +203,7 @@ env = os.environ.get
 LIM = dict(
     five_xx=int(env("DRILL_5XX_LIMIT", "0")), send_fail=int(env("DRILL_SEND_FAIL_LIMIT", "0")),
     recovery_sec=float(env("DRILL_RECOVERY_LIMIT_SEC", "10")), fill_sec=float(env("DRILL_FILL_LIMIT_SEC", "30")),
-    map_margin=float(env("DRILL_MAP_RATE_MARGIN", "0.0167")), db_factor=float(env("DRILL_DB_RATE_FACTOR", "1.5")),
+    map_extra=float(env("DRILL_MAP_EXTRA_CALLS", "2")), db_factor=float(env("DRILL_DB_RATE_FACTOR", "1.5")),
     hikari=float(env("DRILL_HIKARI_PENDING_LIMIT", "2")), restart_healthy_sec=float(env("DRILL_RESTART_HEALTHY_LIMIT_SEC", "90")), p95_ms=float(env("DRILL_P95_LIMIT_MS", "500")),
 )
 
@@ -288,13 +288,14 @@ for label, v in (("kill", rk), ("pause", rp)):
     if v < 0 or v > LIM["recovery_sec"]: fails.append(f"recovery_{label}")
 
 def fill_time(restore_ms, until_ms):
-    # 다시 켠 뒤 낡은 값(나이 > 2초)을 마지막으로 받은 시각까지 — 최신 값이 한 번 돌아온 시각이 아니라 낡은 값이 더는 안 오는 시각이다.
+    # 다시 켠 뒤 낡은 값(나이 > 2초) 또는 빈 응답(lat 없음)을 마지막으로 받은 시각까지 — 최신 값이 한 번 돌아온 시각이 아니라 그런 응답이 더는 안 오는 시각이다.
     stale = [p[0] for p in pts if p[1] == "snapshot_age_sec" and restore_ms <= p[0] < until_ms and p[2] > 2]
-    n_stale = len(stale)
-    return ((max(stale) - restore_ms) / 1000.0 if stale else 0.0), n_stale
-fk, fk_n = fill_time(events["kill_end"], events["pause_begin"])
-fp, fp_n = fill_time(events["pause_end"], restart_begin)
-print(f"4. 다시 켠 뒤 REST 위치 조회가 낡은 값(나이 > 2초)을 마지막으로 돌려준 시각: kill {fk:.1f}초(낡은 응답 {fk_n}건) · pause {fp:.1f}초(낡은 응답 {fp_n}건) (기준 ≤ {LIM['fill_sec']}초)")
+    missing = [p[0] for p in pts if p[1] == "snapshot_missing" and restore_ms <= p[0] < until_ms]
+    both = stale + missing
+    return ((max(both) - restore_ms) / 1000.0 if both else 0.0), len(stale), len(missing)
+fk, fk_n, fk_m = fill_time(events["kill_end"], events["pause_begin"])
+fp, fp_n, fp_m = fill_time(events["pause_end"], restart_begin)
+print(f"4. 다시 켠 뒤 REST 위치 조회가 낡은 값(나이 > 2초)이나 빈 응답을 마지막으로 돌려준 시각: kill {fk:.1f}초(낡은 {fk_n}건 · 빈 {fk_m}건) · pause {fp:.1f}초(낡은 {fp_n}건 · 빈 {fp_m}건) (기준 ≤ {LIM['fill_sec']}초)")
 for label, v in (("kill", fk), ("pause", fp)):
     if v > LIM["fill_sec"]: fails.append(f"fill_{label}")
 ages = {name: max([p[2] for p in pts if p[1] == "snapshot_age_sec" and in_(p[0], w)] or [float("nan")]) for name, w in phases.items()}
@@ -304,9 +305,12 @@ print(f"   구독자 방송 간격 최대(ms): {gaps}")
 
 COL = dict(hikari_pending=1, hikari_active=2, map_calls=3, cb_closed=4, relay_failed=5, pos_fallback=6, pg=7, relay_received=8)
 map_before = rate(COL["map_calls"], phases["before"])
-print(f"5. 지도 API(스텁) 호출률(건/초): 멈추기 전 {map_before:.3f} · kill 중 {rate(COL['map_calls'], phases['kill']):.3f} · pause 중 {rate(COL['map_calls'], phases['pause']):.3f} (기준: 멈추기 전 + {LIM['map_margin']} 이하)")
+def extra_map_calls(w):  # 구간 안 호출 수 − 멈추기 전 호출률로 기대한 수
+    ss = [s for s in samples if in_(s[0], w)]
+    return (ss[-1][COL["map_calls"]] - ss[0][COL["map_calls"]]) - map_before * (ss[-1][0] - ss[0][0]) / 1000.0 if len(ss) >= 2 else float("nan")
+print(f"5. 지도 API(스텁) 온디맨드 호출: 멈추기 전 {map_before:.3f}건/초 · 구간 안 늘어난 호출 수 kill {extra_map_calls(phases['kill']):.1f} · pause {extra_map_calls(phases['pause']):.1f} (기준 ≤ {LIM['map_extra']:.0f} — 미리보기가 사라진 직후 한 번 다시 계산 + 여유 1)")
 for label in ("kill", "pause"):
-    if rate(COL["map_calls"], phases[label]) > map_before + LIM["map_margin"]: fails.append(f"map_{label}")
+    if extra_map_calls(phases[label]) > LIM["map_extra"]: fails.append(f"map_{label}")
 db_before = rate(COL["pg"], phases["before"])
 print(f"6. DB 트랜잭션률(건/초): 멈추기 전 {db_before:.1f} · kill 중 {rate(COL['pg'], phases['kill']):.1f} · pause 중 {rate(COL['pg'], phases['pause']):.1f} · 이후 {rate(COL['pg'], phases['after']):.1f} (기준: 멈추기 전 × {LIM['db_factor']} 이하)")
 for label in ("kill", "pause"):
