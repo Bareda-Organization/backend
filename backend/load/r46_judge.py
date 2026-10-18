@@ -12,6 +12,7 @@
 | 5 | 미확정 0 | TECH_DECISIONS §13.4 | 확정 건수 ≥ 도래시킨 건수 · 드레인 끝의 남은 건수 ≤ 0 |
 
 실행: ./r46_judge.py <라벨> [라벨 …]   (결과 파일: results/<라벨>_position.json · _poll.json · _sessions.json · _run.out)
+종료 코드: 모든 라벨이 5항을 통과하면 0, 하나라도 미통과이거나 결과 파일이 없으면 1 (Ruling 921 G — 목표 표의 판정 명령으로 쓴다).
 """
 import json
 import re
@@ -92,14 +93,22 @@ def judge(label):
 
 
 def main(labels):
+    failed = not labels
     for label in labels:
-        rows, extra = judge(label)
+        try:
+            rows, extra = judge(label)
+        except FileNotFoundError as e:
+            print(f"### {label} — 미통과 (결과 파일 없음: {e.filename})")
+            failed = True
+            continue
         allok = all(r[3] for r in rows)
+        failed = failed or not allok
         print(f"### {label} — {'통과' if allok else '미통과'}")
         for no, name, value, ok in rows:
             print(f"  {no}. [{'통과' if ok else '미통과'}] {name} — {value}")
         print('  참고(판정 밖): ' + ' · '.join(extra))
+    return 1 if failed else 0
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    sys.exit(main(sys.argv[1:]))
