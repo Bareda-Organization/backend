@@ -31,7 +31,7 @@ import testsupport.redis.RedisTestContainerBase;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * S-5 — 경유 지점 미리보기도 Redis 에 있어 만든 인스턴스와 배포하는 인스턴스가 달라도 된다(Ruling 900 C). 만료는 그 회차의 운행일이 끝나는 시각이다.
+ * 경유 지점 미리보기는 캐시 객체의 메모리가 아니라 Redis 에 있다(Ruling 900 C). 만료는 그 회차의 운행일이 끝나는 시각이다.
  * Redis 오류는 없음으로 읽어 배포가 기존 409 PREVIEW_STALE 로 답하게 한다(K4).
  */
 class RedisWaypointPreviewCacheTest extends RedisTestContainerBase {
@@ -47,40 +47,38 @@ class RedisWaypointPreviewCacheTest extends RedisTestContainerBase {
     private final long runId = Math.abs(UUID.randomUUID().getLeastSignificantBits() % 1_000_000_000L);
     private LettuceConnectionFactory factory;
     private StringRedisTemplate redis;
-    private RedisWaypointPreviewCache instanceA;
-    private RedisWaypointPreviewCache instanceB;
+    private RedisWaypointPreviewCache cache;
 
     @BeforeEach
     void connect() {
         factory = new LettuceConnectionFactory(REDIS.getHost(), REDIS.getMappedPort(6379));
         factory.afterPropertiesSet();
         redis = new StringRedisTemplate(factory);
-        instanceA = new RedisWaypointPreviewCache(redis, mapper, CLOCK);
-        instanceB = new RedisWaypointPreviewCache(new StringRedisTemplate(factory), mapper, CLOCK);
+        cache = new RedisWaypointPreviewCache(redis, mapper, CLOCK);
     }
 
     @AfterEach
     void close() {
-        instanceA.evict(runId);
+        cache.evict(runId);
         factory.destroy();
     }
 
     @Test
-    @DisplayName("A 가 만든 미리보기를 B 가 같은 내용으로 읽고, 배포한 B 가 지우면 A 에서도 사라진다")
-    void 한_인스턴스가_만들고_다른_인스턴스가_배포한다() {
+    @DisplayName("넣은 미리보기를 같은 내용으로 읽고, 배포 뒤 지우면 읽기가 비어 있다")
+    void 넣은_미리보기를_읽고_배포_뒤_지운다() {
         WaypointPreview preview = previewOf("token-1");
 
-        instanceA.put(runId, TODAY, preview);
+        cache.put(runId, TODAY, preview);
 
-        assertThat(instanceB.find(runId)).contains(preview);
-        instanceB.evict(runId);
-        assertThat(instanceA.find(runId)).isEmpty();
+        assertThat(cache.find(runId)).contains(preview);
+        cache.evict(runId);
+        assertThat(cache.find(runId)).isEmpty();
     }
 
     @Test
     @DisplayName("만료는 운행일이 끝나는 시각(다음 날 0시 KST) — 10:00 에 넣으면 14시간")
     void 운행일이_끝나면_만료된다() {
-        instanceA.put(runId, TODAY, previewOf("token-1"));
+        cache.put(runId, TODAY, previewOf("token-1"));
 
         Long seconds = redis.getExpire("schoolbus:waypoint-preview:" + runId);
 
@@ -90,18 +88,18 @@ class RedisWaypointPreviewCacheTest extends RedisTestContainerBase {
     @Test
     @DisplayName("이미 운행일이 끝난 회차의 미리보기는 저장하지 않는다")
     void 지난_운행일은_저장하지_않는다() {
-        instanceA.put(runId, TODAY.minusDays(1), previewOf("old"));
+        cache.put(runId, TODAY.minusDays(1), previewOf("old"));
 
-        assertThat(instanceB.find(runId)).isEmpty();
+        assertThat(cache.find(runId)).isEmpty();
     }
 
     @Test
     @DisplayName("새 미리보기는 같은 회차의 앞 미리보기를 덮어쓴다 — 회차당 1건")
     void 새_미리보기가_앞_것을_덮어쓴다() {
-        instanceA.put(runId, TODAY, previewOf("first"));
-        instanceA.put(runId, TODAY, previewOf("second"));
+        cache.put(runId, TODAY, previewOf("first"));
+        cache.put(runId, TODAY, previewOf("second"));
 
-        assertThat(instanceB.find(runId)).map(WaypointPreview::token).contains("second");
+        assertThat(cache.find(runId)).map(WaypointPreview::token).contains("second");
     }
 
     @Test
@@ -111,11 +109,11 @@ class RedisWaypointPreviewCacheTest extends RedisTestContainerBase {
         org.mockito.BDDMockito.given(broken.opsForValue()).willThrow(new RedisConnectionFailureException("끊김"));
         org.mockito.BDDMockito.given(broken.delete(org.mockito.ArgumentMatchers.anyString()))
                 .willThrow(new RedisConnectionFailureException("끊김"));
-        RedisWaypointPreviewCache cache = new RedisWaypointPreviewCache(broken, mapper, CLOCK);
+        RedisWaypointPreviewCache brokenCache = new RedisWaypointPreviewCache(broken, mapper, CLOCK);
 
-        assertThat(cache.find(runId)).isEmpty();
-        cache.put(runId, TODAY, previewOf("x"));
-        cache.evict(runId);
+        assertThat(brokenCache.find(runId)).isEmpty();
+        brokenCache.put(runId, TODAY, previewOf("x"));
+        brokenCache.evict(runId);
     }
 
     private static WaypointPreview previewOf(String token) {

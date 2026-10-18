@@ -74,8 +74,8 @@ import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 게이트웨이를 지나는 방송 종류마다 한 인스턴스가 낸 이벤트를 <b>다른</b> 인스턴스에 붙은 구독자가 받는다 — 실제 리스너가 인스턴스 A 의 게이트웨이로 내고, 실제 Redis 를 거쳐 B 의 송신 템플릿에 닿는지 본다.
- * 종류별 목적지와 payload 는 각 리스너 시험이 따로 본다. 여기서 보는 것은 "A 에서 낸 것이 B 에 닿는다" 하나다(Ruling 900 A).
+ * 게이트웨이를 지나는 방송 종류마다 인스턴스가 낸 이벤트가 실제 Redis 를 거쳐 자기에게 붙은 구독자의 송신 템플릿에 닿는다 — 실제 리스너가 게이트웨이로 내고, 발행한 인스턴스도 Redis 를 거쳐 받는다.
+ * 종류별 목적지와 payload 는 각 리스너 시험이 따로 본다. 여기서 보는 것은 "낸 것이 중계를 거쳐 닿는다" 하나다(Ruling 900 A).
  */
 class BroadcastRelayEveryEventTest extends RedisTestContainerBase {
 
@@ -100,37 +100,36 @@ class BroadcastRelayEveryEventTest extends RedisTestContainerBase {
     }
 
     @Test
-    @DisplayName("모든 방송 종류(run_started · run_ended · stop_arrived · route_changed · approval_requested · rider_changed · emergency 3종 · position) — A 에서 낸 것이 B 에 닿는다")
-    void 모든_방송_종류가_다른_인스턴스에_닿는다() {
-        Node a = newNode(Set.of());
-        Node b = newNode(ALL_CHANNELS);
-        awaitSubscribed(a, b);
+    @DisplayName("모든 방송 종류(run_started · run_ended · stop_arrived · route_changed · approval_requested · rider_changed · emergency 3종 · position) — 낸 것이 Redis 를 거쳐 구독자에게 닿는다")
+    void 모든_방송_종류가_중계를_거쳐_닿는다() {
+        Node node = newNode(ALL_CHANNELS);
+        awaitSubscribed(node);
         RunRiderRepository riders = mock(RunRiderRepository.class);
         given(riders.findAllByRunId(RUN)).willReturn(List.of(RunRider.uponConfirmation(RUN, 100L, 1L)));
         RunRiderDirectory directory = mock(RunRiderDirectory.class);
         given(directory.studentIdsExcludingAbsent(RUN)).willReturn(List.of(100L));
 
-        new RunStartedBroadcastListener(riders, a.gateway, Runnable::run).broadcast(new RunStartedEvent(RUN, ACADEMY, NOW, 0));
-        expectOnB(b, "run_started", ALL_CHANNELS);
+        new RunStartedBroadcastListener(riders, node.gateway, Runnable::run).broadcast(new RunStartedEvent(RUN, ACADEMY, NOW, 0));
+        expectDelivered(node, "run_started", ALL_CHANNELS);
 
-        new RunEndedBroadcastListener(riders, a.gateway, Runnable::run).broadcast(new RunEndedEvent(RUN, ACADEMY, NOW, 0L));
-        expectOnB(b, "run_ended", ALL_CHANNELS);
+        new RunEndedBroadcastListener(riders, node.gateway, Runnable::run).broadcast(new RunEndedEvent(RUN, ACADEMY, NOW, 0L));
+        expectDelivered(node, "run_ended", ALL_CHANNELS);
 
-        new StopArrivedBroadcastListener(riders, a.gateway, Runnable::run)
+        new StopArrivedBroadcastListener(riders, node.gateway, Runnable::run)
                 .broadcast(new StopArrivedEvent(RUN, ACADEMY, 7L, 2, "정문 앞", NOW, 8L));
-        expectOnB(b, "stop_arrived", ALL_CHANNELS);
+        expectDelivered(node, "stop_arrived", ALL_CHANNELS);
 
-        new RunRouteChangedBroadcastListener(a.gateway, Runnable::run).broadcast(new RunRouteConfirmedEvent(RUN, ACADEMY, 3L, NOW));
-        expectOnB(b, "route_changed", List.of(MANAGER_CHANNEL));
+        new RunRouteChangedBroadcastListener(node.gateway, Runnable::run).broadcast(new RunRouteConfirmedEvent(RUN, ACADEMY, 3L, NOW));
+        expectDelivered(node, "route_changed", List.of(MANAGER_CHANNEL));
 
-        new PositionBroadcastListener(directory, new RunBroadcastCache(Clock.systemUTC()), a.gateway).broadcast(
+        new PositionBroadcastListener(directory, new RunBroadcastCache(Clock.systemUTC()), node.gateway).broadcast(
                 new RunPositionReceivedEvent(RUN, new BigDecimal("37.5"), new BigDecimal("127.0"), NOW, NOW, ACADEMY, "정문", NOW));
-        expectOnB(b, "position", List.of(STUDENT_CHANNEL, ACADEMY_CHANNEL, ADMIN_CHANNEL));
+        expectDelivered(node, "position", List.of(STUDENT_CHANNEL, ACADEMY_CHANNEL, ADMIN_CHANNEL));
 
         RiderChangedBroadcastListener riderChanged = new RiderChangedBroadcastListener(mock(StudentRepository.class),
-                mock(RunRiderRepository.class), a.gateway, Runnable::run);
+                mock(RunRiderRepository.class), node.gateway, Runnable::run);
         riderChanged.broadcast(new RiderMarkedNoShowEvent(RUN, ACADEMY, 100L, 7L, 8L, 9L, false, NOW));
-        expectOnB(b, "rider_changed", List.of(MANAGER_CHANNEL, ACADEMY_CHANNEL, ADMIN_CHANNEL));
+        expectDelivered(node, "rider_changed", List.of(MANAGER_CHANNEL, ACADEMY_CHANNEL, ADMIN_CHANNEL));
 
         StudentRepository students = mock(StudentRepository.class);
         Student student = mock(Student.class);
@@ -146,38 +145,38 @@ class BroadcastRelayEveryEventTest extends RedisTestContainerBase {
         ChangeRequest changeRequest = mock(ChangeRequest.class);
         given(changeRequest.getDeadlineAt()).willReturn(NOW.plusHours(1));
         given(changeRequests.findById(1L)).willReturn(Optional.of(changeRequest));
-        new ApprovalRequestedBroadcastListener(students, approvalRiders, stops, changeRequests, a.gateway, Runnable::run)
+        new ApprovalRequestedBroadcastListener(students, approvalRiders, stops, changeRequests, node.gateway, Runnable::run)
                 .broadcast(new ApprovalRequestedEvent(1L, ACADEMY, RUN, 100L, NOW));
-        expectOnB(b, "approval_requested", List.of(ACADEMY_CHANNEL));
+        expectDelivered(node, "approval_requested", List.of(ACADEMY_CHANNEL));
 
-        EmergencyBroadcastListener emergency = new EmergencyBroadcastListener(a.gateway, Runnable::run);
+        EmergencyBroadcastListener emergency = new EmergencyBroadcastListener(node.gateway, Runnable::run);
         emergency.broadcastRaised(new EmergencyRaisedEvent(5L, ACADEMY, "A학원", RUN, "12가3456", EmergencyType.ACCIDENT,
                 new EmergencyRaisedEvent.RaisedBy("기사", "driver", "010"),
                 new EmergencyRaisedEvent.Position(new BigDecimal("37.5"), new BigDecimal("127.0")), 3, NOW));
-        expectOnB(b, "emergency_raised", List.of(ACADEMY_CHANNEL, ADMIN_CHANNEL));
+        expectDelivered(node, "emergency_raised", List.of(ACADEMY_CHANNEL, ADMIN_CHANNEL));
         emergency.broadcastAcked(new EmergencyAckedEvent(5L, ACADEMY, RUN, "관계자", NOW));
-        expectOnB(b, "emergency_acked", List.of(MANAGER_CHANNEL));
+        expectDelivered(node, "emergency_acked", List.of(MANAGER_CHANNEL));
         emergency.broadcastCanceled(new EmergencyCanceledEvent(5L, ACADEMY, RUN, "12가3456", NOW));
-        expectOnB(b, "emergency_canceled", List.of(ACADEMY_CHANNEL, ADMIN_CHANNEL));
+        expectDelivered(node, "emergency_canceled", List.of(ACADEMY_CHANNEL, ADMIN_CHANNEL));
     }
 
-    /** B 의 송신 템플릿이 그 종류의 방송을 기대한 목적지마다 받았는지 본다. */
-    private void expectOnB(Node b, String event, List<String> destinations) {
+    /** 인스턴스의 송신 템플릿이 그 종류의 방송을 기대한 목적지마다 받았는지 본다. */
+    private void expectDelivered(Node node, String event, List<String> destinations) {
         for (String destination : destinations) {
-            verify(b.template, timeout(5000)).convertAndSend(eq(destination),
+            verify(node.template, timeout(5000)).convertAndSend(eq(destination),
                     org.mockito.ArgumentMatchers.<Object>argThat(envelope ->
                             envelope instanceof WebSocketEnvelope e && event.equals(e.event())));
         }
-        clearInvocations(b.template);
+        clearInvocations(node.template);
     }
 
-    /** 두 인스턴스가 서로의 발행을 받을 수 있는 상태가 될 때까지 탐침 방송을 반복해 보낸다. */
-    private void awaitSubscribed(Node a, Node b) {
+    /** 인스턴스가 자기 발행을 Redis 에서 받을 수 있는 상태가 될 때까지 탐침 방송을 반복해 보낸다. */
+    private void awaitSubscribed(Node node) {
         await().atMost(Duration.ofSeconds(10)).pollInterval(Duration.ofMillis(100)).untilAsserted(() -> {
-            a.gateway.send(ADMIN_CHANNEL, "probe", 0L, NOW, new Object());
-            verify(b.template, timeout(200).atLeastOnce()).convertAndSend(eq(ADMIN_CHANNEL), any(WebSocketEnvelope.class));
+            node.gateway.send(ADMIN_CHANNEL, "probe", 0L, NOW, new Object());
+            verify(node.template, timeout(200).atLeastOnce()).convertAndSend(eq(ADMIN_CHANNEL), any(WebSocketEnvelope.class));
         });
-        clearInvocations(b.template);
+        clearInvocations(node.template);
     }
 
     private Node newNode(java.util.Collection<String> watched) {

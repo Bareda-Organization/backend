@@ -47,17 +47,17 @@ import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * S-1 · S-2 — 실제 Redis 를 사이에 둔 인스턴스 2대. A 가 낸 이벤트 1건은 Redis 메시지 1건이고, A · B 가 모두 그 메시지를 받아 각자 자기 구독자가 있는 목적지에만 보낸다.
- * 인스턴스 하나 = 게이트웨이 + 중계 + 자기 구독 등록부 + 자기 송신 템플릿(가짜), 실제 연결은 공용 Redis 컨테이너다.
+ * 실제 Redis 를 사이에 둔 인스턴스 하나. 이벤트 1건은 Redis 메시지 1건이고, 인스턴스는 그 메시지를 받아 자기 구독자가 있는 목적지에만 보낸다.
+ * 인스턴스 = 게이트웨이 + 중계 + 자기 구독 등록부 + 자기 송신 템플릿(가짜), 실제 연결은 공용 Redis 컨테이너다.
  */
 class BroadcastRelayRedisTest extends RedisTestContainerBase {
 
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-10-18T09:00:00+09:00");
 
-    private static final String ON_A = "/topic/students/1/run";
-    private static final String ON_B = "/topic/students/2/run";
-    private static final String ON_NEITHER = "/topic/students/3/run";
-    private static final String ON_BOTH = "/topic/admin/live";
+    private static final String SUBSCRIBED = "/topic/students/1/run";
+    private static final String ALSO_SUBSCRIBED = "/topic/admin/live";
+    private static final String UNSUBSCRIBED = "/topic/students/2/run";
+    private static final String ALSO_UNSUBSCRIBED = "/topic/students/3/run";
 
     private final String suffix = ":" + UUID.randomUUID();
     private final JsonMapper mapper = JsonMapper.builder().propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE).build();
@@ -90,55 +90,45 @@ class BroadcastRelayRedisTest extends RedisTestContainerBase {
     }
 
     @Test
-    @DisplayName("A 가 낸 위치 1건은 Redis 메시지 1건이고, A 와 B 는 각자 자기 구독자가 있는 목적지에만 보낸다")
-    void 인스턴스_둘은_각자_자기_구독자에게만_보낸다() throws Exception {
-        Node a = newNode(Set.of(ON_A, ON_BOTH));
-        Node b = newNode(Set.of(ON_B, ON_BOTH));
-        awaitSubscribed(a, b);
+    @DisplayName("위치 1건은 Redis 메시지 1건이고, 인스턴스는 자기 구독자가 있는 목적지에만 보낸다")
+    void 인스턴스는_자기_구독자에게만_보낸다() throws Exception {
+        Node node = newNode(Set.of(SUBSCRIBED, ALSO_SUBSCRIBED));
+        awaitSubscribed(node);
 
-        a.gateway.broadcast("position", 10L, NOW, List.of(
+        node.gateway.broadcast("position", 10L, NOW, List.of(
                 new BroadcastDelivery(new Payload(new BigDecimal("37.5000"), 7L, "정문"),
-                        List.of(ON_A, ON_B, ON_NEITHER, ON_BOTH))));
+                        List.of(SUBSCRIBED, UNSUBSCRIBED, ALSO_UNSUBSCRIBED, ALSO_SUBSCRIBED))));
 
-        verify(a.template, timeout(5000)).convertAndSend(eq(ON_A), any(WebSocketEnvelope.class));
-        verify(a.template, timeout(5000)).convertAndSend(eq(ON_BOTH), any(WebSocketEnvelope.class));
-        verify(b.template, timeout(5000)).convertAndSend(eq(ON_B), any(WebSocketEnvelope.class));
-        verify(b.template, timeout(5000)).convertAndSend(eq(ON_BOTH), any(WebSocketEnvelope.class));
-        verify(a.template, never()).convertAndSend(eq(ON_B), any(Object.class));
-        verify(a.template, never()).convertAndSend(eq(ON_NEITHER), any(Object.class));
-        verify(b.template, never()).convertAndSend(eq(ON_A), any(Object.class));
-        verify(b.template, never()).convertAndSend(eq(ON_NEITHER), any(Object.class));
+        verify(node.template, timeout(5000)).convertAndSend(eq(SUBSCRIBED), any(WebSocketEnvelope.class));
+        verify(node.template, timeout(5000)).convertAndSend(eq(ALSO_SUBSCRIBED), any(WebSocketEnvelope.class));
+        verify(node.template, never()).convertAndSend(eq(UNSUBSCRIBED), any(Object.class));
+        verify(node.template, never()).convertAndSend(eq(ALSO_UNSUBSCRIBED), any(Object.class));
         assertThat(redisMessages).as("이벤트 1건이 Redis 에 낸 메시지 수(준비용 탐침 제외)")
                 .filteredOn(text -> text.contains("\"event\":\"position\"")).hasSize(1);
     }
 
     @Test
-    @DisplayName("B 가 받은 봉투의 payload 는 A 가 직접 보냈을 때와 같은 JSON 이다 — 키 이름 · 식별자 문자열 · 소수 자릿수")
+    @DisplayName("중계를 거친 봉투의 payload 는 직접 보냈을 때와 같은 JSON 이다 — 키 이름 · 식별자 문자열 · 소수 자릿수")
     void 중계를_거쳐도_선_위의_JSON_은_같다() throws Exception {
-        Node a = newNode(Set.of(ON_A));
-        Node b = newNode(Set.of(ON_B));
-        awaitSubscribed(a, b);
+        Node node = newNode(Set.of(SUBSCRIBED));
+        awaitSubscribed(node);
         Payload payload = new Payload(new BigDecimal("37.5000"), 7L, "정문");
 
-        a.gateway.send(ON_B, "position", 10L, NOW, payload);
+        node.gateway.send(SUBSCRIBED, "position", 10L, NOW, payload);
 
         ArgumentCaptor<WebSocketEnvelope> sent = ArgumentCaptor.forClass(WebSocketEnvelope.class);
-        verify(b.template, timeout(5000)).convertAndSend(eq(ON_B), sent.capture());
+        verify(node.template, timeout(5000)).convertAndSend(eq(SUBSCRIBED), sent.capture());
         assertThat(mapper.writeValueAsString(sent.getValue()))
                 .isEqualTo(mapper.writeValueAsString(new WebSocketEnvelope("position", 10L, NOW, payload)));
     }
 
-    /** 두 인스턴스가 서로의 발행을 받을 수 있는 상태가 될 때까지 탐침 이벤트를 반복해 보낸다 — 구독 성립 전의 메시지는 Redis 가 버린다. */
-    private void awaitSubscribed(Node... all) {
+    /** 인스턴스가 자기 발행을 Redis 에서 받을 수 있는 상태가 될 때까지 탐침 이벤트를 반복해 보낸다 — 구독 성립 전의 메시지는 Redis 가 버린다. */
+    private void awaitSubscribed(Node node) {
         await().atMost(Duration.ofSeconds(10)).pollInterval(Duration.ofMillis(100)).untilAsserted(() -> {
-            all[0].gateway.send(ON_BOTH, "probe", 0L, NOW, new Object());
-            for (Node node : all) {
-                verify(node.template, timeout(200).atLeastOnce()).convertAndSend(eq(ON_BOTH), any(WebSocketEnvelope.class));
-            }
+            node.gateway.send(ALSO_SUBSCRIBED, "probe", 0L, NOW, new Object());
+            verify(node.template, timeout(200).atLeastOnce()).convertAndSend(eq(ALSO_SUBSCRIBED), any(WebSocketEnvelope.class));
         });
-        for (Node node : all) {
-            clearInvocations(node.template);
-        }
+        clearInvocations(node.template);
         redisMessages.clear();
     }
 
@@ -154,7 +144,7 @@ class BroadcastRelayRedisTest extends RedisTestContainerBase {
         return factory;
     }
 
-    /** 인스턴스 한 대 — 자기 구독 등록부 · 송신 템플릿 · Redis 연결을 가진다. */
+    /** 인스턴스 — 자기 구독 등록부 · 송신 템플릿 · Redis 연결을 가진다. */
     private final class Node {
         final SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
         final ThreadPoolTaskExecutor outbound = new ThreadPoolTaskExecutor();

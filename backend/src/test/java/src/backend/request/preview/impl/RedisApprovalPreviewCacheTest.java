@@ -32,16 +32,14 @@ import testsupport.redis.RedisTestContainerBase;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * S-4 — 승인 미리보기는 Redis 에 있어 인스턴스 A 가 만든 것을 B 가 결정에 쓴다(Ruling 900 C). 인스턴스 하나 = 이 캐시 객체 하나, Redis 는 둘이 같은 컨테이너를 본다.
- * 결정 뒤 지우면 어느 쪽에서도 사라지고, 하루 만료가 걸리며, Redis 오류는 모자람(없음)으로 읽는다(K4).
+ * 승인 미리보기는 캐시 객체의 메모리가 아니라 Redis 에 있다(Ruling 900 C). 넣은 것을 같은 내용으로 읽고, 결정 뒤 지우면 키가 사라지고, 하루 만료가 걸리며, Redis 오류는 모자람(없음)으로 읽는다(K4).
  */
 class RedisApprovalPreviewCacheTest extends RedisTestContainerBase {
 
     private final JsonMapper mapper = JsonMapper.builder().build();
     private LettuceConnectionFactory factory;
     private StringRedisTemplate redis;
-    private RedisApprovalPreviewCache instanceA;
-    private RedisApprovalPreviewCache instanceB;
+    private RedisApprovalPreviewCache cache;
     private final long approvalId = Math.abs(UUID.randomUUID().getLeastSignificantBits() % 1_000_000_000L);
 
     @BeforeEach
@@ -49,33 +47,32 @@ class RedisApprovalPreviewCacheTest extends RedisTestContainerBase {
         factory = new LettuceConnectionFactory(REDIS.getHost(), REDIS.getMappedPort(6379));
         factory.afterPropertiesSet();
         redis = new StringRedisTemplate(factory);
-        instanceA = new RedisApprovalPreviewCache(redis, mapper);
-        instanceB = new RedisApprovalPreviewCache(new StringRedisTemplate(factory), mapper);
+        cache = new RedisApprovalPreviewCache(redis, mapper);
     }
 
     @AfterEach
     void close() {
-        instanceA.evict(approvalId);
+        cache.evict(approvalId);
         factory.destroy();
     }
 
     @Test
-    @DisplayName("A 에서 만든 미리보기를 B 가 같은 내용으로 읽고, B 가 결정 뒤 지우면 A 에서도 사라진다")
-    void 한_인스턴스가_만들고_다른_인스턴스가_결정한다() {
+    @DisplayName("넣은 미리보기를 같은 내용으로 읽고, 결정 뒤 지우면 읽기와 Redis 키 모두 사라진다")
+    void 넣은_미리보기를_읽고_결정_뒤_지운다() {
         ApprovalPreview preview = new ApprovalPreview("token-1", "fp-1", computation());
 
-        instanceA.put(approvalId, preview);
+        cache.put(approvalId, preview);
 
-        assertThat(instanceB.find(approvalId)).as("B 가 읽은 미리보기").contains(preview);
-        instanceB.evict(approvalId);
-        assertThat(instanceA.find(approvalId)).as("결정 뒤 지운 키").isEmpty();
+        assertThat(cache.find(approvalId)).as("읽은 미리보기").contains(preview);
+        cache.evict(approvalId);
+        assertThat(cache.find(approvalId)).as("결정 뒤 지운 키").isEmpty();
         assertThat(redis.hasKey("schoolbus:approval-preview:" + approvalId)).isFalse();
     }
 
     @Test
     @DisplayName("저장한 키에 1일 만료가 걸려 있다")
     void 하루_만료가_걸린다() {
-        instanceA.put(approvalId, new ApprovalPreview("token-1", "fp-1", computation()));
+        cache.put(approvalId, new ApprovalPreview("token-1", "fp-1", computation()));
 
         Long seconds = redis.getExpire("schoolbus:approval-preview:" + approvalId);
 
@@ -91,10 +88,10 @@ class RedisApprovalPreviewCacheTest extends RedisTestContainerBase {
         given(broken.opsForValue()).willReturn(ops);
         given(ops.get(anyString())).willThrow(new RedisConnectionFailureException("끊김"));
         given(broken.delete(anyString())).willThrow(new RedisConnectionFailureException("끊김"));
-        RedisApprovalPreviewCache cache = new RedisApprovalPreviewCache(broken, mapper);
+        RedisApprovalPreviewCache brokenCache = new RedisApprovalPreviewCache(broken, mapper);
 
-        assertThat(cache.find(approvalId)).isEmpty();
-        cache.evict(approvalId);
+        assertThat(brokenCache.find(approvalId)).isEmpty();
+        brokenCache.evict(approvalId);
     }
 
     private static RouteComputation computation() {
