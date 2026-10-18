@@ -38,6 +38,11 @@ public class FailSoftRedisMessageListenerContainer extends RedisMessageListenerC
         }
     }
 
+    /** 구독이 Redis 에 서 있다 — 연결이 끊겨 다시 거는 중이거나 시작하지 못했으면 거짓이다. */
+    public boolean isSubscribed() {
+        return !subscriptionPending && isListening();
+    }
+
     /** 구독이 아직 Redis 에 서지 못했다. */
     public boolean isSubscriptionPending() {
         return subscriptionPending;
