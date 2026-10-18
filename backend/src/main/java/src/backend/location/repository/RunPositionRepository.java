@@ -39,4 +39,23 @@ public interface RunPositionRepository extends JpaRepository<RunPosition, Long> 
             """, nativeQuery = true)
     List<RunPosition> findLatestByRunIdIn(@Param("runIds") Collection<Long> runIds, @Param("since") OffsetDateTime since,
             @Param("until") OffsetDateTime until);
+
+    /**
+     * {@link #findLatestByRunIdIn} 과 같되 <b>운행 중({@code moving}) 회차</b>만 — Redis 가 살아 있는데 값이 비어 있을 때(다시 시작한 Redis) 최신 좌표를 채우는 재료다. 구간은 위치가 낡았다고 보는
+     * 기준이라 한 회차당 인덱스 앞 1행을 읽는 것은 같고, 대기 · 종료 회차의 행은 읽지 않는다.
+     */
+    @AcademyScopeExempt(reason = "Redis 최신 좌표가 비었을 때의 대체 조회 — 호출자가 이미 학원 범위로 확인한 회차 id 만 넘기고, run_position 에는 academy_id 컬럼이 부재하다")
+    @Query(value = """
+            SELECT p.*
+            FROM run r
+            JOIN LATERAL (
+                SELECT * FROM run_position
+                WHERE run_id = r.id AND recorded_at >= :since AND recorded_at < :until
+                ORDER BY recorded_at DESC, id DESC
+                LIMIT 1
+            ) p ON true
+            WHERE r.id IN (:runIds) AND r.status = 'moving'
+            """, nativeQuery = true)
+    List<RunPosition> findLatestMovingByRunIdIn(@Param("runIds") Collection<Long> runIds, @Param("since") OffsetDateTime since,
+            @Param("until") OffsetDateTime until);
 }
