@@ -5,15 +5,16 @@
 # 부하는 backend/load/k6/r60_redis_outage.js(기사 위치 POST · 학부모 위치 GET · Redis 무관 GET · 승인 상세 GET · STOMP 구독자).
 # 정리는 `down` 만 한다 — `-v` 는 쓰지 않는다(스택이 볼륨을 만들지 않는다).
 #
-# 판정(종료 코드 0 이려면 전부 만족) — 기준값은 환경변수로 바꿀 수 있다:
-#   1. Redis 와 무관한 REST 5xx · 시간 초과 = 0                    DRILL_5XX_LIMIT (기본 0)
-#   2. 위치 송신(POST) 실패 = 0                                     DRILL_SEND_FAIL_LIMIT (기본 0)
-#   3. 다시 켠 뒤 중계 구독 복구 시간(Redis PUBSUB NUMSUB)          DRILL_RECOVERY_LIMIT_SEC (기본 10)
-#   4. 다시 켠 뒤 REST 위치 조회가 최신 값(나이 2초 이하)으로 돌아오는 시간   DRILL_FILL_LIMIT_SEC (기본 30 — 클라이언트 안전망 조회 주기, API_SPEC §7.2)
-#   5. 멈춘 동안 지도 API(스텁) 호출률 − 멈추기 전 호출률 ≤ 허용치      DRILL_MAP_RATE_MARGIN (기본 0.2 건/초)
-#   6. 멈춘 동안 DB 트랜잭션률 ≤ 멈추기 전 × 배수                     DRILL_DB_RATE_FACTOR (기본 3.0)
-#   7. 멈춘 동안 Hikari 대기 최대값                                   DRILL_HIKARI_PENDING_LIMIT (기본 5)
-#   8. 멈춘 동안 Redis 무관 읽기(student_runs) p95                    DRILL_P95_LIMIT_MS (기본 2000)
+# 판정(종료 코드 0 이려면 전부 만족) — 기준값은 환경변수로 바꿀 수 있다. 929 D 가 정한 것은 1 · 2 · 3 이고, 4~8 은 확인 회차(큰 회차, 요청 7,971건)의 실측에 여유를 둔 값이다:
+#   1. Redis 와 무관한 REST 5xx · 시간 초과 = 0                     DRILL_5XX_LIMIT (기본 0)                  929 D
+#   2. 위치 송신(POST) 실패 = 0                                      DRILL_SEND_FAIL_LIMIT (기본 0)            929 D
+#   3. 다시 켠 뒤 중계 구독 복구 시간(Redis PUBSUB NUMSUB)           DRILL_RECOVERY_LIMIT_SEC (기본 10)        929 D (실측 kill 2.1초 · pause 0.1초)
+#   4. 다시 켠 뒤 REST 위치 조회가 낡은 값(나이 2초 초과)을 마지막으로 돌려준 시각   DRILL_FILL_LIMIT_SEC (기본 30 — 클라이언트 안전망 조회 주기, API_SPEC §7.2 · 실측 0초)
+#   5. 멈춘 동안 지도 API(스텁) 온디맨드 호출률 − 멈추기 전 호출률    DRILL_MAP_RATE_MARGIN (기본 0.0167 건/초 = 분당 1건 · 실측 0.015~0.016 = 멈춤 직후 미리보기 1번 다시 계산)
+#   6. 멈춘 동안 DB 트랜잭션률 ≤ 멈추기 전 × 배수                     DRILL_DB_RATE_FACTOR (기본 1.5 · 실측 1.05배)
+#   7. 멈춘 동안 Hikari 대기 최대값                                   DRILL_HIKARI_PENDING_LIMIT (기본 2 · 실측 0)
+#   8. 멈춘 동안 Redis 무관 읽기(student_runs) p95                    DRILL_P95_LIMIT_MS (기본 500 · 실측 최대 89.5ms)
+#   9. 멈춘 동안 컨테이너 헬스 · /healthz 가 UP(200), 멈춘 채 다시 시작한 백엔드가 start_period 안에 건강해짐   DRILL_RESTART_HEALTHY_LIMIT_SEC (기본 90 = compose healthcheck start_period · Ruling 932)
 # 출력에는 그 밖에 멈춤 구간별 응답 시간 · /healthz 응답 · 서킷이 닫힌 시각 · nginx 가 /healthz 에 낸 상태를 적는다.
 #
 # 사용
@@ -37,8 +38,11 @@ case "$SIZE" in
   *) echo "DRILL_SIZE 는 small 또는 full"; exit 2 ;;
 esac
 WARMUP=6
-# k6 가 도는 시간 = 준비 + 기준 + (멈춤 + 회복) × 2 + 마무리
-K6_SECONDS=$(( WARMUP + BASELINE + 2 * (HOLD + COOL) + 5 ))
+# 멈춘 채 백엔드 다시 시작 구간 — 건강해지기를 기다리는 최대 시간(compose healthcheck 의 start_period 90초에 여유) + 복구 대기
+RESTART_WAIT=120
+RESTART_COOL=10
+# k6 가 도는 시간 = 준비 + 기준 + (멈춤 + 회복) × 2 + 멈춘 채 다시 시작 + 마무리
+K6_SECONDS=$(( WARMUP + BASELINE + 2 * (HOLD + COOL) + RESTART_WAIT + RESTART_COOL + 30 ))
 
 ANALYZE_ONLY="${DRILL_ANALYZE_ONLY:-}"   # 이미 돈 결과 폴더를 다른 기준값으로 다시 판정만 한다(스택을 띄우지 않는다)
 OUT="${ANALYZE_ONLY:-${DRILL_OUT:-$(mktemp -d "${TMPDIR:-/tmp}/r60-redis-drill.XXXXXX")}}"
@@ -163,6 +167,24 @@ event pause_subscribed
 echo "   중계 구독 복구(pause): ${RECOVERY_PAUSE_MS} ms"; printf 'pause\t%s\n' "$RECOVERY_PAUSE_MS" >> "$RECOVERY"
 sleep "$COOL"
 
+# 3) Redis 가 멈춘 채 백엔드를 다시 시작 — start_period 안에 건강해져야 한다(Ruling 932). nginx 는 다시 시작한 컨테이너의 새 주소를 reload 로 다시 찾는다(운영 배포는 proxy 도 다시 시작한다).
+event restart_begin
+[[ "${DRILL_DRY:-}" == 1 ]] || docker kill "$REDIS_CID" >/dev/null
+docker restart "$BACKEND_CID" >/dev/null
+restart_t0="$(now_ms)"; RESTART_HEALTHY_MS=-1
+while (( $(now_ms) < restart_t0 + RESTART_WAIT * 1000 )); do
+  if [[ "$(docker inspect -f '{{.State.Health.Status}}' "$BACKEND_CID" 2>/dev/null)" == healthy ]]; then RESTART_HEALTHY_MS=$(( $(now_ms) - restart_t0 )); break; fi
+  sleep 1
+done
+event restart_healthy
+echo "   다시 시작한 백엔드가 건강해진 시간(Redis 멈춘 채): ${RESTART_HEALTHY_MS} ms"; printf 'restart_healthy\t%s\n' "$RESTART_HEALTHY_MS" >> "$RECOVERY"
+docker exec "$PROXY_CID" nginx -s reload >/dev/null 2>&1 || true
+sleep 6
+[[ "${DRILL_DRY:-}" == 1 ]] || docker start "$REDIS_CID" >/dev/null
+wait_subscribed "$(now_ms)" > /dev/null
+event restart_end
+sleep "$RESTART_COOL"
+
 event drill_end
 wait "$K6_PID" 2>/dev/null || true; K6_PID=""
 kill "$SAMPLER_PID" 2>/dev/null || true; wait "$SAMPLER_PID" 2>/dev/null || true; SAMPLER_PID=""
@@ -181,8 +203,8 @@ env = os.environ.get
 LIM = dict(
     five_xx=int(env("DRILL_5XX_LIMIT", "0")), send_fail=int(env("DRILL_SEND_FAIL_LIMIT", "0")),
     recovery_sec=float(env("DRILL_RECOVERY_LIMIT_SEC", "10")), fill_sec=float(env("DRILL_FILL_LIMIT_SEC", "30")),
-    map_margin=float(env("DRILL_MAP_RATE_MARGIN", "0.2")), db_factor=float(env("DRILL_DB_RATE_FACTOR", "3.0")),
-    hikari=float(env("DRILL_HIKARI_PENDING_LIMIT", "5")), p95_ms=float(env("DRILL_P95_LIMIT_MS", "2000")),
+    map_margin=float(env("DRILL_MAP_RATE_MARGIN", "0.0167")), db_factor=float(env("DRILL_DB_RATE_FACTOR", "1.5")),
+    hikari=float(env("DRILL_HIKARI_PENDING_LIMIT", "2")), restart_healthy_sec=float(env("DRILL_RESTART_HEALTHY_LIMIT_SEC", "90")), p95_ms=float(env("DRILL_P95_LIMIT_MS", "500")),
 )
 
 events = {}
@@ -213,13 +235,16 @@ for line in open(f"{out}/samples.tsv"):
 health = [l.rstrip("\n").split("\t") for l in open(f"{out}/healthz.tsv") if l.strip()]
 
 t0 = events["baseline_start"]
+# 다시 시작 구간이 없는 옛 결과 폴더도 다시 판정할 수 있게 구간 끝을 연습 끝으로 둔다
+restart_begin, restart_end = events.get("restart_begin", events["drill_end"]), events.get("restart_end", events["drill_end"])
 phases = {  # 구간 이름 → (시작, 끝) epoch ms
     "before": (t0, events["kill_begin"]),
     "kill": (events["kill_begin"], events["kill_subscribed"] + 5000),
     "pause": (events["pause_begin"], events["pause_subscribed"] + 5000),
-    "after": (events["pause_subscribed"] + 5000, events["drill_end"]),
+    "after": (events["pause_subscribed"] + 5000, restart_begin),
 }
-down = (events["kill_begin"], events["drill_end"])
+# 백엔드를 일부러 다시 시작한 구간(요청이 실패하는 것이 정상)은 5xx · 송신 실패 계수에서 뺀다 — 다시 시작이 끝나고 10초 뒤부터 센다.
+steady = [(t0, restart_begin), (restart_end + 10000, events["drill_end"])]
 
 APP = {"position_post", "bus_position", "student_runs", "approval_detail"}
 def in_(t, w): return w[0] <= t < w[1]
@@ -244,13 +269,13 @@ fails = []
 print("\n===== Redis 멈춤 연습 결과 =====")
 print("요청 계수(이름별 · 연습 전체):")
 for name in sorted(APP):
-    pp = http_points(name, (t0, events["drill_end"]))
+    pp = [p for w in steady for p in http_points(name, w)]
     codes = {}
     for p in pp: codes[p[3].get("status", "?")] = codes.get(p[3].get("status", "?"), 0) + 1
     print(f"  {name:16s} 요청 {len(pp):5d}  상태 {codes}")
 
-five = [p for p in http_points(None, (t0, events["drill_end"])) if is_5xx(p)]
-send_fail = [p for p in http_points("position_post", (t0, events["drill_end"])) if not (200 <= int(p[3].get("status", "0")) < 300)]
+five = [p for w in steady for p in http_points(None, w) if is_5xx(p)]
+send_fail = [p for w in steady for p in http_points("position_post", w) if not (200 <= int(p[3].get("status", "0")) < 300)]
 print(f"\n1. Redis 무관 REST 5xx · 시간 초과: {len(five)} (기준 ≤ {LIM['five_xx']})")
 if len(five) > LIM["five_xx"]: fails.append("5xx")
 print(f"2. 위치 송신 실패: {len(send_fail)} (기준 ≤ {LIM['send_fail']})")
@@ -268,7 +293,7 @@ def fill_time(restore_ms, until_ms):
     n_stale = len(stale)
     return ((max(stale) - restore_ms) / 1000.0 if stale else 0.0), n_stale
 fk, fk_n = fill_time(events["kill_end"], events["pause_begin"])
-fp, fp_n = fill_time(events["pause_end"], events["drill_end"])
+fp, fp_n = fill_time(events["pause_end"], restart_begin)
 print(f"4. 다시 켠 뒤 REST 위치 조회가 낡은 값(나이 > 2초)을 마지막으로 돌려준 시각: kill {fk:.1f}초(낡은 응답 {fk_n}건) · pause {fp:.1f}초(낡은 응답 {fp_n}건) (기준 ≤ {LIM['fill_sec']}초)")
 for label, v in (("kill", fk), ("pause", fp)):
     if v > LIM["fill_sec"]: fails.append(f"fill_{label}")
@@ -298,8 +323,8 @@ for label in ("kill", "pause"):
     v = p95([p[2] for p in http_points("student_runs", phases[label])])
     if v > LIM["p95_ms"]: fails.append(f"p95_{label}")
 
-for label, end_key, until_key in (("kill", "kill_end", "pause_begin"), ("pause", "pause_end", "drill_end")):
-    back = [s[0] for s in samples if events[end_key] <= s[0] < events[until_key] and s[COL["cb_closed"]] >= 1]
+for label, end_key, until in (("kill", "kill_end", events["pause_begin"]), ("pause", "pause_end", restart_begin)):
+    back = [s[0] for s in samples if events[end_key] <= s[0] < until and s[COL["cb_closed"]] >= 1]
     when = f"{(back[0] - events[end_key]) / 1000.0:.1f}초 뒤" if back else "닫히지 않음"
     opened = [s[0] for s in samples if events[label + "_begin"] <= s[0] < events[end_key] and s[COL["cb_closed"]] < 1]
     first_open = f"{(opened[0] - events[label + '_begin']) / 1000.0:.1f}초 뒤" if opened else "열리지 않음"
@@ -309,6 +334,19 @@ for label, w in phases.items():
     ss = [s for s in samples if in_(s[0], w)]
     if len(ss) >= 2:
         print(f"   {label:6s} 발행 실패 +{int(ss[-1][COL['relay_failed']] - ss[0][COL['relay_failed']])} · 위치 DB 대체 +{int(ss[-1][COL['pos_fallback']] - ss[0][COL['pos_fallback']])} · 중계 수신 +{int(ss[-1][COL['relay_received']] - ss[0][COL['relay_received']])}")
+
+# 9. 멈춘 동안 컨테이너 헬스 · /healthz 가 UP, 멈춘 채 다시 시작한 백엔드가 start_period 안에 건강해짐(Ruling 932)
+bad_health = [h for label in ("kill", "pause") for h in health if in_(int(h[0]), phases[label]) and (h[1], h[2], h[3]) != ("200", "200", "healthy")]
+print(f"\n9. Redis 가 멈춘 동안 /healthz(nginx · 직접) · 컨테이너 헬스가 UP 이 아닌 표본: {len(bad_health)} (기준 0)")
+if bad_health: fails.append("health_not_up")
+if "restart_healthy" in recovery:
+    restart_ms = int(recovery["restart_healthy"])
+    print(f"   Redis 가 멈춘 채 다시 시작한 백엔드가 건강해진 시간: {restart_ms / 1000.0:.1f}초 (기준 ≤ {LIM['restart_healthy_sec']}초 = compose healthcheck start_period, -1 은 120초 안에 못 됨)")
+    if restart_ms < 0 or restart_ms / 1000.0 > LIM["restart_healthy_sec"]: fails.append("restart_healthy")
+    after_restart = [h for h in health if events["restart_healthy"] + 8000 <= int(h[0]) < restart_end]
+    print(f"   다시 시작 뒤 /healthz 표본 — 백엔드 직접 {[h[2] for h in after_restart]} · nginx(reload 뒤) {[h[1] for h in after_restart]}")
+else:
+    print("   (이 결과 폴더에는 멈춘 채 다시 시작한 구간이 없다)")
 
 print("\n/healthz — (시각 초 · nginx 상태 · 백엔드 직접 상태 · 컨테이너 헬스) 구간별 요약:")
 for ph, w in phases.items():
