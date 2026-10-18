@@ -48,6 +48,15 @@ const resubscribeMs = new Trend('resubscribe_ms', true);
 const errorFrames = new Counter('error_frames');
 const errorFramesAfterClose = new Counter('error_frames_after_close');
 const attemptFailures = new Counter('reconnect_attempt_failures');
+// 재접속 시도 실패의 실제 이유 — 업그레이드 응답 상태(0 = 응답 없음 · 연결 오류) · 닫힘 코드 · 소켓 오류 문구 · 걸린 시간. 앞 FAIL_LOG_LIMIT 건은 로그에 한 줄씩 남긴다.
+// REST 요청은 `Connection: close` 로 보낸다 — 운영은 nginx 가 업스트림(톰캣)과 HTTP/1.0 으로 말해(`proxy_http_version` 미지정 · keepalive 없음) REST 한 건마다 연결이 닫힌다.
+// k6 가 톰캣에 직접 HTTP/1.1 로 붙으면 스냅샷 2,000건의 연결이 유휴 유지 시간(약 60초) 동안 톰캣 동시 연결 수(상한 4,000)를 채워 재접속이 막힌다(시험 방식이 만든 현상).
+const failStatus = {};
+for (const st of [0, 101, 400, 401, 403, 429, 500, 502, 503, 504]) failStatus[st] = new Counter(`reconnect_fail_status_${st}`);
+const failStatusOther = new Counter('reconnect_fail_status_other');
+const failNoSubscribe = new Counter('reconnect_fail_connected_no_message'); // 101 로 붙었지만 닫을 때까지 방송을 못 받은 시도
+const FAIL_LOG_LIMIT = 60;
+let failLogged = 0;
 const initialAttemptFailures = new Counter('initial_attempt_failures');
 const earlyClose = new Counter('closed_before_close_time');
 const snapshotMs = new Trend('snapshot_ms', true);
@@ -76,7 +85,7 @@ export const options = {
 
 // (세션 번호는 scenario.iterationInTest — 시나리오 안에서 0부터 매겨진다. VU 번호는 시나리오를 가로질러 매겨져 쓰지 않는다.)
 // 세션 한 개의 일생 — 접속 · 구독 → 닫는 순간까지 유지 → 닫히면 곧바로 재접속 · 재구독 · 스냅샷 → 끝까지 유지.
-function lifecycle(kind, token, destination, snapshotPath) {
+function lifecycle(kind, token, destination, snapshotPath, who) {
     if (Date.now() >= END_AT) return; // 시험이 끝난 뒤 VU 가 새 반복을 시작해도 세션을 열지 않는다
     // 첫 접속은 실제 클라이언트처럼 실패하면 다시 시도한다(올리는 단계의 실패는 시험 대상이 아니다 — 시도 실패 수는 initial_attempt_failures 로 남긴다).
     // 닫기 3초 전까지 구독을 못 세운 세션은 닫기 전 확인에서 걸린다.
@@ -94,18 +103,24 @@ function lifecycle(kind, token, destination, snapshotPath) {
         attemptFailures.add(1);
         sleep(RETRY_FLOOR_MS / 1000);
     }
+    console.log(`NEVER_RESUBSCRIBED kind=${kind} who=${who} destination=${destination}`); // 시험이 끝날 때까지 재구독을 못 한 세션 — 목록으로 남긴다
 }
 
 // 접속해 구독하고 untilMs 까지 붙들고 있다. 닫는 순간에 도달해 정상 종료하거나(첫 접속) 구독까지 마쳤으면 true.
 function openSession(kind, token, destination, snapshotPath, untilMs, requireSubscribed = false) {
     const phase2 = snapshotPath !== null;
     let subscribedOk = false;
+    const attemptStart = Date.now();
+    let closeCode = null; let errText = null; let connectedAt = null;
     const res = ws.connect(WS_URL, {}, function (socket) {
+        socket.on('close', (code) => { closeCode = code; });
+        socket.on('error', (e) => { errText = String(e && e.error ? e.error() : e); });
         socket.on('open', () => socket.send(connectFrame(token)));
         socket.setInterval(() => socket.send('\n'), HEARTBEAT_MS);
         socket.on('message', function (raw) {
             for (const frame of parseFrames(raw)) {
                 if (frame.command === 'CONNECTED') {
+                    connectedAt = Date.now();
                     socket.send(subscribeFrame('sub-0', destination));
                 } else if (frame.command === 'MESSAGE' && !subscribedOk) {
                     subscribedOk = true;
@@ -117,7 +132,7 @@ function openSession(kind, token, destination, snapshotPath, untilMs, requireSub
                         resubscribedTotal.add(1);
                         // REST 스냅샷은 소켓 처리를 막지 않게 비동기로 보낸다 — 실제 앱 · 웹도 재구독과 REST 를 따로 돌린다. 동기로 부르면 응답이 느릴 때(최대 60초)
                         // 이 VU 의 하트비트가 멈춰 서버가 세션을 끊고, 그 끊김이 서버 탓처럼 기록된다.
-                        http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}` } }).then((snap) => {
+                        http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}`, Connection: 'close' } }).then((snap) => {
                             snapshotsDone.add(1);
                             snapshotMs.add(snap.timings.duration);
                             if (snap.status !== 200) snapshotFailures.add(1);
@@ -131,22 +146,30 @@ function openSession(kind, token, destination, snapshotPath, untilMs, requireSub
         });
         socket.setTimeout(() => socket.close(), Math.max(untilMs - Date.now(), 0) + 1);
     });
+    if (phase2 && !subscribedOk) {
+        const st = res ? res.status : 0;
+        (failStatus[st] || failStatusOther).add(1);
+        if (st === 101) failNoSubscribe.add(1);
+        if (failLogged++ < FAIL_LOG_LIMIT) {
+            console.log(`RECONNECT_FAIL kind=${kind} status=${st} err=${errText} close=${closeCode} elapsed_ms=${Date.now() - attemptStart} connected=${connectedAt !== null} since_close_ms=${Date.now() - CLOSE_AT}`);
+        }
+    }
     if (requireSubscribed) return subscribedOk; // 첫 접속: 끝까지(닫는 순간까지) 붙어 있었으면 구독은 선 것이다
     return phase2 ? subscribedOk : true;
 }
 
 export function studentSession() {
     const parent = parents[scenario.iterationInTest % parents.length];
-    lifecycle('student', parent.token, `/topic/students/${parent.studentId}/run`, `/students/${parent.studentId}/bus-position`);
+    lifecycle('student', parent.token, `/topic/students/${parent.studentId}/run`, `/students/${parent.studentId}/bus-position`, `student:${parent.studentId}`);
 }
 
 export function staffSession() {
     const tab = staff[scenario.iterationInTest % staff.length];
-    lifecycle('staff', tab.token, `/topic/academy/${tab.academyId}/live`, '/staff/runs/live');
+    lifecycle('staff', tab.token, `/topic/academy/${tab.academyId}/live`, '/staff/runs/live', `academy:${tab.academyId}`);
 }
 
 export function adminSession() {
-    lifecycle('admin', tokens.admin, '/topic/admin/live', '/admin/academies/1/runs/live');
+    lifecycle('admin', tokens.admin, '/topic/admin/live', '/admin/academies/1/runs/live', 'admin');
 }
 
 // 닫기 3초 전 — 이름표별 구독 수를 k6 REST 에서 읽어 한 줄로 찍고 기대 수와 비교한다.

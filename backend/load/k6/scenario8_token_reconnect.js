@@ -46,6 +46,7 @@ const adminSessions = new SharedArray('l6_admin', () => tokens.admin_sessions);
 const KINDS = ['student', 'staff', 'admin'];
 const subscribed = {};
 for (const k of KINDS) subscribed[k] = new Counter(`subscribed_${k}`);
+// REST 요청은 `Connection: close` — 운영은 nginx 가 톰캣과 HTTP/1.0 으로 말해 REST 한 건마다 연결이 닫힌다(scenario7 머리 주석).
 const reconnectCycles = new Counter('reconnect_cycles');
 const reissueMs = new Trend('reissue_ms', true);
 const reissueFailures = new Counter('reissue_failures');
@@ -112,7 +113,7 @@ function lifecycle(kind, base, slot, session, destination, snapshotPath) {
                             reconnectGapMs.add(now - closedAt);
                             if (now - closedAt > RESUBSCRIBE_LIMIT_MS) overLimit.add(1);
                             // 비동기 — 동기로 부르면 응답이 느릴 때 이 VU 의 하트비트가 멈춰 서버가 세션을 끊는다(실제 앱 · 웹은 재구독과 REST 를 따로 돌린다).
-                            http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}` } }).then((snap) => {
+                            http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}`, Connection: 'close' } }).then((snap) => {
                                 snapshotMs.add(snap.timings.duration);
                                 if (snap.status !== 200) snapshotFailures.add(1);
                             });
