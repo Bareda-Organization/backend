@@ -436,7 +436,7 @@ tests:
         alertname: Http5xxRatioHigh
         exp_alerts: []
 
-  - interval: 15s   # actuator · /healthz(외부 감시용 헬스 — Ruling 740)가 503(Redis 장애로 헬스 DOWN)이어도 · 부하 시험 프로파일(job 이 다르다)이 5xx 여도 울리지 않는다
+  - interval: 15s   # actuator · /healthz(외부 감시용 헬스 — Ruling 740)가 503(DB 장애로 헬스 DOWN)이어도 · 부하 시험 프로파일(job 이 다르다)이 5xx 여도 울리지 않는다
     input_series:
       - series: 'http_server_requests_seconds_count{job="backend",uri="/runs/{runId}/position",status="200"}'
         values: '0+60x80'

@@ -178,8 +178,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # Redis 가 멈추거나 답하지 않아도 백엔드는 대체 경로로 뜨고 건강해진다(Ruling 932) — healthy 를 기다리면 그 상태에서 백엔드를 다시 만드는 배포가 실패한다.
       redis:
-        condition: service_healthy
+        condition: service_started
     logging: *cloudwatch
 
   # 엣지 프록시 — 인터넷에서 닿는 유일한 지점. TLS 를 여기서 종단한다.
