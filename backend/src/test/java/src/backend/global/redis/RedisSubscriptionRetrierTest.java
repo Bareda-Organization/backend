@@ -56,6 +56,10 @@ class RedisSubscriptionRetrierTest {
     @EnumSource(Outage.class)
     @DisplayName("재시도가 5번 넘게 돈 뒤 Redis 가 돌아오면 두 채널 모두 구독 한 벌로 15초 안에 돌아와 메시지를 정확히 한 번씩 받는다")
     void 재시도_뒤_구독은_한_벌이고_메시지는_한_번(Outage outage) {
+        // 같은 시험 JVM 에 캐시된 다른 스프링 컨텍스트도 같은 이름의 스레드를 가진다 — 이 시험이 만든 것만 세려고 시작 전 수를 뺀다
+        int otherRetriers = threadCount("redis-subscription-retrier");
+        int otherLettuce = threadCount("lettuce-");
+        int otherReceivers = threadCount("relay-receive-");
         outage.begin(redis);
         try {
             OutageRedisContext.runner(redis).withPropertyValues("app.relay.subscription-retry-ms=100").run(context -> {
@@ -76,7 +80,7 @@ class RedisSubscriptionRetrierTest {
                     Thread.sleep(100);
                 }
                 assertThat(retrier.retryAttempts()).as("Redis 가 멈춘 동안 돈 재시도 횟수").isGreaterThanOrEqualTo(MIN_CYCLES);
-                assertThat(retrierThreadCount()).as("재시도 스레드").isEqualTo(1);
+                assertThat(retrierThreadCount() - otherRetriers).as("재시도 스레드").isEqualTo(1);
                 // 재시도가 한 번에 스레드를 하나씩 새게 하면 60번 뒤 상한(Lettuce 풀은 코어 수까지만 늘어난다)을 넘는다 — 연결 시간 상한까지 기다리는 얼린 Redis 는 12초 안에 도는 만큼만 본다
                 long manyCycles = MIN_CYCLES * 12;
                 long cyclesDeadline = System.nanoTime() + Duration.ofSeconds(12).toNanos();
@@ -84,9 +88,9 @@ class RedisSubscriptionRetrierTest {
                     Thread.sleep(100);
                 }
                 assertThat(retrier.retryAttempts()).as("스레드 수를 재기 전까지 돈 재시도").isGreaterThanOrEqualTo(MIN_CYCLES);
-                assertThat(retrierThreadCount()).as("재시도 스레드").isEqualTo(1);
-                assertThat(threadCount("relay-receive-")).as("방송 수신 실행기 스레드(메시지가 올 때 만들어진다)").isLessThanOrEqualTo(1);
-                assertThat(threadCount("lettuce-")).as("Lettuce 스레드(이벤트 루프 풀 둘은 코어 수까지만 늘고 타이머는 1개)")
+                assertThat(retrierThreadCount() - otherRetriers).as("재시도 스레드").isEqualTo(1);
+                assertThat(threadCount("relay-receive-") - otherReceivers).as("방송 수신 실행기 스레드(메시지가 올 때 만들어진다)").isLessThanOrEqualTo(1);
+                assertThat(threadCount("lettuce-") - otherLettuce).as("Lettuce 스레드(이벤트 루프 풀 둘은 코어 수까지만 늘고 타이머는 1개)")
                         .isLessThanOrEqualTo(2 * Runtime.getRuntime().availableProcessors() + 1);
 
                 outage.end(redis);
@@ -95,7 +99,7 @@ class RedisSubscriptionRetrierTest {
                 RedisCommands<String, String> observer = connectObserver(client);
                 awaitSubscribers(observer, 1);
 
-                assertThat(retrierThreadCount()).as("복구 뒤 재시도 스레드").isEqualTo(1);
+                assertThat(retrierThreadCount() - otherRetriers).as("복구 뒤 재시도 스레드").isEqualTo(1);
 
                 relay.publish("run_started", 10L, java.time.OffsetDateTime.now(),
                         List.of(new BroadcastDelivery("ping", List.of("/topic/students/7/run"))));
