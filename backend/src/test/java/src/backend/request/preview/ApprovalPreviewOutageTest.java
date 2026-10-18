@@ -9,8 +9,10 @@ import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -79,16 +81,13 @@ class ApprovalPreviewOutageTest {
             OriginDestination originDestination = new OriginDestination(point, point);
             outage.begin(redis);
             try {
-                String firstToken = null;
+                Set<String> tokens = new LinkedHashSet<>();
                 for (int view = 1; view <= 10; view++) {
-                    ApprovalPreviewResolver.PreviewResult result = resolver.resolvePreview(APPROVAL_ID, FINGERPRINT,
-                            mock(DailyRoster.class), originDestination, List.of(), run);
-                    firstToken = firstToken == null ? result.preview().token() : firstToken;
-
-                    assertThat(result.preview().token()).as("%d번째 조회가 받은 토큰 — 같은 입력이면 같은 토큰".formatted(view))
-                            .isEqualTo(firstToken);
+                    tokens.add(resolver.resolvePreview(APPROVAL_ID, FINGERPRINT, mock(DailyRoster.class), originDestination,
+                            List.of(), run).preview().token());
                 }
                 verify(pipeline, times(1)).compute(any());
+                assertThat(tokens).as("10번 조회가 받은 토큰 — 같은 입력이면 같은 토큰 하나").hasSize(1);
 
                 cache.evict(APPROVAL_ID);
                 resolver.resolvePreview(APPROVAL_ID, FINGERPRINT, mock(DailyRoster.class), originDestination, List.of(), run);

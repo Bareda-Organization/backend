@@ -32,6 +32,8 @@ public class StubMapRouteLoadMetrics {
 
     private static final String FAILURE_INJECTED_METRIC = "schoolbus.routing.stub.load.failure_injected";
 
+    private static final String CALLS_METRIC = "schoolbus.routing.stub.calls";
+
     private static final String CALLER_TAG = "caller";
 
     private final MeterRegistry registry;
@@ -39,6 +41,8 @@ public class StubMapRouteLoadMetrics {
     private final Counter timeoutCounter;
 
     private final Counter failureInjectedCounter;
+
+    private final Counter callsCounter;
 
     // 생성자에서 즉시 등록한다 — 부하 프로파일이 아니라 이벤트가 한 번도 없어도 /actuator/prometheus
     // 에 이름이 0으로 나와야 관측 스크립트가 "지표가 아예 없다"와 "0건 발생"을 구별할 수 있다.
@@ -49,12 +53,20 @@ public class StubMapRouteLoadMetrics {
         for (CallerPolicy caller : CallerPolicy.values()) {
             throttledCounter(caller);
         }
+        this.callsCounter = Counter.builder(CALLS_METRIC)
+                .description("스텁 지도 클라이언트가 받은 경로 계산 요청 수 — 실 지도 API 호출 수의 대역이라 Redis 장애 연습이 호출이 늘지 않았는지 이 값으로 본다")
+                .register(registry);
         this.timeoutCounter = Counter.builder(TIMEOUT_METRIC)
                 .description("주입 지연이 호출자 타임아웃(RoadRouteRequest.timeout)을 넘겨 시간 초과를 모사한 횟수")
                 .register(registry);
         this.failureInjectedCounter = Counter.builder(FAILURE_INJECTED_METRIC)
                 .description("failure-rate 로 뽑힌 무작위 실패 모사 횟수 — ON_DEMAND 는 서킷 개방으로, BATCH 는 폴백으로 이어진다")
                 .register(registry);
+    }
+
+    /** 경로 계산 요청 1건을 센다. */
+    public void recordCall() {
+        callsCounter.increment();
     }
 
     /** 격벽 상한 초과로 거절된 호출 1건을 호출자별로 센다. */
