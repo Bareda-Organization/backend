@@ -2,7 +2,9 @@ package src.backend.location.infrastructure;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -81,9 +83,20 @@ public class RunPositionStore {
     private final RateLimitedWarn redisReadFailure = RateLimitedWarn.perMinute(
             org.slf4j.LoggerFactory.getLogger(RunPositionStore.class));
 
+    /**
+     * Redis 읽기 · 쓰기가 마지막으로 실패한 시각 — 이 시각 이전에 받은 좌표는 그 뒤의 쓰기가 Redis 에 닿지 못해 낡았을 수 있다(얼렸다 풀린 Redis 에는 멈추기 전 값이 그대로 남는다).
+     * 그런 값은 읽을 때 DB 최신 행으로 바꿔 복귀 직후 몇 초 동안 멈춘 시간만큼 오래된 좌표가 나가지 않게 하고, 다음 송신이 값을 다시 쓰면 Redis 값으로 돌아온다.
+     */
+    private volatile Instant lastRedisFailureAt = Instant.MIN;
+
     /** 최신 좌표를 덮어쓴다 — 실패는 호출자에게 던진다(위치 수신 리스너가 삼키고 다음 송신에 맡긴다). */
     public void save(Long runId, RunPositionRedisValue value) {
-        stringRedisTemplate.opsForValue().set(keyOf(runId), JSON_MAPPER.writeValueAsString(value), TTL);
+        try {
+            stringRedisTemplate.opsForValue().set(keyOf(runId), JSON_MAPPER.writeValueAsString(value), TTL);
+        } catch (DataAccessException e) {
+            lastRedisFailureAt = clock.instant();
+            throw e;
+        }
     }
 
     /** 회차 1건의 최신 좌표 — 아직 없으면 빈 값. Redis 가 실패하면 DB 최신 행이다. */
@@ -104,13 +117,24 @@ public class RunPositionStore {
         try {
             raws = stringRedisTemplate.opsForValue().multiGet(ids.stream().map(this::keyOf).toList());
         } catch (DataAccessException e) {
+            lastRedisFailureAt = clock.instant();
             redisReadFailure.warn(e, "[location] Redis 최신 좌표 읽기 실패 — run_position 최신 행으로 대체한다. runIds={}", ids);
             return fromHistory(ids);
         }
         Map<Long, RunPositionRedisValue> positions = new HashMap<>();
+        List<Long> possiblyStale = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
             Long runId = ids.get(i);
-            parse(runId, raws.get(i)).ifPresent(position -> positions.put(runId, position));
+            parse(runId, raws.get(i)).ifPresent(position -> {
+                if (position.receivedAt().toInstant().isBefore(lastRedisFailureAt)) {
+                    possiblyStale.add(runId);
+                } else {
+                    positions.put(runId, position);
+                }
+            });
+        }
+        if (!possiblyStale.isEmpty()) {
+            positions.putAll(fromHistory(possiblyStale));
         }
         return positions;
     }

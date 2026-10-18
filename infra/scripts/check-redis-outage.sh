@@ -262,11 +262,14 @@ print(f"3. 중계 구독 복구: kill 뒤 {rk:.1f}초 · pause 뒤 {rp:.1f}초 (
 for label, v in (("kill", rk), ("pause", rp)):
     if v < 0 or v > LIM["recovery_sec"]: fails.append(f"recovery_{label}")
 
-def fill_time(restore_ms):
-    fresh = sorted(p[0] for p in pts if p[1] == "snapshot_age_sec" and p[0] >= restore_ms and p[2] <= 2)
-    return (fresh[0] - restore_ms) / 1000.0 if fresh else float("inf")
-fk, fp = fill_time(events["kill_end"]), fill_time(events["pause_end"])
-print(f"4. 다시 켠 뒤 REST 위치 조회가 최신(나이 ≤ 2초)으로 돌아오는 시간: kill {fk:.1f}초 · pause {fp:.1f}초 (기준 ≤ {LIM['fill_sec']}초)")
+def fill_time(restore_ms, until_ms):
+    # 다시 켠 뒤 낡은 값(나이 > 2초)을 마지막으로 받은 시각까지 — 최신 값이 한 번 돌아온 시각이 아니라 낡은 값이 더는 안 오는 시각이다.
+    stale = [p[0] for p in pts if p[1] == "snapshot_age_sec" and restore_ms <= p[0] < until_ms and p[2] > 2]
+    n_stale = len(stale)
+    return ((max(stale) - restore_ms) / 1000.0 if stale else 0.0), n_stale
+fk, fk_n = fill_time(events["kill_end"], events["pause_begin"])
+fp, fp_n = fill_time(events["pause_end"], events["drill_end"])
+print(f"4. 다시 켠 뒤 REST 위치 조회가 낡은 값(나이 > 2초)을 마지막으로 돌려준 시각: kill {fk:.1f}초(낡은 응답 {fk_n}건) · pause {fp:.1f}초(낡은 응답 {fp_n}건) (기준 ≤ {LIM['fill_sec']}초)")
 for label, v in (("kill", fk), ("pause", fp)):
     if v > LIM["fill_sec"]: fails.append(f"fill_{label}")
 ages = {name: max([p[2] for p in pts if p[1] == "snapshot_age_sec" and in_(p[0], w)] or [float("nan")]) for name, w in phases.items()}
@@ -295,11 +298,10 @@ for label in ("kill", "pause"):
     v = p95([p[2] for p in http_points("student_runs", phases[label])])
     if v > LIM["p95_ms"]: fails.append(f"p95_{label}")
 
-closed = lambda w: [s[0] for s in samples if in_(s[0], w) and s[COL["cb_closed"]] >= 1]
-for label, end_key in (("kill", "kill_end"), ("pause", "pause_end")):
-    c = [t for t in closed(phases[label]) if t >= events[end_key]]
-    when = f"{(c[0] - events[end_key]) / 1000.0:.1f}초 뒤" if c else "닫히지 않음"
-    opened = [s[0] for s in samples if in_(s[0], phases[label]) and s[COL["cb_closed"]] < 1]
+for label, end_key, until_key in (("kill", "kill_end", "pause_begin"), ("pause", "pause_end", "drill_end")):
+    back = [s[0] for s in samples if events[end_key] <= s[0] < events[until_key] and s[COL["cb_closed"]] >= 1]
+    when = f"{(back[0] - events[end_key]) / 1000.0:.1f}초 뒤" if back else "닫히지 않음"
+    opened = [s[0] for s in samples if events[label + "_begin"] <= s[0] < events[end_key] and s[COL["cb_closed"]] < 1]
     first_open = f"{(opened[0] - events[label + '_begin']) / 1000.0:.1f}초 뒤" if opened else "열리지 않음"
     print(f"   Redis 서킷: {label} 시작 {first_open} 열림 · 다시 켠 {when} 닫힘")
 print("   방송 중계 발행 실패 · 위치 DB 대체 · 중계 수신(구간 안 증가분):")

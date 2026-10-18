@@ -21,6 +21,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import src.backend.location.dto.RunPositionRedisValue;
@@ -95,6 +97,51 @@ class RunPositionStoreOutageTest {
                 outage.end(redis);
             }
         });
+    }
+
+    /**
+     * 얼렸던 Redis 가 풀린 뒤 — 얼린 동안의 쓰기는 Redis 에 닿지 못했으므로 풀린 Redis 에 남은 멈추기 전 값은 낡았을 수 있다. 그 값을 그대로 돌려주면 복귀 직후 몇 초 동안
+     * 클라이언트가 멈춘 시간만큼 오래된 좌표를 받는다. 실패한 시각 이전에 쓴 값은 DB 최신 행으로 읽고, 다음 송신이 값을 다시 쓰면 Redis 값으로 돌아온다.
+     */
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = Outage.class, names = "PAUSED")
+    @DisplayName("얼렸다 풀린 Redis 가 돌려주는 멈추기 전 좌표는 DB 최신 행으로 대체하고, 다음 송신이 쓴 값부터 Redis 값을 쓴다")
+    void 풀린_직후_멈추기_전_값은_DB_최신_행으로_읽는다(Outage outage) {
+        OutageRedisContext.runner(redis).run(context -> {
+            RunPositionStore store = storeWithHistoryRow(context.getBean(StringRedisTemplate.class));
+            CircuitBreaker breaker = context.getBean(CircuitBreakerRegistry.class).circuitBreaker("redis");
+            OffsetDateTime beforeOutage = OffsetDateTime.now().minusSeconds(10);
+            store.save(RUN_ID, new RunPositionRedisValue(new BigDecimal("38.0"), new BigDecimal("128.0"), beforeOutage,
+                    beforeOutage, "멈추기 전 정차지"));
+            outage.begin(redis);
+            for (int i = 0; i < OutageRedisContext.CALLS_TO_OPEN; i++) {
+                OutageRedisContext.timeOf(() -> store.save(RUN_ID, new RunPositionRedisValue(new BigDecimal("38.1"),
+                        new BigDecimal("128.1"), OffsetDateTime.now(), OffsetDateTime.now(), null)));
+            }
+            outage.end(redis);
+            awaitClosed(breaker, store);
+
+            assertThat(store.find(RUN_ID).orElseThrow().lat()).as("풀린 직후 읽기는 낡은 Redis 값이 아니라 DB 최신 행").isEqualByComparingTo("37.5");
+
+            OffsetDateTime afterOutage = OffsetDateTime.now();
+            store.save(RUN_ID, new RunPositionRedisValue(new BigDecimal("38.2"), new BigDecimal("128.2"), afterOutage,
+                    afterOutage, "복귀 뒤 정차지"));
+            assertThat(store.find(RUN_ID).orElseThrow().lat()).as("복귀 뒤 송신이 쓴 값부터는 Redis 값").isEqualByComparingTo("38.2");
+        });
+    }
+
+    private static void awaitClosed(CircuitBreaker breaker, RunPositionStore store) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+        while (breaker.getState() != CircuitBreaker.State.CLOSED && System.nanoTime() < deadline) {
+            OutageRedisContext.timeOf(() -> store.find(RUN_ID));
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+        }
+        assertThat(breaker.getState()).as("서킷이 닫힌 뒤").isEqualTo(CircuitBreaker.State.CLOSED);
     }
 
     private static RunPositionStore storeWithHistoryRow(StringRedisTemplate template) {
