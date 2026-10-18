@@ -389,7 +389,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * <p>전 학원의 만료 로그가 대상이라 학원 조건을 걸지 않는다 — 걸면 그 학원 밖 로그가 영영
      * 정리되지 않는다({@link #findRetryCandidates} 와 같은 축).
      */
-    @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료 로그 전건이 대상이고, "
+    @AcademyScopeExempt(reason = "보존 정리 배치 — 전 학원의 만료 로그 전건이 대상이고, "
             + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
     @Query("select n.id from NotificationLog n where n.createdAt < :cutoff order by n.id")
     List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);

@@ -81,7 +81,7 @@ public interface LinkCodeRepository extends JpaRepository<LinkCode, Long> {
      *
      * <p>전 학원의 만료 코드가 대상이라 학원 조건을 걸지 않는다.
      */
-    @AcademyScopeExempt(reason = "보존 정리 배치(Phase 14 목표 6) — 전 학원의 만료 코드 전건이 대상이고, "
+    @AcademyScopeExempt(reason = "보존 정리 배치 — 전 학원의 만료 코드 전건이 대상이고, "
             + "부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
     @Query("select c.id from LinkCode c where c.expiresAt < :now order by c.id")
     List<Long> findIdsForRetentionCleanup(@Param("now") OffsetDateTime now, Limit limit);

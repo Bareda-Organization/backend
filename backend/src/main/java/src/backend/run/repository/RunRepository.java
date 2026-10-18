@@ -351,7 +351,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 확정 대상이 아니라 "노선을 못 받은" 위험이 없다. ② {@code service_date >= today}(BR-231) — 지난 날짜 idle 회차는
      * 확정 배치가 집지 않아 영구히 idle 이고, 세면 "0 이 아니면 곧 운행 사고" 경보가 다시 꺼지지 않는다.
      */
-    @AcademyScopeExempt(reason = "미확정 회차 게이지(관측 목표 8)는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 "
+    @AcademyScopeExempt(reason = "미확정 회차 게이지는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 "
             + "부재하다 — findDueForConfirmation 와 같은 근거. "
             + "호출부는 관측 스케줄러(RunUnconfirmedGaugeScheduler)뿐이라는 전제")
     @Query("SELECT COUNT(r) FROM Run r WHERE r.status = :status AND r.confirmAt <= :threshold "
