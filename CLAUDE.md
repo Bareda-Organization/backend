@@ -17,6 +17,8 @@ cd backend
 # ⚠ Test tasks require -PtestDbUrl (since 2026-09-14). Without it, configuration fails immediately —
 # this stops multiple agents from silently falling back to the same shared DB (schoolbus) and trampling each other's rows.
 # Redis needs no argument: every test automatically gets an isolated container (ContextCustomizerFactory).
+# Tests run in 2 parallel forks (`maxParallelForks`; `-PtestForks=1` for serial). Each fork gets its own database `<dedicated-db>_w<worker number>` and photo folder (testsupport.fork).
+# A direct `./gradlew test -PtestDbUrl=…` leaves one extra database per fork per run behind — drop them yourself. `backend/scripts/test.sh` creates the dedicated DB and drops it together with the fork databases.
 # bootRun·compileJava don't use this argument — they run unaffected (keep using them for post-merge compile checks).
 ./gradlew build -PtestDbUrl=jdbc:postgresql://localhost:15432/<dedicated-db>            # full build + tests
 ./gradlew test  -PtestDbUrl=jdbc:postgresql://localhost:15432/<dedicated-db>            # all tests

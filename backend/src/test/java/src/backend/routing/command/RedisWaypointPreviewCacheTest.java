@@ -32,7 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 경유 지점 미리보기는 캐시 객체의 메모리가 아니라 Redis 에 있다(Ruling 900 C). 만료는 그 회차의 운행일이 끝나는 시각이다.
- * Redis 오류는 없음으로 읽어 배포가 기존 409 PREVIEW_STALE 로 답하게 한다(K4).
+ * Redis 오류는 없음으로 읽어 배포가 기존 409 PREVIEW_STALE 로 답하게 한다.
  */
 class RedisWaypointPreviewCacheTest extends RedisTestContainerBase {
 
@@ -103,7 +103,7 @@ class RedisWaypointPreviewCacheTest extends RedisTestContainerBase {
     }
 
     @Test
-    @DisplayName("Redis 가 끊기면 읽기는 없음이고 쓰기·지우기는 예외 없이 지나간다(K4)")
+    @DisplayName("Redis 가 끊기면 읽기는 없음이고 쓰기·지우기는 예외 없이 지나간다 — Redis 오류는 없음으로 읽는다")
     void Redis_오류는_없음으로_읽는다() {
         StringRedisTemplate broken = org.mockito.Mockito.mock(StringRedisTemplate.class);
         org.mockito.BDDMockito.given(broken.opsForValue()).willThrow(new RedisConnectionFailureException("끊김"));

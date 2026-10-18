@@ -32,7 +32,7 @@ import testsupport.redis.RedisTestContainerBase;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 승인 미리보기는 캐시 객체의 메모리가 아니라 Redis 에 있다(Ruling 900 C). 넣은 것을 같은 내용으로 읽고, 결정 뒤 지우면 키가 사라지고, 하루 만료가 걸리며, Redis 오류는 모자람(없음)으로 읽는다(K4).
+ * 승인 미리보기는 캐시 객체의 메모리가 아니라 Redis 에 있다(Ruling 900 C). 넣은 것을 같은 내용으로 읽고, 결정 뒤 지우면 키가 사라지고, 하루 만료가 걸리며, Redis 오류는 없음으로 읽는다.
  */
 class RedisApprovalPreviewCacheTest extends RedisTestContainerBase {
 
@@ -80,7 +80,7 @@ class RedisApprovalPreviewCacheTest extends RedisTestContainerBase {
     }
 
     @Test
-    @DisplayName("Redis 가 오류를 내면 읽기는 없음으로, 쓰기·지우기는 예외 없이 지나간다(K4)")
+    @DisplayName("Redis 가 오류를 내면 읽기는 없음으로, 쓰기·지우기는 예외 없이 지나간다 — Redis 오류는 없음으로 읽는다")
     void Redis_오류는_없음으로_읽는다() {
         StringRedisTemplate broken = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")

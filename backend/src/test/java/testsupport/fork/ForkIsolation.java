@@ -18,12 +18,13 @@ final class ForkIsolation {
     private ForkIsolation() {
     }
 
-    /** {@code jdbc:postgresql://호스트:포트/이름?옵션} 의 이름 뒤에 {@code _w<워커 번호>} 를 붙인다. */
+    /** {@code jdbc:postgresql://호스트:포트/이름?옵션} 의 이름 뒤에 {@code _w<워커 번호>} 를 붙인다 — 이미 붙어 있으면 그대로 돌려준다(두 번 불러도 한 번만 붙는다). */
     static String forkUrl(String url, String worker) {
         int query = url.indexOf('?');
         String base = query < 0 ? url : url.substring(0, query);
         String options = query < 0 ? "" : url.substring(query);
-        return base + "_w" + worker + options;
+        String suffix = "_w" + worker;
+        return (base.endsWith(suffix) ? base : base + suffix) + options;
     }
 
     /** DB 를 만들 관리 연결 — 같은 서버의 {@code postgres} DB. */
@@ -45,7 +46,7 @@ final class ForkIsolation {
         createDatabaseIfAbsent(adminUrl(url), forkUrl.substring(forkUrl.lastIndexOf('/') + 1).replaceAll("\\?.*$", ""));
         System.setProperty("spring.datasource.url", forkUrl);
         String photoRoot = System.getProperty("app.photo.local.root");
-        if (photoRoot != null) {
+        if (photoRoot != null && !photoRoot.endsWith("/w" + worker)) {
             System.setProperty("app.photo.local.root", photoRoot + "/w" + worker);
         }
         System.out.println("[fork-isolation] worker=" + worker + " db=" + forkUrl.substring(forkUrl.lastIndexOf('/') + 1));
