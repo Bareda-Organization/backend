@@ -50,6 +50,7 @@ for (const k of KINDS) subscribed[k] = new Counter(`subscribed_${k}`);
 const reconnectCycles = new Counter('reconnect_cycles');
 const reissueMs = new Trend('reissue_ms', true);
 const reissueFailures = new Counter('reissue_failures');
+const initialReissueFailures = new Counter('initial_reissue_failures');
 const resubscribeMs = new Trend('resubscribe_ms', true);
 const reconnectGapMs = new Trend('reconnect_gap_ms', true);
 const overLimit = new Counter('resubscribe_over_5s');
@@ -77,6 +78,11 @@ export const options = {
         resubscribe_over_5s: ['count==0'],
         reconnect_cycles: [`count>=${Math.floor(EXPECTED_CYCLES * 0.95)}`],
         precheck_failed: ['count==0'],
+        // 스냅샷 REST 의 응답 시간 · 실패율을 요약에 남기기 위한 하위 지표 임계(통과 · 미통과를 가르는 값이 아니다)
+        'http_req_duration{name:snapshot}': ['max>=0'],
+        'http_req_failed{name:snapshot}': ['rate>=0'],
+        'http_req_duration{name:refresh}': ['max>=0'],
+        'http_req_failed{name:refresh}': ['rate>=0'],
     },
 };
 
@@ -85,9 +91,14 @@ function lifecycle(kind, base, slot, session, destination, snapshotPath) {
     if (Date.now() >= END_AT) return; // 시험이 끝난 뒤 VU 가 새 반복을 시작해도 재발급 · 세션을 열지 않는다
     let token = session.token; let refresh = session.refresh;
     // 시작할 때 한 번 재발급해 접근 토큰 나이를 0 으로 맞춘다 — 발급 뒤 시험 시작까지의 시간이 길어 첫 재접속 전에 토큰이 만료되는 것을 막는다(재접속 일정 밖의 요청이다).
-    const first = http.post(`${BASE_URL}/auth/refresh`, JSON.stringify({ refresh_token: refresh }),
-        { headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'app' } });
-    if (first.status === 200) { const d = first.json().data; token = d.access_token; refresh = d.refresh_token || refresh; } else { reissueFailures.add(1); }
+    // 실제 클라이언트처럼 실패하면 다시 시도한다(최대 5번, 1초 간격). 이 첫 재발급의 실패는 재접속 일정 밖이라 initial_reissue_failures 로 따로 센다.
+    for (let i = 0; i < 5; i++) {
+        const first = http.post(`${BASE_URL}/auth/refresh`, JSON.stringify({ refresh_token: refresh }),
+            { headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'app' }, tags: { name: 'refresh_initial' } });
+        if (first.status === 200) { const d = first.json().data; token = d.access_token; refresh = d.refresh_token || refresh; break; }
+        initialReissueFailures.add(1);
+        sleep(1);
+    }
     const offsetMs = ((base + slot) / TOTAL) * PERIOD_MS;
     let nextAt = START_AT + offsetMs;
     let closedAt = 0; // 계획된 재접속으로 닫은 시각 — 0 이면 첫 접속이다
@@ -113,7 +124,7 @@ function lifecycle(kind, base, slot, session, destination, snapshotPath) {
                             reconnectGapMs.add(now - closedAt);
                             if (now - closedAt > RESUBSCRIBE_LIMIT_MS) overLimit.add(1);
                             // 비동기 — 동기로 부르면 응답이 느릴 때 이 VU 의 하트비트가 멈춰 서버가 세션을 끊는다(실제 앱 · 웹은 재구독과 REST 를 따로 돌린다).
-                            http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}`, Connection: 'close' } }).then((snap) => {
+                            http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}`, Connection: 'close' }, tags: { name: 'snapshot' } }).then((snap) => {
                                 snapshotMs.add(snap.timings.duration);
                                 if (snap.status !== 200) snapshotFailures.add(1);
                             });
@@ -124,11 +135,12 @@ function lifecycle(kind, base, slot, session, destination, snapshotPath) {
                 }
             });
             // 재접속 시각까지 유지 → 재발급 → 닫기. 재발급이 실패하면 연결을 그대로 두고 다음 주기를 기다린다(재시도 없음 — Ruling 901).
-            const wait = Math.max(nextAt - Date.now(), 0);
+            const wait = Math.max(Math.min(nextAt, END_AT) - Date.now(), 0);
             socket.setTimeout(function () {
+                if (Date.now() >= END_AT) { socket.close(); return; } // 재접속 구간이 끝났다 — 구간 밖의 재접속은 세지 않는다
                 const t0 = Date.now();
                 const r = http.post(`${BASE_URL}/auth/refresh`, JSON.stringify({ refresh_token: refresh }),
-                    { headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'app' } });
+                    { headers: { 'Content-Type': 'application/json', 'X-Client-Type': 'app' }, tags: { name: 'refresh' } });
                 reissueMs.add(Date.now() - t0);
                 if (r.status === 200) {
                     const d = r.json().data;
@@ -140,7 +152,7 @@ function lifecycle(kind, base, slot, session, destination, snapshotPath) {
                 } else {
                     reissueFailures.add(1);
                     nextAt += PERIOD_MS;
-                    socket.setTimeout(() => socket.close(), Math.max(nextAt - Date.now(), 0));
+                    socket.setTimeout(() => socket.close(), Math.max(Math.min(nextAt, END_AT) - Date.now(), 0));
                 }
             }, wait);
         });

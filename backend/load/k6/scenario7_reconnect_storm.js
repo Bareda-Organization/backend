@@ -80,6 +80,8 @@ export const options = {
         resubscribed_total: [`count>=${TOTAL}`],
         resubscribe_ms: [`max<${RESUBSCRIBE_LIMIT_MS}`],
         precheck_failed: ['count==0'],
+        'http_req_duration{name:snapshot}': ['max>=0'],
+        'http_req_failed{name:snapshot}': ['rate>=0'],
     },
 };
 
@@ -132,7 +134,7 @@ function openSession(kind, token, destination, snapshotPath, untilMs, requireSub
                         resubscribedTotal.add(1);
                         // REST 스냅샷은 소켓 처리를 막지 않게 비동기로 보낸다 — 실제 앱 · 웹도 재구독과 REST 를 따로 돌린다. 동기로 부르면 응답이 느릴 때(최대 60초)
                         // 이 VU 의 하트비트가 멈춰 서버가 세션을 끊고, 그 끊김이 서버 탓처럼 기록된다.
-                        http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}`, Connection: 'close' } }).then((snap) => {
+                        http.asyncRequest('GET', `${BASE_URL}${snapshotPath}`, null, { headers: { Authorization: `Bearer ${token}`, Connection: 'close' }, tags: { name: 'snapshot' } }).then((snap) => {
                             snapshotsDone.add(1);
                             snapshotMs.add(snap.timings.duration);
                             if (snap.status !== 200) snapshotFailures.add(1);

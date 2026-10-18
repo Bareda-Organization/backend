@@ -70,7 +70,8 @@ def storm(label):
     print(f"  재구독 완료 {fmt(g(m, 'resubscribed_total'))}건 (학생 {fmt(g(m, 'resubscribed_student'))} · 학원 {fmt(g(m, 'resubscribed_staff'))} · 관제 {fmt(g(m, 'resubscribed_admin'))})")
     print(f"  전원 재구독까지(가장 늦은 세션) {fmt(g(m, 'resubscribe_ms', 'max'))}ms · p50 {fmt(g(m, 'resubscribe_ms', 'med'))} · p95 {fmt(g(m, 'resubscribe_ms', 'p(95)'))} · p99 {fmt(g(m, 'resubscribe_ms', 'p(99)'))}ms")
     print(f"  ERROR 프레임 {fmt(g(m, 'error_frames'))}건 (닫은 뒤 {fmt(g(m, 'error_frames_after_close'))}) · 재접속 시도 실패 {fmt(g(m, 'reconnect_attempt_failures'))}")
-    print(f"  REST 스냅샷 {fmt(g(m, 'snapshots_done'))}건 · 실패 {fmt(g(m, 'snapshot_failures'))} · 응답 p95 {fmt(g(m, 'snapshot_ms', 'p(95)'))} / max {fmt(g(m, 'snapshot_ms', 'max'))}ms")
+    sd = 'http_req_duration{name:snapshot}'; sf = 'http_req_failed{name:snapshot}'
+    print(f"  REST 스냅샷(요청 태그 snapshot) 응답 p50 {fmt(g(m, sd, 'med'))} / p95 {fmt(g(m, sd, 'p(95)'))} / max {fmt(g(m, sd, 'max'))}ms · 실패율 {fmt(g(m, sf, 'value') if g(m, sf, 'value') is not None else g(m, sf, 'rate'), 4)}")
     w = sample_window(label, close_at - 5000, close_at + 70000)
     print(f"  닫은 뒤 70초 서버 지표({w['rows']}행): Hikari 대기(pending) 최대 {fmt(w['hikari_pending_max'])} · 연결 획득 최대 {fmt(w['hikari_acquire_max_s'], 3)}s · 활성 최대 {fmt(w['hikari_active_max'])}"
           f" · 톰캣 연결 최대 {fmt(w['tomcat_conns_max'])} · 스레드 최대 {fmt(w['live_threads_max'])} · 힙 최대 {fmt(w['heap_mb_max'])}MB · 직접 메모리 최대 {fmt(w['direct_mb_max'])}MB · GC 정지 최대 {fmt(w['gc_pause_max_s'], 3)}s")
@@ -94,7 +95,10 @@ def token(label):
     print(f"  재접속 {cycles}회 → 초당 {cycles / sec:.2f}회 · 재발급 p50 {fmt(g(m, 'reissue_ms', 'med'))} / p95 {fmt(g(m, 'reissue_ms', 'p(95)'))} / max {fmt(g(m, 'reissue_ms', 'max'))}ms · 재발급 실패 {fmt(g(m, 'reissue_failures'))}")
     print(f"  구독 복원(닫은 뒤) p50 {fmt(g(m, 'resubscribe_ms', 'med'))} / p95 {fmt(g(m, 'resubscribe_ms', 'p(95)'))} / max {fmt(g(m, 'resubscribe_ms', 'max'))}ms · 5초 초과 {fmt(g(m, 'resubscribe_over_5s'))} · 복원 못 한 재접속 {fmt(g(m, 'reconnect_without_resubscribe'))}")
     print(f"  공백(닫은 순간 → 구독 복원 뒤 첫 메시지) p50 {fmt(g(m, 'reconnect_gap_ms', 'med'))} / p95 {fmt(g(m, 'reconnect_gap_ms', 'p(95)'))} / max {fmt(g(m, 'reconnect_gap_ms', 'max'))}ms · 표본 {fmt(g(m, 'reconnect_gap_ms'))}건")
-    print(f"  REST 스냅샷 응답 p95 {fmt(g(m, 'snapshot_ms', 'p(95)'))} / max {fmt(g(m, 'snapshot_ms', 'max'))}ms · 실패 {fmt(g(m, 'snapshot_failures'))} · ERROR 프레임 {fmt(g(m, 'error_frames'))}")
+    sd = 'http_req_duration{name:snapshot}'; sf = 'http_req_failed{name:snapshot}'
+    print(f"  REST 스냅샷(요청 태그 snapshot) 응답 p50 {fmt(g(m, sd, 'med'))} / p95 {fmt(g(m, sd, 'p(95)'))} / max {fmt(g(m, sd, 'max'))}ms · 실패율 {fmt(g(m, sf, 'value') if g(m, sf, 'value') is not None else g(m, sf, 'rate'), 4)} · ERROR 프레임 {fmt(g(m, 'error_frames'))}")
+    rd = 'http_req_duration{name:refresh}'; rf = 'http_req_failed{name:refresh}'
+    print(f"  재발급(계획된 재접속) 요청 p50 {fmt(g(m, rd, 'med'))} / p95 {fmt(g(m, rd, 'p(95)'))} / max {fmt(g(m, rd, 'max'))}ms · 시작 때 재발급 실패(재시도로 흡수) {fmt(g(m, 'initial_reissue_failures'))}")
     w = sample_window(label, start, start + sec * 1000)
     print(f"  재접속 구간 서버 지표({w['rows']}행): Hikari 대기 최대 {fmt(w['hikari_pending_max'])} · 연결 획득 최대 {fmt(w['hikari_acquire_max_s'], 3)}s · 톰캣 연결 최대 {fmt(w['tomcat_conns_max'])} · 스레드 최대 {fmt(w['live_threads_max'])}"
           f" · 힙 최대 {fmt(w['heap_mb_max'])}MB · 직접 메모리 최대 {fmt(w['direct_mb_max'])}MB · GC 정지 최대 {fmt(w['gc_pause_max_s'], 3)}s")
