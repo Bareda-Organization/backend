@@ -23,6 +23,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.zaxxer.hikari.HikariDataSource;
@@ -47,6 +48,7 @@ import testsupport.redis.RedisFreeze;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(SeedDateClockConfig.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class RedisUnresponsiveTest {
 
     private static final String POSITION = "/api/v1/students/2/bus-position";

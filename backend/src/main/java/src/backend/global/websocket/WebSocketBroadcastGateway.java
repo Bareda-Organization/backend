@@ -60,6 +60,9 @@ public class WebSocketBroadcastGateway {
 
     private static final String PUBLISH_FAILED_METRIC = "schoolbus.ws.relay.publish.failed";
 
+    /** 중계 구독이 서 있지 않아 직접 보낸 방송 수(event 태그) — Redis 가 돌아온 직후 구독이 다시 서기까지의 틈을 센다. */
+    private static final String UNSUBSCRIBED_DIRECT_METRIC = "schoolbus.ws.relay.unsubscribed.direct";
+
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketPublishMetrics publishMetrics;
     @Qualifier("outboundTaskExecutor")
@@ -96,12 +99,21 @@ public class WebSocketBroadcastGateway {
             deliverLocal(new RelayedBroadcast(event, runId, occurredAt, deliveries));
             return;
         }
+        // 이 인스턴스의 구독이 서 있지 않으면 발행한 방송이 이 인스턴스로 돌아오지 않는다 — 먼저 직접 보내고 발행은 그대로 한다(다른 인스턴스용).
+        // 만들 수 있는 것은 중복뿐이다: 구독이 다시 서는 바로 그 순간에 직접 보낸 방송이 중계로도 한 번 더 온다. 손실은 없다.
+        boolean subscribed = relay.isSubscribed();
+        if (!subscribed) {
+            meterRegistry.counter(UNSUBSCRIBED_DIRECT_METRIC, "event", event).increment();
+            deliverLocal(new RelayedBroadcast(event, runId, occurredAt, deliveries));
+        }
         try {
             relay.publish(event, runId, occurredAt, deliveries);
         } catch (RuntimeException e) {
             meterRegistry.counter(PUBLISH_FAILED_METRIC, "event", event).increment();
             log.warn("{} 방송 중계 발행 실패 — 이 인스턴스의 구독자에게만 직접 보낸다. runId={}", event, runId, e);
-            deliverLocal(new RelayedBroadcast(event, runId, occurredAt, deliveries));
+            if (subscribed) {
+                deliverLocal(new RelayedBroadcast(event, runId, occurredAt, deliveries));
+            }
         }
     }
 

@@ -89,10 +89,9 @@ class RedisOutageHealthTest {
         });
     }
 
-    @ParameterizedTest(name = "{0}")
-    @EnumSource(Outage.class)
+    @Test
     @DisplayName("DB 에 닿지 못하면 Redis 가 멀쩡해도 헬스는 DOWN — 전면 정지는 DB 하나뿐이다")
-    void DB_장애는_헬스를_DOWN_으로_만든다(Outage ignored) {
+    void DB_장애는_헬스를_DOWN_으로_만든다() {
         withHealth("jdbc:postgresql://localhost:1/none", health -> {
             assertThat(health.health().getStatus().getCode()).as("기본 헬스").isEqualTo("DOWN");
             assertThat(health.healthForPath("external").getStatus().getCode()).as("external 그룹").isEqualTo("DOWN");

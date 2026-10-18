@@ -66,6 +66,11 @@ public class RunPositionStore {
 
     private static final Duration FALLBACK_LOOKBACK = Duration.ofHours(24);
 
+    /** Redis 키가 없을 때 DB 를 읽는 범위 — 위치가 낡았다고 보는 기준과 같다({@code StudentBusPositionQueryService.STALE_THRESHOLD}, 같은 값임을 시험이 본다). 이보다 오래된 행은 어차피 낡은 위치다. */
+    static final Duration MISS_LOOKBACK = Duration.ofMinutes(2);
+
+    private static final String MISS_FALLBACK_METRIC = "schoolbus.position.miss.fallback";
+
     /** 단말 시계 오차 허용(5분, BR-243)을 덮는 상한 여유 — 이보다 미래의 기록 시각은 수신 시각으로 바뀌어 저장된다. */
     private static final Duration FALLBACK_LOOKAHEAD = Duration.ofMinutes(10);
 
@@ -123,8 +128,12 @@ public class RunPositionStore {
         }
         Map<Long, RunPositionRedisValue> positions = new HashMap<>();
         List<Long> possiblyStale = new ArrayList<>();
+        List<Long> missing = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
             Long runId = ids.get(i);
+            if (raws.get(i) == null) {
+                missing.add(runId);
+            }
             parse(runId, raws.get(i)).ifPresent(position -> {
                 if (position.receivedAt().toInstant().isBefore(lastRedisFailureAt)) {
                     possiblyStale.add(runId);
@@ -135,6 +144,9 @@ public class RunPositionStore {
         }
         if (!possiblyStale.isEmpty()) {
             positions.putAll(fromHistory(possiblyStale));
+        }
+        if (!missing.isEmpty()) {
+            positions.putAll(fromHistoryForMissing(missing));
         }
         return positions;
     }
@@ -147,6 +159,22 @@ public class RunPositionStore {
         }
         stringRedisTemplate.delete(keys);
         return keys.size();
+    }
+
+    /**
+     * Redis 는 살아 있는데 키가 없다 — 저장하지 않는 Redis 가 다시 시작하면 다음 송신이 키를 다시 쓸 때까지 운행 중 회차의 최신 좌표가 없다. 운행 중 회차의 최신 행을
+     * 위치가 낡았다고 보는 기준({@link #MISS_LOOKBACK}) 안에서만 DB 에서 읽는다. 키가 없는 회차가 있을 때만 한 번(회차 수와 무관) 불리고, 행이 없으면 빈 값 그대로다.
+     */
+    private Map<Long, RunPositionRedisValue> fromHistoryForMissing(List<Long> runIds) {
+        meterRegistry.counter(MISS_FALLBACK_METRIC).increment();
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        Map<Long, RunPositionRedisValue> positions = new HashMap<>();
+        for (RunPosition row : runPositionRepository.findLatestMovingByRunIdIn(runIds, now.minus(MISS_LOOKBACK),
+                now.plus(FALLBACK_LOOKAHEAD))) {
+            positions.put(row.getRunId(), new RunPositionRedisValue(row.getLat(), row.getLng(), row.getRecordedAt(),
+                    row.getReceivedAt(), null));
+        }
+        return positions;
     }
 
     private Map<Long, RunPositionRedisValue> fromHistory(List<Long> runIds) {
@@ -182,6 +210,8 @@ public class RunPositionStore {
     @PostConstruct
     void registerMetrics() {
         Counter.builder(FALLBACK_METRIC).description("Redis 장애로 최신 좌표를 DB 이력 최신 행으로 대체 조회한 횟수")
+                .register(meterRegistry);
+        Counter.builder(MISS_FALLBACK_METRIC).description("Redis 는 살아 있는데 운행 중 회차의 키가 비어 DB 최신 행으로 채운 읽기 횟수")
                 .register(meterRegistry);
     }
 }

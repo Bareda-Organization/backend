@@ -17,6 +17,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 
 import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.redis.FailSoftRedisMessageListenerContainer;
+
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.cfg.DateTimeFeature;
@@ -72,6 +74,13 @@ public class BroadcastRelay {
                 .toList();
         redis.convertAndSend(channel, mapper.writeValueAsString(new Wire(event, runId, occurredAt, wire)));
         published.increment();
+    }
+
+    /**
+     * 이 인스턴스의 중계 구독이 Redis 에 서 있다 — 서 있지 않으면 발행한 방송을 이 인스턴스가 받지 못한다. 구독을 스스로 알 수 없는 컨테이너(시험의 가짜 · 기본 컨테이너)는 서 있다고 본다.
+     */
+    public boolean isSubscribed() {
+        return !(container instanceof FailSoftRedisMessageListenerContainer failSoft) || failSoft.isSubscribed();
     }
 
     /**
