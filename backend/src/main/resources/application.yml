@@ -159,6 +159,15 @@ resilience4j:
       # pending 으로 남아 워커(30초)가 이어받는다 — 알림이 최대 30초 늦어지는 것이 FCM 장애 중 발송 스레드 8개가 묶이는 것보다 낫다.
       fcm:
         base-config: default
+      # Redis(최신 좌표 · 방송 중계 · 미리보기 캐시 · 감사 묶기, Ruling 919) — 응답 없는 Redis 앞에서 명령마다 시간 상한(spring.data.redis.timeout 500ms)을 기다리면
+      # 요청 스레드가 쌓이므로, 실패가 5번 이어지면 열어 Redis 를 부르지 않고 곧바로 대체 경로로 내려간다. 5초 뒤 시험 호출 3번으로 돌아왔는지 보고 스스로 닫는다 —
+      # 더 길면 Redis 가 돌아와도 대체 경로로 도는 시간이 늘고, 더 짧으면 얼린 Redis 에 시험 호출(각 500ms)이 자주 간다.
+      # 연결 실패 · 시간 상한 초과(DataAccessException)만 센다 — 값 직렬화 같은 호출자 쪽 오류는 Redis 가 멀쩡한데 서킷을 열기 때문이다.
+      redis:
+        base-config: default
+        wait-duration-in-open-state: 5s
+        record-exceptions:
+          - org.springframework.dao.DataAccessException
       # 문자 발송(Ruling 899 F) — 업체가 죽으면 호출 없이 거절해 요청 스레드가 업체 응답 시간만큼 묶이지 않게 한다.
       sms:
         base-config: default

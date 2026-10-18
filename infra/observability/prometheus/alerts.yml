@@ -167,12 +167,22 @@ groups:
       # 안 찬다. 그래서 `closed` 가 0 인지(= 열림이거나 반열림)를 본다. 인스턴스는 geocoding · mapRoute · placeSearch 셋이다.
       # TECH_DECISIONS §13.4 4행 — 폴백으로 계산 중이라 품질 저하(경고).
       - alert: CircuitBreakerNotClosed
-        expr: max by (name) (resilience4j_circuitbreaker_state{job="backend",state="closed"}) == 0
+        expr: max by (name) (resilience4j_circuitbreaker_state{job="backend",state="closed",name!="redis"}) == 0
         for: 2m
         labels:
           severity: warning
         annotations:
           summary: 지도 API 서킷({{ $labels.name }})이 2분 넘게 닫히지 않았다(열림·반열림 반복 포함) — 해당 호출이 막히거나 대체값으로 처리된다
+      # Redis 서킷이 닫혀 있지 않다 = 최신 좌표 · 방송 중계 · 미리보기 · 감사 묶기가 대체 경로로 돌고 있다(Ruling 919). 위 규칙과 같은 이유로 `closed` 가 0 인지를 보되,
+      # Redis 는 한 번 멈추면 사용자에게 보이는 품질이 바로 달라져(좌표 이름 비어 나감 · 다른 인스턴스로 가는 방송 손실) 대기를 1분으로 줄이고 별도 규칙으로 가른다.
+      # 서킷 상태 게이지는 기동 때 만들어져 처음부터 나오므로 첫 실패 계열 보정(`x unless x offset 창`)이 필요 없다.
+      - alert: RedisFallbackActive
+        expr: max by (job) (resilience4j_circuitbreaker_state{job="backend",name="redis",state="closed"}) == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis 서킷이 1분 넘게 닫히지 않았다 — 최신 좌표는 DB 이력으로, 방송은 이 인스턴스의 구독자에게만 직접, 미리보기 · 감사 묶기는 인스턴스 안 기억으로 돌고 있다(DEPLOYMENT.md §8)
       # 성공 실행이 주기의 3~4배 동안 한 번도 없다 — 확정·아웃박스는 30초 주기라 2분 창, 근접 판정은 10초라 1분 창. for 는 긴 한 틱을 거른다:
       # 100회차 동시 확정 드레인이 59~85초라 성공 실행이 그 뒤에 한꺼번에 센다. 기동 직후 첫 실행 전에는 시리즈가 없어 absent 가 for(1분) 동안 기다린다.
       # 주기를 yml(poll-interval-ms)로 바꾸면 창도 같이 바꾼다. 미승차 에스컬레이션은 위의 전용 규칙이 따로 본다.

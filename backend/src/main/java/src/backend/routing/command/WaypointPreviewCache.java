@@ -14,11 +14,11 @@ import src.backend.routing.pipeline.RouteComputation;
  * 규칙이고, 크기가 회차 수로 묶인다.
  *
  * <p>구현은 {@link RedisWaypointPreviewCache} 하나다 — 미리보기를 만든 인스턴스와 배포를 처리하는 인스턴스가 다를 수 있어(Ruling 900 C) 메모리가 아니라 Redis 에 둔다.
- * 보관소를 못 읽으면 없는 것으로 본다(K4) — 배포는 기존 {@code 409 PREVIEW_STALE} 로 답한다.
+ * 보관소(Redis)를 못 쓰는 동안은 이 인스턴스 안의 기억이 대신 들고, 거기에도 없으면 없는 것으로 본다 — 배포는 기존 {@code 409 PREVIEW_STALE} 로 답한다.
  */
 public interface WaypointPreviewCache {
 
-    /** 이 회차에 지금 유효한 미리보기 — 없거나 보관소 오류면 빈 값. */
+    /** 이 회차에 지금 유효한 미리보기 — 없으면 빈 값(보관소 오류는 이 인스턴스 안의 기억을 본다). */
     Optional<WaypointPreview> find(Long runId);
 
     /** 미리보기를 보관한다 — {@code serviceDate} 는 그 회차의 운행일이고, 운행일이 끝나면 만료된다(지난 회차는 배포할 수 없어 남겨 둘 이유가 없다). */

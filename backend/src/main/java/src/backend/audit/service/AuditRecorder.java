@@ -21,6 +21,7 @@ import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
+import src.backend.global.redis.LocalFallbackMemory;
 import src.backend.global.request.ClientIp;
 
 /**
@@ -51,7 +52,7 @@ import src.backend.global.request.ClientIp;
  * 키는 <b>행위자·학생·조회한 필드 묶음</b>이고(Ruling 521 — 명단 조회가 먼저 창을 열었다고 보호자 원번호 접근이 기록에서 빠지면 안 된다) 시간은 <b>마지막으로 기록한 시각</b>이다(마지막으로 본 시각이 아니다 — 그러면 계속
  * 보고 있는 동안 기록이 영영 안 남는다). 명단 단위 키로 잡으면 두 번째 조회에 새로 실린 학생이 빠지므로, 명단은 새로
  * 실린 학생만 골라 {@code detail.student_ids} 에 담아 쓴다. 저장소는 Redis 다 — 인스턴스가 여러 대여도 같은 창을 쓰고(Ruling 900 E),
- * Redis 오류 때 한 번 더 기록되는 것은 허용한다(기록이 줄어드는 쪽이 아니라 느는 쪽 오차).
+ * Redis 를 못 쓰는 동안은 이 인스턴스 안의 기억이 같은 창을 대신하고, 그 기억에서 놓친 조회가 한 번 더 기록되는 것은 허용한다(기록이 줄어드는 쪽이 아니라 느는 쪽 오차).
  * 수정·삭제·로그인 기록은 이 클래스를 거치지 않으므로 묶이지 않는다.
  */
 @Service
@@ -69,6 +70,8 @@ public class AuditRecorder {
 
     private static final String DEDUP_KEY_PREFIX = "schoolbus:audit-dedup:";
 
+    private static final int DEDUP_FALLBACK_MAX_ENTRIES = 10_000;
+
     /** 묶기 키 — 행위자·학생·<b>조회한 필드 묶음</b>. 필드가 다르면 다른 접근이라(명단의 사진·특이사항 vs 보호자 원번호) 서로를 가리지 않는다(Ruling 521). */
     private record ViewedStudent(Long actorAccountId, String studentId, String fields) {
     }
@@ -84,12 +87,16 @@ public class AuditRecorder {
     /** 묶기 기록 저장소 — 인스턴스가 여러 대여도 같은 창을 쓰도록 Redis 에 둔다(Ruling 900 E). 값은 행을 쓴 시각(epoch ms)이다. */
     private final StringRedisTemplate redis;
 
+    /** Redis 를 못 쓰는 동안의 묶기 기록 — 반복 조회가 조회마다 감사 행(새 트랜잭션 · 새 커넥션)을 쓰지 않게 한다. 인스턴스 1대 기준의 같은 창이다(Ruling 919 B ⑤). */
+    private final LocalFallbackMemory<Boolean> whileRedisIsDown;
+
     public AuditRecorder(AuditLogRepository auditLogRepository, AccountRepository accountRepository, Clock clock,
             PlatformTransactionManager transactionManager, StringRedisTemplate redis) {
         this.auditLogRepository = auditLogRepository;
         this.accountRepository = accountRepository;
         this.clock = clock;
         this.redis = redis;
+        this.whileRedisIsDown = new LocalFallbackMemory<>(clock, DEDUP_FALLBACK_MAX_ENTRIES);
         this.requiresNew = new TransactionTemplate(transactionManager);
         this.requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -189,7 +196,7 @@ public class AuditRecorder {
 
     /**
      * 이 행위자·학생·필드 묶음을 창 안에 처음 보는 조회인지 Redis 로 판정해 맡는다 — {@code SET NX EX} 한 번이라 인스턴스가 여럿이고 호출이 동시여도 정확히 하나만 참을 받는다.
-     * 키가 남아 있어도 값의 시각이 창을 넘었으면(Redis 만료와 앱 시계가 어긋날 때) 새 조회로 보고 시각을 새로 쓴다. Redis 오류는 기록하는 쪽으로 읽는다 — 행이 늘 뿐 빠지지 않는다.
+     * 키가 남아 있어도 값의 시각이 창을 넘었으면(Redis 만료와 앱 시계가 어긋날 때) 새 조회로 보고 시각을 새로 쓴다. Redis 오류는 이 인스턴스 안의 기억으로 같은 창을 판정한다 — 첫 조회는 기록되므로 행이 빠지지 않는다.
      */
     private boolean claim(ViewedStudent viewed, Instant now) {
         String key = keyOf(viewed);
@@ -205,14 +212,15 @@ public class AuditRecorder {
             redis.opsForValue().set(key, nowMillis, DATA_ACCESS_DEDUP_WINDOW);
             return true;
         } catch (RuntimeException e) {
-            log.warn("감사 묶기 기록을 Redis 에서 판정하지 못했다 — 새 조회로 보고 기록한다. actor={} student={}", viewed.actorAccountId(),
+            log.warn("감사 묶기 기록을 Redis 에서 판정하지 못했다 — 이 인스턴스 안의 기억으로 판정한다. actor={} student={}", viewed.actorAccountId(),
                     viewed.studentId(), e);
-            return true;
+            return whileRedisIsDown.claim(key, Boolean.TRUE, DATA_ACCESS_DEDUP_WINDOW);
         }
     }
 
     /** 행을 못 쓴 조회의 묶기 기록을 물린다. */
     private void releaseClaim(ViewedStudent viewed) {
+        whileRedisIsDown.remove(keyOf(viewed));
         try {
             redis.delete(keyOf(viewed));
         } catch (RuntimeException e) {

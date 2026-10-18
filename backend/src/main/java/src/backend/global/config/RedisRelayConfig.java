@@ -6,8 +6,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import src.backend.global.redis.FailSoftRedisMessageListenerContainer;
+import src.backend.global.redis.RedisSubscriptionRetrier;
 
 /**
  * 인스턴스 사이 중계(방송 · 캐시 비움 신호)가 함께 쓰는 Redis 구독 컨테이너. 받은 메시지는 스레드 1개가 순서대로 처리한다 — Redis 에 들어간 순서가 구독자에게 나가는 순서가 돼야
@@ -34,11 +36,17 @@ public class RedisRelayConfig {
 
     /** 빈 이름을 Boot 가 만드는 기본 컨테이너와 같게 두어 그쪽이 물러나고 이 컨테이너 하나만 남는다. */
     @Bean
-    RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory,
+    FailSoftRedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory,
             @Qualifier("relayReceiveExecutor") ThreadPoolTaskExecutor receiver) {
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        FailSoftRedisMessageListenerContainer container = new FailSoftRedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.setTaskExecutor(receiver);
         return container;
+    }
+
+    /** Redis 에 못 붙어 서지 못한 구독을 다시 건다 — Redis 가 멈춘 채 기동해도 애플리케이션은 뜬다. */
+    @Bean
+    RedisSubscriptionRetrier redisSubscriptionRetrier(FailSoftRedisMessageListenerContainer container) {
+        return new RedisSubscriptionRetrier(container);
     }
 }

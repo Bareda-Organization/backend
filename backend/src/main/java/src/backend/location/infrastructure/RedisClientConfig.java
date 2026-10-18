@@ -1,10 +1,15 @@
 package src.backend.location.infrastructure;
 
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+
+import org.springframework.boot.data.redis.autoconfigure.ClientResourcesBuilderCustomizer;
 import org.springframework.boot.data.redis.autoconfigure.LettuceClientOptionsBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import io.lettuce.core.ClientOptions;
+import io.lettuce.core.resource.Delay;
 
 /**
  * Redis 클라이언트(Lettuce) 동작 설정 — 연결이 끊긴 동안 들어온 명령을 쌓아 두지 않고 즉시 거절한다(BR-166, W12-01).
@@ -22,5 +27,15 @@ public class RedisClientConfig {
     @Bean
     LettuceClientOptionsBuilderCustomizer rejectCommandsWhileDisconnected() {
         return builder -> builder.disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS);
+    }
+
+    /**
+     * 재접속 대기에 상한(2초)을 둔다 — Lettuce 기본값은 시도 횟수에 따라 지수로 늘어 30초까지 간다. 오래 멈췄던 Redis 가 돌아와도 명령 연결과 중계 구독 연결이 그 대기만큼
+     * 늦게 돌아와 대체 경로로 도는 시간이 길어진다(Ruling 919). 100ms 에서 시작해 2배씩 늘다 2초에서 멈춘다.
+     */
+    @Bean
+    ClientResourcesBuilderCustomizer boundReconnectDelay() {
+        return builder -> builder.reconnectDelay(
+                Delay.exponential(Duration.ofMillis(100), Duration.ofSeconds(2), 2, TimeUnit.MILLISECONDS));
     }
 }

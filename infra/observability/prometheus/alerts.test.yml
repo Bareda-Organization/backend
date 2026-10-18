@@ -589,3 +589,47 @@ tests:
       - eval_time: 8m
         alertname: CircuitBreakerNotClosed
         exp_alerts: []
+
+  # Redis 서킷(name="redis"): 닫히지 않은 상태가 1분 유지돼야 RedisFallbackActive 가 발화하고, 지도 API 용 CircuitBreakerNotClosed 는 이 서킷을 보지 않는다.
+  # 열림 ↔ 반열림이 오가므로 closed 가 0 인지를 본다. 서킷 상태 게이지는 기동 때 만들어져 첫 실패 계열 보정이 필요 없다.
+  - interval: 15s
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{job="backend",application="school-bus",name="redis",state="closed"}'
+        values: '1x8 0x60'
+      - series: 'resilience4j_circuitbreaker_state{job="backend",application="school-bus",name="redis",state="open"}'
+        values: '0x8 1x20 0x2 1x20 0x2 1x16'
+      - series: 'resilience4j_circuitbreaker_state{job="school-bus-load",application="school-bus",name="redis",state="closed"}'
+        values: '0x68'   # 부하 시험은 Redis 를 일부러 멈추기도 한다
+    alert_rule_test:
+      - eval_time: 2m30s   # 닫히지 않은 지 30초 — pending
+        alertname: RedisFallbackActive
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: RedisFallbackActive
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+            exp_annotations:
+              summary: Redis 서킷이 1분 넘게 닫히지 않았다 — 최신 좌표는 DB 이력으로, 방송은 이 인스턴스의 구독자에게만 직접, 미리보기 · 감사 묶기는 인스턴스 안 기억으로 돌고 있다(DEPLOYMENT.md §8)
+      - eval_time: 8m   # 8분 동안 닫히지 않았어도 지도 API 용 규칙은 이 서킷을 보지 않는다
+        alertname: CircuitBreakerNotClosed
+        exp_alerts: []
+
+  - interval: 15s   # 45초만 열렸다 닫힘 — 조용하다
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{job="backend",name="redis",state="closed"}'
+        values: '1x8 0x3 1x40'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: RedisFallbackActive
+        exp_alerts: []
+
+  - interval: 15s   # 부하 시험 프로파일의 Redis 서킷만 열려 있다(백엔드 시리즈 없음) — 조용해야 한다
+    input_series:
+      - series: 'resilience4j_circuitbreaker_state{job="school-bus-load",name="redis",state="closed"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: RedisFallbackActive
+        exp_alerts: []
