@@ -1,8 +1,10 @@
 package src.backend.global.config;
 
+import java.time.Duration;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -46,7 +48,8 @@ public class RedisRelayConfig {
 
     /** Redis 에 못 붙어 서지 못한 구독을 다시 건다 — Redis 가 멈춘 채 기동해도 애플리케이션은 뜬다. */
     @Bean
-    RedisSubscriptionRetrier redisSubscriptionRetrier(FailSoftRedisMessageListenerContainer container) {
-        return new RedisSubscriptionRetrier(container);
+    RedisSubscriptionRetrier redisSubscriptionRetrier(FailSoftRedisMessageListenerContainer container,
+            @Value("${app.relay.subscription-retry-ms:2000}") long retryMs) {
+        return new RedisSubscriptionRetrier(container, Duration.ofMillis(retryMs));
     }
 }
