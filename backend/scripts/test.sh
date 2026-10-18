@@ -39,6 +39,10 @@ cleanup() {
   fi
   # ⚠ WITH (FORCE) 를 쓰지 않는다 — 남의 연결을 강제로 끊으면 postgres 가 반복 크래시한다.
   #   테스트 JVM 이 이미 끝난 뒤라 연결이 남아 있지 않다.
+  # 포크마다 만든 DB(<전용 DB>_w<워커 번호>)도 함께 지운다.
+  for FORK_DB in $(psql -At -c "select datname from pg_database where datname like '${DB}\_w%';" 2>/dev/null); do
+    psql -c "DROP DATABASE IF EXISTS \"$FORK_DB\";" >/dev/null 2>&1 && echo "포크 DB 정리: $FORK_DB"
+  done
   psql -c "DROP DATABASE IF EXISTS \"$DB\";" >/dev/null 2>&1 && echo "전용 DB 정리: $DB"
 }
 trap cleanup EXIT
