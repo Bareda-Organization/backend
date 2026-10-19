@@ -1,17 +1,17 @@
 package src.backend.location.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -173,33 +173,26 @@ class RunPositionFallbackStopNameTest {
     }
 
     @Test
-    @DisplayName("대체 위치를 읽는 조회문 실행 횟수는 회차 1개와 3개가 같다")
+    @DisplayName("대체 위치를 읽는 SQL 문 수는 회차 1개와 3개가 같다")
     void 대체_조회문_수는_회차_수와_무관하다() throws Exception {
         Fleet fleet = 회차_세_개를_심고_위치를_보낸다();
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
 
         try (RedisFreeze ignored = RedisFreeze.start()) {
             store.find(fleet.a().runId()); // 서킷이 열리도록 한 번 부른다 — 이후 읽기는 Redis 를 기다리지 않는다
-            long one = 조회문_실행_횟수(statistics, () -> store.findAll(List.of(fleet.a().runId())));
-            long three = 조회문_실행_횟수(statistics, () -> assertThat(store.findAll(fleet.runIds())).hasSize(3));
+            long one = 문_수(statistics, () -> store.findAll(List.of(fleet.a().runId())));
+            long three = 문_수(statistics, () -> assertThat(store.findAll(fleet.runIds())).hasSize(3));
 
-            assertThat(one).as("회차 1개 읽기의 조회문 실행 횟수").isPositive();
-            assertThat(three).as("회차 3개 읽기의 조회문 실행 횟수는 1개와 같다").isEqualTo(one);
+            assertThat(one).as("회차 1개 읽기가 보낸 SQL 문 수").isPositive();
+            assertThat(three).as("회차 3개 읽기가 보낸 SQL 문 수는 1개와 같다").isEqualTo(one);
         }
     }
 
-    /** 위치 · 정차 목록을 읽는 조회문({@code run_position} 최신 행 · 정차 이름)의 실행 횟수 증가분. */
-    private long 조회문_실행_횟수(Statistics statistics, Runnable read) {
-        long before = 실행_횟수(statistics);
+    /** 읽기 하나가 DB 로 보낸 SQL 문 전부(어느 표든)의 개수 증가분. */
+    private long 문_수(Statistics statistics, Runnable read) {
+        long before = statistics.getPrepareStatementCount();
         read.run();
-        return 실행_횟수(statistics) - before;
-    }
-
-    private long 실행_횟수(Statistics statistics) {
-        return Arrays.stream(statistics.getQueries())
-                .filter(q -> q.toLowerCase(Locale.ROOT).contains("run_position") || q.toLowerCase(Locale.ROOT).contains("runstop"))
-                .mapToLong(q -> statistics.getQueryStatistics(q).getExecutionCount())
-                .sum();
+        return statistics.getPrepareStatementCount() - before;
     }
 
     private String 학부모_화면의_정차지_이름(Fleet fleet, RunSeed run) throws Exception {
@@ -261,13 +254,11 @@ class RunPositionFallbackStopNameTest {
     }
 
     /** 앞 시험이 얼렸다 푼 Redis 의 서킷이 닫힐 때까지 읽어 본다 — 열린 채면 키 없음이 아니라 장애 대체가 돈다. */
-    private void awaitClosed(long runId) throws InterruptedException {
+    private void awaitClosed(long runId) {
         CircuitBreaker breaker = breakerRegistry.circuitBreaker("redis");
-        long deadline = System.nanoTime() + java.time.Duration.ofSeconds(15).toNanos();
-        while (breaker.getState() != CircuitBreaker.State.CLOSED && System.nanoTime() < deadline) {
+        await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(200)).until(() -> {
             store.find(runId);
-            Thread.sleep(200);
-        }
-        assertThat(breaker.getState()).as("서킷이 닫힌 뒤").isEqualTo(CircuitBreaker.State.CLOSED);
+            return breaker.getState() == CircuitBreaker.State.CLOSED;
+        });
     }
 }

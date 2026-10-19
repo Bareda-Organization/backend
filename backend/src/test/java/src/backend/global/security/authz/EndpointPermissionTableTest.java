@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,8 +103,8 @@ class EndpointPermissionTableTest {
     @Test
     void Permissions_상수_전부가_표의_can_값에_쓰인다() throws IllegalAccessException {
         List<String> constants = new ArrayList<>();
-        for (java.lang.reflect.Field field : Permissions.class.getDeclaredFields()) {
-            if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
+        for (Field field : Permissions.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
                 constants.add((String) field.get(null));
             }
         }
@@ -122,7 +125,7 @@ class EndpointPermissionTableTest {
         assertThat(unusedIn(List.of("A_B"), List.of("can:A,B"))).containsExactly("A_B");
     }
 
-    private static List<String> unusedIn(java.util.Collection<String> constants, java.util.Collection<String> permissionCells) {
+    private static List<String> unusedIn(Collection<String> constants, Collection<String> permissionCells) {
         Set<String> used = permissionCells.stream().filter(v -> v.startsWith("can:"))
                 .flatMap(v -> Arrays.stream(v.substring("can:".length()).split(",")))
                 .collect(Collectors.toSet());
