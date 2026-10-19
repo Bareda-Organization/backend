@@ -12,7 +12,7 @@
 // 서버는 SUBSCRIBE 의 receipt 에 RECEIPT 를 돌려주지 않으므로(실측 0건) "구독이 섰다" 는 그 채널의 첫 방송을 받은 것으로 센다(뒷배경 위치 방송이 2초마다 모든 채널에 닿는다).
 // 그래서 구독 복원 시간에는 방송 주기(최대 2초)가 들어 있고, 구독 복원 = 공백(첫 메시지까지)이다.
 //
-// 환경변수: STORM_TOKENS(r46_mint_tokens.py 출력 · STAFF_SESSIONS · ADMIN_SESSIONS 필요) · START_AT_MS(재접속 일정 시작 · epoch ms) · RECONNECT_SEC(재접속을 거는 시간)
+// 환경변수: STORM_TOKENS(mint_tokens.py 출력 · STAFF_SESSIONS · ADMIN_SESSIONS 필요) · START_AT_MS(재접속 일정 시작 · epoch ms) · RECONNECT_SEC(재접속을 거는 시간)
 //          · TOTAL_STUDENTS(1900) · TOTAL_STAFF(90) · TOTAL_ADMIN(10) · RATE_FACTOR(1) · TOKEN_PERIOD_SEC(900) · STORM_RAMP_SEC(60) · API_PORT(6571)
 import http from 'k6/http';
 import ws from 'k6/ws';

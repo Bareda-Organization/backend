@@ -21,11 +21,11 @@ for academy in "${ACADEMIES[@]}"; do
     $PG -v n=10 -v academy_id="$academy" -t -A -F',' < "$DIR/sql/scenario2_prep.sql" | grep -v '^$' >> "$RUNS_CSV"
 done
 echo "위치용 회차 $(wc -l < "$RUNS_CSV")건"
-echo "명단 연결(LOADCAP): $($PG -t -A -F' 회차 ' < "$DIR/sql/r46_link_position_riders.sql" | tail -1)"
+echo "명단 연결(LOADCAP): $($PG -t -A -F' 회차 ' < "$DIR/sql/link_position_riders.sql" | tail -1)"
 echo "명단 연결(L3DEST): $($PG -t -A -F',' < "$DIR/sql/destination_link_riders.sql" | tail -1) (건수,서로 다른 학생,회차)"
 
 TOKENS="$DIR/results/${TAG}_tokens.json"
-PARENT_NAME_LIKES='LOADCAP-%,L3DEST-%' python3 "$DIR/r46_mint_tokens.py" "$TOKENS" "$DESTINATIONS"
+PARENT_NAME_LIKES='LOADCAP-%,L3DEST-%' python3 "$DIR/mint_tokens.py" "$TOKENS" "$DESTINATIONS"
 
 C0="$(counters)"; T0="$(date +%s)"
 CG0="$("$DIR/cgroup_sampler.sh" cpu-all)"

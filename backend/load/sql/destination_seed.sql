@@ -1,6 +1,6 @@
--- 학생 목적지 3,000곳 이상 시험(scenario6_student_destinations.js)용 시드 — r0_capacity_seed.sql · r46_parent_seed.sql 뒤에 실행한다.
+-- 학생 목적지 3,000곳 이상 시험(scenario6_student_destinations.js)용 시드 — r0_capacity_seed.sql · parent_seed.sql 뒤에 실행한다.
 -- 학생 채널은 학생 1명 = 목적지 1곳(/topic/students/{id}/run)이라, 기존 학생 2,000명에 학생 per_bus × 100(기본 12 → 1,200)명을 더해 3,200곳을 만든다.
--- 새 학생은 이름이 L3DEST- 로 시작한다 — 'LOADCAP-%' 가 아니라서 r46_mint_tokens.py 의 기본 학부모 추출 · 확정 배치(노선 승하차지 기준) · 기존 회차 명단에 섞이지 않는다.
+-- 새 학생은 이름이 L3DEST- 로 시작한다 — 'LOADCAP-%' 가 아니라서 mint_tokens.py 의 기본 학부모 추출 · 확정 배치(노선 승하차지 기준) · 기존 회차 명단에 섞이지 않는다.
 -- 승하차지도 학원마다 노선에 안 들어간 전용 1곳(L3DEST-<학원코드>-S0)이라 확정 배치의 명단 계산을 건드리지 않는다.
 -- 학생마다 학부모 1명(계정 l3dest-…-par · 비밀번호 평문 "password") + guardian + guardian_student. 다시 실행해도 겹치지 않는다.
 -- 정리: destination_cleanup.sql.

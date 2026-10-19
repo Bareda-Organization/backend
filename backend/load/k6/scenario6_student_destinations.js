@@ -5,14 +5,14 @@
 // 구성 — ① 학부모 세션 DESTINATIONS 개: 학부모 1명이 자기 학생 채널 1곳을 구독하고 끝까지 받는다(목적지 = 학생이므로 세션 수 = 목적지 수).
 //        ② 위치 송신: 위치용 회차 CSV 의 기사마다 INTERVAL_SEC 고정 주기(앱의 Timer.periodic 과 같게 도착률 고정 — 응답이 늦어도 송신 시각은 안 밀린다).
 //        ③ 관계자 관측자: 학원마다 학원 채널 1곳 — 학생 채널과 다른 종류의 채널 지연을 함께 본다.
-// 위치용 회차마다 학생 32명(r46_link_position_riders.sql 20 + destination_link_riders.sql 12)이 붙어 있어 위치 1건이 학생 채널 32곳 + 학원 채널으로 나간다.
+// 위치용 회차마다 학생 32명(link_position_riders.sql 20 + destination_link_riders.sql 12)이 붙어 있어 위치 1건이 학생 채널 32곳 + 학원 채널으로 나간다.
 //
 // 임계(실패 시 k6 종료 코드 99) — 위치 POST 실패 0 · POST p95 < 2,000ms · 학생 채널·학원 채널 방송 지연 p95 ≤ 5,000ms ·
 // 위치를 1건 이상 받은 학생 목적지(중복 제외) ≥ MIN_DESTINATIONS · 연결 실패 0 · 버려진 반복 0(k6 가 병목이면 시험이 무효).
 // 서버(심플 브로커)는 SUBSCRIBE 의 receipt 헤더에 RECEIPT 를 돌려주지 않는다(2026-10-18 실측 — 0건). 그래서 "구독이 섰다" 는 그 채널의 방송을 실제로 1건 받은 것으로 센다 —
 // 학생 한 명 = 세션 한 개 = 목적지 한 곳(반복 번호로 학부모를 고르므로 겹치지 않는다). 구독 요청을 보낸 수는 따로 참고값으로 남긴다.
 //
-// 환경변수: STUDENT_TOKENS(r46_mint_tokens.py 출력) · SCENARIO6_CSV(scenario2_prep.sql 출력) · DESTINATIONS(기본 3200) · MIN_DESTINATIONS(기본 3000)
+// 환경변수: STUDENT_TOKENS(mint_tokens.py 출력) · SCENARIO6_CSV(scenario2_prep.sql 출력) · DESTINATIONS(기본 3200) · MIN_DESTINATIONS(기본 3000)
 //          · SCENARIO6_RAMP_SEC(60) · SCENARIO6_POS_SEC(120) · SCENARIO6_INTERVAL_SEC(2)
 import http from 'k6/http';
 import ws from 'k6/ws';

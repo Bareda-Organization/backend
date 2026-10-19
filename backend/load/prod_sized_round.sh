@@ -3,11 +3,11 @@
 #  - 호스트 잡음(측정과 무관한 프로세스 CPU 상위) 전·후 → results/<라벨>_host_noise.log. 시작 전 값이 NOISE_MAX_PCT(기본 300%)를 넘으면 시작하지 않는다
 #  - 컨테이너 안 cgroup 표본(cgroup_sampler.sh) → results/cg_<라벨>.csv · JVM 표본(sampler.sh) → results/sample_<라벨>.csv
 #  - 앱 · Postgres · Redis 컨테이너의 CPU 초(cgroup usage_usec 전후 차) · 컨테이너 메모리 최고 · OOMKilled → results/<라벨>_env.json
-#  - r3_mixed.sh 출력 → results/<라벨>_run.out, r46_judge.py 판정 → results/<라벨>_judge.txt (종료 코드는 판정 결과를 따른다)
+#  - r3_mixed.sh 출력 → results/<라벨>_run.out, judge_round.py 판정 → results/<라벨>_judge.txt (종료 코드는 판정 결과를 따른다)
 #
 # 실행: ./prod_sized_round.sh <라벨> [회차 명령 …]   — 명령을 안 주면 `r3_mixed.sh 570 1`. 라벨은 ROUND_LABEL 로 명령에 넘어간다. R3_* 환경변수도 그대로 넘어간다.
 #   REDIS_DB=13 R3_ADMINS=50 R3_INTERVAL=2 R3_FIXED_RATE=1 ./prod_sized_round.sh p1 ./r3_mixed.sh 570 1
-#   NO_JUDGE=1 REDIS_DB=13 ./prod_sized_round.sh d1 ./destination_round.sh     (r46_judge.py 로 못 읽는 회차는 판정을 건너뛴다)
+#   NO_JUDGE=1 REDIS_DB=13 ./prod_sized_round.sh d1 ./destination_round.sh     (judge_round.py 로 못 읽는 회차는 판정을 건너뛴다)
 # 폴링을 겸하는 다른 k6(L-2·L-6)를 같은 회차에 겹치려면 BACKGROUND_HOOK 에 실행 파일을 준다 — 위치 부하가 돌기 시작할 때(회차 시작 + 75초) 백그라운드로 시작한다.
 set -euo pipefail
 LABEL="${1:?라벨}"; shift
@@ -81,6 +81,6 @@ print(json.dumps(doc, ensure_ascii=False))
 PY
 [ "${NO_JUDGE:-0}" != "1" ] || exit "$R3_EXIT"
 set +e
-"$DIR/r46_judge.py" "$LABEL" | tee "$RES/${LABEL}_judge.txt"; JUDGE_EXIT=${PIPESTATUS[0]}
+"$DIR/judge_round.py" "$LABEL" | tee "$RES/${LABEL}_judge.txt"; JUDGE_EXIT=${PIPESTATUS[0]}
 echo "judge_exit=$JUDGE_EXIT oom_killed=$OOM" | tee -a "$RES/${LABEL}_judge.txt"
 exit "$JUDGE_EXIT"

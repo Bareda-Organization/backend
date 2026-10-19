@@ -14,7 +14,7 @@
 // ③ 시청 세션 — 학부모 WS_VIEWERS 명이 자기 학생 채널(/topic/students/{id}/run), 관계자 WS_STAFF 명이 학원 채널
 //    (/topic/academy/{id}/live), 메인 관리자 WS_ADMIN 명이 /topic/admin/live 를 구독한다. 09-09 R3 은 세션 전원을 관제 채널에 몰았다.
 //
-// 토큰은 r46_mint_tokens.py 가 회차 직전에 발급한다(로그인 CPU 를 측정 구간 밖에 둔다).
+// 토큰은 mint_tokens.py 가 회차 직전에 발급한다(로그인 CPU 를 측정 구간 밖에 둔다).
 //
 // 실행: k6 run -e POLL_TOKENS=<토큰.json> -e SCENARIO5_DURATION_SEC=60 scenario5_polling.js
 import http from 'k6/http';
