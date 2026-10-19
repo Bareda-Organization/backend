@@ -13,7 +13,7 @@ import src.backend.account.entity.VerificationCode;
 import src.backend.account.entity.VerificationPurpose;
 
 /**
- * {@link VerificationCodeRepository} 신규 조회 — 호출부(Task 4)가 아직 없어 이 테스트가
+ * {@link VerificationCodeRepository} 신규 조회 — 인증 흐름 호출부가 아직 없어 이 테스트가
  * 그 자리를 대신한다.
  */
 @SpringBootTest

@@ -113,7 +113,7 @@ class AdminStaffAccountControllerTest {
      * <p>이 단언이 목록의 대상 조건을 고정하는 <b>유일한</b> 자리다. 항목 배열만 보는 단언은 조건이
      * 빠져도 통과한다 — 서비스가 관계자 행이 없는 계정을 항목 조립 단계에서 한 번 더 걸러내기
      * 때문이다. 그 경우 {@code items[]} 는 맞는데 {@code total_count} 와 페이지 경계가 전 계정 기준이
-     * 되어, 관리자가 2페이지를 눌러도 아무것도 없는 화면을 계속 받는다(음성 대조 M8 에서 실측).
+     * 되어, 관리자가 2페이지를 눌러도 아무것도 없는 화면을 계속 받는다.
      */
     @Test
     void 관계자_계정_목록의_total_count_는_academy_staff_행_수와_같다() throws Exception {
@@ -366,7 +366,7 @@ class AdminStaffAccountControllerTest {
      * 학원 1곳 + 재직 관계자 1명을 SQL 로 만든다.
      *
      * <p>엔티티가 아니라 SQL 인 이유는 {@code account.status='active'} 로 시작해야 하는데 가입 승인
-     * 전이(pending → active)를 만드는 것이 Task 2 소유라, 지금 그 경로를 부르면 이 테스트가 남의
+     * 전이(pending → active)를 만드는 것이 계정 상태 게이트 쪽 소유라, 지금 그 경로를 부르면 이 테스트가 남의
      * 산출물에 묶이기 때문이다.
      */
     private 관계자 관계자를_만든다(String loginId) {

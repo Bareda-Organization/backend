@@ -72,8 +72,8 @@ class SignupControllerTest {
     }
 
     /**
-     * 이미 쓰이는 {@code login_id} 로 가입하면 409 {@code DUPLICATE_LOGIN_ID} 여야 한다(보완 리뷰
-     * Important #4, C-5) — 이 단언이 없으면 {@code existsByLoginId} 사전 확인과 {@code
+     * 이미 쓰이는 {@code login_id} 로 가입하면 409 {@code DUPLICATE_LOGIN_ID} 여야 한다(C-5).
+     * 이 단언이 없으면 {@code existsByLoginId} 사전 확인과 {@code
      * DataIntegrityViolationException} catch 절 둘 다 실제로 이 경로에서 호출되는지 아무도 보증하지
      * 않는다. 같은 payload 로 두 번 호출해, 두 번째 호출이 사전 확인에서 걸리는 것까지 확인한다.
      */

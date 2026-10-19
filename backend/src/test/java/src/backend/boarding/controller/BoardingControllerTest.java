@@ -533,8 +533,8 @@ class BoardingControllerTest {
         assertThat(history.get(1).get("to_status")).isEqualTo("waiting");
         assertThat(history.get(1).get("is_revert")).isEqualTo(true);
 
-        // ④ rider_changed 방송의 재료 — revert 도 §7.1 트리거 표에 명시돼 있는데(리뷰 R2 판정문
-        // §②변형8), 지금까지는 DB 결과만 보고 이 발행을 검사하지 않았다.
+        // ④ rider_changed 방송의 재료 — revert 도 §7.1 트리거 표에 명시돼 있다.
+        // DB 결과만 보는 단언으로는 되돌리기 경로에서 이 발행을 빼도 통과하므로 발행을 직접 검사한다.
         assertThat(applicationEvents.stream(RiderStatusChangedEvent.class))
                 .as("④되돌리기도 RiderStatusChangedEvent 를 발행한다")
                 .anySatisfy(event -> {

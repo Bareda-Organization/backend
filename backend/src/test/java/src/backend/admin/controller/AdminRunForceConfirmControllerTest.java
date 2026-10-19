@@ -174,8 +174,8 @@ class AdminRunForceConfirmControllerTest {
      * 열 값 자체를 검사하고, {@code detail->>'action'} 으로 스펙 문자열이 그대로 보존됐는지 본다.
      * 감사 적재 호출이 조용히 no-op 이 되는 결함은 이 시험이 잡는다(행 자체의 존재를 본다).
      *
-     * <p>R2 🔴 지적(조율자) — {@code detail.route_version_id} 는 프로덕션엔 있었으나 시험 단언이
-     * 없었다. {@code confirmed_route.current_version_id} 를 실제로 생긴 회차의 버전 id 로 재조회해
+     * <p>{@code detail.route_version_id} 는 프로덕션이 기록하는 값이라, 이 값을 검사하는 단언이 빠지면 기록이 틀려도 시험이 통과한다.
+     * {@code confirmed_route.current_version_id} 를 실제로 생긴 회차의 버전 id 로 재조회해
      * {@code detail_route_version_id} 와 값이 같은지 직접 비교한다.
      */
     @Test

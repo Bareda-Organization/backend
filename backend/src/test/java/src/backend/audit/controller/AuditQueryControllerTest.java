@@ -112,9 +112,9 @@ class AuditQueryControllerTest {
     }
 
     /**
-     * F1 결과 ④(R1 ⚠) — 이 클래스 {@code audit_logs_응답은_snake_case_키_6개를_그대로_노출한다} 의
-     * 자바독이 "학원 {@code null} 로 두면 NPE 가 난다" 며 일부러 피하던 경로다. F1 이
-     * {@code AuditLogQueryService.academyNamesOf} 에 방어({@code HashMap} 반환)를 넣었으니, 그 경로를
+     * 이 클래스 {@code audit_logs_응답은_snake_case_키_6개를_그대로_노출한다} 의
+     * 자바독이 "학원 {@code null} 로 두면 NPE 가 난다" 며 일부러 피하던 경로다.
+     * {@code AuditLogQueryService.academyNamesOf} 에 방어({@code HashMap} 반환)가 있으니, 그 경로를
      * 실제로 타는 시험이 하나는 있어야 이후 그 방어가 조용히 사라지는 것을 잡는다.
      */
     @Test

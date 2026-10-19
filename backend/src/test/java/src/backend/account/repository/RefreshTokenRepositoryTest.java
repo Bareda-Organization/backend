@@ -17,7 +17,7 @@ import src.backend.account.entity.RefreshToken;
 import src.backend.global.common.enums.Role;
 
 /**
- * {@link RefreshTokenRepository} 신규 조회·갱신 — 호출부(Task 4)가 아직 없어 이 테스트가
+ * {@link RefreshTokenRepository} 신규 조회·갱신 — 로그인 서비스 호출부가 아직 없어 이 테스트가
  * 그 자리를 대신한다. 특히 부분 인덱스({@code ix_refresh_token_account_active}) 조건과
  * 어긋나면 무효화된 토큰이 결과에 섞이므로, "행이 나온다"가 아니라 "섞이지 않는다"를 단언한다.
  */
@@ -156,9 +156,8 @@ class RefreshTokenRepositoryTest {
     /**
      * {@code @Modifying} 쿼리는 명시적 트랜잭션이 있어야 실행된다 — 이 클래스는 {@code @Transactional}
      * 이라 평소엔 그 우산 아래서 돌아 이 메서드 자체의 트랜잭션 경계가 있는지 없는지가 드러나지
-     * 않는다. 이 테스트만 {@code NOT_SUPPORTED} 로 클래스 트랜잭션을 걷어내, 호출부(Task 4)가
-     * {@code @Transactional} 을 깜빡해도 이 메서드가 스스로 트랜잭션을 열어 동작하는지 직접 본다
-     * (보완 리뷰 Minor #3).
+     * 않는다. 이 테스트만 {@code NOT_SUPPORTED} 로 클래스 트랜잭션을 걷어내, 로그인 서비스 호출부가
+     * {@code @Transactional} 을 깜빡해도 이 메서드가 스스로 트랜잭션을 열어 동작하는지 직접 본다.
      *
      * <p>클래스 트랜잭션을 걷어냈으므로 이 메서드가 만든 행은 테스트 종료 후에도 롤백되지 않는다 —
      * 재실행(테스트 전체 묶음을 두 번 연속 돌리는 검증 포함) 시 UNIQUE 제약과 충돌하지 않도록 {@code finally}

@@ -93,7 +93,7 @@ class RunCompletionBoundaryTest {
         long stopId = fixtures().stop(academyId, "37.500000", "127.000000");
         // 실제 완료 판정(잔여 BOARDED 수)이 이 시험에 섞이지 않도록 no_show 학생을 명단에 함께 둔다
         // — RunCompletionService 를 가짜로 대체했으므로 이 로스터 구성 자체는 반환값에 영향을 주지
-        // 않지만, 조율자 지시대로 완료 판정 시험에 결근·미승차 탑승자가 섞인 명단을 쓴다.
+        // 않지만, 완료 판정 시험에는 결근·미승차 탑승자가 섞인 명단을 쓴다.
         long alightingStudent = fixtures().student(academyId, "학생7");
         long noShowStudent = fixtures().student(academyId, "학생8(결근)");
         long runId = fixtures().movingRun(academyId, busId, now.minusMinutes(10), now.minusMinutes(40));
