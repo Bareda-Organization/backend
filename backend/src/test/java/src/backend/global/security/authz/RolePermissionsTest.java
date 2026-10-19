@@ -153,13 +153,10 @@ class RolePermissionsTest {
                 Permissions.NOTIFICATION_SETTING_WRITE, Permissions.DEVICE_REGISTER));
         catalog.put(Role.DRIVER, Set.of(
                 Permissions.STUDENT_READ_BASIC, Permissions.STUDENT_READ_PHOTO, Permissions.ROSTER_READ,
-                Permissions.RUN_START, Permissions.RUN_ARRIVE, Permissions.EMERGENCY_RAISE,
-                Permissions.EXCEPTION_REPORT, Permissions.ROUTE_READ, Permissions.DEVICE_REGISTER));
+                Permissions.EMERGENCY_RAISE, Permissions.ROUTE_READ, Permissions.DEVICE_REGISTER));
         catalog.put(Role.ESCORT, Set.of(
                 Permissions.STUDENT_READ_BASIC, Permissions.STUDENT_READ_PHOTO, Permissions.ROSTER_READ,
-                Permissions.BOARDING_WRITE, Permissions.BOARDING_REVERT, Permissions.DELAY_NOTIFY,
-                Permissions.EMERGENCY_RAISE, Permissions.EXCEPTION_REPORT, Permissions.ROUTE_READ,
-                Permissions.DEVICE_REGISTER));
+                Permissions.EMERGENCY_RAISE, Permissions.ROUTE_READ, Permissions.DEVICE_REGISTER));
         catalog.put(Role.STAFF, Set.of(
                 Permissions.STUDENT_READ_BASIC, Permissions.STUDENT_READ_SENSITIVE, Permissions.STUDENT_READ_PHOTO,
                 Permissions.STUDENT_WRITE, Permissions.ROSTER_READ, Permissions.EMERGENCY_ACK,
