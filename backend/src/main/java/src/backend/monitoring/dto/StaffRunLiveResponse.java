@@ -17,13 +17,13 @@ public record StaffRunLiveResponse(List<Run> runs) {
     /**
      * @param status 정본이 {@code moving} 만 반환한다 적어 상수처럼 보이지만, 필드로 남긴다 —
      *               응답 형태 자체는 상태 무관하게 유지하는 편이 §6.8(전 상태 포함 가능) 소비
-     *               코드와의 형태 대칭에 유리하다는 판단(확신 없는 지점 — 보고서 §2)
+     *               코드와의 형태 대칭에 유리하다는 판단이다
      * @param position 위치 미수신 회차는 {@code null}
      * @param currentStop·{@code nextStop} 정차 이름 문자열(승하차지 또는 강제 경유지) — id 가 아니다
      * @param progress 확정 노선의 정차 진행도 — 노선 미확정이면 {@code done=0, total=0}
      * @param delayMinutes Ruling 232 §3.1 — 가장 최근 도착한 정차의 {@code arrived_at - eta} (분,
      *                     음수는 0), 도착한 정차가 없으면 {@code started_at - depart_time} (음수는
-     *                     0). 두 경우 다 0 이하로 내려가지 않는다(확신 없는 지점 — 보고서 §2)
+     *                     0). 두 경우 다 0 이하로 내려가지 않는다
      * @param lastSeenAt {@code position} 이 {@code null} 일 때만 채운다 — 정본 §5.18 "위치 미수신
      *                   회차는 {@code position=null} + {@code last_seen_at}"
      */

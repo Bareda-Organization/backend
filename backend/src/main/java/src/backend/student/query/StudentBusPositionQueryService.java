@@ -89,7 +89,7 @@ public class StudentBusPositionQueryService {
                     run.getFinishedAt(), delay);
         }
 
-        // Redis 가 죽으면 run_position 최신 행으로 대체된다(BR-167) — 그때 current_stop_name 은 비어 나간다.
+        // Redis 가 죽으면 run_position 최신 행으로 대체된다(BR-167) — current_stop_name 은 정차 항목에서 같은 규칙으로 채워진다.
         Optional<RunPositionRedisValue> snapshot = runPositionStore.find(run.getId());
         if (snapshot.isEmpty()) {
             return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus, run.getStartedAt(),

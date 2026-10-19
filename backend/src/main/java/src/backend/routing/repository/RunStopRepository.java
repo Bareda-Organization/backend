@@ -18,6 +18,7 @@ import jakarta.persistence.LockModeType;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.routing.dto.PositionStopView;
+import src.backend.routing.dto.RunStopNameView;
 import src.backend.routing.entity.RunStop;
 import src.backend.run.entity.RunStatus;
 
@@ -65,6 +66,22 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             ORDER BY rs.seq ASC
             """)
     List<PositionStopView> findPositionStops(@Param("runId") Long runId, @Param("academyId") Long academyId);
+
+    /**
+     * {@link #findPositionStops} 와 같은 현재 판본 정차 항목을 회차 여러 개 몫으로 한 문장에 읽는다 — Redis 대체 위치가
+     * 회차마다 현재 정차지 이름을 구하되 조회문이 회차 수만큼 늘지 않게 한다. 회차를 가르는 {@code runId} 를 함께 싣는다.
+     */
+    @AcademyScopeExempt(reason = "Redis 최신 좌표의 대체 조회 — 호출자(RunPositionStore 의 소비자)가 이미 학원 범위로 "
+            + "확인한 회차 id 만 넘기고, 이 문장은 그 회차들의 정차 이름만 읽는다(TECH_DECISIONS §14.2)")
+    @Query("""
+            SELECT new src.backend.routing.dto.RunStopNameView(cr.runId, rs.seq, rs.arrivedAt, COALESCE(s.name, w.label))
+            FROM ConfirmedRoute cr
+            JOIN RunStop rs ON rs.routeVersionId = cr.currentVersionId
+            LEFT JOIN Stop s ON s.id = rs.stopId
+            LEFT JOIN Waypoint w ON w.id = rs.waypointId
+            WHERE cr.runId IN :runIds
+            """)
+    List<RunStopNameView> findStopNamesByRunIdIn(@Param("runIds") Collection<Long> runIds);
 
     /**
      * 노선 판본 여러 개의 정차 항목을 한 번에(BR-247) — {@link #findAllByRouteVersionIdAndAcademyIdOrderBySeq} 를 회차마다

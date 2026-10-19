@@ -221,7 +221,7 @@ class StaffStudentControllerTest {
     }
 
     /**
-     * 학생 본인 계정이 연결됐는지 목록에서 알린다(§5.11 {@code account_linked}, B1 #14) — 가입 승인 화면이 이미 연결된
+     * 학생 본인 계정이 연결됐는지 목록에서 알린다(§5.11 {@code account_linked}) — 가입 승인 화면이 이미 연결된
      * 학생을 고를 수 없게 보이는 데 쓴다. 계정 번호(식별자)가 아니라 연결 여부만 내는 것이 요점이다.
      */
     @Test

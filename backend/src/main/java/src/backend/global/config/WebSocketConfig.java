@@ -70,7 +70,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${app.ws.outbound.queue-capacity:5000}")
     private final int outboundQueueCapacity;
     /**
-     * 세션 하나가 보낼 메시지를 버퍼링할 수 있는 최대 바이트 수(FIX-VERIFY.md §5-1) — 미설정 시
+     * 세션 하나가 보낼 메시지를 버퍼링할 수 있는 최대 바이트 수 — 미설정 시
      * Spring 기본값 512KB. {@code WebSocketEnvelope} 페이로드는 실측 200~400바이트라 64KB 면 200배
      * 여유이고, 최대 세션(8,112, 09-09 부하 한계 측정 §7) 기준 512KB 는 약 4.1GB, 64KB 는 약 520MB다.
      */
@@ -226,7 +226,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     /**
      * SUBSCRIBE 거부 시 종료 코드를 4403 으로 바꾸는 세션 데코레이터를 등록한다 —
      * {@link ForbiddenSubscriptionCloseFactory} 참고. 세션 송신 한도(버퍼·시간)도 여기서 명시한다
-     * — 미설정 시 Spring 기본값(512KB·10초)을 조용히 상속하기 때문이다(FIX-VERIFY.md §5-1).
+     * — 미설정 시 Spring 기본값(512KB·10초)을 조용히 상속하기 때문이다.
      */
     @Override
     public void configureWebSocketTransport(WebSocketTransportRegistration registration) {

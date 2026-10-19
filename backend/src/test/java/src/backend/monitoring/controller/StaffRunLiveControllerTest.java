@@ -186,7 +186,7 @@ class StaffRunLiveControllerTest {
      * <p>{@code POST /runs/{runId}/position} 은 {@code received_at} 을 서버가 호출 시각으로 항상
      * "지금" 으로 찍어 과거로 되돌릴 방법이 HTTP 경로에 없다 — 그래서 Redis 키를 직접 써서 오래된
      * {@code receivedAt} 을 만든다. DB 행이 아니라 Redis 캐시 값이고, 이 시나리오를 프로덕션
-     * 코드로는 재현할 수단이 아예 없어 부득이한 선택이다(확신 없는 지점, 보고서 §2).
+     * 코드로는 재현할 수단이 아예 없어 부득이한 선택이다.
      */
     @Test
     @DisplayName("2분 이상 유실이면 position=null, last_seen_at 은 채워진다")

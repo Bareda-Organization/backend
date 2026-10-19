@@ -3,15 +3,12 @@ package src.backend.global.security.authz;
 /**
  * 인가 권한(permission) 문자열 상수 — FEATURE_SPEC §6.2 권한 카탈로그를 그대로 옮긴다.
  *
- * <p>§6.2 표를 직접 세면 32종이다 — {@code RUN_START}·
- * {@code RUN_ARRIVE}, {@code MANAGER_MANAGE}·{@code BUS_MANAGE}·{@code SCHEDULE_MANAGE} 처럼 한
- * 표 행에 권한 이름이 여럿인 행이 있어서다. §6.2 자체가 "표를 직접 세어 확인하라"고 명시하므로 이
- * 클래스(와 표)가 정본이다. {@code EXCEPTION_REPORT_READ} 는 §6.2 표에 신설된 권한이다 — §6.1 매트릭스는 관계자의
- * 예외 보고 조회를 이미 "조회"로 표기했으나 §6.2 권한 카탈로그에 대응 상수가 누락돼 있었다.
+ * <p>상수는 29종이다. §6.2 표에서 {@code MANAGER_MANAGE}·{@code BUS_MANAGE}·{@code SCHEDULE_MANAGE} 처럼 한
+ * 표 행에 권한 이름이 여럿인 행이 있어 표의 행 수는 더 적다. 이 클래스(와 엔드포인트 → 권한 표)가 기준이다.
  *
- * <p>{@code RUN_FORCE_CONFIRM} 은 API_SPEC §6.14 가 신설했다 — {@code EXCEPTION_REPORT_READ}
- * 때와 같은 형태로, §6.2 표에는 아직 대응 행이 없다(문서 쪽 반영은 이 클래스가 아니라 §6.2 표 소유
- * 좌석의 몫이다).
+ * <p>운행 시작 · 도착 처리 · 승하차 · 되돌리기 · 지연 알림 · 예외 보고는 권한 상수가 없다 — 역할과 그 회차 배치를
+ * 서비스 계층({@code RunAssignmentAccess} 등)이 확인해 {@code DRIVER_ONLY} · {@code ESCORT_ONLY} · {@code FORBIDDEN} 으로
+ * 답한다. 엔드포인트가 쓰지 않는 상수는 두지 않는다({@code EndpointPermissionTableTest} 가 고정한다).
  *
  * <p>이름은 §6.2 표기를 그대로 쓴다 — 표와 코드 사이에 별도 변환 규칙(콜론 표기 등)을 두면
  * 대조가 사람이 손으로 하는 일이 된다. {@link RolePermissions} 의 부여표와 컨트롤러 메타
@@ -43,33 +40,13 @@ public final class Permissions {
     /** 회차 명단 조회. 관계자 · 기사 · 동승자 · 메인관리자. */
     public static final String ROSTER_READ = "ROSTER_READ";
 
-    /** 승하차 상태 변경(C-06 — 기사는 불가). 동승자. */
-    public static final String BOARDING_WRITE = "BOARDING_WRITE";
-
-    /** 승하차 상태 되돌리기. 동승자. */
-    public static final String BOARDING_REVERT = "BOARDING_REVERT";
-
-    // ── 운행 ──
-
-    /** 운행 시작(C-15). 기사. */
-    public static final String RUN_START = "RUN_START";
-
-    /** 승하차지·최종 도착 처리(= 운행 종료 겸함, C-15). 기사. */
-    public static final String RUN_ARRIVE = "RUN_ARRIVE";
-
     // ── 알림 · 비상 ──
-
-    /** 지연 알림 전송. 동승자. */
-    public static final String DELAY_NOTIFY = "DELAY_NOTIFY";
 
     /** 비상 알림 발신(EXC-04). 기사 · 동승자. */
     public static final String EMERGENCY_RAISE = "EMERGENCY_RAISE";
 
     /** 비상 알림 조회·확인. 관계자 전용(Ruling 884) — 메인관리자는 열람 전용 콘솔(MONITOR_ALL)을 쓴다. */
     public static final String EMERGENCY_ACK = "EMERGENCY_ACK";
-
-    /** 보호자 부재 · 현장 상황 보고(EXC-02·03). 기사 · 동승자. */
-    public static final String EXCEPTION_REPORT = "EXCEPTION_REPORT";
 
     /** 예외 보고 조회(§5.20). 관계자. */
     public static final String EXCEPTION_REPORT_READ = "EXCEPTION_REPORT_READ";

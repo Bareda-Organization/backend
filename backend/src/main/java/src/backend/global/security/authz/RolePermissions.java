@@ -31,11 +31,7 @@ public final class RolePermissions {
     private RolePermissions() {
     }
 
-    /**
-     * 역할별 부여 줄 59개(FEATURE_SPEC §6.2 권한 32종을 보유 역할 수만큼 반복한 합계). {@code EXCEPTION_REPORT_READ}(관계자 전용)와
-     * {@code RUN_FORCE_CONFIRM}(메인관리자 전용)이 포함된 수다 — 둘 다
-     * §6.2 표에는 아직 반영 전이라 위 "32종"은 코드 상수 개수이지 표의 행 수와는 갈린다.
-     */
+    /** 역할별 부여 줄 53개(권한 상수 29종을 보유 역할 수만큼 반복한 합계). */
     public static final String HIERARCHY =
             // 학부모 — 자녀 기본 정보를 보고, 탑승 의사·변경을 신청하고, 알림·단말을 설정한다
             grant(Role.PARENT,
@@ -53,28 +49,21 @@ public final class RolePermissions {
                     Permissions.NOTIFICATION_SETTING_WRITE,
                     Permissions.DEVICE_REGISTER)
 
-            // 운전기사 — 명단을 보고 운행을 시작·종료하며 비상·예외를 보고한다(승하차는 기록하지 않는다, C-06)
+            // 운전기사 — 명단을 보고 비상을 발신한다(운행 시작·도착 처리·예외 보고는 권한 상수 없이 서비스 계층이 배치를 확인하고, 승하차는 기록하지 않는다, C-06)
             + grant(Role.DRIVER,
                     Permissions.STUDENT_READ_BASIC,
                     Permissions.STUDENT_READ_PHOTO,
                     Permissions.ROSTER_READ,
-                    Permissions.RUN_START,
-                    Permissions.RUN_ARRIVE,
                     Permissions.EMERGENCY_RAISE,
-                    Permissions.EXCEPTION_REPORT,
                     Permissions.ROUTE_READ,
                     Permissions.DEVICE_REGISTER)
 
-            // 동승자 — 명단을 보고 승하차를 기록·정정하며 지연·비상·예외를 보고한다(운행 시작·종료는 하지 않는다)
+            // 동승자 — 명단을 보고 비상을 발신한다(승하차·되돌리기·지연 알림·예외 보고는 권한 상수 없이 서비스 계층이 배치를 확인한다)
             + grant(Role.ESCORT,
                     Permissions.STUDENT_READ_BASIC,
                     Permissions.STUDENT_READ_PHOTO,
                     Permissions.ROSTER_READ,
-                    Permissions.BOARDING_WRITE,
-                    Permissions.BOARDING_REVERT,
-                    Permissions.DELAY_NOTIFY,
                     Permissions.EMERGENCY_RAISE,
-                    Permissions.EXCEPTION_REPORT,
                     Permissions.ROUTE_READ,
                     Permissions.DEVICE_REGISTER)
 

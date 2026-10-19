@@ -28,6 +28,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
+import src.backend.routing.repository.RunStopRepository;
 import testsupport.redis.Outage;
 import testsupport.redis.OutageRedis;
 import testsupport.redis.OutageRedisContext;
@@ -153,6 +154,6 @@ class RunPositionStoreOutageTest {
         given(row.getReceivedAt()).willReturn(OffsetDateTime.now());
         RunPositionRepository repository = mock(RunPositionRepository.class);
         given(repository.findLatestByRunIdIn(any(), any(), any())).willReturn(List.of(row));
-        return new RunPositionStore(template, repository, new SimpleMeterRegistry(), Clock.systemUTC());
+        return new RunPositionStore(template, repository, mock(RunStopRepository.class), new SimpleMeterRegistry(), Clock.systemUTC());
     }
 }

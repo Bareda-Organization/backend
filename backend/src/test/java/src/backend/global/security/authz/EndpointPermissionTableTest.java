@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +97,39 @@ class EndpointPermissionTableTest {
             }
         });
         assertThat(broken).as("좁히는 클래스 메모가 가리키는 클래스·메서드가 없다").isEmpty();
+    }
+
+    /** {@link Permissions} 의 모든 상수가 표의 {@code can:} 값에 한 번 이상 나온다 — 어떤 엔드포인트도 검사하지 않는 상수는 두지 않는다. */
+    @Test
+    void Permissions_상수_전부가_표의_can_값에_쓰인다() throws IllegalAccessException {
+        List<String> constants = new ArrayList<>();
+        for (Field field : Permissions.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
+                constants.add((String) field.get(null));
+            }
+        }
+
+        assertThat(constants).as("상수를 하나도 못 읽었으면 이 검사가 아무것도 보지 않은 것이다").hasSizeGreaterThan(20);
+        assertThat(unusedIn(constants, tableRows().values()))
+                .as("표의 can: 값에 한 번도 안 나오는 Permissions 상수 — 서비스 계층이 판정하는 동작은 상수를 두지 않는다")
+                .isEmpty();
+    }
+
+    /** 미사용 상수 계산이 쓰인 상수는 통과시키고 안 쓰인 상수만 골라낸다. */
+    @Test
+    void 미사용_상수_계산은_쓰이지_않은_상수만_골라낸다() {
+        List<String> cells = List.of("can:A,B", "public", "authenticated", "service");
+
+        assertThat(unusedIn(List.of("A", "B"), cells)).isEmpty();
+        assertThat(unusedIn(List.of("A", "B", "C"), cells)).containsExactly("C");
+        assertThat(unusedIn(List.of("A_B"), List.of("can:A,B"))).containsExactly("A_B");
+    }
+
+    private static List<String> unusedIn(Collection<String> constants, Collection<String> permissionCells) {
+        Set<String> used = permissionCells.stream().filter(v -> v.startsWith("can:"))
+                .flatMap(v -> Arrays.stream(v.substring("can:".length()).split(",")))
+                .collect(Collectors.toSet());
+        return constants.stream().filter(c -> !used.contains(c)).toList();
     }
 
     private static List<String> differences(Map<String, String> code, Map<String, String> table) {
