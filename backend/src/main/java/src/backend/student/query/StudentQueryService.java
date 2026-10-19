@@ -181,7 +181,7 @@ public class StudentQueryService {
     private record GuardianLinks(Map<Long, String> phones, Map<Long, Integer> counts) {}
 
     /**
-     * 이름 자연 정렬(B1 #27) — DB 정렬은 문자열 순이라 "학생10" 이 "학생2" 앞에 온다. 조건에 맞는 학생의 id·이름만 읽어 자연
+     * 이름 자연 정렬 — DB 정렬은 문자열 순이라 "학생10" 이 "학생2" 앞에 온다. 조건에 맞는 학생의 id·이름만 읽어 자연
      * 순서로 줄 세우고, 요청한 쪽의 id 만 본 행으로 읽는다(보호자 연락처를 싣는 본 행은 한 쪽 분량만).
      *
      * <p>ponytail: 요청마다 그 학원의 일치 학생 전건(id·이름)을 읽는다 — 학원 하나가 수천 명이어도 ms 단위다. 수만 명을

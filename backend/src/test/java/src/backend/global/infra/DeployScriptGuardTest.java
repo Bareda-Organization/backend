@@ -190,7 +190,7 @@ class DeployScriptGuardTest {
     void deploySuccessTailCleansImagesAndSetsLogRetention() throws IOException {
         String script = Files.readString(DEPLOY_SH);
 
-        // 옛 SHA 태그 이미지는 이름이 있어 `prune -f` 로는 안 지워진다 — 매 배포마다 이미지 ~400MB 가 쌓인다(C #18).
+        // 옛 SHA 태그 이미지는 이름이 있어 `prune -f` 로는 안 지워진다 — 매 배포마다 이미지 ~400MB 가 쌓인다.
         assertThat(script).contains("docker image prune -af --filter until=72h").doesNotContain("docker image prune -f ");
         assertThat(script).contains("aws logs put-retention-policy").contains("LOG_RETENTION_DAYS=7");
     }
