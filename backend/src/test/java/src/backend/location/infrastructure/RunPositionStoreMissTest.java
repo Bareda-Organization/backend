@@ -27,6 +27,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
+import src.backend.routing.repository.RunStopRepository;
 import src.backend.student.query.StudentBusPositionQueryService;
 
 /**
@@ -44,7 +45,7 @@ class RunPositionStoreMissTest {
 
     private final RunPositionRepository repository = mock(RunPositionRepository.class);
 
-    private final RunPositionStore store = new RunPositionStore(template, repository, new SimpleMeterRegistry(), Clock.systemUTC());
+    private final RunPositionStore store = new RunPositionStore(template, repository, mock(RunStopRepository.class), new SimpleMeterRegistry(), Clock.systemUTC());
 
     @Test
     @DisplayName("Redis 가 비어 있으면 운행 중 회차의 최신 좌표를 DB 최신 행에서 읽고, 행이 없으면 빈 값이다")
@@ -63,7 +64,7 @@ class RunPositionStoreMissTest {
 
         assertThat(found).as("DB 최신 행으로 채운 좌표").containsOnlyKeys(RUN_ID);
         assertThat(found.get(RUN_ID).lat()).isEqualByComparingTo("37.5");
-        assertThat(found.get(RUN_ID).currentStopName()).as("DB 행에는 현재 정차지 이름이 없다").isNull();
+        assertThat(found.get(RUN_ID).currentStopName()).as("정차 항목이 없는 회차의 현재 정차지 이름은 없다").isNull();
 
         given(repository.findLatestMovingByRunIdIn(any(), any(), any())).willReturn(List.of());
         assertThat(store.findAll(List.of(RUN_ID))).as("DB 에도 행이 없으면 오늘의 답(빈 값)").isEmpty();
@@ -92,7 +93,7 @@ class RunPositionStoreMissTest {
                 .isBetween(StudentBusPositionQueryService.STALE_THRESHOLD.minusSeconds(5), StudentBusPositionQueryService.STALE_THRESHOLD.plusSeconds(5));
 
         RunPositionRepository untouched = mock(RunPositionRepository.class);
-        RunPositionStore withValue = new RunPositionStore(template, untouched, new SimpleMeterRegistry(), Clock.systemUTC());
+        RunPositionStore withValue = new RunPositionStore(template, untouched, mock(RunStopRepository.class), new SimpleMeterRegistry(), Clock.systemUTC());
         String json = """
                 {"lat":37.5,"lng":127.5,"recordedAt":"%s","receivedAt":"%s","currentStopName":"정차지"}
                 """.formatted(OffsetDateTime.now(), OffsetDateTime.now());

@@ -6,7 +6,7 @@ import java.time.OffsetDateTime;
 /**
  * Redis 최신 좌표 값(키 {@code run:{runId}:position}) — 읽기·쓰기가 전부
  * {@link src.backend.location.infrastructure.RunPositionStore} 한 곳을 지난다(BR-098). Redis 장애 때 DB 최신 행으로
- * 대체한 값도 같은 형태다({@code currentStopName} 만 비어 있다). 필드 5종(lat·lng·recordedAt·receivedAt·
+ * 대체한 값도 같은 형태이고 {@code currentStopName} 은 정차 항목에서 같은 규칙으로 구한다. 필드 5종(lat·lng·recordedAt·receivedAt·
  * currentStopName)과 이름은 임의로 바꾸지 않는다.
  *
  * <p>⚠ <b>와이어 포맷 — 다형 타입 태그 없는 평문 camelCase JSON.</b>({@code {"lat":37.5,...}}).

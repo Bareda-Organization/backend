@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -28,6 +29,9 @@ import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
+import src.backend.routing.dto.RunStopNameView;
+import src.backend.routing.query.CurrentRunStopResolver;
+import src.backend.routing.repository.RunStopRepository;
 
 /**
  * 회차 최신 좌표 저장소 — Redis 키 {@code run:{runId}:position} 을 읽고 쓰는 유일한 곳이다(BR-098 · BR-099).
@@ -36,8 +40,8 @@ import src.backend.location.repository.RunPositionRepository;
  *
  * <p><b>Redis 장애 대체(BR-167, TECH_DECISIONS §14.2)</b> — {@link #find}·{@link #findAll} 은 Redis 가 실패하면
  * (연결 실패·시간 상한 초과) {@code run_position} 의 회차별 최신 행으로 같은 형태를 돌려준다. 여러 회차는 조회
- * 한 번이다(관제가 회차 수만큼 쿼리를 내지 않게). 대체 값의 {@code currentStopName} 은 {@code null} — 이력 행에
- * 없는 값이다. <b>근접 판정도 대체한다</b>(Ruling 624) — 건너뛰면 Redis 가 죽은 동안 기사가 도착 처리해 "다음 미도착" 이 넘어간
+ * 한 번이다(관제가 회차 수만큼 쿼리를 내지 않게). 대체 값의 {@code currentStopName} 은 이력 행에 없는 값이라 현재 판본 정차 항목에서
+ * 위치 송신과 같은 규칙으로 구한다(조회 한 번 더, 회차 수와 무관). <b>근접 판정도 대체한다</b>(Ruling 624) — 건너뛰면 Redis 가 죽은 동안 기사가 도착 처리해 "다음 미도착" 이 넘어간
  * 정차지는 선점 한 번 못 해 도착 임박 알림이 영구히 빠진다. 대체 위치는 {@code recorded_at} 이 지연될 수 있어 300m 안 진입을
  * 늦게 알아챌 수는 있지만 알림이 빠지는 것보다 낫다.
  *
@@ -79,6 +83,8 @@ public class RunPositionStore {
     private final StringRedisTemplate stringRedisTemplate;
 
     private final RunPositionRepository runPositionRepository;
+
+    private final RunStopRepository runStopRepository;
 
     private final MeterRegistry meterRegistry;
 
@@ -168,23 +174,35 @@ public class RunPositionStore {
     private Map<Long, RunPositionRedisValue> fromHistoryForMissing(List<Long> runIds) {
         meterRegistry.counter(MISS_FALLBACK_METRIC).increment();
         OffsetDateTime now = OffsetDateTime.now(clock);
-        Map<Long, RunPositionRedisValue> positions = new HashMap<>();
-        for (RunPosition row : runPositionRepository.findLatestMovingByRunIdIn(runIds, now.minus(MISS_LOOKBACK),
-                now.plus(FALLBACK_LOOKAHEAD))) {
-            positions.put(row.getRunId(), new RunPositionRedisValue(row.getLat(), row.getLng(), row.getRecordedAt(),
-                    row.getReceivedAt(), null));
-        }
-        return positions;
+        return withCurrentStopNames(runPositionRepository.findLatestMovingByRunIdIn(runIds, now.minus(MISS_LOOKBACK),
+                now.plus(FALLBACK_LOOKAHEAD)));
     }
 
     private Map<Long, RunPositionRedisValue> fromHistory(List<Long> runIds) {
         meterRegistry.counter(FALLBACK_METRIC).increment();
         OffsetDateTime now = OffsetDateTime.now(clock);
+        return withCurrentStopNames(runPositionRepository.findLatestByRunIdIn(runIds, now.minus(FALLBACK_LOOKBACK),
+                now.plus(FALLBACK_LOOKAHEAD)));
+    }
+
+    /**
+     * 이력 행을 Redis 값과 같은 형태로 바꾼다. 현재 정차지 이름은 이력 행에 없어 정차 항목에서 구한다 — 위치 송신이 Redis 값을 쓸 때와
+     * 같은 규칙({@link CurrentRunStopResolver})이고, 회차 수와 무관하게 조회 한 번이다. 행이 없으면 읽지 않는다.
+     */
+    private Map<Long, RunPositionRedisValue> withCurrentStopNames(List<RunPosition> rows) {
+        if (rows.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<RunStopNameView>> stopsByRunId = runStopRepository
+                .findStopNamesByRunIdIn(rows.stream().map(RunPosition::getRunId).toList()).stream()
+                .collect(Collectors.groupingBy(RunStopNameView::runId));
         Map<Long, RunPositionRedisValue> positions = new HashMap<>();
-        for (RunPosition row : runPositionRepository.findLatestByRunIdIn(runIds, now.minus(FALLBACK_LOOKBACK),
-                now.plus(FALLBACK_LOOKAHEAD))) {
+        for (RunPosition row : rows) {
+            String currentStopName = CurrentRunStopResolver.resolve(
+                            stopsByRunId.getOrDefault(row.getRunId(), List.of()), RunStopNameView::seq, RunStopNameView::arrivedAt)
+                    .map(RunStopNameView::name).orElse(null);
             positions.put(row.getRunId(), new RunPositionRedisValue(row.getLat(), row.getLng(), row.getRecordedAt(),
-                    row.getReceivedAt(), null));
+                    row.getReceivedAt(), currentStopName));
         }
         return positions;
     }

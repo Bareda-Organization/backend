@@ -38,6 +38,7 @@ import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.location.repository.RunPositionRepository;
+import src.backend.routing.repository.RunStopRepository;
 import src.backend.location.scheduler.ProximityNotificationScheduler;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
@@ -96,7 +97,7 @@ class RedisFailureLogFloodTest {
         when(operations.multiGet(anyCollection())).thenThrow(new RedisConnectionFailureException("redis down"));
         RunPositionRepository history = mock(RunPositionRepository.class);
         when(history.findLatestByRunIdIn(any(), any(), any())).thenReturn(List.of());
-        RunPositionStore store = new RunPositionStore(redis, history, new SimpleMeterRegistry(), Clock.systemUTC());
+        RunPositionStore store = new RunPositionStore(redis, history, mock(RunStopRepository.class), new SimpleMeterRegistry(), Clock.systemUTC());
         collect(RunPositionStore.class);
 
         for (int i = 0; i < FAILURES; i++) {
