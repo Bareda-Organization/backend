@@ -139,8 +139,8 @@ class RunConfirmationServiceTest {
     }
 
     /**
-     * F3 R2 재판정 ⚠b — 기존 시험들은 {@code confirmOne(Long)} 을 불러도 그 결과 {@code route_version}
-     * 의 {@code fallback_used} 를 확인한 적이 없다. 배치 확정의 기본 호출부(스케줄러)가 이 한 인자
+     * 다른 시험들은 {@code confirmOne(Long)} 을 불러도 그 결과 {@code route_version}
+     * 의 {@code fallback_used} 를 확인하지 않는다. 배치 확정의 기본 호출부(스케줄러)가 이 한 인자
      * 오버로드를 쓰므로, 이것이 조용히 {@code forceFallback=true} 쪽으로 위임하도록 바뀌어도 지도 API
      * 호출 자체는 여전히 1회 일어난다({@code StubMapRouteClient.route} 가 매번 불리고 내부에서만
      * 분기한다) — 그래서 "호출됐는지"가 아니라 저장된 {@code fallback_used} 값으로 판정한다.
