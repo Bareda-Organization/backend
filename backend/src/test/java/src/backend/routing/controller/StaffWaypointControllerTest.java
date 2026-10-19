@@ -184,7 +184,7 @@ class StaffWaypointControllerTest {
         // 바뀌어도(swap) 통과하므로, 구체값으로 어느 쪽이 어느 값인지까지 고정해야 바뀌치기를 잡는다.
         // ⚠ 후(994분)가 전(21분)보다 훨씬 큰 것은 좌표 직접 지정이 아니라 주소 지오코딩(경유_본문의
         // "새경유로 11")을 거쳐서다 — 스텁 지오코더가 실제 좌표와 멀리 떨어진 근사값을 준 것으로
-        // 보이며, 이 시나리오의 실제 지리적 타당성은 이 시험의 범위 밖이다(보고서 §2 참고).
+        // 보이며, 이 시나리오의 실제 지리적 타당성은 이 시험의 범위 밖이다.
         int beforeDuration = JsonPath.read(body, "$.data.est_duration_before");
         int afterDuration = JsonPath.read(body, "$.data.est_duration_after");
         assertThat(beforeDuration).as("확정 배치가 저장한 값(전) — route_version.est_duration_min").isEqualTo(21);

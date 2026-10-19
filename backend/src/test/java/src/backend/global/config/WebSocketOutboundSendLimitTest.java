@@ -11,7 +11,7 @@ import org.springframework.web.socket.handler.WebSocketHandlerDecorator;
 import org.springframework.web.socket.messaging.SubProtocolWebSocketHandler;
 
 /**
- * 세션 하나가 보낼 메시지의 버퍼·시간 한도를 명시로 고정한다(FIX-VERIFY.md §5-1).
+ * 세션 하나가 보낼 메시지의 버퍼·시간 한도를 명시로 고정한다.
  *
  * <p>고치기 전에는 {@code configureWebSocketTransport} 가 한도를 지정하지 않아 Spring 기본값
  * (512KB·10초)을 조용히 상속했다 — 최대 세션(8,112, 09-09 부하 한계 측정 §7) 기준 512KB 는

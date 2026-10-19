@@ -154,7 +154,7 @@ public class AdminAcademyLiveQueryService {
     /**
      * 목적지 도착 예정(Ruling 232 확정 — 계획값, 재계산 부재) = {@code depart_time + est_duration_min}.
      * {@code est_duration_min} 이 아직 없으면(노선 계산 전) {@code null} 이다 — moving 상태는 노선
-     * 확정 이후에만 도달하므로 실제로는 거의 항상 채워져 있다(edge case, 보고서 §2 참고).
+     * 확정 이후에만 도달하므로 실제로는 거의 항상 채워져 있다.
      */
     private OffsetDateTime destinationEtaOf(Run run) {
         if (run.getEstDurationMin() == null) {

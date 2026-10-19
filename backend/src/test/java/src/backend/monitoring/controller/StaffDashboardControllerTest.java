@@ -608,7 +608,7 @@ class StaffDashboardControllerTest {
         // 필수(●)·선택(○) 구분 그대로) — 존재 자체는 이 rider 가 change=null 인 것으로 이미 확인됨.
         // items[] 래핑 여부는 §5.4 정본 산문("items[] (학생 단위 표)")과 실제 응답(전역 ApiResponse
         // 봉투 안 bare List)이 다르다 — StaffRosterControllerTest 도 $.data[0] 로 이미 접근하는
-        // 기존 관례라 코드 결함이 아니라 정본 산문의 서술 부정확으로 판단(확신 없는 지점, 보고서 §2).
+        // 기존 관례라 코드 결함이 아니라 정본 산문의 서술 부정확으로 본다.
     }
 
     // ── 실제 승하차 처리 반영 ──────────────────────────────────
@@ -692,7 +692,7 @@ class StaffDashboardControllerTest {
      * 모듈 범위 밖) 대신 새 {@code RouteVersion}(버전 2)을 직접 저장하고
      * {@code ConfirmedRouteRepository#assignCurrentVersion} 을 호출해 재현한다 — 이 메서드가
      * {@code ChangeRequestDecisionService#approve} 가 실제로 부르는 것과 정확히 같은 프로덕션
-     * 메서드라, 판정 로직(버전 비교) 검증 목적에는 동등하다고 판단(확신 없는 지점, 보고서 §2).
+     * 메서드라, 판정 로직(버전 비교) 검증 목적에는 동등하다.
      * {@link DriverRunFixtures#confirmedRouteWithVersion} 을 그대로 두 번째로 호출하지 않는 이유는
      * 그 메서드가 매번 {@code ConfirmedRoute} 도 함께 새로 저장해 {@code run_id} 기준 PK 충돌
      * (DataIntegrityViolationException)이 나기 때문이다.

@@ -58,8 +58,7 @@ import src.backend.student.repository.WeeklyAddressRepository;
  *
  * <p>경유 지점 쪽 배포 절차(잠금 획득 → 새 버전 저장 → {@code assignCurrentVersion})를 그대로 흉내낸
  * "경쟁 스레드"를 만들어 재현한다 — 실제 {@code WaypointCommandService}(라우팅 소유)를 호출하지
- * 않고 그 저장소 호출 순서만 복제한다({@code routing} 모듈 파일을 고치지 않기 위함, BRIEF-2A 경계
- * 규칙). 기법은 {@code ChangeRequestAutoRejectionConcurrencyTest}·{@code RunConfirmationConcurrencyTest}
+ * 않고 그 저장소 호출 순서만 복제한다({@code routing} 모듈 파일을 고치지 않기 위함). 기법은 {@code ChangeRequestAutoRejectionConcurrencyTest}·{@code RunConfirmationConcurrencyTest}
  * 와 같되, 이 경쟁은 <b>같은 잠금을 다투지 않는다는 것 자체가 결함</b>이라 잠금 대기를 폴링할 필요가
  * 없다 — 경쟁 스레드가 잠금을 쥔 채 커밋을 늦추는 동안 승인 스레드가 옛 버전을 읽게 하는 것으로 충분하다.
  */
