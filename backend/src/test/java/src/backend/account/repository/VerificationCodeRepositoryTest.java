@@ -13,8 +13,8 @@ import src.backend.account.entity.VerificationCode;
 import src.backend.account.entity.VerificationPurpose;
 
 /**
- * {@link VerificationCodeRepository} 신규 조회 — 인증 흐름 호출부가 아직 없어 이 테스트가
- * 그 자리를 대신한다.
+ * {@link VerificationCodeRepository} 최신 코드 조회 쿼리를 저장소 단위로 직접 검증한다 — 호출하는 서비스
+ * (계정 복구)의 시험과 별개로 쿼리 조건 자체를 고정한다.
  */
 @SpringBootTest
 @Transactional

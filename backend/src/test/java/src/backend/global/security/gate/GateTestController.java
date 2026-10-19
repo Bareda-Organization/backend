@@ -5,8 +5,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 계정 상태 게이트 검증 전용 컨트롤러 — 테스트 소스에만 존재한다(프로덕션 컨트롤러가 아직 0개라
- * 실제 핸들러로 시험할 수 없다). API_SPEC §1.4 의 pending 허용 2개
+ * 계정 상태 게이트 검증 전용 컨트롤러 — 테스트 소스에만 존재한다(프로덕션 엔드포인트와 무관하게
+ * 게이트 규칙만 시험하려고 둔 전용 핸들러). API_SPEC §1.4 의 pending 허용 2개
  * (signup-status·logout)·rejected 추가 1개(reapply)를 흉내 낸 매핑과, 애너테이션이 없으면
  * 기본이 차단임을 보여줄 무표시 매핑 1개를 둔다.
  */

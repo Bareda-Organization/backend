@@ -366,8 +366,7 @@ class AdminStaffAccountControllerTest {
      * 학원 1곳 + 재직 관계자 1명을 SQL 로 만든다.
      *
      * <p>엔티티가 아니라 SQL 인 이유는 {@code account.status='active'} 로 시작해야 하는데 가입 승인
-     * 전이(pending → active)를 만드는 것이 계정 상태 게이트 쪽 소유라, 지금 그 경로를 부르면 이 테스트가 남의
-     * 산출물에 묶이기 때문이다.
+     * 전이(pending → active)를 거쳐 만들면 이 테스트가 가입 승인 흐름의 산출물에 묶이기 때문이다.
      */
     private 관계자 관계자를_만든다(String loginId) {
         String code = loginId.toUpperCase();

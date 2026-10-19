@@ -19,7 +19,7 @@ import src.backend.global.response.PageResponse;
 
 /**
  * {@code academy_id} 가 {@code null} 인 {@code data_access} 행이 목록 조회를 NPE 로 끊지 않는지 본다
- * (지금의 {@code recordDataAccessRead} 호출부 4곳은 전부 {@code academyId} 를 구조적으로
+ * (지금의 {@code recordDataAccessRead} 호출부는 전부 {@code academyId} 를 구조적으로
  * 채우므로 실제로는 닿지 않지만, {@link AuditLogQueryService#academyNamesOf} 의 {@code Map.of()} 방어가
  * 없으면 이 전제가 깨지는 순간 그대로 500 이 된다).
  *
