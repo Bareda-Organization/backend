@@ -2,12 +2,15 @@ package src.backend.global.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.List;
 
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -74,6 +77,31 @@ class DbSessionTimeoutsTest {
             assertThat(show(statement, "idle_in_transaction_session_timeout"))
                     .as("%s Flyway idle_in_transaction_session_timeout", profile).isEqualTo("30s");
             assertThat(show(statement, "statement_timeout")).as("%s Flyway statement_timeout", profile).isEqualTo("0");
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"prod", "demo", "staging"})
+    @DisplayName("Flyway 는 init-sqls 를 줄바꿈으로 이은 스크립트 하나로 받아 문장마다 세미콜론이 없으면 기동하지 못한다 — 실제 Flyway 로 실행한다")
+    void init_sqls_를_Flyway_가_받는_모양으로_이어도_실행된다(String profile) throws Exception {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(profileDocument(profile));
+        List<String> initSqls = Binder.get(environment).bind("spring.flyway.init-sqls", Bindable.listOf(String.class))
+                .orElseThrow(() -> new AssertionError(profile + " 의 spring.flyway.init-sqls 가 없다"));
+
+        // Spring Boot 는 init-sqls 목록을 줄바꿈으로 이어 Flyway 의 initSql(문자열 하나)로 넘긴다 — 문장 사이 세미콜론이 없으면 한 문장으로 읽힌다
+        String script = String.join("\n", initSqls);
+        Path emptyMigrations = Files.createTempDirectory("flyway-empty");
+        try {
+            // info() 가 새 연결을 열 때 initSql 을 실행한다 — 문법 오류면 FlywaySqlScriptException 이 난다
+            Flyway.configure()
+                    .dataSource(System.getProperty("spring.datasource.url"), "schoolbus", "schoolbus")
+                    .initSql(script)
+                    .locations("filesystem:" + emptyMigrations)
+                    .load()
+                    .info();
+        } finally {
+            Files.deleteIfExists(emptyMigrations);
         }
     }
 
