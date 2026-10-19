@@ -319,7 +319,7 @@ class BoardingLockOrderConcurrencyTest {
     }
 
     @Test
-    @DisplayName("I1 교착 — 하원 마지막 승하차지의 마지막 하차(PATCH)와 기사의 도착 처리가 겹쳐도 교착 없이 둘 다 끝나고 회차가 종료된다")
+    @DisplayName("교착 — 하원 마지막 승하차지의 마지막 하차(PATCH)와 기사의 도착 처리가 겹쳐도 교착 없이 둘 다 끝나고 회차가 종료된다")
     void 마지막_하차와_도착_처리가_겹쳐도_교착하지_않는다() throws Exception {
         Stage stage = stage("from_academy");
         long riderId = rider(stage, "마지막하차학생", "boarded");
@@ -340,7 +340,7 @@ class BoardingLockOrderConcurrencyTest {
     }
 
     @Test
-    @DisplayName("I1 교착 — 마지막 승하차지의 미승차(PATCH)와 회차를 끝내는 도착 처리(운행 종료 강제 출발)가 겹쳐도 교착하지 않는다")
+    @DisplayName("교착 — 마지막 승하차지의 미승차(PATCH)와 회차를 끝내는 도착 처리(운행 종료 강제 출발)가 겹쳐도 교착하지 않는다")
     void 마지막_미승차와_종료_도착이_겹쳐도_교착하지_않는다() throws Exception {
         Stage stage = stage("from_academy");
         rider(stage, "이미하차학생", "alighted");
@@ -364,7 +364,7 @@ class BoardingLockOrderConcurrencyTest {
     }
 
     @Test
-    @DisplayName("I1 교착 — 하차(PATCH)가 승하차지 행을 쥔 순간 근접 출발 판정이 들어와도 교착 없이 끝나고 출발 알림은 1건이다")
+    @DisplayName("교착 — 하차(PATCH)가 승하차지 행을 쥔 순간 근접 출발 판정이 들어와도 교착 없이 끝나고 출발 알림은 1건이다")
     void 하차와_근접_출발이_겹쳐도_교착하지_않는다() throws Exception {
         Stage stage = stage("from_academy");
         long riderId = rider(stage, "출발경합학생", "boarded");
@@ -399,7 +399,7 @@ class BoardingLockOrderConcurrencyTest {
     }
 
     @Test
-    @DisplayName("I1 교착 — 도착 처리의 앞 승하차지 강제 출발이 회차 행보다 먼저 승하차지 행을 쥐지 않는다(하차 기록이 회차 행을 쥔 채 그 승하차지를 기다릴 때)")
+    @DisplayName("교착 — 도착 처리의 앞 승하차지 강제 출발이 회차 행보다 먼저 승하차지 행을 쥐지 않는다(하차 기록이 회차 행을 쥔 채 그 승하차지를 기다릴 때)")
     void 앞_승하차지_강제_출발과_하차_기록이_겹쳐도_교착하지_않는다() throws Exception {
         Stage stage = stage("from_academy");
         long riderId = rider(stage, "앞승하차지학생", "boarded");

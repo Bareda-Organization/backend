@@ -2,7 +2,7 @@
 # Redis 멈춤 연습 — 백엔드 1대를 nginx 뒤에서 작게 계속 두드리는 동안 Redis 를 멈추고(kill) 얼려(pause) 사용자에게 보이는 것을 재고, Ruling 929 D 의 기준으로 판정한다.
 #
 # 스택 = docker-compose.prod.yml + infra/redis-drill/docker-compose.drill.yml, 프로젝트 이름 r60-redis. postgres · redis · backend(1대) · proxy(nginx) · prometheus 만 띄운다.
-# 부하는 backend/load/k6/r60_redis_outage.js(기사 위치 POST · 학부모 위치 GET · Redis 무관 GET · 승인 상세 GET · STOMP 구독자).
+# 부하는 backend/load/k6/redis_outage.js(기사 위치 POST · 학부모 위치 GET · Redis 무관 GET · 승인 상세 GET · STOMP 구독자).
 # 정리는 `down` 만 한다 — `-v` 는 쓰지 않는다(스택이 볼륨을 만들지 않는다).
 #
 # 판정(종료 코드 0 이려면 전부 만족) — 기준값은 환경변수로 바꿀 수 있다. 929 D 가 정한 것은 1 · 2 · 3 이고, 4~8 은 확인 회차(큰 회차, 요청 7,971건)의 실측에 여유를 둔 값이다:
@@ -144,7 +144,7 @@ wait_subscribed() { # 중계 채널 구독이 Redis 에 보일 때까지 — 걸
 echo "== 부하 시작 (k6 ${K6_SECONDS}초, 구독자 $SESSIONS) =="
 k6 run --quiet --out "json=$OUT/k6.json" \
   -e NGINX_URL="$NGINX_HTTPS" -e BE_URL="$BE_DIRECT" -e SESSIONS="$SESSIONS" -e DURATION_SEC="$K6_SECONDS" -e APPROVAL_ID="$APPROVAL_ID" \
-  "$REPO/backend/load/k6/r60_redis_outage.js" > "$OUT/k6.log" 2>&1 &
+  "$REPO/backend/load/k6/redis_outage.js" > "$OUT/k6.log" 2>&1 &
 K6_PID=$!
 sampler & SAMPLER_PID=$!
 event k6_start

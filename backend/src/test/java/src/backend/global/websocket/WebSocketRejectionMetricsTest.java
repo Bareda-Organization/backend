@@ -93,7 +93,7 @@ class WebSocketRejectionMetricsTest {
         session.send("CONNECT", "accept-version:1.2", "host:localhost", "Authorization:Bearer " + token());
 
         assertThat(session.awaitFrame()).startsWith("ERROR").contains("message:TOKEN_EXPIRED");
-        assertThat(session.closeCode()).as("K1 ② — ERROR 프레임 뒤 서버가 쓰는 종료 코드").isEqualTo(CLOSE_CODE_AFTER_ERROR_FRAME);
+        assertThat(session.closeCode()).as("ERROR 프레임 뒤 서버가 쓰는 종료 코드").isEqualTo(CLOSE_CODE_AFTER_ERROR_FRAME);
         assertThat(rejected("connect", "TOKEN_EXPIRED")).isEqualTo(rejectedBefore + 1);
         assertThat(closed("TOKEN_EXPIRED")).isEqualTo(closedBefore + 1);
         assertPrometheusLine("schoolbus_ws_rejected_total", "phase=\"connect\"", "reason=\"TOKEN_EXPIRED\"");

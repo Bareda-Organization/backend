@@ -1,5 +1,5 @@
 -- 학생 목적지 시험 — 위치용 회차(LP-…, moving)에 destination_seed.sql 의 학생(L3DEST-…)을 명단으로 붙인다.
--- r46_link_position_riders.sql 이 LOADCAP 학생 20명씩을 붙인 뒤에 한 번 더 실행한다. 같은 학원의 학생 · 승하차지만 잇는다(Ruling 675).
+-- link_position_riders.sql 이 LOADCAP 학생 20명씩을 붙인 뒤에 한 번 더 실행한다. 같은 학원의 학생 · 승하차지만 잇는다(Ruling 675).
 -- 위치용 회차 n 번째(그 학원 안에서 순) ↔ 그 학원 LOADCAP 버스의 (n-1) % 버스 수 + 1 번째 버스의 L3DEST 학생. 다시 실행해도 겹치지 않는다.
 --
 -- 실행: docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/destination_link_riders.sql

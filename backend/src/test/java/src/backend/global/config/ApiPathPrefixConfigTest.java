@@ -20,8 +20,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
  * 실제로 등록한 경로 패턴을 조회해야 "런타임에 붙었는가"를 확인할 수 있다.
  *
  * <p>대상 판정은 {@code @RestController} 애너테이션이 아니라 {@code src.backend} 패키지 소속
- * 여부만으로 한다(보완 리뷰 Important #2) — 애너테이션으로 걸렀던 옛 판정은 {@link
- * ApiPathPrefixConfig#configurePathMatch} 의 대상 Predicate 와 문자 그대로 동일해서, 누군가
+ * 여부만으로 한다 — 애너테이션으로 거르면 {@link
+ * ApiPathPrefixConfig#configurePathMatch} 의 대상 Predicate 와 문자 그대로 같아져서, 누군가
  * {@code @RestController} 대신 {@code @Controller} 로 API 를 만들어 접두사 배선을 통째로 피해가는
  * 사고가 나도 이 테스트가 production 판정을 그대로 베껴 통과시켜 버렸다 — 안전망이 자신이 지키는
  * 대상과 같은 눈을 쓴 것이다. 패키지 기준으로 바꾸면 어떤 애너테이션을 쓰든 src.backend 소속

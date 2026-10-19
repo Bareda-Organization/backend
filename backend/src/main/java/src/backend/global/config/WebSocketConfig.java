@@ -181,8 +181,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * 바꾸지 않고 속성으로 두는 이유는, 운영 인스턴스 크기에 맞는 값이 측정으로 정해져야 하고
      * 그 값이 정해지기 전까지는 현 동작을 그대로 두는 편이 안전하기 때문이다.
      *
-     * <p>큐는 {@link #outboundQueueCapacity} 로 상한을 둔다(BR-170) — 전에는 무한이라 넘치면
-     * 거부가 아니라 <b>지연과 힙 증가</b>로 나타났고, 힙이 차면 GC 압력이 DB 커넥션 보유 시간을
+     * <p>큐는 {@link #outboundQueueCapacity} 로 상한을 둔다(BR-170). 상한이 없으면 넘치는 부하가
+     * 거부가 아니라 <b>지연과 힙 증가</b>로 나타나고, 힙이 차면 GC 압력이 DB 커넥션 보유 시간을
      * 늘려 <b>위치 수신 HTTP 까지 함께 무너졌다</b>(부하 한계 측정 — 큐 520만 건 ·
      * 힙 3.8GB · 커넥션 획득 30초 타임아웃). 큐가 가득 차도 거부 정책은 {@code CallerRunsPolicy} —
      * 호출 스레드가 대신 보내 메시지를 잃지 않는다. 위치({@code position}) 이벤트만 큐 포화를
@@ -190,7 +190,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * Ruling 349) — 이 실행기 자체는 이벤트 종류를 모른다.
      *
      * <p>큐 길이는 Spring Boot 의 {@code TaskExecutorMetricsAutoConfiguration} 이 이 빈을 빈 이름
-     * (메서드 이름 {@code outboundTaskExecutor})으로 자동 계측한다(O4, 실측 확인 —
+     * (메서드 이름 {@code outboundTaskExecutor})으로 자동 계측한다(실측 확인 —
      * {@code executor_queued_tasks{name="outboundTaskExecutor"}}가 코드 추가 없이 이미 노출됨).
      */
     @Override

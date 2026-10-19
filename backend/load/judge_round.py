@@ -11,7 +11,7 @@
 | 4 | 확정이 마감(출발 30분 전) 안 | C-03 · RTE-02 | 배치 도래→전량 확정 드레인 ≤ 1,800초 |
 | 5 | 미확정 0 | TECH_DECISIONS §13.4 | 확정 건수 ≥ 도래시킨 건수 · 드레인 끝의 남은 건수 ≤ 0 |
 
-실행: ./r46_judge.py <라벨> [라벨 …]   (결과 파일: results/<라벨>_position.json · _poll.json · _sessions.json · _run.out)
+실행: ./judge_round.py <라벨> [라벨 …]   (결과 파일: results/<라벨>_position.json · _poll.json · _sessions.json · _run.out)
 종료 코드: 모든 라벨이 5항을 통과하면 0, 하나라도 미통과이거나 결과 파일이 없으면 1 (Ruling 921 G — 목표 표의 판정 명령으로 쓴다).
 """
 import json

@@ -536,7 +536,7 @@ class StaffRunAssignmentControllerTest {
                 .andExpect(jsonPath("$.data.warnings.length()").value(0));
     }
 
-    // ── 저장소의 학원 조건 (리뷰 Important 2) ─────────────────────────────
+    // ── 저장소의 학원 조건 ─────────────────────────────
 
     /**
      * 배치를 되읽을 때 <b>남의 학원 매니저는 실리지 않는다</b> — {@code findAssignedManagers} 의

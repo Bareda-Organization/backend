@@ -15,7 +15,7 @@ import src.backend.global.error.ErrorCode;
 
 /**
  * 매니저의 근무 시간 — {@code manager.work_hours}({@code jsonb})가 담는 형태를 고정하고 저장 전에
- * 검증한다(ERD §3.3 · MGR-06 · 조율자 Ruling 150).
+ * 검증한다(ERD §3.3 · MGR-06 · Ruling 150).
  *
  * <pre>{@code { "mon": [{ "start": "07:00", "end": "10:00" }, { "start": "16:00", "end": "19:00" }] } }</pre>
  *

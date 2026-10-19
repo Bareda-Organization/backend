@@ -32,7 +32,7 @@ import src.backend.notification.repository.NotificationLogRepository;
  * 경계 시험 — <b>쓰는 쪽(읽음 처리)과 세는 쪽(미확인 배지)을 한 시험에서 잇는다.</b>
  *
  * <p>왜 별도 클래스인가 — 두 기능을 한 시험에서 잇는 일은 <b>한 기능 담당이 만들 수 없다.</b>
- * 그래서 조율자 몫으로 둔다
+ * 그래서 통합 검증 쪽 몫으로 둔다
  * (Ruling 222). {@code Phase9CrossSeatWiringTest} 와 같은 자리다.
  *
  * <p>🔴 <b>이 시험이 실제로 결함을 잡았다.</b> 쓰는 쪽은 중요 통지 3종에만

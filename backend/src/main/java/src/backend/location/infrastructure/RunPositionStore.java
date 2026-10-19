@@ -35,8 +35,8 @@ import src.backend.routing.repository.RunStopRepository;
 
 /**
  * 회차 최신 좌표 저장소 — Redis 키 {@code run:{runId}:position} 을 읽고 쓰는 유일한 곳이다(BR-098 · BR-099).
- * 위치 수신 리스너가 쓰고, 근접 판정·학부모 위치·관제·비상 신고가 읽는다. 전에는 3개 모듈 4개 클래스가 키·형식을
- * 각자 알아서, 한쪽만 형식이 바뀐 사고가 있었다({@link RunPositionRedisValue} 자바독).
+ * 위치 수신 리스너가 쓰고, 근접 판정·학부모 위치·관제·비상 신고가 읽는다. 3개 모듈 4개 클래스가 키·형식을 각자 알면
+ * 한쪽만 형식이 바뀌는 사고가 난다({@link RunPositionRedisValue} 자바독).
  *
  * <p><b>Redis 장애 대체(BR-167, TECH_DECISIONS §14.2)</b> — {@link #find}·{@link #findAll} 은 Redis 가 실패하면
  * (연결 실패·시간 상한 초과) {@code run_position} 의 회차별 최신 행으로 같은 형태를 돌려준다. 여러 회차는 조회

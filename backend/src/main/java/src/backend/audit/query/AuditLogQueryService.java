@@ -140,7 +140,7 @@ public class AuditLogQueryService {
      * 한 페이지분 학원명을 한 번에 모은다 — 행마다 조회하면 페이지 크기만큼 질의가 늘어난다
      * ({@code AdminBlockedAccountQueryService} 와 같은 근거).
      *
-     * <p>{@code Map.of()} 대신 빈 {@link HashMap} 을 돌려준다 — R1 재판정, 프로덕션 도달 불가,
+     * <p>{@code Map.of()} 대신 빈 {@link HashMap} 을 돌려준다 — 프로덕션 도달 불가,
      * 방어 목적. {@code academy_id} 가 {@code null} 인 행이 페이지에 섞이면 호출부가 그 키로
      * {@code get(null)} 을 하는데, {@code Map.of()} 는 {@code null} 키 조회 자체를 거부해 NPE 를
      * 던진다({@link java.util.HashMap} 은 {@code null} 키를 그대로 받아 {@code null} 을 돌려준다).

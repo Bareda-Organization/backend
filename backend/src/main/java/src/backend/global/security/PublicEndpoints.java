@@ -19,13 +19,13 @@ public final class PublicEndpoints {
     /** {@code POST /auth/signup}(API_SPEC §2.2). */
     public static final String SIGNUP = "/auth/signup";
 
-    /** {@code POST /auth/login}(API_SPEC §2.5, Task 4 소관 — 경로만 여기서 함께 관리). */
+    /** {@code POST /auth/login}(API_SPEC §2.5, 로그인 흐름 소관 — 경로만 여기서 함께 관리). */
     public static final String LOGIN = "/auth/login";
 
-    /** {@code POST /auth/refresh}(API_SPEC §2.6, Task 4 소관). */
+    /** {@code POST /auth/refresh}(API_SPEC §2.6, 로그인 흐름 소관). */
     public static final String REFRESH = "/auth/refresh";
 
-    /** {@code POST /auth/recover}(API_SPEC §2.9, Task 4 소관). */
+    /** {@code POST /auth/recover}(API_SPEC §2.9, 로그인 흐름 소관). */
     public static final String RECOVER = "/auth/recover";
 
     /** {@code SecurityConfig} 가 GET 매처에 쓰는 목록. */

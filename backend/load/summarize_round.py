@@ -4,7 +4,7 @@
 판정 근거는 콘솔 문자열이 아니라 k6 요약 JSON 이지만, 서버 쪽 값(CPU·Hikari·방송 건수)은 r2/r3 스크립트가 run.out 에만
 찍는다 — 그 줄을 정규식으로 읽는다. 호스트 간섭은 묶음 실행기가 남긴 시작·끝 시각 사이의 `r46_host_noise.log` 평균이다.
 
-실행: ./r46_summarize.py <묶음 출력 파일> [라벨 접두사 r46_r2_ | r46_r3_]
+실행: ./summarize_round.py <묶음 출력 파일> [라벨 접두사 r46_r2_ | r46_r3_]
 """
 import re
 import sys

@@ -13,7 +13,7 @@
 // 임계 — 전원 재구독(`resubscribed_total >= TOTAL`) · 가장 늦은 세션도 닫은 뒤 60초 안(`resubscribe_ms max < 60000`) · 닫기 전 확인 통과.
 // 기록만 하는 값 — 재구독 시간 분포 · ERROR 프레임 수 · 재접속 시도 실패 수 · REST 스냅샷 응답 시간. 커넥션 대기는 서버 지표(Hikari)로 회차 스크립트가 뽑는다.
 //
-// 환경변수: STORM_TOKENS(r46_mint_tokens.py 출력) · CLOSE_AT_MS(닫는 순간 · epoch ms) · STORM_STUDENTS(1900) · STORM_STAFF(90) · STORM_ADMIN(10)
+// 환경변수: STORM_TOKENS(mint_tokens.py 출력) · CLOSE_AT_MS(닫는 순간 · epoch ms) · STORM_STUDENTS(1900) · STORM_STAFF(90) · STORM_ADMIN(10)
 //          · STORM_RAMP_SEC(연결 올리는 시간 · 60) · STORM_HOLD_AFTER_SEC(닫은 뒤 유지 · 90) · API_PORT(6570, k6 실행 때 --address localhost:6570)
 import http from 'k6/http';
 import ws from 'k6/ws';

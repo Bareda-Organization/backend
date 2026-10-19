@@ -15,10 +15,9 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 
 /**
- * {@link Account#assertNotBlocked()} 단위 테스트 — 로그인 컨트롤러(Task 4)가 아직 없는 시점에도
- * blocked 판정 로직 자체를 검증한다(Task 2 브리프 §2.3). DB·Spring 컨텍스트 없이 순수 도메인
- * 규칙만 확인하므로, blocked·rejected·active 상태는 아직 없는 전이 메서드 대신
- * {@link ReflectionTestUtils}로 직접 주입한다.
+ * {@link Account#assertNotBlocked()} 단위 테스트 — 로그인·재발급 흐름과 따로 blocked 판정 로직 자체를
+ * 검증한다. DB·Spring 컨텍스트 없이 순수 도메인 규칙만 확인하므로, blocked·rejected·active 상태는
+ * 전이 메서드를 거치지 않고 {@link ReflectionTestUtils}로 직접 주입한다.
  */
 class AccountTest {
 

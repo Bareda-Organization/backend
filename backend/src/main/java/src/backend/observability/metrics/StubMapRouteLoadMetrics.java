@@ -11,7 +11,7 @@ import src.backend.routing.map.spec.CallerPolicy;
 
 /**
  * 부하 시험 전용 — {@code StubMapRouteClient} 가 프로파일 조건부로 주입하는 지연·429·실패를 센다
- * ({@code IMPLEMENTATION_PLAN §5.5}, F3 L 시나리오 1·4). 기본·시험 프로파일은 주입을 전부 0/비활성으로
+ * ({@code IMPLEMENTATION_PLAN §5.5}, 부하 시험 시나리오 1·4). 기본·시험 프로파일은 주입을 전부 0/비활성으로
  * 두므로(그 클래스 javadoc) 이 카운터들은 부하 프로파일(`app.routing.map.provider=stub` +
  * `app.routing.map.stub.load.*`)이 아니면 절대 오르지 않는다.
  *

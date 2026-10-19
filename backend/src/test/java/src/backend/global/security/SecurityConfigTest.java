@@ -13,7 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * {@code SecurityConfig.filterChain} 이 {@link PublicEndpoints} 상수를 실제로 소비하는지
- * 런타임으로 잠근다(보완 리뷰 Minor #6).
+ * 런타임으로 잠근다.
  *
  * <p>{@code SecurityConfig} 는 {@code withPrefix(PublicEndpoints.GET_ENDPOINTS)} 로 매처를
  * 조립하지만, 이 배선을 직접 검증하는 테스트가 그동안 없었다 — 각 컨트롤러 테스트가 Authorization

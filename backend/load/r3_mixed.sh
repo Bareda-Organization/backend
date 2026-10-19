@@ -19,7 +19,7 @@
 #                 realistic    = 세션 수만큼 학부모가 자기 학생 채널을 구독 + 관계자 R3_WS_STAFF 명(학원 채널)
 #                                + 메인 관리자 R3_WS_ADMIN 명(관제 채널) — 조사 D "다음 측정 3"의 실제 구독 분포
 #   R3_HOLD       세션·폴링을 유지하는 시간(초). 기본 180. 위치 부하보다 길게 두려면 R3_POS_DUR 와 함께 올린다
-#   R3_POS_DUR    위치 부하 지속 시간(초). 기본 120. r46_judge.py 가 출력의 "위치 지속 N초" 로 목표 송신 건수를 계산한다
+#   R3_POS_DUR    위치 부하 지속 시간(초). 기본 120. judge_round.py 가 출력의 "위치 지속 N초" 로 목표 송신 건수를 계산한다
 #   ROUND_LABEL   결과 파일 이름표(기본 r3_s<세션>_x<배율>)
 set -euo pipefail
 SESSIONS="${1:?세션 수 필요}"
@@ -63,7 +63,7 @@ fi
 echo "위치용 회차 $(wc -l < "$RUNS_CSV")건"
 # realistic 모드는 위치용 회차에 명단을 붙인다 — 없으면 학부모의 학생 채널로 방송이 나가지 않아 시청 세션이 아무것도 안 받는다.
 if [ "$MODE" = "realistic" ]; then
-    echo "명단 연결: $($PG -t -A -F' 회차 ' < "$DIR/sql/r46_link_position_riders.sql" | tail -1) 건"
+    echo "명단 연결: $($PG -t -A -F' 회차 ' < "$DIR/sql/link_position_riders.sql" | tail -1) 건"
 fi
 
 # ② 배치 대상은 R0 이 심어 둔 회차다 — confirm_at 이 미래라 아직 idle 이다. 회차마다 먼저 되돌려
@@ -84,7 +84,7 @@ TOKENS="$DIR/results/${TAG}_tokens.json"
 if [ "$POLL" = "1" ] || [ "$MODE" = "realistic" ]; then
     # 학부모 토큰 수 — 시청 세션 수만큼(최대 2,000). 폴링만 켠 회차는 600 이면 된다(요청마다 무작위로 고른다).
     MINT=600; [ "$MODE" = "realistic" ] && [ "$SESSIONS" -gt 600 ] && MINT=$([ "$SESSIONS" -gt 2000 ] && echo 2000 || echo "$SESSIONS")
-    python3 "$DIR/r46_mint_tokens.py" "$TOKENS" "$MINT"
+    python3 "$DIR/mint_tokens.py" "$TOKENS" "$MINT"
 fi
 
 # k6 → Prometheus 원격 쓰기, 기본 꺼짐(K6_PROM_RW=1 로 켠다) — r1_round.sh 와 같은 스위치·같은 이유

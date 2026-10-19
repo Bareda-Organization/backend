@@ -5,7 +5,7 @@
 섞인다. 실제 앱은 이미 로그인된 채 폴링하므로 로그인은 측정 밖에 둔다. 접근 토큰 유효시간은 15분이라 회차 직전에
 발급해야 한다(`app.jwt.access-token-validity-seconds: 900`).
 
-실행: ./r46_mint_tokens.py <출력.json> [학부모 수=600]
+실행: ./mint_tokens.py <출력.json> [학부모 수=600]
 환경변수 PARENT_NAME_LIKES — 학부모를 뽑을 학생 이름 패턴(쉼표로 여럿 · 기본 'LOADCAP-%'). 학생 목적지 시험은 'LOADCAP-%,L3DEST-%'.
 학부모 항목에는 접근 토큰(token) 말고 재발급 토큰(refresh)도 담긴다 — 토큰 재발급을 걸어 보는 시험(scenario8)이 쓴다.
 환경변수 STAFF_SESSIONS · ADMIN_SESSIONS — 세션마다 따로 로그인한 관계자(학원 순환)·메인 관리자 항목을 staff_sessions · admin_sessions 로 더 담는다(기본 0).

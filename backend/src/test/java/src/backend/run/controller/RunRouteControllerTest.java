@@ -104,8 +104,8 @@ class RunRouteControllerTest {
 
     @Test
     void 정상_조회는_stops_배열에_정차지_순서를_싣는다() throws Exception {
-        // F1 결과 ②(R3 ⑪e) — 기존 결번 시험은 next_stop·skipped_notice 만 보고 stops[] 자체의
-        // 값은 확인하지 않았다. 결번 없이 정차지 2곳을 그대로 태워 stops[0] 이 첫 정차지를 가리키고
+        // 결번 시험은 next_stop·skipped_notice 만 보고 stops[] 자체의
+        // 값은 확인하지 않는다. 결번 없이 정차지 2곳을 그대로 태워 stops[0] 이 첫 정차지를 가리키고
         // 개수가 심은 만큼인지 본다.
         Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();

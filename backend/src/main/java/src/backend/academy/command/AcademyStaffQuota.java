@@ -52,7 +52,7 @@ public class AcademyStaffQuota {
      * 시점까지 미뤄지고 제약 위반이 이 {@code try} 밖에서 터진다. 그때는 이미 응답 변환 경로를 지나쳐
      * {@code 500} 이 나간다. 새 행을 넣는 승인 경로(§6.5)는 {@code IDENTITY} 키를 받으려고
      * {@code save()} 시점에 이미 나가므로 이 flush 가 없어도 잡힌다 — <b>두 경로가 다르다는 것이
-     * 음성 대조로 실측됐다</b>(변형 M2).
+     * 실측으로 확인됐다</b>.
      *
      * <p>{@link jakarta.persistence.EntityManager} 가 아니라 <b>저장소의</b> flush 를 부르는 것도
      * 같은 이유로 중요하다. {@code EntityManager} 를 직접 부르면 Hibernate 의

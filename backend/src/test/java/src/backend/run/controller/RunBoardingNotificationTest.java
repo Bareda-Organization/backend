@@ -33,8 +33,8 @@ import src.backend.global.security.JwtTokenProvider;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 승하차 알림이 나가는 길 전부 — 하원 시작 자동 승차분의 승차 알림 · M-B2(자동 전이의 상태 이력
- * {@code actor_type=system}) · H2(기사가 도착을 누르지 않은 정차지도 다음 도착·운행 종료 때 강제 출발).
+ * 승하차 알림이 나가는 길 전부 — 하원 시작 자동 승차분의 승차 알림 · 자동 전이의 상태 이력
+ * ({@code actor_type=system}) · 기사가 도착을 누르지 않은 정차지도 다음 도착·운행 종료 때 강제 출발.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -63,7 +63,7 @@ class RunBoardingNotificationTest {
 
 
     @Test
-    @DisplayName("H1 — 하원 시작으로 자동 승차된 학생마다 보호자 전원에게 boarding 알림이 1건씩 적재된다")
+    @DisplayName("하원 시작으로 자동 승차된 학생마다 보호자 전원에게 boarding 알림이 1건씩 적재된다")
     void 하원_시작_자동_승차분의_보호자_전원에게_승차_알림이_간다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -97,7 +97,7 @@ class RunBoardingNotificationTest {
     }
 
     @Test
-    @DisplayName("H1 형제 — 보호자 1명이 같은 회차의 자녀 2명을 가지면 자녀마다 boarding 알림이 1건씩 따로 적재된다")
+    @DisplayName("형제 — 보호자 1명이 같은 회차의 자녀 2명을 가지면 자녀마다 boarding 알림이 1건씩 따로 적재된다")
     void 형제_두_명을_가진_보호자는_자녀마다_승차_알림을_받는다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -155,7 +155,7 @@ class RunBoardingNotificationTest {
     }
 
     @Test
-    @DisplayName("H1 부수 — 하원에서 하차 처리 없이 승하차지를 출발하면 탑승 중인 학생에게 승차 알림이 나가지 않는다(하차한 학생은 하차 알림)")
+    @DisplayName("부수 — 하원에서 하차 처리 없이 승하차지를 출발하면 탑승 중인 학생에게 승차 알림이 나가지 않는다(하차한 학생은 하차 알림)")
     void 하원_정차지_출발은_탑승중인_학생에게_승차_알림을_내지_않는다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -183,7 +183,7 @@ class RunBoardingNotificationTest {
     }
 
     @Test
-    @DisplayName("H1 부수 대조 — 등원에서는 승하차지를 출발할 때 탑승한 학생의 승차 알림이 나간다")
+    @DisplayName("부수 대조 — 등원에서는 승하차지를 출발할 때 탑승한 학생의 승차 알림이 나간다")
     void 등원_정차지_출발은_탑승한_학생에게_승차_알림을_낸다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -208,7 +208,7 @@ class RunBoardingNotificationTest {
     }
 
     @Test
-    @DisplayName("H2 — 기사가 도착을 누르지 않은 앞 순번 정차지도 다음 승하차지 도착 때 강제 출발되고 확정 결과가 통지된다")
+    @DisplayName("기사가 도착을 누르지 않은 앞 순번 정차지도 다음 승하차지 도착 때 강제 출발되고 확정 결과가 통지된다")
     void 도착을_누르지_않은_앞_정차지도_다음_도착이_강제_출발시킨다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -239,7 +239,7 @@ class RunBoardingNotificationTest {
     }
 
     @Test
-    @DisplayName("H2 — 하원 최종 지점 도착으로 운행이 끝나면 도착을 누르지 않은 정차지 전부가 강제 출발된다")
+    @DisplayName("하원 최종 지점 도착으로 운행이 끝나면 도착을 누르지 않은 정차지 전부가 강제 출발된다")
     void 운행_종료가_도착을_누르지_않은_정차지_전부를_강제_출발시킨다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -271,7 +271,7 @@ class RunBoardingNotificationTest {
     }
 
     @Test
-    @DisplayName("H2 — 최종 지점 뒤에 남은 건너뜀(skipped) 정차지도 운행 종료와 함께 출발 처리되어 미승차 알림이 학부모에게 간다")
+    @DisplayName("최종 지점 뒤에 남은 건너뜀(skipped) 정차지도 운행 종료와 함께 출발 처리되어 미승차 알림이 학부모에게 간다")
     void 운행_종료가_뒤에_남은_건너뜀_정차지의_미승차를_통지한다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -308,7 +308,7 @@ class RunBoardingNotificationTest {
     }
 
     @Test
-    @DisplayName("H2 — 앞 순번이 건너뜀(skipped)인 정차지도 최종이 아닌 뒤 정차지 도착 때 강제 출발되어 미승차 알림이 학부모에게 간다")
+    @DisplayName("앞 순번이 건너뜀(skipped)인 정차지도 최종이 아닌 뒤 정차지 도착 때 강제 출발되어 미승차 알림이 학부모에게 간다")
     void 중간_정차지_도착이_앞의_건너뜀_정차지를_강제_출발시키고_미승차를_통지한다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
@@ -340,7 +340,7 @@ class RunBoardingNotificationTest {
     }
 
     @Test
-    @DisplayName("H2 — 등원 학원(도착지) 도착 때도 도착을 누르지 않은 승하차지의 승차가 강제 출발·통지된 뒤 자동 하차된다")
+    @DisplayName("등원 학원(도착지) 도착 때도 도착을 누르지 않은 승하차지의 승차가 강제 출발·통지된 뒤 자동 하차된다")
     void 등원_도착지_도착이_도착을_누르지_않은_승하차지를_강제_출발시킨다() throws Exception {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();

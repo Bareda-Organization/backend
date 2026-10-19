@@ -5,7 +5,7 @@
 --
 -- 이름 규칙: account.login_id = lower(student.name) || '-par' (비밀번호 평문 "password").
 --
--- 실행: docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/r46_parent_seed.sql
+-- 실행: docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/parent_seed.sql
 
 \set seed_password_hash '$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq'
 

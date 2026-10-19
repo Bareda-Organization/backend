@@ -12,7 +12,7 @@
 -- 다시 실행해도 겹치지 않는다(UNIQUE (run_id, student_id) + ON CONFLICT).
 -- 점검: check_academy_boundary.sql 의 mismatches 가 전부 0 이어야 한다.
 --
--- 실행: docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/r46_link_position_riders.sql
+-- 실행: docker exec -i school-bus-postgres-1 psql -U schoolbus -d schoolbus_load -q < sql/link_position_riders.sql
 WITH lp AS (
     SELECT r.id AS run_id, r.academy_id,
            row_number() OVER (PARTITION BY r.academy_id ORDER BY (regexp_match(b.bus_no, '-(\d+)$'))[1]::int) AS n
