@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 학원 대조가 <b>판정 지점 한 곳({@code global/security/access/})에만</b> 있는지 소스 수준에서 고정한다.
  *
- * <p>필요한 이유는 실제 사고 2건이다 — 옛 {@code global/tenant/TenantGuard} 와
+ * <p>필요한 이유는 실제 사고 2건이다 — {@code global/tenant/TenantGuard} 와
  * {@code StompAuthChannelInterceptor} 가 각자 학원을 대조했고, <b>둘 다 같은 결함</b>(메인 관리자를
  * 거부)을 가졌다. 한쪽을 고쳐도 다른 쪽은 "여긴 왜 다르지" 라는 물음 없이 남는다.
  *
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
  * ({@link AcademyScopeRepositoryConventionTest})가 누락까지 잡는 것은 쿼리가 <b>선언돼 열거 가능</b>하기
  * 때문인데, 인라인 대조는 선언 지점이 없는 임의 표현식이라 텍스트에는 <b>있는 것의 모양</b>만 남는다.
  * 있어야 하는데 없는 대조는 원리상 관측 대상 밖이다 — 그것을 막는 것은 자원을 꺼내는 경로를 저장소
- * 계층으로 모으는 쪽(Task 5 본체)이고 이 검사가 아니다.
+ * 계층으로 모으는 쪽(학원 격리 작업의 본체)이고 이 검사가 아니다.
  *
  * <p>정밀도의 한계도 하나 있다 — 텍스트만으로는 {@code AuthUser.academyId()} 와 요청 DTO 의 동명
  * 접근자를 구별하지 못한다. 그래서 규칙을 <b>넓게</b> 잡고(어떤 {@code academyId()} 든 비교·대입이면

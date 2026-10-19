@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 계정 상태 게이트 검증 전용 컨트롤러 — 테스트 소스에만 존재한다(프로덕션 컨트롤러가 아직 0개라
- * 실제 핸들러로 시험할 수 없다, Task 2 브리프 §3). API_SPEC §1.4 의 pending 허용 2개
+ * 실제 핸들러로 시험할 수 없다). API_SPEC §1.4 의 pending 허용 2개
  * (signup-status·logout)·rejected 추가 1개(reapply)를 흉내 낸 매핑과, 애너테이션이 없으면
  * 기본이 차단임을 보여줄 무표시 매핑 1개를 둔다.
  */

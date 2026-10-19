@@ -79,7 +79,7 @@ class MetricsExposureTest {
     }
 
     /**
-     * STOMP 팬아웃 송신 실행기({@code WebSocketConfig.outboundTaskExecutor}) 큐 길이 관측(O4).
+     * STOMP 팬아웃 송신 실행기({@code WebSocketConfig.outboundTaskExecutor}) 큐 길이 관측.
      *
      * <p>새 코드를 추가한 게 아니다 — Spring Boot 의 {@code TaskExecutorMetricsAutoConfiguration}
      * 이 {@code ThreadPoolTaskExecutor} 빈을 <b>빈 이름</b>으로 자동 계측한다(실측 확인).

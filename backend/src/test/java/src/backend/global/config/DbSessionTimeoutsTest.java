@@ -56,7 +56,7 @@ class DbSessionTimeoutsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"prod", "demo", "staging"})
-    @DisplayName("F4 — 운영·demo·staging 의 Flyway 연결(init-sqls)도 lock_timeout 5초 · 유휴 트랜잭션 30초를 갖고 statement_timeout 은 없다")
+    @DisplayName("운영·demo·staging 의 Flyway 연결(init-sqls)도 lock_timeout 5초 · 유휴 트랜잭션 30초를 갖고 statement_timeout 은 없다")
     void Flyway_연결에도_세션_시간_상한이_걸린다(String profile) throws Exception {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(profileDocument(profile));

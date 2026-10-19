@@ -195,7 +195,7 @@ class IdempotencyKeyScopeTest {
     }
 
     @Test
-    @DisplayName("후속1 V1 — 키가 비워진 뒤 같은 client_key 승하차 PATCH·연락 기록 POST 는 종료 회차라 409 RUN_NOT_MOVING 이고 새 행이 없다")
+    @DisplayName("키가 비워진 뒤 같은 client_key 승하차 PATCH·연락 기록 POST 는 종료 회차라 409 RUN_NOT_MOVING 이고 새 행이 없다")
     void 비워진_키의_재전송은_종료_회차라_409다() throws Exception {
         UUID key = UUID.randomUUID();
         종료한다(OffsetDateTime.now(clock).minusHours(25));

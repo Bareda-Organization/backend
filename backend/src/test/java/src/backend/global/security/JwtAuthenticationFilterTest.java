@@ -41,8 +41,8 @@ import src.backend.global.common.enums.Role;
  * 동작을 확인하지 않으면 "예외 타입만 바꾼" 것이 된다.
  *
  * <p>{@link JwtTokenProvider} 는 항상 완전한 클레임만 발급하므로, 발급 경로로는 클레임 누락 토큰을
- * 만들 수 없다 — 리플렉션으로 내부 서명 키를 꺼내 직접 서명해, 발급 경로의 결함(예: Task 4 가
- * 클레임을 빠뜨리는 경우)을 흉내 낸다.
+ * 만들 수 없다 — 리플렉션으로 내부 서명 키를 꺼내 직접 서명해, 발급 경로의 결함(예: 로그인·토큰 재발급
+ * 쪽이 클레임을 빠뜨리는 경우)을 흉내 낸다.
  */
 @WebMvcTest(controllers = JwtAuthFilterTestController.class)
 @Import({SecurityConfig.class, JwtTokenProvider.class, src.backend.global.config.ClockConfig.class})

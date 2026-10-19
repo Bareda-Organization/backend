@@ -93,7 +93,7 @@ class ControllerAuthorizationConventionTest {
             "@PatchMapping", "PATCH", "@DeleteMapping", "DELETE");
 
     /**
-     * 조율자 Ruling 77 — {@code @PublicEndpoint} 가 붙은 엔드포인트의 <b>허용 목록</b>.
+     * Ruling 77 — {@code @PublicEndpoint} 가 붙은 엔드포인트의 <b>허용 목록</b>.
      * API_SPEC §2.1·2.2·2.5·2.6·2.9(학원검색·회원가입·로그인·토큰재발급·아이디비밀번호복구)에서
      * 그대로 옮겼다 — 컨트롤러·메서드 이름이 아니라 "HTTP 메서드 + 경로"로 고정한 이유는, 이 값이
      * 사양에서 바로 나와 클래스·메서드 이름을 어떻게 고르든 흔들리지 않기 때문이다.
@@ -188,7 +188,7 @@ class ControllerAuthorizationConventionTest {
     }
 
     /**
-     * 조율자 Ruling 73 — 검사 대상 핸들러 수의 하한을 건다(BR-151, 실측치 기준).
+     * Ruling 73 — 검사 대상 핸들러 수의 하한을 건다(BR-151, 실측치 기준).
      *
      * <p>스캔 경로가 컨트롤러 일부를 놓쳐도(오타난 경로 · 빠뜨린 패키지) {@link
      * #인가_애너테이션이_없는_매핑_메서드가_없다} 는 "위반이 없다"와 "검사할 게 없다"를 구별하지
@@ -213,7 +213,7 @@ class ControllerAuthorizationConventionTest {
     }
 
     /**
-     * 조율자 Ruling 77 — {@code @PublicEndpoint} 는 탈출구(누구나 붙이면 인증을 생략시킬 수 있다)라
+     * Ruling 77 — {@code @PublicEndpoint} 는 탈출구(누구나 붙이면 인증을 생략시킬 수 있다)라
      * 붙은 엔드포인트의 집합을 {@link #EXPECTED_PUBLIC_ENDPOINTS} 허용 목록과 <b>양방향</b>으로
      * 정확히 대조한다. {@code containsExactlyInAnyOrderElementsOf} 를 쓰므로 두 방향 모두 잡는다.
      * <ul>

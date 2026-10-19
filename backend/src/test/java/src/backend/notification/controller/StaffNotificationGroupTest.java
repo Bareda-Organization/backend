@@ -70,24 +70,24 @@ class StaffNotificationGroupTest {
         long academyId = fx.academy();
         long staffAccountId = fx.staffAccount(academyId, "관계자");
         OffsetDateTime t = OffsetDateTime.now(clock);
-        for (int i = 1; i <= 5; i++) { // G1 — 5명, 같은 초
+        for (int i = 1; i <= 5; i++) { // 5명, 같은 초
             fx.sentNotification(academyId, NotificationType.RUN_STARTED, "수신" + i, Role.PARENT, "출발했습니다", "01호차",
                     t.plusNanos(i * 1_000_000L), t.plusSeconds(5));
         }
-        for (int i = 1; i <= 2; i++) { // G2 — 같은 type·body, 2초 뒤 적재(다른 묶음)
+        for (int i = 1; i <= 2; i++) { // 같은 type·body, 2초 뒤 적재(다른 묶음)
             fx.sentNotification(academyId, NotificationType.RUN_STARTED, "늦은수신" + i, Role.PARENT, "출발했습니다", "01호차",
                     t.plusSeconds(2), t.plusSeconds(7));
         }
-        for (int i = 1; i <= 2; i++) { // G3 — 같은 시각, 다른 body
+        for (int i = 1; i <= 2; i++) { // 같은 시각, 다른 body
             fx.sentNotification(academyId, NotificationType.RUN_STARTED, "다른문구" + i, Role.PARENT, "문구가 다르다", "01호차",
                     t, t.plusSeconds(4));
         }
         fx.sentNotification(academyId, NotificationType.BOARDING, "다른종류", Role.STAFF, "출발했습니다", "01호차", t,
-                t.plusSeconds(3)); // G4 — 다른 type
+                t.plusSeconds(3)); // 다른 type
         long run77a = fx.sentNotification(academyId, NotificationType.RUN_STARTED, "다른회차1", Role.PARENT, "출발했습니다",
                 "01호차", t, t.plusSeconds(2));
         long run77b = fx.sentNotification(academyId, NotificationType.RUN_STARTED, "다른회차2", Role.PARENT, "출발했습니다",
-                "01호차", t, t.plusSeconds(2)); // G5 — 같은 type·body·초지만 run 이 다르다
+                "01호차", t, t.plusSeconds(2)); // 같은 type·body·초지만 run 이 다르다
         entityManager.flush();
         jdbcTemplate.update("UPDATE notification_log SET run_id = 77 WHERE id IN (?, ?)", run77a, run77b);
         entityManager.clear();

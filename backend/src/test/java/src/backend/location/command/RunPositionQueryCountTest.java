@@ -144,7 +144,7 @@ class RunPositionQueryCountTest {
      * 아래 RT-5 시험이 3건을 센다.
      */
     @Test
-    @DisplayName("L2 — 캐시가 빈 첫 위치 1건의 SQL 은 6건이다(첫 도착 뒤 · 880 포함)")
+    @DisplayName("캐시가 빈 첫 위치 1건의 SQL 은 6건이다(첫 도착 뒤 · 880 포함)")
     void 첫_도착_뒤_위치_1건의_SQL_은_6건이다() throws Exception {
         Seeded seeded = 회차를_심는다(true);
 
@@ -152,7 +152,7 @@ class RunPositionQueryCountTest {
     }
 
     @Test
-    @DisplayName("L2 — 캐시가 빈 첫 위치는 첫 도착 전에도 SQL 6건이다(880 포함)")
+    @DisplayName("캐시가 빈 첫 위치는 첫 도착 전에도 SQL 6건이다(880 포함)")
     void 첫_도착_전_위치_1건의_SQL_은_6건이다() throws Exception {
         Seeded seeded = 회차를_심는다(false);
 
@@ -233,9 +233,9 @@ class RunPositionQueryCountTest {
         assertThat(직접_보내고_SQL_수를_센다(seeded)).as("그 다음 위치는 다시 3건").isEqualTo(3);
     }
 
-    /** 위치 방송 수신자 조회가 absent 를 빼고 학생 id 만 돌려준다(엔티티 목록 대신 투영 — L2). 거르는 일은 조회가 한다. */
+    /** 위치 방송 수신자 조회가 absent 를 빼고 학생 id 만 돌려준다(엔티티 목록 대신 투영). 거르는 일은 조회가 한다. */
     @Test
-    @DisplayName("L2 — 위치 방송 수신자는 absent 를 뺀 학생 id 만이다")
+    @DisplayName("위치 방송 수신자는 absent 를 뺀 학생 id 만이다")
     void 방송_수신자는_absent_를_뺀_학생_id_만이다() {
         Seeded seeded = 회차를_심는다(false);
         DriverRunFixtures fx = new DriverRunFixtures(academyRepository, busRepository, stopRepository,
