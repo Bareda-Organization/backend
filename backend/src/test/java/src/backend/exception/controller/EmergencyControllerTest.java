@@ -204,7 +204,7 @@ class EmergencyControllerTest {
                         .content(요청본문("vehicle_fault", null, UUID.randomUUID())))
                 .andExpect(status().isCreated());
 
-        assertThat(신고건수(runId)).as("역할 제한 없음)").isEqualTo(1);
+        assertThat(신고건수(runId)).as("동승자 발신도 기사와 동일하게 성립해야 한다(역할 제한 없음)").isEqualTo(1);
     }
 
     // ── 위치 자동 첨부 · 캐시 비어도 발신은 성공 ────────────────────
