@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
  * <p>{@code academy_id}·{@code actor_account_id} 는 논리적 부모이나 DB FK 가 미설정이다(ERD §4.2 —
  * 감사 대상이 삭제돼도 기록은 남아야 하므로 원본 삭제에 연동되면 감사 목적이 소멸한다). {@code action} 은
  * ERD 의 CHECK 값을 그대로 저장하며, "결과 성공/실패" · "차단 이벤트 여부" 로의 투영은 이 엔티티가 하지
- * 않는다(조율자 Ruling 13) — 조회 시점에 다른 Phase 가 계산한다.
+ * 않는다(Ruling 13) — 조회 시점에 조회 쪽 로직이 계산한다.
  *
  * <p><b>크기 기준(CODE_CONVENTIONS §20.2)을 넘긴 이유</b> — 팩토리 {@link #forDataAccessChange}(9개)·{@link #forRunForceConfirm}(9개)·
  * {@link #forDataAccessRead}·{@link #forRunForceFinish}(8개)의 파라미터와 클래스 길이(300줄 이상)는 행 하나가 행위자 스냅샷
@@ -260,7 +260,7 @@ public class AuditLog {
      * <p><b>{@code category}·{@code action} 이 스펙 문면과 다르다 — Ruling 260 확정.</b> §6.14 는
      * 문면상 action 을 {@code run.force_confirm} 으로 적지만, {@code ck_audit_log_action} CHECK
      * 제약의 값 도메인은 {@link AuditAction} 7종으로 닫혀 있어 그 문자열을 열 자체에는 담을 수 없다.
-     * 조율자 판정(Ruling 260)은 {@code category=DATA_ACCESS}·{@code action=UPDATE}·
+     * Ruling 260 에서 {@code category=DATA_ACCESS}·{@code action=UPDATE}·
      * {@code target_type="run"} 재사용을 확정했다 — 도메인을 늘리면 V1 CHECK·ERD CHECK·
      * {@code GET /admin/audit-logs}(§6.12) 의 action 투영까지 번지고, {@code update}+{@code run} 이면
      * 같은 감사 조회 화면에 자연히 나타나기 때문이다. 스펙이 요구하는 정확한 동작 이름·부가 정보는

@@ -21,7 +21,7 @@ public record StaffDashboardResponse(Metrics metrics, List<Run> runs) {
      * @param noShow 금일 전 회차의 미승차({@code status=no_show}) 인원 합(MON-04)
      * @param absent 금일 전 회차의 미등원({@code status=absent}) 인원 합(MON-06)
      * @param unassignedManagers 오늘 어느 회차에도 배치되지 않은 재직 매니저 수(Ruling 233 — 정본이
-     *                           침묵해 조율자 권장값을 따름, 근거는 서비스 자바독)
+     *                           침묵해 권장값을 따름, 근거는 서비스 자바독)
      */
     public record Metrics(int movingBuses, int boarded, int noShow, int absent, int unassignedManagers) {
     }

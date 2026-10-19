@@ -53,7 +53,7 @@ public class SignupCommandService {
      * {@link DataIntegrityViolationException} 으로 잡아 409 {@code DUPLICATE_LOGIN_ID} 로
      * 옮긴다. 이게 없으면 전역 예외 처리기의 catch-all 로 떨어져 500 이 된다.
      *
-     * <p>제약명을 {@link #LOGIN_ID_UNIQUE_CONSTRAINT} 로 좁혀 확인한다(보완 리뷰 Minor #1) — 좁히지
+     * <p>제약명을 {@link #LOGIN_ID_UNIQUE_CONSTRAINT} 로 좁혀 확인한다 — 좁히지
      * 않으면 이 계정에 앞으로 다른 UNIQUE·FK 제약이 늘었을 때 그 위반까지 전부 "아이디 중복" 으로
      * 잘못 답하게 된다.
      *

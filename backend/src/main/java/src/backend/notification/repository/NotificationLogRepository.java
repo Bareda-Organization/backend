@@ -38,8 +38,7 @@ import src.backend.notification.entity.PushState;
  * 양쪽 담당이 서로 다른 뜻으로 같은 이름을 지어 충돌하는 것이 실제 위험이기 때문이다(Ruling 222) —
  * 아웃박스 전이 메서드는 전부 단건({@code id} 로 특정)이라 이름이 겹칠 일이 없지만, 조회는 그렇지
  * 않다. 이 인터페이스에 리포지토리를 <b>더 만들지 않고</b> 여기 얹은 이유는 이 저장소의 47개 리포지토리
- * 전부가 엔티티 1:1 이라 2개로 가르는 선례가 없기 때문이다(Ruling 222) — 격리 워크트리에서 별도 파일로
- * 만들었다가 병합 전 조율자 판정으로 되돌렸다.
+ * 전부가 엔티티 1:1 이라 2개로 가르는 선례가 없기 때문이다(Ruling 222).
  */
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
 

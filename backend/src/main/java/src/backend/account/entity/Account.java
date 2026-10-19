@@ -159,7 +159,7 @@ public class Account extends BaseTimeEntity {
      * 로그인 자체는 허용하므로 여기서 걸리지 않는다. 통과하면 아무 것도 하지 않고, 아니면
      * {@link BusinessException}({@code AUTH_ACCOUNT_BLOCKED}, 401 이 아닌 403).
      *
-     * <p>로그인 서비스(Task 4)가 비밀번호 대조보다 먼저 호출한다 — 자격 오류(401)로 응답하면
+     * <p>로그인 서비스가 비밀번호 대조보다 먼저 호출한다 — 자격 오류(401)로 응답하면
      * 사용자가 비밀번호가 틀린 줄 알고 재시도하고, 그 재시도가 실패 카운터를 다시 올리게 된다.
      */
     public void assertNotBlocked() {

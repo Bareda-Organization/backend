@@ -24,7 +24,7 @@ import io.swagger.v3.oas.models.tags.Tag;
  *
  * <p>{@link #openApi()} 가 등록하는 태그 5개는 `docs/planning/API_SPEC.md` §2~§6 도메인 절과 1:1 대응한다.
  * 태그 목록·순서·설명을 이 클래스 한 곳에서만 관리하고, 컨트롤러는 {@code @Tag(name = "...")} 로
- * 소속만 선언한다(조율자 확정 Ruling 36). {@code X-Client-Type} 헤더 자동 부착
+ * 소속만 선언한다(Ruling 36). {@code X-Client-Type} 헤더 자동 부착
  * ({@code OperationCustomizer})은 이 클래스의 책임이 아니다 — 로그인 컨트롤러 메서드가
  * {@code @Parameter} 로 직접 붙인다.
  */

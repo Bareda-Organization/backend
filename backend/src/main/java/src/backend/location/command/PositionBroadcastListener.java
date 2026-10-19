@@ -33,8 +33,8 @@ import src.backend.global.location.RunRiderDirectory;
  * 다시 계산하지 않는다(Ruling 232 확정 — 계획값, 재계산 부재).
  *
  * <p>{@code current_stop_name}·{@code eta}·학원 id 는 이벤트에 실려 온다 — 위치를 저장한 트랜잭션이 한 번
- * 계산해 두 리스너(이 방송 · Redis 최신 좌표)가 같은 값을 쓴다(BR-100). 전에는 두 리스너가 커밋 뒤 같은
- * 회차·확정 노선·정차 목록·정차지 이름을 각자 다시 읽어 위치 1건(2초마다)에 SELECT 가 약 9개였다.
+ * 계산해 두 리스너(이 방송 · Redis 최신 좌표)가 같은 값을 쓴다(BR-100). 이렇게 두지 않으면 두 리스너가 커밋 뒤 같은
+ * 회차·확정 노선·정차 목록·정차지 이름을 각자 다시 읽어 위치 1건(2초마다)에 SELECT 가 약 9개 나간다.
  */
 @Component
 @RequiredArgsConstructor

@@ -160,8 +160,8 @@ public class NavigationQueryService {
      * 실측 GPS 를 쓰므로 부재해야 한다.
      *
      * <p>출발점은 방향마다 다르다(Ruling 190, 확정 배치와 같은 규칙 · BR-049) — 등원은 확정 노선의 첫
-     * 승차지, 하원은 학원. 이름도 그 지점 것이다. 전에는 방향과 무관하게 학원 좌표에 스케줄의 출발지 이름을
-     * 붙여, 등원이면 좌표와 이름이 서로 다른 곳을 가리켰다.
+     * 승차지, 하원은 학원. 이름도 그 지점 것이다. 방향과 무관하게 학원 좌표에 스케줄의 출발지 이름을 붙이면
+     * 등원에서는 좌표와 이름이 서로 다른 곳을 가리키게 된다.
      */
     private NavOrigin originOf(Run run, List<NavStopRow> rows) {
         if (run.getStatus() != RunStatus.CONFIRMED) {

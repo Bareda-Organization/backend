@@ -42,7 +42,7 @@ import src.backend.routing.map.spec.RoadRouteRequest;
  * <p>{@code request.forceFallback()} 이 참이면 마커 좌표 유무와 무관하게 폴백으로 답한다
  * (API_SPEC §6.14, 관리자 강제 확정 콘솔 개입).
  *
- * <h2>부하 시험용 프로파일 조건부 주입(F3 L, {@code IMPLEMENTATION_PLAN §5.5})</h2>
+ * <h2>부하 시험용 프로파일 조건부 주입({@code IMPLEMENTATION_PLAN §5.5})</h2>
  *
  * <p>실 지도 API(Naver)는 {@code resilience4j.*}(격벽·서킷·재시도)를 {@code NaverDirectionsGateway}
  * 한 곳에서만 걸고, 그 상위 {@code NaverDirectionsClient#route} 가 실패를 폴백·오류로 가른다 — 이
@@ -62,7 +62,7 @@ import src.backend.routing.map.spec.RoadRouteRequest;
  *       하나뿐" 과 같은 분기) — {@code BATCH} 는 폴백으로 흡수한다</li>
  * </ul>
  *
- * <p>실 지도 API 의 지연·실패 분포는 측정 불가(API 키 미보유, F3 L 판정 고정) — 위 세 값의
+ * <p>실 지도 API 의 지연·실패 분포는 측정 불가(API 키 미보유, 부하 시험 판정으로 고정) — 위 세 값의
  * 기본값은 전부 <b>비활성</b>(지연 0 · 상한 무제한 · 실패율 0)이라 기본·시험 프로파일(테스트
  * 전체 묶음이 이 구현으로 돈다, {@code build.gradle} 의 {@code app.routing.map.provider=stub})의
  * 동작은 이 주입이 생기기 전과 <b>바이트 단위로 동일</b>하다 — {@link #StubMapRouteClient()} 는

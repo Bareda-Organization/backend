@@ -43,11 +43,11 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * 변경·비밀번호 복구)는 전부 이 호출 직전에 {@code Account} 엔티티를 먼저 변경(mutate)해 둔다.
      * {@code clearAutomatically} 만 켜면 벌크 UPDATE 뒤 영속성 컨텍스트를 비우는 시점에 그 미반영
      * (flush 전) {@code Account} 변경분이 플러시되지 않은 채 통째로 버려진다 — 즉 이 벌크 쿼리를 켜는
-     * 순간 직전에 바꾼 계정 상태가 조용히 롤백된 것처럼 사라진다(운영 결함, Task 4 발견·수정).
+     * 순간 직전에 바꾼 계정 상태가 조용히 롤백된 것처럼 사라진다(운영 결함).
      *
      * <p>{@link Transactional} 을 메서드에 직접 단 이유는 별개다 — {@code @Modifying} 쿼리는 명시적
      * 트랜잭션 안에서만 실행되므로, 호출부가 {@code @Transactional} 을 잊으면 그 자리에서
-     * {@code InvalidDataAccessApiUsageException} 으로 실패한다(보완 리뷰 Minor #3). 호출부 트랜잭션에
+     * {@code InvalidDataAccessApiUsageException} 으로 실패한다. 호출부 트랜잭션에
      * 얹혀가는 대신 여기에 달아, 잊어도 이 메서드 하나는 항상 동작한다.
      *
      * @return 실제로 무효화된 행 수
@@ -68,8 +68,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * <p>{@code WHERE} 에 {@code t.revokedAt IS NULL} 을 넣어 이미 해지된 행은 다시 갱신하지
      * 않는다 — 로그아웃을 두 번 호출해도 최초 해지 시각이 덮어써지지 않게 하기 위함.
      *
-     * <p>{@link #revokeAllValidByAccountId} 와 같은 이유로 {@link Transactional} 을 단다(보완 리뷰
-     * Minor #3) — 호출부가 트랜잭션을 잊어도 이 메서드 자체가 트랜잭션 경계를 갖는다.
+     * <p>{@link #revokeAllValidByAccountId} 와 같은 이유로 {@link Transactional} 을 단다.
+     * 호출부가 트랜잭션을 잊어도 이 메서드 자체가 트랜잭션 경계를 갖는다.
      *
      * @return 실제로 무효화된 행 수(0 이면 이미 무효화됐거나 존재하지 않는 토큰)
      */

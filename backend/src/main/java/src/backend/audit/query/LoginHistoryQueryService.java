@@ -33,7 +33,7 @@ import src.backend.global.response.PageResponse;
  * {@code GET /admin/login-history}).
  *
  * <p>{@code result}·{@code block_event} 를 저장된 {@code action} 에서 조회 시점에 다시 계산한다
- * (ERD §3.4 · 조율자 Ruling 13) — {@code AuditLog.blockEvent} 컬럼값을 그대로 옮기지 않는 이유는
+ * (ERD §3.4 · Ruling 13) — {@code AuditLog.blockEvent} 컬럼값을 그대로 옮기지 않는 이유는
  * {@link LoginHistoryItemResponse} 자바독에 적었다.
  *
  * <p><b>{@code unblock} 행의 {@code account_id}·{@code login_id} 는 해제된 계정이다</b>(BR-219) — 나머지 행은

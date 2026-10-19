@@ -23,7 +23,7 @@ import src.backend.manager.repository.ManagerRepository;
  * 일반 {@code FORBIDDEN} 이다.
  *
  * <p>호출부가 학원으로 이미 좁힌 runId 를 넘긴다는 전제는 더 이상 성립하지 않는다 — <b>배치 확인이
- * 회차 조회보다 먼저 올 수 있다</b>(F3 Ruling 259(b), 예: {@code BoardingCommandService}·
+ * 회차 조회보다 먼저 올 수 있다</b>(Ruling 259(b), 예: {@code BoardingCommandService}·
  * {@code NoShowContactCommandService}). 그런데도 이 클래스가 직접 학원을 확인하지 않아도 안전한
  * 근거는 {@link AssignmentRepository}#{@code findByRunIdAndRole} 의 {@code @AcademyScopeExempt}
  * 가 아니라, <b>배치 생성 시점에 매니저와 회차의 학원이 이미 일치하도록 강제돼 있다는 것</b>이다

@@ -20,7 +20,7 @@ import src.backend.global.common.enums.ManagerRole;
  * 회차별 매니저 배치 — 매니저 앱의 회차 접근 범위 판정("배치된 회차만")과 대시보드의
  * {@code ack_driver}·{@code ack_escort} 표시의 근거다(ERD §3.3 · MGR-05·06 · RUN-07 · MON-05).
  *
- * <p>소유 모듈은 {@code run} 이 아니라 {@code manager} 다(조율자 Ruling 38). {@code created_at}·
+ * <p>소유 모듈은 {@code run} 이 아니라 {@code manager} 다(Ruling 38). {@code created_at}·
  * {@code updated_at} 컬럼이 없어 {@code BaseTimeEntity} 를 상속하지 않는다 — 대신
  * {@code assigned_at} 을 배치 발생 시각으로 직접 관리한다.
  *

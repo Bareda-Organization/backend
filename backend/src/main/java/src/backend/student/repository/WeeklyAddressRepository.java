@@ -41,7 +41,7 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
      *
      * <p>{@code verified} 와 {@code stopId IS NOT NULL} 은 <b>두 번째 방어선</b>이다. 좌표 미확보
      * 학생을 실제로 갈라내는 것은 호출부(노선 계산 ①단계)가 승하차지 번호를 못 얻은 학생을 분리하는
-     * 쪽이고, 둘 중 어느 조건을 지워도 지금은 결과가 같다(음성 대조 N11·N12 로 실측 — 검증 전 행은
+     * 쪽이고, 둘 중 어느 조건을 지워도 지금은 결과가 같다(검증 전 행은
      * {@code stop_id} 도 비어 있어 서로를 가린다). 그래도 남겨 두는 이유는 <b>검증을 통과한 칸만
      * 계산에 들어간다</b> 는 규칙(ERD {@code weekly_address.verified})이 적힌 자리가 여기뿐이라,
      * 지우면 {@code stop_id} 를 검증 없이 채우는 경로가 생겼을 때 그 행이 조용히 정차지가 된다.

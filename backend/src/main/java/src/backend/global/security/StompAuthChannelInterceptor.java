@@ -31,8 +31,8 @@ import src.backend.student.repository.StudentRepository;
  * 그때 심어둔 Principal(AuthUser)을 그대로 쓴다.
  *
  * <p>구독 목적지 4종({@code /topic/students/{studentId}/run} · {@code /topic/manager/runs/{runId}} ·
- * {@code /topic/academy/{academyId}/live} · {@code /topic/admin/live})은 조율자가 고정한 계약이다
- * (Ruling 209). 옛 {@code /topic/tenant/{id}/**} 정규식은 이 4종으로 완전히 대체되어 소멸한다
+ * {@code /topic/academy/{academyId}/live} · {@code /topic/admin/live})은 고정된 계약이다
+ * (Ruling 209). {@code /topic/tenant/{id}/**} 목적지는 쓰지 않는다
  * (Ruling 121 해소).
  */
 @Component
