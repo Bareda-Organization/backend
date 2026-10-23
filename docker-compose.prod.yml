@@ -184,7 +184,7 @@ services:
   # 엣지 프록시 — 인터넷에서 닿는 유일한 지점. TLS 를 여기서 종단한다.
   # `/`(화면) 라우팅이 없다 — 이 서버는 백엔드 API 전용이다.
   proxy:
-    image: nginx:1.31.6-alpine
+    image: nginx:1.31.7-alpine
     restart: unless-stopped
     ports:
       - "80:80"    # ACME 챌린지 + HTTPS 리다이렉트 전용
@@ -294,7 +294,7 @@ services:
   # SSM 포트 포워딩으로 접근한다(DEPLOYMENT.md §11). 초기 관리자 비밀번호는 SSM(GRAFANA_ADMIN_PASSWORD).
   # 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으로 초기화된다 — 저장할 사용자·설정이 없다.
   grafana:
-    image: grafana/grafana:13.2.2
+    image: grafana/grafana:13.2.4
     restart: unless-stopped
     mem_limit: 256m
     environment:
