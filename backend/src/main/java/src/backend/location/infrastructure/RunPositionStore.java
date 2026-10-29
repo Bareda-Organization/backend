@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -65,18 +66,32 @@ public class RunPositionStore {
     /** 운행 종료 후 자연 소멸 — 이력은 {@code run_position} 이 따로 갖는다. */
     private static final Duration TTL = Duration.ofMinutes(30);
 
-    /** Redis 대체 조회가 거슬러 올라가는 한계 — 이보다 오래된 위치는 운행 중 회차의 "최신" 이 아니고, 구간이 있어야 읽는 일 파티션이 2개로 묶인다(DA-2). */
+    /** Redis 장애로 최신 좌표를 {@code run_position} 최신 행으로 대체 조회한 횟수를 세는 지표 이름. */
     private static final String FALLBACK_METRIC = "schoolbus.position.fallback";
 
+    /** Redis 대체 조회가 거슬러 올라가는 한계 — 이보다 오래된 위치는 운행 중 회차의 "최신" 이 아니고, 구간이 있어야 읽는 일 파티션이 2개로 묶인다(DA-2). */
     private static final Duration FALLBACK_LOOKBACK = Duration.ofHours(24);
 
     /** Redis 키가 없을 때 DB 를 읽는 범위 — 위치가 낡았다고 보는 기준과 같다({@code StudentBusPositionQueryService.STALE_THRESHOLD}, 같은 값임을 시험이 본다). 이보다 오래된 행은 어차피 낡은 위치다. */
     static final Duration MISS_LOOKBACK = Duration.ofMinutes(2);
 
+    /** Redis 는 살아 있는데 운행 중 회차의 키가 비어 DB 최신 행으로 채운 읽기 횟수를 세는 지표 이름. */
     private static final String MISS_FALLBACK_METRIC = "schoolbus.position.miss.fallback";
 
     /** 단말 시계 오차 허용(5분, BR-243)을 덮는 상한 여유 — 이보다 미래의 기록 시각은 수신 시각으로 바뀌어 저장된다. */
     private static final Duration FALLBACK_LOOKAHEAD = Duration.ofMinutes(10);
+
+    /** 쓰기 경합으로 비교 쓰기가 밀릴 때 읽기부터 다시 하는 상한 — 이 안에서 못 쓰면 더 새로운 값이 계속 들어오는 것이라 쓰지 않는다. */
+    private static final int WRITE_ATTEMPTS = 5;
+
+    /** 읽어 둔 값 그대로일 때만 덮어쓴다 — 읽기와 쓰기 사이에 다른 송신이 쓴 값을 지우지 않는다. 1 이면 썼다. */
+    private static final DefaultRedisScript<Long> REPLACE_IF_UNCHANGED = new DefaultRedisScript<>(
+            "local current = redis.call('GET', KEYS[1]) "
+                    + "if current == false then current = '' end "
+                    + "if current ~= ARGV[1] then return 0 end "
+                    + "redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) "
+                    + "return 1",
+            Long.class);
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
 
@@ -100,14 +115,52 @@ public class RunPositionStore {
      */
     private volatile Instant lastRedisFailureAt = Instant.MIN;
 
-    /** 최신 좌표를 덮어쓴다 — 실패는 호출자에게 던진다(위치 수신 리스너가 삼키고 다음 송신에 맡긴다). */
-    public void save(Long runId, RunPositionRedisValue value) {
+    /**
+     * 최신 좌표를 쓴다 — 이미 있는 값의 {@code recorded_at} 이 더 새로우면 쓰지 않고 {@code false} 다(늦게 커밋된 옛 위치가 버스를 되돌리지
+     * 않게). 실패는 호출자에게 던진다(위치 수신 리스너가 삼키고 다음 송신에 맡긴다).
+     */
+    public boolean save(Long runId, RunPositionRedisValue value) {
         try {
-            stringRedisTemplate.opsForValue().set(keyOf(runId), JSON_MAPPER.writeValueAsString(value), TTL);
+            return writeIfNewest(runId, value);
         } catch (DataAccessException e) {
             lastRedisFailureAt = clock.instant();
             throw e;
         }
+    }
+
+    /**
+     * 회차가 마지막으로 받아들인 최신 좌표 — Redis 키만 읽는다(키가 없으면 빈 값, DB 대체 없음). 중복·과다 수신 판정이 쓰는 값이라 Redis 가
+     * 응답하지 않으면 빈 값이고 판정은 받아들이는 쪽으로 기운다.
+     */
+    public Optional<RunPositionRedisValue> findAcceptedInRedis(Long runId) {
+        try {
+            return parse(runId, stringRedisTemplate.opsForValue().get(keyOf(runId)));
+        } catch (DataAccessException e) {
+            lastRedisFailureAt = clock.instant();
+            redisReadFailure.warn(e, "[location] Redis 최신 좌표 읽기 실패 — 중복 판정 없이 받아들인다. runId={}", runId);
+            return Optional.empty();
+        }
+    }
+
+    private boolean writeIfNewest(Long runId, RunPositionRedisValue value) {
+        String key = keyOf(runId);
+        String json = JSON_MAPPER.writeValueAsString(value);
+        for (int attempt = 0; attempt < WRITE_ATTEMPTS; attempt++) {
+            String current = stringRedisTemplate.opsForValue().get(key);
+            if (isNewerThan(parse(runId, current), value)) {
+                return false;
+            }
+            Long replaced = stringRedisTemplate.execute(REPLACE_IF_UNCHANGED, List.of(key),
+                    current == null ? "" : current, json, String.valueOf(TTL.toSeconds()));
+            if (Long.valueOf(1).equals(replaced)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isNewerThan(Optional<RunPositionRedisValue> current, RunPositionRedisValue value) {
+        return current.isPresent() && current.get().recordedAt().toInstant().isAfter(value.recordedAt().toInstant());
     }
 
     /** 회차 1건의 최신 좌표 — 아직 없으면 빈 값. Redis 가 실패하면 DB 최신 행이다. */

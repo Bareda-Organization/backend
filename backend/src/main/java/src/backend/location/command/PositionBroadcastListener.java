@@ -6,8 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
@@ -22,7 +20,7 @@ import src.backend.global.location.RunRiderDirectory;
  * {@code position} 방송(API_SPEC §7·§7.1) — 채널 3종뿐이다. {@code /ws/manager/runs/{id}}
  * 는 §7 채널 표에 {@code position} 이 없어 제외한다(매니저 채널은 {@code rider_changed}·{@code
  * stop_arrived}·{@code run_started}·{@code run_ended}·{@code emergency_acked} 만 받는다).
- * {@code @TransactionalEventListener(AFTER_COMMIT)} 근거는 {@code run.command.RunStartedBroadcastListener} 와 같다.
+ * 커밋 뒤에 도는 근거는 {@code run.command.RunStartedBroadcastListener} 의 {@code AFTER_COMMIT} 과 같다.
  *
  * <p><b>학부모·학생 채널과 관제 채널(academy·admin)은 페이로드 타입 자체가 다르다</b>(C-08) —
  * {@code eta} 는 값을 {@code null} 로 비우는 것이 아니라 <b>레코드 컴포넌트 자체를 두지 않아야</b>
@@ -49,10 +47,9 @@ public class PositionBroadcastListener {
     private final WebSocketBroadcastGateway gateway;
 
     /**
-     * 위치 1건을 채널별로 다른 페이로드 타입으로 갈라 방송한다(관제 쪽만 {@code eta} 포함). 발행이 트랜잭션 밖이어도
-     * 돈다({@code fallbackExecution}) — {@link RunPositionCommandService} 가 커밋을 끝낸 뒤 발행하기 때문이다.
+     * 위치 1건을 채널별로 다른 페이로드 타입으로 갈라 방송한다(관제 쪽만 {@code eta} 포함). 커밋 뒤 Redis 최신 좌표 갱신이 끝난 위치만
+     * {@link RunPositionAfterCommitListener} 가 부른다 — 더 새로운 위치가 이미 있는 옛 위치는 방송하지 않는다.
      */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void broadcast(RunPositionReceivedEvent event) {
         // absent(다른 버스로 옮긴 removed 포함)는 이 버스에 없다 — 학생 채널은 학생 단위라 보내면 다른 버스와 섞인다
         // 목록은 결석 · 전환 이벤트가 커밋될 때만 다시 읽는다(RT-5) — 결석 학생 채널로는 그 뒤 첫 위치부터 방송하지 않는다

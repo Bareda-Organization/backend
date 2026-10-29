@@ -63,6 +63,8 @@ public class RunPositionCommandService {
 
     private final TransactionTemplate transactionTemplate;
 
+    private final PositionIntakeGuard positionIntakeGuard;
+
     private final Clock clock;
 
     /** 단말 {@code recorded_at} 과 서버 수신 시각의 허용 차이(양방향) — 기기 시계 오차를 넉넉히 받되 하루 단위 어긋남은 수신 시각으로 대체한다(BR-243). */
@@ -70,39 +72,51 @@ public class RunPositionCommandService {
 
     /**
      * 기사 단말의 위치 1건을 적재하고 {@link RunPositionReceivedEvent} 를 발행한다 — 배치 기사인지 ·
-     * 회차 존재 · {@code moving} 상태 순으로 거절 조건을 확인한 뒤(API_SPEC §4.12), Redis 갱신은
+     * 회차 존재 · {@code moving} 상태 순으로 거절 조건을 확인한 뒤(API_SPEC §4.12) 중복·과다 수신이면 적재 없이 끝내고, Redis 갱신은
      * 이벤트 구독자가 커밋 후에 한다.
+     *
+     * <p>거절 확인과 적재는 트랜잭션이 둘이다 — 중복 판정이 Redis 를 읽는데, 그 읽기를 DB 연결을 쥔 채 하지 않기 위해서다.
      */
     public void receive(AuthUser requester, Long runId, RunPositionRequest request) {
-        RunPositionReceivedEvent event = transactionTemplate.execute(status -> persist(requester, runId, request));
+        Long academyId = transactionTemplate.execute(status -> assertMoving(requester, runId));
+        OffsetDateTime receivedAt = OffsetDateTime.now(clock);
+        // 기기 시계는 신뢰 경계 밖이다 — 어긋난 recorded_at 을 그대로 두면 Redis 장애 대체 조회의 "최신" 이나 보존 정리 기준이
+        // 틀어지고, 거절하면 시계가 틀어진 기사의 위치가 전부 사라진다. 그래서 수신 시각으로 바꿔 저장한다(BR-243, Ruling 379 ②)
+        OffsetDateTime recordedAt = isSkewed(request.recordedAt(), receivedAt) ? receivedAt : request.recordedAt();
+        if (positionIntakeGuard.shouldDrop(runId, recordedAt, receivedAt)) {
+            return;
+        }
+        RunPositionReceivedEvent event = transactionTemplate.execute(
+                status -> persist(runId, academyId, request, recordedAt, receivedAt));
         eventPublisher.publishEvent(event);
     }
 
-    /** 인가·상태를 확인하고 위치를 적재한 뒤 구독자에게 실을 이벤트를 만든다 — 한 트랜잭션 안에서 끝나는 DB 구간이다. */
-    private RunPositionReceivedEvent persist(AuthUser requester, Long runId, RunPositionRequest request) {
+    /** 배치 기사 · 회차 존재 · 운행 중인지 확인하고 회차의 학원 id 를 돌려준다. */
+    private Long assertMoving(AuthUser requester, Long runId) {
         runAssignmentAccess.assertAssignedDriverExists(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
+        return run.getAcademyId();
+    }
 
-        OffsetDateTime receivedAt = OffsetDateTime.now(clock);
-        // 기기 시계는 신뢰 경계 밖이다 — 어긋난 recorded_at 을 그대로 두면 Redis 장애 대체 조회의 "최신" 이나 보존 정리 기준이
-        // 틀어지고, 거절하면 시계가 틀어진 기사의 위치가 전부 사라진다. 그래서 수신 시각으로 바꿔 저장한다(BR-243, Ruling 379 ②)
-        OffsetDateTime recordedAt = isSkewed(request.recordedAt(), receivedAt) ? receivedAt : request.recordedAt();
+    /** 위치를 적재하고 구독자에게 실을 이벤트를 만든다 — 한 트랜잭션 안에서 끝나는 DB 구간이다. */
+    private RunPositionReceivedEvent persist(Long runId, Long academyId, RunPositionRequest request,
+            OffsetDateTime recordedAt, OffsetDateTime receivedAt) {
         RunPosition position = RunPosition.onReceive(runId, request.lat(), request.lng(),
                 recordedAt, receivedAt, request.speed(), request.heading());
         runPositionRepository.save(position);
 
         // 정차 목록은 도착 · 운행 전환 때만 바뀐다 — 그 이벤트가 커밋될 때 캐시를 비우므로 평소 위치 1건은 다시 읽지 않는다(RT-5)
         List<PositionStopView> stops = runBroadcastCache.stops(runId,
-                () -> runStopRepository.findPositionStops(runId, run.getAcademyId()));
+                () -> runStopRepository.findPositionStops(runId, academyId));
         // 규칙은 CurrentRunStopResolver 한 곳에만 있다 — 투영을 읽어도 같은 접근자 규칙을 쓴다(BR-341, BR-099)
         Optional<PositionStopView> current = CurrentRunStopResolver.resolve(stops, PositionStopView::seq,
                 PositionStopView::arrivedAt);
         return new RunPositionReceivedEvent(runId, request.lat(), request.lng(), recordedAt, receivedAt,
-                run.getAcademyId(), current.map(PositionStopView::name).orElse(null),
+                academyId, current.map(PositionStopView::name).orElse(null),
                 nextEtaAfter(stops, current.map(PositionStopView::seq).orElse(-1)));
     }
 

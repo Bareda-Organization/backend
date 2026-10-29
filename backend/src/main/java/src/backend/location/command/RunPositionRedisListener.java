@@ -3,8 +3,6 @@ package src.backend.location.command;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,19 +37,22 @@ public class RunPositionRedisListener {
     private final RateLimitedWarn redisWriteFailure = RateLimitedWarn.perMinute(log);
 
     /**
-     * 커밋된 위치 수신 이벤트로 Redis 최신 좌표 키를 덮어쓴다 — 실패는 삼키고 다음 송신에 맡긴다. 발행이 트랜잭션 밖이어도
-     * 돈다({@code fallbackExecution}) — 없으면 활성 트랜잭션이 없는 발행은 DEBUG 한 줄만 남기고 버려진다.
+     * 커밋된 위치 수신 이벤트로 Redis 최신 좌표 키를 갱신한다 — 실패는 삼키고 다음 송신에 맡긴다. {@link RunPositionAfterCommitListener} 가
+     * 커밋 뒤에 부른다.
+     *
+     * @return 이 위치를 방송해도 되면 {@code true} — Redis 에 썼거나 Redis 가 실패해 판단할 수 없을 때. 더 새로운 위치가 이미 있어 쓰지 않았으면
+     *         {@code false}
      */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
-    public void updateRedisAfterCommit(RunPositionReceivedEvent event) {
+    public boolean updateRedisAfterCommit(RunPositionReceivedEvent event) {
         try {
             // 현재 정차지 이름은 위치를 저장한 트랜잭션이 한 번 계산해 이벤트에 실어 보낸다(BR-100) — 여기서 다시
             // 회차·정차 목록을 읽지 않는다.
             RunPositionRedisValue value = new RunPositionRedisValue(event.lat(), event.lng(), event.recordedAt(),
                     event.receivedAt(), event.currentStopName());
-            runPositionStore.save(event.runId(), value);
+            return runPositionStore.save(event.runId(), value);
         } catch (RuntimeException e) {
             redisWriteFailure.warn(e, "[location] Redis 최신 좌표 갱신이 실패해 다음 송신으로 넘긴다. runId={}", event.runId());
+            return true;
         }
     }
 }
