@@ -109,6 +109,6 @@ class RunConfirmationStagedRowsRaceTest {
                 RunTransfer.stage(secondStudent, fromRun.getId(), toRun.getId(), stopId, null, STAFF_ACCOUNT_ID, now));
 
         assertThatThrownBy(() -> persistence.persist(toRun, null, null, Weekday.of(toRun.getServiceDate()), stale,
-                now)).isInstanceOf(IllegalStateException.class).hasMessageContaining("다음 틱");
+                now)).isInstanceOf(ConfirmationInputsChangedException.class).hasMessageContaining("다음 틱");
     }
 }

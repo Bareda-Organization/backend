@@ -17,11 +17,17 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
 import org.springframework.boot.health.actuate.endpoint.IndicatedHealthDescriptor;
 import org.springframework.boot.health.contributor.Status;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
@@ -182,6 +188,30 @@ class SystemHealthReaderTest {
         assertThat(cell("confirm_batch").status()).isEqualTo("ok");
         clock.set(START.plusSeconds(100 + 121));
         assertThat(cell("confirm_batch").status()).isEqualTo("down");
+    }
+
+    @Test
+    @DisplayName("confirm_batch — Redis 가 계속 실패해도 같은 경고는 쓰기 · 읽기 각각 분당 한 줄만 남긴다")
+    void 레디스_실패_경고는_분당_한_줄이다() {
+        StringRedisTemplate broken = mock(StringRedisTemplate.class);
+        when(broken.opsForValue()).thenThrow(new IllegalStateException("Redis 끊김"));
+        ConfirmationBatchHeartbeat alone = new ConfirmationBatchHeartbeat(broken, clock);
+        reader = readerOf(alone);
+        Logger logger = (Logger) LoggerFactory.getLogger(ConfirmationBatchHeartbeat.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            for (int tick = 0; tick < 5; tick++) {
+                alone.markSuccess();
+                reader.read();
+            }
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list).filteredOn(event -> event.getLevel() == Level.WARN)
+                .as("30초 틱과 대시보드 읽기마다 스택이 붙은 경고가 쌓이면 Redis 장애 중 로그가 범람한다").hasSizeLessThanOrEqualTo(2);
     }
 
     @Test

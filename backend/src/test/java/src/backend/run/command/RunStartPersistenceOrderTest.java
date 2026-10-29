@@ -33,7 +33,8 @@ import testsupport.clock.FixedClock20300401Config;
 
 /**
  * 운행 시작(§4.4)은 미결 변경 요청을 자동 거절한 <b>뒤</b>에 회차를 {@code moving} 으로 쓴다 — 자동 거절의 갱신 쿼리가 영속성 컨텍스트를 비우므로, 회차를 먼저 바꿔 두면 그 뒤에 회차에 더하는
- * 변경은 분리된 엔티티에 얹혀 조용히 사라진다. 자동 거절이 도는 시점에 회차는 아직 {@code confirmed} 이고, 시작 뒤에는 {@code moving} 과 시작 시각이 커밋돼 있어야 한다.
+ * 변경은 분리된 엔티티에 얹혀 조용히 사라진다. 미결 요청이 있어 자동 거절이 실제로 컨텍스트를 비우는 경우에, 자동 거절이 도는 시점에 회차는 아직 {@code confirmed} 이고 시작 뒤에는 {@code moving} 과
+ * 시작 시각이 커밋돼 있어야 한다(자동 거절 뒤에 회차에 쓰는 변경은 이 시작 전이 하나뿐이다).
  */
 @SpringBootTest
 @Import(FixedClock20300401Config.class)
@@ -51,6 +52,7 @@ class RunStartPersistenceOrderTest {
         String academies = "(SELECT id FROM academy WHERE name = '" + DriverRunFixtures.ACADEMY_NAME + "')";
         jdbcTemplate.update("DELETE FROM notification_log WHERE academy_id IN " + academies);
         jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academies);
+        jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academies);
         jdbcTemplate.update("DELETE FROM manager WHERE academy_id IN " + academies);
         jdbcTemplate.update("DELETE FROM account WHERE academy_id IN " + academies);
         jdbcTemplate.update("DELETE FROM bus WHERE academy_id IN " + academies);
@@ -66,6 +68,8 @@ class RunStartPersistenceOrderTest {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, now, now.minusMinutes(30));
         long driverAccountId = fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", now);
+        // 미결 변경 요청이 있어야 자동 거절의 갱신 쿼리가 돌아 영속성 컨텍스트를 실제로 비운다
+        fx.pendingChangeRequest(academyId, runId, fx.student(academyId, "학생1"), driverAccountId, now, now.plusMinutes(10));
         AtomicReference<String> statusDuringAutoReject = new AtomicReference<>();
         doAnswer(invocation -> {
             Object result = invocation.callRealMethod();
@@ -82,5 +86,7 @@ class RunStartPersistenceOrderTest {
         assertThat(jdbcTemplate.queryForMap("SELECT status, started_at FROM run WHERE id = ?", runId))
                 .containsEntry("status", "moving")
                 .doesNotContainEntry("started_at", null);
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM change_request WHERE run_id = ?", String.class, runId))
+                .as("컨텍스트를 비우는 자동 거절이 실제로 돌았다").isNotEqualTo("pending");
     }
 }
