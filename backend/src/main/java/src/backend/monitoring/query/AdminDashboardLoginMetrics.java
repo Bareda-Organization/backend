@@ -35,9 +35,7 @@ class AdminDashboardLoginMetrics {
     }
 
     Result read(DashboardPeriod period) {
-        LocalDate readFrom = period.from().isBefore(period.dailyFrom()) ? period.from() : period.dailyFrom();
-        List<LoginActionCount> rows = auditLogRepository.countLoginActionsByDay(period.zone().getId(),
-                period.startOf(readFrom), period.startOf(period.today().plusDays(1)));
+        List<LoginActionCount> rows = loginRowsOf(period);
         Map<LocalDate, Long> successByDay = new HashMap<>();
         Map<LocalDate, Long> failByDay = new HashMap<>();
         long blocks = 0;
@@ -56,6 +54,13 @@ class AdminDashboardLoginMetrics {
                 successByDay.getOrDefault(period.today(), 0L), successByDay.getOrDefault(period.today().minusDays(1), 0L),
                 blocks, releasedBlocks);
         return new Result(logins, successByDay, failByDay);
+    }
+
+    /** 기간 합과 추이 그래프 중 더 이른 쪽부터 오늘까지의 로그인 행을 서울 날짜별로 읽는다. */
+    private List<LoginActionCount> loginRowsOf(DashboardPeriod period) {
+        LocalDate readFrom = period.from().isBefore(period.dailyFrom()) ? period.from() : period.dailyFrom();
+        return auditLogRepository.countLoginActionsByDay(period.zone().getId(),
+                period.startOf(readFrom), period.startOf(period.today().plusDays(1)));
     }
 
     private static long inPeriod(Map<LocalDate, Long> byDay, DashboardPeriod period) {

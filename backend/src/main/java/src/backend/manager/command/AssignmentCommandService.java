@@ -6,10 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +20,6 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.global.persistence.ConstraintViolations;
 import src.backend.global.security.AuthUser;
 import src.backend.global.websocket.AccountSessionsRevokeEvent;
 import src.backend.manager.domain.AssignmentConflictDetector;
@@ -54,15 +51,6 @@ import src.backend.run.repository.RunRepository;
 @RequiredArgsConstructor
 @Transactional
 public class AssignmentCommandService {
-
-    /**
-     * 회차당 역할 하나를 강제하는 제약 이름({@code V1__init_schema.sql}).
-     *
-     * <p>이름으로 가리는 이유는 {@code assignment} 에 CHECK 와 FK 가 더 있기 때문이다 — 제약을 가리지
-     * 않고 통째로 409 로 옮기면 존재하지 않는 회차·매니저를 가리킨 FK 위반까지 "이미 배치된
-     * 역할입니다" 로 답한다.
-     */
-    private static final String ASSIGNMENT_ROLE_UNIQUE_CONSTRAINT = "uk_assignment_run_role";
 
     private final RunRepository runRepository;
 
@@ -104,7 +92,7 @@ public class AssignmentCommandService {
         if (run.getStatus() == RunStatus.MOVING || run.getStatus() == RunStatus.FINISHED) {
             throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
         }
-        List<AssignmentWarning> warnings = enforcingUniqueRole(() -> {
+        List<AssignmentWarning> warnings = AssignmentRoleUniqueGuard.enforce(() -> {
             List<AssignmentWarning> collected = new ArrayList<>();
             collected.addAll(place(requester, run, ManagerRole.DRIVER, request.driverManagerId()));
             collected.addAll(place(requester, run, ManagerRole.ESCORT, request.escortManagerId()));
@@ -130,27 +118,49 @@ public class AssignmentCommandService {
         if (managerId == null) {
             return List.of();
         }
-        Manager manager = managerRepository
-                .findForShareByIdAndAcademyIdAndRoleAndDeletedAtIsNull(managerId, requester.academyId(), role)
-                .orElseThrow(() -> new BusinessException(ErrorCode.MANAGER_NOT_FOUND));
-        List<ManagerRunWindow> otherWindows = assignmentRepository.findManagerRunWindows(requester.academyId(),
-                manager.getId(), run.getId(), run.getServiceDate().minusDays(1), run.getServiceDate().plusDays(1));
-        List<AssignmentWarning> warnings = conflictDetector.detect(run, manager, role, otherWindows);
+        Manager manager = findManagerForShare(requester, role, managerId);
+        List<AssignmentWarning> warnings = detectConflicts(requester, run, manager, role);
         OffsetDateTime now = OffsetDateTime.now(clock);
         Optional<Assignment> current = assignmentRepository.findByRunIdAndRole(run.getId(), role);
         Long previousManagerId = current.map(Assignment::getManagerId).orElse(null); // 교체되면 사라질 값 — reassign 이 덮기 전에 읽는다
         boolean newlyPlaced = current.map(assignment -> !assignment.getManagerId().equals(manager.getId()))
                 .orElse(true);
+        writeOrReplace(requester, run, manager, role, current, now);
+        if (newlyPlaced) {
+            announcePlacement(run, manager, role, now, previousManagerId);
+        }
+        return warnings;
+    }
+
+    /** 같은 학원·역할의 삭제되지 않은 매니저를 공유 잠금으로 읽는다 — 없으면 {@code 404 MANAGER_NOT_FOUND}. */
+    private Manager findManagerForShare(AuthUser requester, ManagerRole role, Long managerId) {
+        return managerRepository
+                .findForShareByIdAndAcademyIdAndRoleAndDeletedAtIsNull(managerId, requester.academyId(), role)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MANAGER_NOT_FOUND));
+    }
+
+    /** 이 매니저의 전날~다음날 다른 회차 근무와 견주어 충돌 경고를 모은다 — 저장은 하지 않는다. */
+    private List<AssignmentWarning> detectConflicts(AuthUser requester, Run run, Manager manager, ManagerRole role) {
+        List<ManagerRunWindow> otherWindows = assignmentRepository.findManagerRunWindows(requester.academyId(),
+                manager.getId(), run.getId(), run.getServiceDate().minusDays(1), run.getServiceDate().plusDays(1));
+        return conflictDetector.detect(run, manager, role, otherWindows);
+    }
+
+    /** 현재 배치가 있으면 매니저를 교체하고, 없으면 새 배치를 저장한다. */
+    private void writeOrReplace(AuthUser requester, Run run, Manager manager, ManagerRole role,
+            Optional<Assignment> current, OffsetDateTime now) {
         current.ifPresentOrElse(
                 assignment -> assignment.reassign(manager.getId(), now, requester.accountId()),
                 () -> assignmentRepository.save(Assignment.uponAssignment(run.getId(), manager.getId(),
                         role, now, requester.accountId())));
-        if (newlyPlaced) {
-            eventPublisher.publishEvent(new AssignmentChangedEvent(run.getId(), run.getAcademyId(), manager.getId(),
-                    role, now));
-            revokeReplacedSessions(previousManagerId);
-        }
-        return warnings;
+    }
+
+    /** 자리에 새로 들어간 매니저에게 배치 알림 이벤트를 내고, 빠진 매니저의 세션을 닫는다. */
+    private void announcePlacement(Run run, Manager manager, ManagerRole role, OffsetDateTime now,
+            Long previousManagerId) {
+        eventPublisher.publishEvent(new AssignmentChangedEvent(run.getId(), run.getAcademyId(), manager.getId(),
+                role, now));
+        revokeReplacedSessions(previousManagerId);
     }
 
     /** 자리에서 빠진 매니저의 열린 세션을 커밋 직후 닫는다 — 그 회차 채널을 계속 받지 못하게. */
@@ -160,35 +170,6 @@ public class AssignmentCommandService {
         }
         managerRepository.findById(previousManagerId).map(Manager::getAccountId)
                 .ifPresent(accountId -> eventPublisher.publishEvent(new AccountSessionsRevokeEvent(Set.of(accountId))));
-    }
-
-    /**
-     * 자리 중복을 {@code 409 DUPLICATE_ASSIGNMENT} 로 옮기며 배치 작업을 실행한다.
-     *
-     * <p>순차 요청은 {@code findByRunIdAndRole} 이 교체로 처리하므로 이 제약이 발동하는 것은
-     * <b>경합뿐</b>이다 — 동시 2요청이 같은 자리를 채우려 하면 둘 다 "빈 자리" 를 읽고 각자 INSERT 를
-     * 보낸다. 그 거부를 옮기지 않으면 {@code 500} 이 나가 "서버가 고장났다" 와 "누가 먼저 채웠다" 가
-     * 구별되지 않는다({@code BusCommandService} 가 같은 자리를 이미 푼다).
-     *
-     * <p><b>저장 호출까지 이 안에 넣어야 한다.</b> 신규 배치는 {@code IDENTITY} 키를 받으려고
-     * {@code save()} 시점에 INSERT 가 이미 나가므로, {@code flush()} 만 감싸면 제약 위반이 이
-     * {@code try} 밖에서 터진다 — 실제로 그 형태로 {@code DataIntegrityViolationException} 이 그대로
-     * 새는 것을 동시성 테스트가 잡았다. 교체 경로는 변경 감지라 {@code flush()} 가 있어야 나가므로
-     * <b>두 경로가 다르고</b>, 둘 다 덮으려면 저장과 flush 를 함께 감싸는 형태뿐이다.
-     *
-     * <p>{@link jakarta.persistence.EntityManager} 가 아니라 <b>저장소의</b> flush 를 부르는 것도
-     * 같은 이유로 중요하다 — 예외 번역은 {@code @Repository} 빈을 거칠 때만 붙어,
-     * {@code EntityManager} 를 직접 부르면 Hibernate 예외가 이 {@code catch} 를 그대로 지나친다.
-     */
-    private <T> T enforcingUniqueRole(Supplier<T> action) {
-        try {
-            return action.get();
-        } catch (DataIntegrityViolationException e) {
-            if (ConstraintViolations.isViolationOf(e, ASSIGNMENT_ROLE_UNIQUE_CONSTRAINT)) {
-                throw new BusinessException(ErrorCode.DUPLICATE_ASSIGNMENT);
-            }
-            throw e;
-        }
     }
 
     /** 그 회차의 현재 배치 전부 — 매니저 이름을 함께 읽는다. */

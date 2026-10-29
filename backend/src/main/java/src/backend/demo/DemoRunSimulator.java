@@ -2,13 +2,9 @@ package src.backend.demo;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -16,7 +12,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.common.enums.AccountStatus;
@@ -24,13 +19,10 @@ import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.AuthUser;
 import src.backend.location.command.RunPositionCommandService;
-import src.backend.location.dto.RunPositionRequest;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.manager.entity.Assignment;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.global.location.GeoPoint;
-import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.command.RunStartCommandService;
@@ -62,25 +54,9 @@ import src.backend.run.repository.RunRepository;
 @Slf4j
 @Profile("local")
 @Component
-@RequiredArgsConstructor
 public class DemoRunSimulator {
 
-    /** 노선 한 바퀴를 도는 데 쓸 시간. 짧으면 순간이동처럼 보이고 길면 멈춘 것처럼 보인다. */
-    private static final int LAP_MINUTES = 12;
-
-    private static final long TICK_MS = 2000L;
-
-    /** 회차별로 지금 road_path 의 몇 번째 좌표에 있는지. 재기동하면 처음으로 돌아간다(데모라 무방). */
-    private final Map<Long, Integer> cursorByRun = new ConcurrentHashMap<>();
-
-    /** 회차별로 시뮬레이터가 마지막으로 보낸 위치의 기록 시각 — 최신 위치가 이것과 다르면 다른 주체가 보낸 것이다. */
-    private final Map<Long, OffsetDateTime> lastSentAtByRun = new ConcurrentHashMap<>();
-
-    /**
-     * 기사 단말이 위치를 보내는 회차 — 운행이 끝날 때까지 손대지 않는다. 학원 A 회차를 매니저 앱으로 출발시키면 기사 폰의
-     * 실제 위치와 노선 위 가짜 위치가 번갈아 들어가 지도의 버스가 오가고 근접 · 출발 판정이 기사 조작과 무관해진다.
-     */
-    private final Set<Long> deviceRunIds = ConcurrentHashMap.newKeySet();
+    static final long TICK_MS = 2000L;
 
     private final RunRepository runRepository;
 
@@ -88,17 +64,12 @@ public class DemoRunSimulator {
 
     private final ManagerRepository managerRepository;
 
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RouteVersionRepository routeVersionRepository;
-
     private final RunStartCommandService runStartCommandService;
 
-    private final RunPositionCommandService runPositionCommandService;
-
-    private final RunPositionStore runPositionStore;
-
     private final Clock clock;
+
+    /** 운행 중인 회차를 도로 경로 위로 전진시키는 쪽 — 커서·송신 기록을 쥐므로 시뮬레이터가 하나만 만든다. */
+    private final DemoRoadPathMover mover;
 
     @Value("${app.demo.academy-id:0}")
     private long demoAcademyId;
@@ -124,6 +95,20 @@ public class DemoRunSimulator {
      */
     @Value("${app.demo.academy-ids:}")
     private List<Long> demoAcademyIds;
+
+    /** 시작·전진에 쓰는 정식 서비스와 저장소를 받는다 — 도로 경로 전진은 {@link DemoRoadPathMover} 로 넘긴다. */
+    public DemoRunSimulator(RunRepository runRepository, AssignmentRepository assignmentRepository,
+            ManagerRepository managerRepository, ConfirmedRouteRepository confirmedRouteRepository,
+            RouteVersionRepository routeVersionRepository, RunStartCommandService runStartCommandService,
+            RunPositionCommandService runPositionCommandService, RunPositionStore runPositionStore, Clock clock) {
+        this.runRepository = runRepository;
+        this.assignmentRepository = assignmentRepository;
+        this.managerRepository = managerRepository;
+        this.runStartCommandService = runStartCommandService;
+        this.clock = clock;
+        this.mover = new DemoRoadPathMover(confirmedRouteRepository, routeVersionRepository,
+                runPositionCommandService, runPositionStore, clock, this::driverOf);
+    }
 
     // 첫 실행을 늦추는 값은 설정 자리표시자로 둔다 — 테스트 JVM 에서 이 시뮬레이터가 배경으로 돌면
     // 검사가 만든 회차를 먼저 집어 출발 판정이 실행 순서에 따라 갈린다(build.gradle 의 test 블록이
@@ -154,8 +139,7 @@ public class DemoRunSimulator {
             runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, RunStatus.MOVING).stream()
                     .filter(run -> today.equals(run.getServiceDate()))
                     .forEach(run -> busyBusIds.add(run.getBusId()));
-            for (Run run : runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId,
-                    RunStatus.CONFIRMED)) {
+            for (Run run : runRepository.findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, RunStatus.CONFIRMED)) {
                 // 시작 창이 지난 옛 회차는 틱마다 start 예외만 만든다(BR-217)
                 if (today.equals(run.getServiceDate()) && startIfDue(run, busyBusIds)) {
                     busyBusIds.add(run.getBusId());
@@ -201,63 +185,8 @@ public class DemoRunSimulator {
                         .findAllByAcademyIdAndStatusOrderByDepartTimeAsc(academyId, RunStatus.MOVING).stream())
                 .filter(run -> today.equals(run.getServiceDate()))
                 .toList();
-        List<Long> movingIds = movingRuns.stream().map(Run::getId).toList();
-        cursorByRun.keySet().retainAll(movingIds);
-        lastSentAtByRun.keySet().retainAll(movingIds);
-        deviceRunIds.retainAll(movingIds);
-        for (Run run : movingRuns) {
-            advanceOne(run);
-        }
-    }
-
-    /** 회차 하나를 도로 경로 위 다음 지점으로 옮기고 그 위치를 실 단말과 같은 명령 경로로 보낸다(CODE_CONVENTIONS §20.2, BR-101). */
-    private void advanceOne(Run run) {
-        if (deviceRunIds.contains(run.getId()) || sentByOther(run.getId())) {
-            deviceRunIds.add(run.getId());
-            return;
-        }
-        List<GeoPoint> path = roadPathOf(run.getId());
-        if (path.size() < 2) {
-            return;
-        }
-        int step = Math.max(1, path.size() / (int) (LAP_MINUTES * 60_000L / TICK_MS));
-        int cursor = (cursorByRun.getOrDefault(run.getId(), 0) + step) % path.size();
-        cursorByRun.put(run.getId(), cursor);
-        GeoPoint point = path.get(cursor);
-        OffsetDateTime recordedAt = OffsetDateTime.now(clock);
-        driverOf(run).ifPresent(driver -> {
-            try {
-                runPositionCommandService.receive(driver, run.getId(),
-                        new RunPositionRequest(point.lat(), point.lng(), recordedAt, null, null));
-                lastSentAtByRun.put(run.getId(), recordedAt);
-            } catch (RuntimeException e) {
-                log.debug("[데모] 회차 {} 위치 송신 실패: {}", run.getId(), e.getMessage());
-            }
-        });
-    }
-
-    /**
-     * 이 회차의 최신 위치를 시뮬레이터가 아닌 주체(기사 단말)가 보냈는가. 아직 한 번도 보내지 않은 회차는 판단하지 않는다 —
-     * 재기동 직후 Redis 에 남은 자기 위치를 단말 위치로 오인하지 않기 위해서다.
-     */
-    private boolean sentByOther(Long runId) {
-        OffsetDateTime lastSent = lastSentAtByRun.get(runId);
-        if (lastSent == null) {
-            return false;
-        }
-        return runPositionStore.find(runId)
-                .map(latest -> !latest.recordedAt().truncatedTo(ChronoUnit.MILLIS)
-                        .isEqual(lastSent.truncatedTo(ChronoUnit.MILLIS)))
-                .orElse(false);
-    }
-
-    /** 확정 노선의 도로 경로. 아직 확정 전이거나 배포된 버전이 없으면 빈 목록이다. */
-    private List<GeoPoint> roadPathOf(Long runId) {
-        return confirmedRouteRepository.findById(runId)
-                .map(ConfirmedRoute::getCurrentVersionId)
-                .flatMap(routeVersionRepository::findById)
-                .map(version -> version.getRoadPath() == null ? List.<GeoPoint>of() : version.getRoadPath())
-                .orElseGet(List::of);
+        mover.retainOnly(movingRuns.stream().map(Run::getId).toList());
+        movingRuns.forEach(mover::advance);
     }
 
     /** 그 회차에 배치된 기사를 요청 주체로 만든다 — 정식 서비스가 "배치된 기사인가" 를 계정으로 판정한다. */

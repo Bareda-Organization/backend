@@ -88,9 +88,7 @@ public class AdminDashboardQueryService {
     /** 한 스냅숏 안에서 DB 지표를 모아 응답을 조립한다 — {@code health} 는 트랜잭션 밖에서 미리 읽은 값이다. */
     private AdminDashboardResponse assemble(int days, Long academyId, List<HealthCell> health) {
         List<Academy> academies = academiesOf(academyId);
-        DashboardScope scope = new DashboardScope(academies.stream().map(Academy::getId).toList(),
-                academies.stream().collect(Collectors.toMap(Academy::getId, Academy::getName, (a, b) -> a,
-                        LinkedHashMap::new)));
+        DashboardScope scope = scopeOf(academies);
         OffsetDateTime now = OffsetDateTime.now(clock);
         DashboardPeriod period = new DashboardPeriod(LocalDate.now(clock), days, clock.getZone());
 
@@ -108,6 +106,12 @@ public class AdminDashboardQueryService {
                         changeRequestCountsOf(scope, period)),
                 attentionReader.read(scope, period.today(), now, board.delayedRuns()), board.todayRuns(),
                 health, eventReader.read(scope, period.today(), now));
+    }
+
+    private DashboardScope scopeOf(List<Academy> academies) {
+        return new DashboardScope(academies.stream().map(Academy::getId).toList(),
+                academies.stream().collect(Collectors.toMap(Academy::getId, Academy::getName, (a, b) -> a,
+                        LinkedHashMap::new)));
     }
 
     private List<Academy> academiesOf(Long academyId) {

@@ -56,11 +56,19 @@ class AdminDashboardEventReader {
 
     private final ChangeRequestRepository changeRequestRepository;
 
+    /** 종류별로 읽은 최근 사건 원본 — 합치기 전의 5종 목록. */
+    private record Fetched(List<Run> confirmed, List<Run> started, List<Run> finished, List<DelayNotice> notices,
+            List<SignupRequest> signups) {
+    }
+
     List<RecentEvent> read(DashboardScope scope, LocalDate today, OffsetDateTime now) {
+        return eventsOf(scope, fetch(scope.academyIds(), today, now));
+    }
+
+    private Fetched fetch(List<Long> academyIds, LocalDate today, OffsetDateTime now) {
         OffsetDateTime since = now.minusDays(WINDOW_DAYS);
         // 회차의 운행일은 사건 시각보다 하루 이상 늦지 않다 — 운행일 하한으로 먼저 좁히면 인덱스(학원·운행일)를 탄다
         LocalDate sinceDate = today.minusDays(WINDOW_DAYS + 1L);
-        List<Long> academyIds = scope.academyIds();
         Limit limit = Limit.of(LIMIT);
 
         List<Run> confirmed = runRepository.findRecentlyConfirmed(academyIds, sinceDate, since, limit);
@@ -68,27 +76,49 @@ class AdminDashboardEventReader {
         List<Run> finished = runRepository.findRecentlyFinished(academyIds, sinceDate, since, limit);
         List<DelayNotice> notices = delayNoticeRepository.findRecent(academyIds, sinceDate, since, limit);
         List<SignupRequest> signups = signupRequestRepository.findRecentStaffSignups(academyIds, since, limit);
+        return new Fetched(confirmed, started, finished, notices, signups);
+    }
 
-        Map<Long, Run> runs = runsOf(academyIds, confirmed, started, finished, notices);
+    /** 5종 원본에 회차·버스·계정 정보를 붙여 사건으로 바꾸고, 최신순 {@link #LIMIT} 건으로 자른다. */
+    private List<RecentEvent> eventsOf(DashboardScope scope, Fetched fetched) {
+        List<Long> academyIds = scope.academyIds();
+        Map<Long, Run> runs = runsOf(academyIds, fetched.confirmed(), fetched.started(), fetched.finished(),
+                fetched.notices());
         Map<Long, Bus> buses = busesOf(academyIds, runs.values());
-        Map<Long, Long> pendingByRun = changeRequestRepository
-                .countPendingByRun(academyIds, confirmed.stream().map(Run::getId).toList()).stream()
-                .collect(Collectors.toMap(RunPendingCount::getRunId, RunPendingCount::getTotal));
-        Map<Long, Account> accounts = accountRepository
-                .findAllByIdIn(signups.stream().map(SignupRequest::getAccountId).toList()).stream()
-                .collect(Collectors.toMap(Account::getId, account -> account));
+        Map<Long, Long> pendingByRun = pendingByRunOf(academyIds, fetched.confirmed());
+        Map<Long, Account> accounts = accountsOf(fetched.signups());
 
-        List<RecentEvent> events = new ArrayList<>();
-        confirmed.forEach(run -> events.add(runEvent("run_confirmed", run.getConfirmedAt(), run, scope, buses, null,
-                pendingByRun.getOrDefault(run.getId(), 0L))));
-        started.forEach(run -> events.add(runEvent("run_started", run.getStartedAt(), run, scope, buses, null, null)));
-        finished.forEach(run -> events.add(runEvent("run_finished", run.getFinishedAt(), run, scope, buses, null, null)));
-        notices.forEach(notice -> events.add(runEvent("delay_notified", notice.getSentAt(), runs.get(notice.getRunId()),
-                scope, buses, notice.getMinutes(), null)));
-        signups.stream().filter(signup -> accounts.containsKey(signup.getAccountId()))
+        List<RecentEvent> events = new ArrayList<>(runEventsOf(scope, fetched, runs, buses, pendingByRun));
+        fetched.signups().stream().filter(signup -> accounts.containsKey(signup.getAccountId()))
                 .forEach(signup -> events.add(signupEvent(signup, accounts.get(signup.getAccountId()), scope)));
         return events.stream().sorted(Comparator.comparing(RecentEvent::at).reversed()
                 .thenComparing(RecentEvent::kind)).limit(LIMIT).toList();
+    }
+
+    /** 회차 확정 · 출발 · 종료 · 지연 알림 사건 — 이 순서로 담는다(같은 시각·종류 동률의 순서가 이 순서다). */
+    private List<RecentEvent> runEventsOf(DashboardScope scope, Fetched fetched, Map<Long, Run> runs,
+            Map<Long, Bus> buses, Map<Long, Long> pendingByRun) {
+        List<RecentEvent> events = new ArrayList<>();
+        fetched.confirmed().forEach(run -> events.add(runEvent("run_confirmed", run.getConfirmedAt(), run, scope, buses,
+                null, pendingByRun.getOrDefault(run.getId(), 0L))));
+        fetched.started().forEach(run -> events.add(runEvent("run_started", run.getStartedAt(), run, scope, buses, null,
+                null)));
+        fetched.finished().forEach(run -> events.add(runEvent("run_finished", run.getFinishedAt(), run, scope, buses,
+                null, null)));
+        fetched.notices().forEach(notice -> events.add(runEvent("delay_notified", notice.getSentAt(),
+                runs.get(notice.getRunId()), scope, buses, notice.getMinutes(), null)));
+        return events;
+    }
+
+    private Map<Long, Long> pendingByRunOf(List<Long> academyIds, List<Run> confirmed) {
+        return changeRequestRepository
+                .countPendingByRun(academyIds, confirmed.stream().map(Run::getId).toList()).stream()
+                .collect(Collectors.toMap(RunPendingCount::getRunId, RunPendingCount::getTotal));
+    }
+
+    private Map<Long, Account> accountsOf(List<SignupRequest> signups) {
+        return accountRepository.findAllByIdIn(signups.stream().map(SignupRequest::getAccountId).toList()).stream()
+                .collect(Collectors.toMap(Account::getId, account -> account));
     }
 
     /** 사건이 가리키는 회차 — 확정·출발·종료는 이미 읽었고, 지연 알림은 회차를 따로 읽는다. */

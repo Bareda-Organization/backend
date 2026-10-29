@@ -68,20 +68,14 @@ public class StaffRunLiveQueryService {
 
     /** 오늘 운행 중({@code status=moving}) 회차만 담는다 — {@link StaffRunLiveResponse} 자바독. */
     public StaffRunLiveResponse live(AuthUser requester) {
-        LocalDate serviceDate = LocalDate.now(clock);
-        List<Run> movingRuns = runRepository
-                .findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(requester.academyId(), serviceDate).stream()
-                .filter(run -> run.getStatus() == RunStatus.MOVING)
-                .toList();
+        List<Run> movingRuns = movingRunsOf(requester);
         if (movingRuns.isEmpty()) {
             return new StaffRunLiveResponse(List.of());
         }
 
         List<Long> runIds = movingRuns.stream().map(Run::getId).toList();
         Map<Long, String> busNos = busNosOf(requester, movingRuns);
-        Map<Long, List<StaffAssignmentAckView>> ackViewsByRun = assignmentRepository
-                .findAckViewsForStaffDashboard(requester.academyId(), runIds).stream()
-                .collect(Collectors.groupingBy(StaffAssignmentAckView::runId));
+        Map<Long, List<StaffAssignmentAckView>> ackViewsByRun = ackViewsOf(requester, runIds);
         // 좌표는 회차 전부를 한 번에 읽는다 — Redis 대기·대체 조회가 회차 수만큼 곱해지지 않게(BR-166·BR-167).
         Map<Long, RunPositionRedisValue> positions = runPositionStore.findAll(runIds);
         // 정차 항목·정차명도 회차 수와 무관한 배치 조회로 읽는다(BR-247)
@@ -93,6 +87,19 @@ public class StaffRunLiveQueryService {
                         stopsByRunId.get(run.getId()), names))
                 .toList();
         return new StaffRunLiveResponse(runResponses);
+    }
+
+    private List<Run> movingRunsOf(AuthUser requester) {
+        LocalDate serviceDate = LocalDate.now(clock);
+        return runRepository
+                .findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(requester.academyId(), serviceDate).stream()
+                .filter(run -> run.getStatus() == RunStatus.MOVING)
+                .toList();
+    }
+
+    private Map<Long, List<StaffAssignmentAckView>> ackViewsOf(AuthUser requester, List<Long> runIds) {
+        return assignmentRepository.findAckViewsForStaffDashboard(requester.academyId(), runIds).stream()
+                .collect(Collectors.groupingBy(StaffAssignmentAckView::runId));
     }
 
     private Map<Long, String> busNosOf(AuthUser requester, List<Run> runs) {
