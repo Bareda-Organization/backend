@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -143,8 +142,8 @@ public class AdminAcademyLiveQueryService {
                 : null;
         OffsetDateTime lastSeenAt = position == null ? liveState.receivedAt() : null;
 
-        return new AdminAcademyLiveResponse.Run(run.getId(), busNo, lower(run.getDirection().name()),
-                lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getConfirmAt(), run.getStartedAt(), stops,
+        return new AdminAcademyLiveResponse.Run(run.getId(), busNo, QueryLabels.lower(run.getDirection().name()),
+                QueryLabels.lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getConfirmAt(), run.getStartedAt(), stops,
                 destinationEtaOf(run), contactOf(contacts, ManagerRole.DRIVER), contactOf(contacts,
                         ManagerRole.ESCORT), run.getConsecutiveFailures(),
                 run.getStatus() == RunStatus.MOVING ? RunDelayCalculator.minutesOf(run, ordered) : null,
@@ -180,11 +179,7 @@ public class AdminAcademyLiveQueryService {
         OffsetDateTime eta = runStop.getArrivedAt() != null ? null : runStop.getEta();
         return new AdminAcademyLiveResponse.Stop(runStop.getStopId(), runStop.getSeq(),
                 stop == null ? null : stop.getName(), stop == null ? null : stop.getLat(),
-                stop == null ? null : stop.getLng(), runStop.getChange() == null ? null : lower(runStop.getChange()
+                stop == null ? null : stop.getLng(), runStop.getChange() == null ? null : QueryLabels.lower(runStop.getChange()
                         .name()), runStop.getArrivedAt(), eta);
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

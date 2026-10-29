@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -70,7 +69,7 @@ class AdminDashboardTodayRuns {
                 .toList();
         List<AdminDashboardResponse.DelayedRun> delayedRuns = runs.stream().filter(run -> delayedIds.contains(run.getId()))
                 .map(run -> new AdminDashboardResponse.DelayedRun(run.getId(), scope.academyNames().get(run.getAcademyId()),
-                        buses.get(run.getBusId()).getBusNo(), lower(run.getDirection().name()),
+                        buses.get(run.getBusId()).getBusNo(), QueryLabels.lower(run.getDirection().name()),
                         RunDelayCalculator.minutesOf(run, stopsByRun.getOrDefault(run.getId(), List.of()))))
                 .toList();
         return new Board(todayRuns, delayedRuns);
@@ -91,16 +90,12 @@ class AdminDashboardTodayRuns {
         List<RunStop> boardingStops = stops.stream()
                 .filter(stop -> stop.getStopId() != null && stop.getChange() != ChangeType.SKIPPED).toList();
         return new AdminDashboardResponse.TodayRun(run.getId(), run.getAcademyId(),
-                scope.academyNames().get(run.getAcademyId()), bus.getBusNo(), lower(run.getDirection().name()),
+                scope.academyNames().get(run.getAcademyId()), bus.getBusNo(), QueryLabels.lower(run.getDirection().name()),
                 run.getDepartTime(), run.getEstDurationMin() == null ? null
                         : run.getDepartTime().plusMinutes(run.getEstDurationMin()),
-                lower(run.getStatus().name()), run.getStartedAt(), run.getFinishedAt(),
+                QueryLabels.lower(run.getStatus().name()), run.getStartedAt(), run.getFinishedAt(),
                 run.getStatus() == RunStatus.MOVING ? RunDelayCalculator.minutesOf(run, stops) : null,
                 confirmed ? (Integer) (int) boardingStops.stream().filter(stop -> stop.getArrivedAt() != null).count() : null,
                 confirmed ? (Integer) boardingStops.size() : null, pendingChangeCount, driverAssigned);
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

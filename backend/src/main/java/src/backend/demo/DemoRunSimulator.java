@@ -39,7 +39,8 @@ import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
- * 데모용 운행 시뮬레이터 — <b>{@code local} 프로파일에서만</b> 돈다.
+ * 데모용 운행 시뮬레이터 — {@code local} 프로파일 빈이고 <b>{@code app.demo.enabled=true} 일 때만</b> 돈다. 스테이징도 {@code local} 프로파일로
+ * 뜨므로 프로파일만으로는 운영과 데모 환경이 갈리지 않는다 — 기본값은 꺼짐 · 대상 없음이고, 켜는 설정과 대상 번호는 환경의 설정 파일이 준다.
  *
  * <p>로컬에서 관리자 화면을 열면 버스가 실제로 움직이는 것이 보여야 한다. 위치는 기사 단말이
  * 2초마다 올리는 값이고(§4.12) 서버는 그 값을 2분만 유효한 것으로 보므로, 아무도 올리지 않는
@@ -54,7 +55,7 @@ import src.backend.run.repository.RunRepository;
  * 직선으로 움직이면 한강 위를 지나간다. 끝에 닿으면 처음으로 돌아가 계속 돈다(데모라서 종료가
  * 목적이 아니다).
  *
- * <p>⚠ 운영에 절대 실리면 안 된다. {@code @Profile("local")} 하나에 기대지 말고, 이 클래스가
+ * <p>⚠ 운영에 절대 실리면 안 된다. {@code @Profile("local")} 과 꺼짐 기본값이 이중 방어이고, 이 클래스가
  * {@code demo} 패키지에 홀로 있는 것도 같은 뜻이다 — 도메인 패키지에 섞어 두면 다음 사람이
  * 운영 코드로 오인한다.
  */
@@ -99,14 +100,14 @@ public class DemoRunSimulator {
 
     private final Clock clock;
 
-    @Value("${app.demo.academy-id:1}")
+    @Value("${app.demo.academy-id:0}")
     private long demoAcademyId;
 
-    @Value("${app.demo.enabled:true}")
+    @Value("${app.demo.enabled:false}")
     private boolean enabled;
 
     /**
-     * 시뮬레이터가 <b>출발시켜도 되는</b> 버스. 기본값은 V13 이 만든 데모 선단(3·4·5호차)이다.
+     * 시뮬레이터가 <b>출발시켜도 되는</b> 버스. 기본값은 비어 있다 — 데모 선단(fixture 시드의 3·4·5호차)의 번호는 켜는 설정이 준다.
      *
      * <p>범위를 좁히는 이유 — 시작 창에 들어온 확정 회차를 전부 출발시키면 그 바람에
      * 데모와 무관한 <b>1호차 하원 회차까지 운행 중으로 바뀌었다</b>(실측). 그 회차는 웹
@@ -114,14 +115,14 @@ public class DemoRunSimulator {
      * 것만으로 검사가 깨지는 상태가 된다. <b>위치 송신은 좁히지 않는다</b> — 이미 운행 중인 회차에
      * 좌표를 더 넣는 것은 상태를 바꾸지 않아 옆으로 새지 않는다.
      */
-    @Value("${app.demo.bus-ids:10,11,12}")
+    @Value("${app.demo.bus-ids:}")
     private List<Long> demoBusIds;
 
     /**
-     * 통째로 데모인 학원 — V14 가 만든 10곳. 계약 검사가 붙드는 행이 부재해 버스를 가리지
+     * 통째로 데모인 학원 — 기본값은 비어 있고, 켜는 설정이 QA 시드의 데모 학원 번호를 준다. 계약 검사가 붙드는 행이 부재해 버스를 가리지
      * 않고 출발시킨다. 위의 버스 목록은 학원 {@link #demoAcademyId} 안에서만 쓰는 좁힘이다.
      */
-    @Value("${app.demo.academy-ids:11,12,13,14,15,16,17,18,19,20}")
+    @Value("${app.demo.academy-ids:}")
     private List<Long> demoAcademyIds;
 
     // 첫 실행을 늦추는 값은 설정 자리표시자로 둔다 — 테스트 JVM 에서 이 시뮬레이터가 배경으로 돌면

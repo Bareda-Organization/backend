@@ -19,7 +19,6 @@ import src.backend.account.repository.SignupRequestRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.exception.repository.EmergencyAlertRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.monitoring.dto.AdminDashboardResponse;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.request.repository.ExpiringChangeRequestRow;
@@ -61,7 +60,7 @@ class AdminDashboardAttentionReader {
         return new AdminDashboardResponse.Attention(signupBlockedOf(scope), delayedRuns, expiringOf(scope, now),
                 emergencyAlertRepository.countByAcademyIdInAndAckedAtIsNullAndCanceledAtIsNull(academyIds),
                 runRepository.countStaleMovingByAcademyIds(academyIds, movingRunWindowPolicy.earliestServiceDate()),
-                confirmFailed, accountRepository.countByStatus(AccountStatus.BLOCKED));
+                confirmFailed, accountRepository.countLoginBlocked());
     }
 
     private List<AdminDashboardResponse.SignupBlocked> signupBlockedOf(DashboardScope scope) {

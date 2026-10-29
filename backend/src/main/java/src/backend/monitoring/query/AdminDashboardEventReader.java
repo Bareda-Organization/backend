@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -118,13 +117,13 @@ class AdminDashboardEventReader {
     private RecentEvent runEvent(String kind, OffsetDateTime at, Run run, DashboardScope scope, Map<Long, Bus> buses,
             Integer delayMinutes, Long pendingChangeCount) {
         return new RecentEvent(at, kind, scope.academyNames().get(run.getAcademyId()), run.getId(),
-                buses.get(run.getBusId()).getBusNo(), run.getDirection().name().toLowerCase(Locale.ROOT), delayMinutes,
+                buses.get(run.getBusId()).getBusNo(), QueryLabels.lower(run.getDirection().name()), delayMinutes,
                 pendingChangeCount, null, null);
     }
 
     private RecentEvent signupEvent(SignupRequest signup, Account account, DashboardScope scope) {
         return new RecentEvent(signup.getRequestedAt(), "staff_signup_requested",
                 scope.academyNames().get(signup.getAcademyId()), null, null, null, null, null, account.getName(),
-                signup.getStatus().name().toLowerCase(Locale.ROOT));
+                QueryLabels.lower(signup.getStatus().name()));
     }
 }

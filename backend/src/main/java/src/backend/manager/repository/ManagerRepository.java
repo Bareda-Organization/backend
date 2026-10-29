@@ -5,9 +5,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -86,6 +89,21 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
      * 막는다 — 덮어쓰면 언제 그만뒀는지가 지워진다.
      */
     Optional<Manager> findByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
+
+    /**
+     * {@link #findByIdAndAcademyIdAndDeletedAtIsNull} 을 <b>쓰기 잠금</b>으로 읽는다 — 삭제·역할 변경이 "끝나지 않은 배치 없음" 을 확인한 뒤
+     * 쓰는 동안, 같은 매니저를 배치하는 요청({@link #findForShareByIdAndAcademyIdAndRoleAndDeletedAtIsNull})이 끼어들어 삭제됐거나 역할이
+     * 바뀐 매니저가 회차에 남는 것을 막는다. 잠금 읽기는 이미 삭제된 행을 조건으로 다시 걸러, 앞선 삭제가 커밋되면 빈 결과다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Manager> findForUpdateByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
+
+    /**
+     * 회차 배치가 읽는 매니저 1건을 <b>공유 잠금</b>으로 — 같은 매니저를 동시에 배치하는 요청끼리는 서로 막지 않고, 삭제·역할 변경
+     * ({@link #findForUpdateByIdAndAcademyIdAndDeletedAtIsNull})만 배치가 커밋될 때까지 기다리게 한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    Optional<Manager> findForShareByIdAndAcademyIdAndRoleAndDeletedAtIsNull(Long id, Long academyId, ManagerRole role);
 
     /**
      * 여러 매니저의 이름·연락처를 한 번에 가져온다(EXC-04) — 비상 알림 목록

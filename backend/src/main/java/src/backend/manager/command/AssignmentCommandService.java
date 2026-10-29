@@ -38,6 +38,7 @@ import src.backend.manager.event.AssignmentChangedEvent;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -100,6 +101,9 @@ public class AssignmentCommandService {
         if (run.isCanceled()) {
             throw new BusinessException(ErrorCode.RUN_CANCELED);
         }
+        if (run.getStatus() == RunStatus.MOVING || run.getStatus() == RunStatus.FINISHED) {
+            throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
+        }
         List<AssignmentWarning> warnings = enforcingUniqueRole(() -> {
             List<AssignmentWarning> collected = new ArrayList<>();
             collected.addAll(place(requester, run, ManagerRole.DRIVER, request.driverManagerId()));
@@ -127,7 +131,7 @@ public class AssignmentCommandService {
             return List.of();
         }
         Manager manager = managerRepository
-                .findByIdAndAcademyIdAndRoleAndDeletedAtIsNull(managerId, requester.academyId(), role)
+                .findForShareByIdAndAcademyIdAndRoleAndDeletedAtIsNull(managerId, requester.academyId(), role)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MANAGER_NOT_FOUND));
         List<ManagerRunWindow> otherWindows = assignmentRepository.findManagerRunWindows(requester.academyId(),
                 manager.getId(), run.getId(), run.getServiceDate().minusDays(1), run.getServiceDate().plusDays(1));

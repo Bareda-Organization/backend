@@ -43,6 +43,12 @@ public class ManagerQueryService {
 
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "name");
 
+    /**
+     * 어떤 정렬에도 마지막으로 붙는 결정적 순서 — {@code role} 은 값이 둘뿐이고 이름도 겹칠 수 있어, 동점 행의 순서를 DB 에 맡기면
+     * 페이지를 넘길 때 같은 매니저가 두 번 나오거나 한 번도 안 나온다.
+     */
+    private static final Sort TIE_BREAKER = Sort.by(Sort.Direction.ASC, "id");
+
     private final ManagerRepository managerRepository;
 
     private final AssignmentRepository assignmentRepository;
@@ -64,7 +70,7 @@ public class ManagerQueryService {
                 ApiValues.managerRole(request.role()), ApiValues.linkedFilter(request.linked()),
                 ApiValues.assignedTodayFilter(request.assignedToday()), today,
                 PageParams.of(request.page(), request.size())
-                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
+                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER)));
         List<Long> managerIds = page.getContent().stream().map(Manager::getId).toList();
         // 삭제 차단(ManagerCommandService)과 같은 판정 조각을 쓰는 한 번의 집계 — 매니저마다 묻지 않는다(Ruling 817).
         Map<Long, Integer> runCounts = assignmentRepository

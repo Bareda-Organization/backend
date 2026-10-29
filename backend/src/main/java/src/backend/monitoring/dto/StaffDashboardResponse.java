@@ -3,6 +3,8 @@ package src.backend.monitoring.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import lombok.Builder;
+
 /**
  * 운행 대시보드 응답(§5.3 {@code GET /staff/dashboard}, MON-01·02·03·04·06).
  *
@@ -49,7 +51,10 @@ public record StaffDashboardResponse(Metrics metrics, List<Run> runs) {
      *                       {@code est_duration_min} 이 없는 회차(스케줄에 소요 시간 추정치가 없을
      *                       때)는 계산 근거가 없어 {@code null} — 예외를 던지지 않고 그대로 비운다
      *                       (서비스 {@code estArrivalTimeOf} 자바독)
+     *
+     * <p>값이 스물세 개이고 같은 타입이 이웃해 순서로 넘기면 자리가 바뀌어도 컴파일되므로 빌더로만 만든다.
      */
+    @Builder
     public record Run(Long runId, String busNo, String direction, OffsetDateTime departTime, String driverName,
             String escortName, int boardedCount, int totalCount, String runStatus, int addedCount, int removedCount,
             boolean ackDriver, boolean ackEscort, List<NoShowCase> noShowCases, OffsetDateTime startedAt,

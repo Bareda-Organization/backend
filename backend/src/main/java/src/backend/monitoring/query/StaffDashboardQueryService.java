@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -138,7 +137,7 @@ public class StaffDashboardQueryService {
                 .stream().collect(Collectors.toMap(DelayRecipientCount::getRunId, DelayRecipientCount::getRecipientCount));
         return lastNotices.stream().collect(Collectors.toMap(DelayNotice::getRunId,
                 notice -> new StaffDashboardResponse.LastDelayNotice(notice.getMinutes(),
-                        lower(notice.getReason().name()), notice.getSentAt(),
+                        QueryLabels.lower(notice.getReason().name()), notice.getSentAt(),
                         recipientCounts.getOrDefault(notice.getRunId(), 0L))));
     }
 
@@ -200,10 +199,10 @@ public class StaffDashboardQueryService {
         int removedCount = sumByChange(agg, ChangeType.REMOVED);
 
         List<StaffAssignmentAckView> acks = lookups.ackViewsByRun().getOrDefault(run.getId(), List.of());
-        String driverName = nameOf(acks, ManagerRole.DRIVER);
-        String escortName = nameOf(acks, ManagerRole.ESCORT);
-        boolean ackDriver = ackedOf(acks, ManagerRole.DRIVER);
-        boolean ackEscort = ackedOf(acks, ManagerRole.ESCORT);
+        String driverName = QueryLabels.nameOf(acks, ManagerRole.DRIVER);
+        String escortName = QueryLabels.nameOf(acks, ManagerRole.ESCORT);
+        boolean ackDriver = QueryLabels.ackedOf(acks, ManagerRole.DRIVER);
+        boolean ackEscort = QueryLabels.ackedOf(acks, ManagerRole.ESCORT);
 
         List<StaffDashboardResponse.NoShowCase> noShowCases = lookups.noShowViewsByRun()
                 .getOrDefault(run.getId(), List.of()).stream()
@@ -213,18 +212,22 @@ public class StaffDashboardQueryService {
                 ? RunDelayCalculator.minutesOf(run, lookups.stopsByRun().getOrDefault(run.getId(), List.of()))
                 : null;
 
-        return new StaffDashboardResponse.Run(run.getId(), lookups.busNos().get(run.getBusId()),
-                lower(run.getDirection().name()), run.getDepartTime(), driverName, escortName, boardedCount,
-                totalCount, lower(run.getStatus().name()), addedCount, removedCount, ackDriver, ackEscort,
-                noShowCases, run.getStartedAt(), run.getFinishedAt(), estArrivalTimeOf(run),
-                phoneOf(acks, ManagerRole.DRIVER), phoneOf(acks, ManagerRole.ESCORT),
-                sumByStatus(agg, RiderStatus.NO_SHOW), sumByStatus(agg, RiderStatus.ABSENT), delayMinutes,
-                lookups.lastDelayNoticeByRun().get(run.getId()));
+        return StaffDashboardResponse.Run.builder()
+                .runId(run.getId()).busNo(lookups.busNos().get(run.getBusId()))
+                .direction(QueryLabels.lower(run.getDirection().name())).departTime(run.getDepartTime())
+                .driverName(driverName).escortName(escortName).boardedCount(boardedCount).totalCount(totalCount)
+                .runStatus(QueryLabels.lower(run.getStatus().name())).addedCount(addedCount)
+                .removedCount(removedCount).ackDriver(ackDriver).ackEscort(ackEscort).noShowCases(noShowCases)
+                .startedAt(run.getStartedAt()).finishedAt(run.getFinishedAt()).estArrivalTime(estArrivalTimeOf(run))
+                .driverPhone(QueryLabels.phoneOf(acks, ManagerRole.DRIVER))
+                .escortPhone(QueryLabels.phoneOf(acks, ManagerRole.ESCORT))
+                .noShowCount(sumByStatus(agg, RiderStatus.NO_SHOW)).absentCount(sumByStatus(agg, RiderStatus.ABSENT))
+                .delayMinutes(delayMinutes).lastDelayNotice(lookups.lastDelayNoticeByRun().get(run.getId())).build();
     }
 
     /** 연락 시도는 시각순으로 들어온다 — 마지막 원소가 가장 늦은 시도다. */
     private StaffDashboardResponse.NoShowCase noShowCaseOf(StaffNoShowCaseView view, List<NoShowContact> contacts) {
-        String lastResult = contacts.isEmpty() ? null : lower(contacts.get(contacts.size() - 1).getResult().name());
+        String lastResult = contacts.isEmpty() ? null : QueryLabels.lower(contacts.get(contacts.size() - 1).getResult().name());
         return new StaffDashboardResponse.NoShowCase(view.studentName(), view.stopName(), view.expiresAt(),
                 contacts.size(), lastResult);
     }
@@ -252,24 +255,5 @@ public class StaffDashboardQueryService {
     private int sumByChange(List<StaffRunRiderAggregateView> agg, ChangeType change) {
         return (int) agg.stream().filter(view -> view.change() == change).mapToLong(StaffRunRiderAggregateView::count)
                 .sum();
-    }
-
-    private String phoneOf(List<StaffAssignmentAckView> acks, ManagerRole role) {
-        return acks.stream().filter(view -> view.role() == role).map(StaffAssignmentAckView::phone).findFirst()
-                .orElse(null);
-    }
-
-    private String nameOf(List<StaffAssignmentAckView> acks, ManagerRole role) {
-        return acks.stream().filter(view -> view.role() == role).map(StaffAssignmentAckView::name).findFirst()
-                .orElse(null);
-    }
-
-    private boolean ackedOf(List<StaffAssignmentAckView> acks, ManagerRole role) {
-        return acks.stream().filter(view -> view.role() == role).findFirst().map(StaffAssignmentAckView::acked)
-                .orElse(false);
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

@@ -3,7 +3,6 @@ package src.backend.monitoring.query;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -116,9 +115,9 @@ public class StaffRunLiveQueryService {
 
         List<StaffAssignmentAckView> acks = ackViewsByRun.getOrDefault(run.getId(), List.of());
         return new StaffRunLiveResponse.Run(run.getId(), busNos.get(run.getBusId()),
-                lower(run.getDirection().name()), lower(run.getStatus().name()), position,
+                QueryLabels.lower(run.getDirection().name()), QueryLabels.lower(run.getStatus().name()), position,
                 nameOf(stops, state.currentStopId(), names), nameOf(stops, state.nextStopId(), names), progressOf(stops),
-                RunDelayCalculator.minutesOf(run, stops), nameOf(acks, ManagerRole.DRIVER), nameOf(acks, ManagerRole.ESCORT),
+                RunDelayCalculator.minutesOf(run, stops), QueryLabels.nameOf(acks, ManagerRole.DRIVER), QueryLabels.nameOf(acks, ManagerRole.ESCORT),
                 position == null ? state.receivedAt() : null);
     }
 
@@ -171,14 +170,5 @@ public class StaffRunLiveQueryService {
             }
             return academyName;
         }
-    }
-
-    private String nameOf(List<StaffAssignmentAckView> acks, ManagerRole role) {
-        return acks.stream().filter(view -> view.role() == role).map(StaffAssignmentAckView::name).findFirst()
-                .orElse(null);
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }
