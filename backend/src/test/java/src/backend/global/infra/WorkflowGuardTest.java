@@ -42,6 +42,14 @@ class WorkflowGuardTest {
     }
 
     @org.junit.jupiter.api.Test
+    @DisplayName("개발 compose 의 백엔드는 Flyway clean 을 끄지 않고 postgres 호스트를 허용한다 — 초기화 호출이 진짜로 지운다")
+    void devComposeBackendResetsForReal() throws IOException {
+        String compose = stripComments(Files.readString(Path.of("..", "docker-compose.app.yml")));
+
+        assertThat(compose).doesNotContain("flyway-clean.suppressed").contains("--app.flyway-clean.extra-allowed-hosts=postgres");
+    }
+
+    @org.junit.jupiter.api.Test
     @DisplayName("CI 가 내려받는 promtool 버전은 운영 compose 의 Prometheus 이미지 버전과 같고, 내려받은 파일은 SHA-256 으로 검증한다")
     void promtoolVersionMatchesProductionPrometheusImage() throws IOException {
         String ci = stripComments(Files.readString(WORKFLOWS.resolve("ci.yml")));

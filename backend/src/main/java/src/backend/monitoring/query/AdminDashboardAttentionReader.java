@@ -3,7 +3,6 @@ package src.backend.monitoring.query;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -93,7 +92,7 @@ class AdminDashboardAttentionReader {
             Run run = runs.get(row.getRunId());
             return new AdminDashboardResponse.ExpiringChangeRequests(run.getId(),
                     scope.academyNames().get(run.getAcademyId()), buses.get(run.getBusId()).getBusNo(),
-                    run.getDirection().name().toLowerCase(Locale.ROOT), row.getDeadlineAt(), row.getTotal());
+                    QueryLabels.lower(run.getDirection().name()), row.getDeadlineAt(), row.getTotal());
         }).toList();
     }
 }

@@ -59,6 +59,37 @@ class ValidationMessageTest {
         assertThat(message).startsWith("login_id: ").containsPattern("[가-힣]").doesNotContain("size must");
     }
 
+    /** 번들 문구 하나가 오타 나도 한글 패턴 검사로는 못 잡는다 — 코드가 쓰는 제약마다 정확한 문구를 못 박는다. 길이 문구는 목록 크기에도 쓰여 단위를 붙이지 않는다. */
+    @Test
+    @DisplayName("번들의 제약별 문구는 정해진 한글 그대로다")
+    void 번들_문구는_정해진_한글_그대로다() throws Exception {
+        java.util.Properties bundle = new java.util.Properties();
+        try (java.io.InputStream in = getClass().getClassLoader().getResourceAsStream("ValidationMessages.properties");
+                java.io.Reader reader = new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8)) {
+            bundle.load(reader);
+        }
+
+        java.util.Map<String, String> expected = new java.util.TreeMap<>(java.util.Map.ofEntries(
+                java.util.Map.entry("AssertTrue", "조건을 만족해야 합니다"),
+                java.util.Map.entry("DecimalMax", "{value} 이하여야 합니다"),
+                java.util.Map.entry("DecimalMin", "{value} 이상이어야 합니다"),
+                java.util.Map.entry("Email", "이메일 형식이 올바르지 않습니다"),
+                java.util.Map.entry("Max", "{value} 이하여야 합니다"),
+                java.util.Map.entry("Min", "{value} 이상이어야 합니다"),
+                java.util.Map.entry("NotBlank", "필수 입력값입니다"),
+                java.util.Map.entry("NotEmpty", "필수 입력값입니다"),
+                java.util.Map.entry("NotNull", "필수 입력값입니다"),
+                java.util.Map.entry("Pattern", "형식이 올바르지 않습니다"),
+                java.util.Map.entry("Positive", "0보다 커야 합니다"),
+                java.util.Map.entry("PositiveOrZero", "0 이상이어야 합니다"),
+                java.util.Map.entry("Size", "길이는 {min} 이상 {max} 이하여야 합니다")));
+        java.util.Map<String, String> actual = new java.util.TreeMap<>();
+        expected.keySet().forEach(constraint -> actual.put(constraint,
+                bundle.getProperty("jakarta.validation.constraints." + constraint + ".message")));
+
+        assertThat(actual).isEqualTo(expected);
+    }
+
     @Test
     @DisplayName("위반이 여럿이면 필드 이름 순으로 첫 필드를 보고한다")
     void 여러_위반은_필드_이름_순() throws Exception {
@@ -90,6 +121,20 @@ class ValidationMessageTest {
         String message = message(new GlobalExceptionHandler().handleValidation(invalid(typeMismatch)).getBody());
 
         assertThat(message).isEqualTo("page_size 값의 형식이 올바르지 않습니다");
+    }
+
+    @Test
+    @DisplayName("필수 요청 헤더가 없으면 헤더 이름을 알린다")
+    void 필수_헤더_누락은_헤더_이름을_알린다() throws Exception {
+        Method method = ValidationMessageTest.class.getDeclaredMethod("message", ErrorResponse.class);
+        org.springframework.web.bind.MissingRequestHeaderException missing =
+                new org.springframework.web.bind.MissingRequestHeaderException("X-Client-Key", new MethodParameter(method, 0));
+
+        var response = new GlobalExceptionHandler().handleStatusCarrying(missing);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(422);
+        assertThat(response.getBody().error().code()).isEqualTo("VALIDATION_FAILED");
+        assertThat(response.getBody().error().message()).isEqualTo("X-Client-Key 헤더가 필요합니다");
     }
 
     private String loginWithBlankId(String acceptLanguage) throws Exception {

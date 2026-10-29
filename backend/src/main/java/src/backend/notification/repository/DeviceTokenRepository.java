@@ -43,6 +43,18 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     int revokeInvalid(@Param("id") Long id, @Param("revokedAt") OffsetDateTime revokedAt);
 
     /**
+     * 이 토큰 값의 등록을 직렬화한다 — 트랜잭션이 끝날 때까지 같은 값의 등록이 줄을 선다. 다른 계정의 유효 행을 해지하고 내 행을 심는 두 문장은 서로의 미커밋 행을 보지 못해, 같은 토큰을
+     * 두 계정이 동시에 등록하면 둘 다 "해지할 행 없음" 을 보고 유효 행이 둘 남는다(BR-223). 행이 없는 값에는 잠글 행이 없어 값 자체를 잠금 키로 쓴다.
+     *
+     * @return 항상 1 — {@code pg_advisory_xact_lock} 이 값을 돌려주지 않아 쿼리가 결과 행을 갖게 하려고 센다
+     */
+    @AcademyScopeExempt(reason = "§2.11 본인 단말 등록 — 토큰 값만으로 거는 잠금이라 읽는 행이 없고 학원 범위 판정이 개입할 자리가 부재. "
+            + "호출부가 등록 요청의 토큰 값만 넘긴다는 전제")
+    @Query(value = "SELECT count(*) FROM (SELECT pg_advisory_xact_lock(hashtext(:token)) AS locked) AS lock_result",
+            nativeQuery = true)
+    long lockByToken(@Param("token") String token);
+
+    /**
      * 같은 토큰 값을 다른 계정이 등록하면 앞 계정들의 유효 행을 해지한다(BR-223) — 한 물리 기기의 토큰은 한 계정에만
      * 유효하다. 로그아웃에 {@code device_id} 가 안 실리거나 세션이 만료된 채 계정을 바꾸면 앞 계정의 행이 남아, 앞 계정
      * 앞으로 적재된 알림(자녀 이름 포함)이 지금 그 폰을 쓰는 사람에게 간다.

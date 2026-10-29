@@ -49,7 +49,7 @@ public class RefreshCommandService {
      * 셈이라 응답은 {@code TOKEN_EXPIRED} 하나다.
      *
      * <p>접근을 끊는 경로는 그 계정의 refresh 토큰도 함께 전량 무효화하므로 대개 아래 "이미 무효화됨" 분기에서 먼저 걸린다 — 로그인 실패
-     * 누적 차단({@code LoginCommandService}) · 비밀번호 변경·복구(§2.8·§2.9) · 관계자 퇴사와 비밀번호 초기화({@code
+     * 누적 차단({@code LoginSettlement#recordFailure}) · 비밀번호 변경 실패 누적 차단({@code PasswordChangeFailureRecorder}, §2.8) · 복구(§2.9) · 관계자 퇴사와 비밀번호 초기화({@code
      * StaffAccountCommandService}, §6.7) · 매니저 삭제({@code ManagerDeletedSessionListener}). 다섯째 경로를 만드는 쪽이 {@code
      * RefreshTokenRepository#revokeAllValidByAccountId} 를 빠뜨려도 {@code isLost} 확인이 재발급을 막지만, 상태 보관 항목의 지연만큼은
      * 열려 있다.

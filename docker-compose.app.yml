@@ -51,16 +51,11 @@ services:
       # 시드 고르기 — 기본은 QA Mock(local). 웹·앱 실서버 계약 시험은 BACKEND_PROFILES=local,fixture 로 띄운다
       # (시험이 붙드는 계정·회차 id 가 시험 전용 시드 db/fixture 에 있다 — 2026-10-03 분리)
       SPRING_PROFILES_ACTIVE: ${BACKEND_PROFILES:-local}
-    # ⚠ Flyway clean() 을 끈다 — 이게 없으면 컨테이너가 기동 즉시 죽는다.
-    # `local` 프로파일의 LocalFlywayCleanStrategy 는 "데이터소스가 localhost 를 가리킬 때만
-    # clean() 한다"는 안전장치(겹③)를 갖는데, 컨테이너 안의 URL 은 `postgres:5432` 라
-    # 그 판정에 걸려 IllegalStateException 으로 컨텍스트 기동이 실패한다.
-    # 안전장치를 약화시키는 대신 그 클래스가 이미 가진 탈출구를 쓴다 — 이 값이 참이면
-    # clean() 을 아예 호출하지 않고 migrate() 만 하므로, 안전장치가 지키려는 위험
-    # (남의 DB 를 비우는 것)이 애초에 발생하지 않는다.
-    # clean() 이 필요 없는 이유 — postgres 에 영속 볼륨이 없어 `down` 하면 DB 가 통째로
-    # 사라지고 `up` 에서 빈 DB 로 새로 만들어진다. 즉 초기화는 compose 가 이미 한다.
-    command: ["--app.flyway-clean.suppressed=true"]
+    # Flyway clean() 의 로컬 안전장치(겹③)는 "데이터소스가 localhost 를 가리킬 때만 clean() 한다" 인데, 컨테이너 안의 URL 은 `postgres:5432` 라
+    # 그대로면 IllegalStateException 으로 기동이 실패한다. 그 클래스가 이미 가진 탈출구 하나로 컨테이너 이름만 연다 —
+    # `app.flyway-clean.extra-allowed-hosts` 에 `postgres` 하나(스테이징이 쓰는 것과 같은 방법, Ruling 364). 안전장치를 끄지 않으므로
+    # 기동 때와 `POST /dev/reset` 이 실제로 clean() 한다(계약 시험 · 로컬 컨테이너 모드가 초기화를 부른다). 이름이 다른 호스트는 여전히 거절된다.
+    command: ["--app.flyway-clean.extra-allowed-hosts=postgres"]
     # 호스트에 포트를 열지 않는다 — 모든 접근은 proxy 를 거친다.
     # 컨테이너 네트워크 안에서는 `backend:8080` 으로 그대로 닿는다.
     expose:

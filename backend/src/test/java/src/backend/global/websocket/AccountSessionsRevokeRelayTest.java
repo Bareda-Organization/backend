@@ -71,6 +71,9 @@ class AccountSessionsRevokeRelayTest extends RedisTestContainerBase {
 
         first.listener.revoke(new AccountSessionsRevokeEvent(Set.of(21L)));
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> assertThat(second.revoked).containsExactly(21L));
+        // 같은 채널 · 같은 연결에서 뒤에 낸 다른 신호를 첫 인스턴스가 받았다면, 앞서 돌아온 자기 신호도 이미 처리를 마친 것이다
+        first.foreignSignal("probe", 99);
+        await().atMost(Duration.ofSeconds(5)).until(() -> first.probes.contains(99L));
 
         assertThat(first.revoked).as("발행한 인스턴스의 닫기 횟수").containsExactly(21L);
     }
@@ -81,8 +84,9 @@ class AccountSessionsRevokeRelayTest extends RedisTestContainerBase {
         OpenWebSocketSessions openSessions = mock(OpenWebSocketSessions.class);
         StringRedisTemplate brokenRedis = mock(StringRedisTemplate.class);
         doThrow(new IllegalStateException("redis down")).when(brokenRedis).convertAndSend(anyString(), anyString());
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
         CacheEvictionRelay relay = new CacheEvictionRelay(brokenRedis, mock(RedisMessageListenerContainer.class),
-                new SimpleMeterRegistry(), channelSuffix);
+                meters, channelSuffix);
         AccountSessionsRevokeListener listener = new AccountSessionsRevokeListener(openSessions, relay);
 
         ListAppender<ILoggingEvent> logs = 로그를_모은다(CacheEvictionRelay.class);
@@ -93,6 +97,8 @@ class AccountSessionsRevokeRelayTest extends RedisTestContainerBase {
         }
 
         verify(openSessions).revoke(Set.of(31L));
+        assertThat(meters.counter("schoolbus.cache.evict.relay.failed", "cache", CacheEvictionRelay.SESSIONS_REVOKE).count())
+                .as("발행 실패는 지표로 센다").isEqualTo(1.0);
         assertThat(경고(logs)).as("신호를 못 낸 사실은 WARN 으로 남는다").singleElement()
                 .satisfies(message -> assertThat(message).contains("캐시 비움 신호 발행 실패"));
     }

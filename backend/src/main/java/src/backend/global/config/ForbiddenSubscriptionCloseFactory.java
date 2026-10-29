@@ -24,7 +24,7 @@ import src.backend.global.security.WebSocketCloseCodes;
  * <b>내용</b>만 바꿀 뿐 이 close 호출 자체를 가로채지 못해, 세션을 감싸 {@code close(CloseStatus)} 를
  * 직접 가로채는 것이 유일한 확장점이다({@link WebSocketTransportRegistration#addDecoratorFactory}).
  *
- * <p>{@link StompAuthChannelInterceptor}(메시지 계층)가 SUBSCRIBE 거부 시 세션 속성에 남긴 표식을
+ * <p>{@link src.backend.global.security.StompSubscribeAuthorizer}(메시지 계층)가 SUBSCRIBE 거부 시 세션 속성에 남긴 표식을
  * 이 데코레이터(전송 계층)가 읽는다 — {@code WebSocketSession#getAttributes()} 가 STOMP 세션 속성과
  * 같은 맵이라(SimpAttributes 위임) 스레드 로컬 없이 계층을 넘나든다.
  *

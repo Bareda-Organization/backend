@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.account.dto.LoginFailureDetail;
 import src.backend.account.entity.Account;
-import src.backend.account.entity.LoginIdFormat;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.service.AuditRecorder;
@@ -78,8 +77,7 @@ public class LoginCommandService {
         Account snapshot = accountRepository.findByLoginId(loginId).orElse(null);
         if (snapshot == null) {
             passwordEncoder.matches(rawPassword, UNKNOWN_ACCOUNT_HASH);
-            String recordedId = LoginIdFormat.matches(loginId) ? loginId : null; // 형식 밖 입력(아이디 칸에 넣은 비밀번호 등)은 남기지 않는다
-            auditRecorder.record(AuditLog.forLoginFail(null, null, recordedId, ip, now));
+            auditRecorder.record(AuditLog.forLoginFail(null, null, loginId, ip, now)); // 형식 밖 입력(아이디 칸에 넣은 비밀번호 등)은 팩토리가 비워 둔다
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
                     new LoginFailureDetail(Account.REMAINING_AFTER_FIRST_FAILURE));
         }

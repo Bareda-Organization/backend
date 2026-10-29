@@ -6,7 +6,7 @@
 groups:
   - name: schoolbus
     rules:
-      # 시리즈는 첫 사건 때 이미 1 이상으로 태어난다(0 → 1 이 아니다) — increase() 는 태어난 샘플 앞이 없어 0 이다. 그래서 실패 경보는 "창 밖 오프셋에 없던 시리즈"(`x unless x offset 창`)도 함께 보고,
+      # 첫 실패 때 만들어지는 실패 카운터(방송 중계 발행 · 긴급 푸시 — 긴급은 type 태그마다)는 1 이상으로 태어난다(0 → 1 이 아니다) — increase() 는 태어난 샘플 앞이 없어 0 이다. 그래서 그 실패 경보는 "창 밖 오프셋에 없던 시리즈"(`x unless x offset 창`)도 함께 보고,
       # 정지 경보는 같은 식으로 "방금 태어난 시리즈"(성공이 있었다)를 정지에서 뺀다. 두 식 모두 job · code_namespace 로 합쳐 같은 라벨 집합이 겹치지 않게 한다.
       # "미승차 에스컬레이션이 3분 초과 미보고 — 즉시" — 건별 실패(스케줄러가 삼킨 것)와 주기 정지 둘 다 본다. 스케줄러 실행 지표는 스프링 기본 계측
       # (tasks_scheduled_execution_seconds_count · code_namespace 가 클래스 전체 이름 · outcome 이 SUCCESS | ERROR)이고, 시리즈는 그 스케줄러의 첫 실행 때 생긴다.
@@ -84,7 +84,7 @@ groups:
         annotations:
           summary: 방송 중계(Redis) 발행이 실패하고 있다 — 다른 인스턴스에 붙은 구독자는 그동안의 방송을 받지 못한다
       # 개인정보 조회 감사 기록(L3 읽기 감사) 저장 실패 — 응답은 그대로 나가므로(Ruling 937) 실패가 사용자에게 보이지 않는다. 누가 학생·보호자 정보를 조회했는지
-      # 남지 않은 건이 생겼다는 신호는 이 경보뿐이라 한 건이라도 3분 창 안에서 늘면 알린다. 카운터는 첫 실패 때 1 로 태어나 increase() 가 0 이라 `x unless x offset 창` 도 함께 본다(Ruling 911).
+      # 남지 않은 건이 생겼다는 신호는 이 경보뿐이라 한 건이라도 3분 창 안에서 늘면 알린다. 이 카운터는 AuditRecorder 생성자에서 0 으로 미리 등록돼 기동 때부터 있으므로 increase() 가 첫 실패부터 잡는다. `x unless x offset 창` 줄은 여기서 보탤 것이 없어 무해하다(Ruling 911).
       - alert: AuditReadRecordFailing
         expr: |
           sum by (job) (increase(schoolbus_audit_read_record_failures_total{job="backend"}[3m])) > 0

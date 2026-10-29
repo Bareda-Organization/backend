@@ -87,11 +87,9 @@ class RetentionCleanupSchedulerStuckStudentTest {
         return RetentionSchedulerFactory.of(notificationLogs,
                 mock(RunPositionPartitionManager.class), refreshTokens, linkCodes, auditLogs,
                 new RetentionPolicy(),
-                new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
-                        mock(org.springframework.jdbc.core.JdbcTemplate.class)), registry),
+                new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), registry),
                 new WithdrawnStudentAnonymizer(studentRepository, anonymization,
-                        new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
-                        mock(org.springframework.jdbc.core.JdbcTemplate.class)), registry)),
+                        new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), registry)),
                 Clock.fixed(Instant.parse("2032-06-15T00:00:00Z"), ZoneId.of("Asia/Seoul")));
     }
 

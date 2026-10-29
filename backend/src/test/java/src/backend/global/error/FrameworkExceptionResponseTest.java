@@ -101,7 +101,7 @@ class FrameworkExceptionResponseTest {
     void 클라이언트_중단은_본문도_ERROR_로그도_없다() throws Exception {
         mockMvc.perform(get("/api/v1/framework-error-test/client-abort").header("Authorization", staff()))
                 .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty())
-                .andExpect(status().is(org.hamcrest.Matchers.not(500)));
+                .andExpect(status().isOk()); // 끊긴 상대에게는 아무 본문도 나가지 않으므로 서블릿 기본 상태(200)가 남는다
         assertThat(errorLogs()).isZero();
     }
 

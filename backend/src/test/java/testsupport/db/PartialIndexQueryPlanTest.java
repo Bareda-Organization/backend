@@ -29,8 +29,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
 import src.backend.BackendApplication;
+import src.backend.account.repository.AccountRepository;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.boarding.entity.RiderStatus;
+import src.backend.global.common.enums.Role;
 import src.backend.global.retention.IdempotencyKeyExpiry;
 import src.backend.notification.entity.PushState;
 import src.backend.notification.repository.NotificationLogRepository;
@@ -68,6 +70,8 @@ class PartialIndexQueryPlanTest {
 
     private static final Pattern STUDENT_STATEMENT = Pattern.compile("(?is)^\\s*select\\b.*\\bfrom student\\b.*");
 
+    private static final Pattern ACCOUNT_STATEMENT = Pattern.compile("(?is)^\\s*select\\b.*\\bfrom account\\b.*");
+
     private static final Pattern AUDIT_LOG_STATEMENT = Pattern.compile("(?is)^\\s*select\\b.*\\bfrom audit_log\\b.*");
 
     @Autowired
@@ -84,6 +88,9 @@ class PartialIndexQueryPlanTest {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private AccountRepository accountRepository;
 
     @Autowired
     private AuditLogRepository auditLogRepository;
@@ -252,6 +259,20 @@ class PartialIndexQueryPlanTest {
     }
 
     /** 저장소 메서드를 부르는 동안 Hibernate 가 낸 SQL 중 패턴에 맞는 첫 문장 — 없으면 시험이 아니라 쿼리 경로의 문제다. */
+    /**
+     * 인증 없이 부르는 계정 복구(§2.9)의 번호 조회는 하이픈을 뺀 숫자로 비교한다 — 칸에 함수를 씌운 조건이라 일반 {@code phone} 인덱스로는 받지 못한다.
+     * 하이픈을 뺀 값의 표현식 인덱스({@code ix_account_phone})가 있어야 요청마다 {@code account} 를 훑지 않는다.
+     */
+    @Test
+    void 계정_복구_번호_조회는_하이픈을_뺀_번호의_인덱스를_탄다() throws Exception {
+        String sql = 실행된_SQL(ACCOUNT_STATEMENT, () -> accountRepository.findAllByPhoneAndRoleIn("01012345678",
+                List.of(Role.PARENT, Role.STUDENT)));
+
+        String plan = 일반_계획을_본다(sql, List.of());
+
+        assertThat(plan).as("%s%n%s", sql, plan).contains("ix_account_phone").doesNotContain("Seq Scan");
+    }
+
     private static String 실행된_SQL(Pattern statement, Runnable repositoryCall) {
         return 실행된_SQL(SQL_LOGGER, statement, repositoryCall);
     }

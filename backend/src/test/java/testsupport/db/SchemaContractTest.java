@@ -411,14 +411,15 @@ class SchemaContractTest extends MigratedPostgresTestBase {
 
     /**
      * 인증 없이 부르는 계정 복구 경로(번호로 계정 찾기 · 발급 빈도 세기 · 최신 코드 대조 · 미소비 무효화)가
-     * 표 순차 스캔 4회가 되지 않도록 번호가 선행인 인덱스 둘이 이 4개 조회를 받친다.
+     * 표 순차 스캔 4회가 되지 않도록 인덱스 둘이 이 4개 조회를 받친다 — 계정은 하이픈을 뺀 번호의 표현식 인덱스, 코드 발급 행은 번호가 선행인 인덱스.
      */
     @Test
     void 계정_복구_조회가_쓰는_번호_컬럼에는_인덱스가_있다() throws SQLException {
         assertThat(queryColumn("""
                 SELECT indexdef FROM pg_indexes
-                WHERE schemaname = 'public' AND tablename = 'account' AND indexdef LIKE '%(phone)'
-                """)).as("account(phone) — 번호로 계정을 찾는 FOR UPDATE 조회").hasSize(1);
+                WHERE schemaname = 'public' AND tablename = 'account' AND indexname = 'ix_account_phone'
+                  AND indexdef LIKE '%replace%phone%''-''%'
+                """)).as("account(replace(phone, '-', '')) — 하이픈을 뺀 번호로 계정을 찾는 조회").hasSize(1);
         assertThat(queryColumn("""
                 SELECT indexdef FROM pg_indexes
                 WHERE schemaname = 'public' AND tablename = 'verification_code'

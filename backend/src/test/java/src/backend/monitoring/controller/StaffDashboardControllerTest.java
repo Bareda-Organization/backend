@@ -691,7 +691,7 @@ class StaffDashboardControllerTest {
      * <p>재배포는 {@code POST /staff/approvals/{id}/decide} 전체 흐름(지문 재검증 등, {@code request/}
      * 모듈 범위 밖) 대신 새 {@code RouteVersion}(버전 2)을 직접 저장하고
      * {@code ConfirmedRouteRepository#assignCurrentVersion} 을 호출해 재현한다 — 이 메서드가
-     * {@code ChangeRequestDecisionService#approve} 가 실제로 부르는 것과 정확히 같은 프로덕션
+     * {@code ChangeRequestApprovalStep#approve} 가 실제로 부르는 것과 정확히 같은 프로덕션
      * 메서드라, 판정 로직(버전 비교) 검증 목적에는 동등하다.
      * {@link DriverRunFixtures#confirmedRouteWithVersion} 을 그대로 두 번째로 호출하지 않는 이유는
      * 그 메서드가 매번 {@code ConfirmedRoute} 도 함께 새로 저장해 {@code run_id} 기준 PK 충돌

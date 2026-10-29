@@ -23,7 +23,7 @@ import src.backend.notification.repository.NotificationSettingRepository;
  * 없는 요청은 바꿀 것이 없어 값 그대로 200 이다.
  *
  * <p>행이 없는 계정의 첫 변경은 {@code INSERT … ON CONFLICT DO NOTHING} 으로 만든다 — 같은 계정이 두 기기에서 동시에 첫 변경을 보내도 한 번만 만들어지고
- * 진 쪽이 기본 키 위반(500)을 받지 않는다.
+ * 진 쪽이 기본 키 위반(500)을 받지 않는다. 이어서 읽는 행은 잠금으로 읽는다 — 같은 계정의 서로 다른 토글 변경 두 건이 겹쳐도 한쪽이 다른 쪽의 옛 값을 되써 지우지 않는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,7 +36,7 @@ public class NotificationSettingCommandService {
     @Transactional
     public NotificationSettingResponse update(AuthUser requester, NotificationSettingUpdateRequest request) {
         notificationSettingRepository.createIfAbsent(requester.accountId(), OffsetDateTime.now(clock));
-        NotificationSetting setting = notificationSettingRepository.findById(requester.accountId()).orElseThrow();
+        NotificationSetting setting = notificationSettingRepository.findLockedById(requester.accountId()).orElseThrow();
         setting.changeSettings(request.arrive(), request.boarding(), request.noShow(), OffsetDateTime.now(clock));
         return NotificationSettingResponse.from(setting);
     }

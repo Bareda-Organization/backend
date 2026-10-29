@@ -164,7 +164,7 @@ public class Account extends AccountState {
      *
      * <p>아이디는 {@code UNIQUE} 라 계정 id 로 만든 값으로 바꾸고, 비밀번호 해시는 어떤 입력과도 맞지 않는 값
      * ({@link #UNUSABLE_PASSWORD_HASH})으로 덮는다. 상태는 {@code blocked} 로 옮기되 차단 직전 상태를 남겨
-     * {@code ck_account_status_before_block_pair} 를 지킨다 — 이미 차단된 계정은 상태·직전 상태를 그대로 둔다.
+     * {@code ck_account_status_before_block_pair} 를 지킨다 — 이미 차단된 계정은 상태·직전 상태를 그대로 두고 차단 사유만 파기 사유로 덮는다(차단 목록에서 빠지고 해제할 수 없게).
      */
     public void anonymizeForRetention(String anonymizedName, OffsetDateTime at) {
         this.loginId = ANONYMIZED_LOGIN_ID_PREFIX + id;

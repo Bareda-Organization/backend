@@ -29,7 +29,7 @@ import lombok.NoArgsConstructor;
  * 않는다(Ruling 13) — 조회 시점에 조회 쪽 로직이 계산한다.
  *
  * <p>팩토리의 공통 인자 — {@code academyId} 는 감사 대상 자원의 소속 학원(메인 관리자 · 시스템이 행위자면 {@code null}), {@code actorAccountId} 는 행위자 계정 id,
- * {@code actorLoginId} 는 행위자 로그인 아이디 스냅샷(계정이 사라져도 표시값이 남는다; 로그인 실패 행은 시도된 아이디이고 가입 아이디 형식이 아니면 호출부가 {@code null}),
+ * {@code actorLoginId} 는 행위자 로그인 아이디 스냅샷(계정이 사라져도 표시값이 남는다; 로그인 실패 행은 시도된 아이디이고 가입 아이디 형식이 아니면 팩토리가 {@code null} 로 비움),
  * {@code ip} 는 요청 발신 IP(요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}), {@code occurredAt} 은 사건 시각이다. 각 팩토리 설명은 그 밖의 인자와 저장되는
  * {@code category} · {@code action} · {@code target_type} · {@code detail} 만 적는다.
  */

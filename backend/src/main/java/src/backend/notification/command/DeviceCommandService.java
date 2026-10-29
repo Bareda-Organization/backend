@@ -25,11 +25,12 @@ public class DeviceCommandService {
     /**
      * 단말을 등록한다 — 같은 {@code (accountId, deviceId)} 행이 이미 있으면 새 토큰으로 바꿔 심는다({@code DeviceToken} Javadoc "값 수정이 아니라
      * 행 대체"). 한 문장의 upsert 라 같은 단말을 겹쳐 등록해도 행이 늘지 않고 UNIQUE 위반도 없다. 같은 토큰을 가진 다른 계정의 유효 행은 먼저
-     * 해지한다(BR-223 — 한 기기의 토큰은 한 계정에만 유효).
+     * 해지한다(BR-223 — 한 기기의 토큰은 한 계정에만 유효). 같은 토큰 값의 등록은 값 잠금으로 줄을 세워, 두 계정이 동시에 등록해도 유효 행이 둘 남지 않는다.
      */
     @Transactional
     public DeviceRegisterResponse register(Long accountId, DeviceRegisterRequest request) {
         OffsetDateTime now = OffsetDateTime.now(clock);
+        deviceTokenRepository.lockByToken(request.token());
         deviceTokenRepository.revokeOtherAccounts(request.token(), accountId, now);
         DevicePlatform platform = DevicePlatform.valueOf(request.platform().toUpperCase(Locale.ROOT));
         deviceTokenRepository.upsert(accountId, request.deviceId(), request.token(),

@@ -1,5 +1,6 @@
 package src.backend.global.error;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,6 +9,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -44,11 +50,22 @@ class ErrorEndpointTest {
     }
 
     @Test
-    @DisplayName("오류 상태 속성이 없는 /error 요청은 500 INTERNAL_ERROR")
-    void 상태_속성이_없으면_500() throws Exception {
-        mockMvc.perform(get("/error"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error.code").value("INTERNAL_ERROR"));
+    @DisplayName("컨테이너가 넘긴 오류 상태가 없는 /error 요청은 404 ENDPOINT_NOT_FOUND 이고 경고 로그를 남기지 않는다")
+    void 상태_속성이_없으면_404_이고_로그가_없다() throws Exception {
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        Logger controllerLogger = (Logger) LoggerFactory.getLogger(ContainerErrorController.class);
+        controllerLogger.addAppender(logs);
+        try {
+            mockMvc.perform(get("/error"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error.code").value("ENDPOINT_NOT_FOUND"));
+        } finally {
+            controllerLogger.detachAppender(logs);
+            logs.stop();
+        }
+
+        assertThat(logs.list).as("인증 없이 아무나 부르는 경로라 호출마다 경고를 남기지 않는다").isEmpty();
     }
 
     @Test

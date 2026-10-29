@@ -115,10 +115,13 @@ class PasswordChangeFailureCountTest {
     }
 
     @Test
-    void 현재_비밀번호가_맞으면_변경되고_카운터를_올리지_않는다() throws Exception {
+    void 현재_비밀번호가_맞으면_변경되고_쌓인_카운터를_건드리지_않는다() throws Exception {
+        변경한다("wrong-1").andExpect(status().isUnauthorized());
+        변경한다("wrong-2").andExpect(status().isUnauthorized());
+
         변경한다(PASSWORD).andExpect(status().isNoContent());
 
-        assertThat(실패_횟수()).isZero();
+        assertThat(실패_횟수()).as("성공은 쌓인 실패를 지우지도 더하지도 않는다").isEqualTo(2);
     }
 
     /**

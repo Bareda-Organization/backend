@@ -20,7 +20,7 @@ import src.backend.observability.metrics.RunPositionLostMetrics;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.query.StudentBusPositionQueryService;
+import src.backend.global.policy.PolicyConstants;
 
 /**
  * 위치가 2분 넘게 안 들어온 운행 중 회차 수를 주기적으로 세어 {@link RunPositionLostMetrics} 에 싣는다
@@ -56,7 +56,7 @@ public class RunPositionLostGaugeScheduler {
             initialDelayString = "${app.observability.run-position-lost.initial-delay-ms:0}")
     @SchedulerLock(name = "run-position-lost-gauge", lockAtMostFor = "PT2M")
     public void refresh() {
-        OffsetDateTime startedBefore = OffsetDateTime.now(clock).minus(StudentBusPositionQueryService.STALE_THRESHOLD);
+        OffsetDateTime startedBefore = OffsetDateTime.now(clock).minus(PolicyConstants.POSITION_STALE_THRESHOLD);
         metrics.update(countLost(startedBefore));
     }
 
