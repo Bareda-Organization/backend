@@ -88,55 +88,169 @@ public class AuditLog {
         this.occurredAt = occurredAt;
     }
 
-    /** 메인 관리자가 로그인 차단을 해제한 사실을 남긴다(AUTH-06 · API_SPEC §6.12) — 상세 설명은 {@link AuditLoginRows#forAccountUnblock} 참고. */
+    /**
+     * 메인 관리자가 로그인 차단을 해제한 사실을 남긴다(AUTH-06 · API_SPEC §6.12).
+     *
+     * <p>저장값: {@code category=login} · {@code action=unblock} · {@code target_type=account}.
+     *
+     * @param academyId       대상 계정의 소속 학원 — 메인 관리자 계정이면 {@code null}
+     * @param actorAccountId  해제를 실행한 메인 관리자 계정 id
+     * @param actorLoginId    그 관리자의 로그인 아이디 스냅샷 — 계정이 사라져도 표시값이 남는다
+     * @param targetAccountId 차단이 풀린 계정 id — {@code target_id} 에 저장
+     * @param ip              해제를 요청한 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param occurredAt      해제 시각
+     */
     public static AuditLog forAccountUnblock(Long academyId, Long actorAccountId, String actorLoginId,
             Long targetAccountId, String ip, OffsetDateTime occurredAt) {
         return AuditLoginRows.forAccountUnblock(academyId, actorAccountId, actorLoginId, targetAccountId, ip, occurredAt);
     }
 
-    /** 관계자가 학원 사용자의 비밀번호를 초기화한 사실(API_SPEC §5.22 · Ruling 329) — 상세 설명은 {@link AuditLoginRows#forAccountPasswordReset} 참고. */
+    /**
+     * 관계자가 학원 사용자의 비밀번호를 초기화한 사실(API_SPEC §5.22 · Ruling 329).
+     *
+     * <p>저장값: {@code category=data_access} · {@code action=update} · {@code target_type=account},
+     * {@code detail} 은 {@code {"action": "account.password_reset"}}.
+     *
+     * @param academyId       학원 식별자
+     * @param actorAccountId  초기화를 실행한 관계자 계정 id
+     * @param actorLoginId    그 관계자의 로그인 아이디 스냅샷
+     * @param targetAccountId 비밀번호가 초기화된 계정 id — {@code target_id} 에 저장
+     * @param ip              요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param occurredAt      초기화 시각
+     */
     public static AuditLog forAccountPasswordReset(Long academyId, Long actorAccountId, String actorLoginId,
             Long targetAccountId, String ip, OffsetDateTime occurredAt) {
         return AuditLoginRows.forAccountPasswordReset(academyId, actorAccountId, actorLoginId, targetAccountId, ip, occurredAt);
     }
 
-    /** L3 필드가 실린 응답을 실제로 읽었을 때의 기록(SYS-01 · FEATURE_SPEC §6.3) — 상세 설명은 {@link AuditDataRows#forDataAccessRead} 참고. */
+    /**
+     * L3 필드가 실린 응답을 실제로 읽었을 때의 기록(SYS-01 · FEATURE_SPEC §6.3). 요청 1건당 1행이다.
+     *
+     * <p>저장값: {@code category=data_access} · {@code action=read}. {@code target_type}·{@code target_id}·{@code detail} 은
+     * 인자 그대로 저장한다. {@code detail} 에는 학생 식별자 목록({@code student_ids})과 노출된 L3 필드명({@code fields})만 담고 값은 담지 않는다.
+     *
+     * @param academyId      학원 식별자
+     * @param actorAccountId 조회한 계정 id
+     * @param actorLoginId   그 계정의 로그인 아이디 스냅샷
+     * @param targetType     대상 종류 — {@code student}·{@code run_roster} 등
+     * @param targetId       단일 학생 조회면 학생 id, 회차 명단이면 회차 id
+     * @param detail         응답에 실린 학생 식별자 전부와 노출된 L3 필드명
+     * @param ip             요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param occurredAt     조회 시각
+     */
     public static AuditLog forDataAccessRead(Long academyId, Long actorAccountId, String actorLoginId, String targetType,
             Long targetId, Map<String, Object> detail, String ip, OffsetDateTime occurredAt) {
         return AuditDataRows.forDataAccessRead(academyId, actorAccountId, actorLoginId, targetType, targetId, detail, ip, occurredAt);
     }
 
-    /** 로그인 성공(SYS-02 · API_SPEC §2.5) — 상세 설명은 {@link AuditLoginRows#forLoginSuccess} 참고. */
+    /**
+     * 로그인 성공(SYS-02 · API_SPEC §2.5).
+     *
+     * <p>저장값: {@code category=login} · {@code action=login_success} · {@code target_type=account}.
+     * {@code target_id} 는 {@code actorAccountId} 와 같다.
+     *
+     * @param academyId      로그인한 계정의 소속 학원 — 메인 관리자 계정이면 {@code null}
+     * @param actorAccountId 로그인한 계정 id
+     * @param actorLoginId   로그인에 쓴 아이디 스냅샷
+     * @param ip             요청 발신 IP — 로그인 이력 행에만 채운다
+     * @param occurredAt     로그인 시각
+     */
     public static AuditLog forLoginSuccess(Long academyId, Long actorAccountId,
             String actorLoginId, String ip, OffsetDateTime occurredAt) {
         return AuditLoginRows.forLoginSuccess(academyId, actorAccountId, actorLoginId, ip, occurredAt);
     }
 
-    /** 로그인 실패(SYS-02 · API_SPEC §2.5) — 비밀번호 불일치와 존재하지 않는 로그인 아이디 둘 다 쓴다 — 상세 설명은 {@link AuditLoginRows#forLoginFail} 참고. */
+    /**
+     * 로그인 실패(SYS-02 · API_SPEC §2.5) — 비밀번호 불일치와 존재하지 않는 로그인 아이디 둘 다 쓴다.
+     *
+     * <p>저장값: {@code category=login} · {@code action=login_fail} · {@code target_type=account}.
+     * {@code target_id} 는 {@code actorAccountId} 와 같다.
+     *
+     * @param academyId      학원 식별자
+     * @param actorAccountId 계정이 특정된 실패면 그 계정 id — 계정을 찾지 못했으면 {@code null}
+     * @param actorLoginId   시도된 로그인 아이디 — 앞 50자까지만 저장하며, 가입 아이디 형식이 아니면 호출부가 {@code null} 을 넘긴다
+     * @param ip             요청 발신 IP
+     * @param occurredAt     실패 시각
+     */
     public static AuditLog forLoginFail(Long academyId, Long actorAccountId,
             String actorLoginId, String ip, OffsetDateTime occurredAt) {
         return AuditLoginRows.forLoginFail(academyId, actorAccountId, actorLoginId, ip, occurredAt);
     }
 
-    /** 실패 누적이 상한(5회)에 닿아 계정이 {@code blocked} 로 전이된 바로 그 시도를 별도 행으로 남긴다 — 상세 설명은 {@link AuditLoginRows#forLoginBlock} 참고. */
+    /**
+     * 실패 누적이 상한(5회)에 닿아 계정이 {@code blocked} 로 전이된 바로 그 시도를 별도 행으로 남긴다.
+     *
+     * <p>저장값: {@code category=login} · {@code action=block} · {@code target_type=account} · {@code block_event=true}.
+     * {@code target_id} 는 {@code actorAccountId} 와 같다.
+     *
+     * @param academyId      학원 식별자
+     * @param actorAccountId 차단된 계정 id
+     * @param actorLoginId   시도된 로그인 아이디 스냅샷 — 앞 50자 자르기를 하지 않으므로 호출부가 50자 이하를 넘긴다
+     * @param ip             요청 발신 IP
+     * @param occurredAt     차단 시각
+     */
     public static AuditLog forLoginBlock(Long academyId, Long actorAccountId,
             String actorLoginId, String ip, OffsetDateTime occurredAt) {
         return AuditLoginRows.forLoginBlock(academyId, actorAccountId, actorLoginId, ip, occurredAt);
     }
 
-    /** 강제 확정 콘솔 개입(API_SPEC §6.14)을 남긴다 — 상세 설명은 {@link AuditDataRows#forRunForceConfirm} 참고. */
+    /**
+     * 강제 확정 콘솔 개입(API_SPEC §6.14)을 남긴다.
+     *
+     * <p>저장값: {@code category=data_access} · {@code action=update} · {@code target_type=run} · {@code target_id=runId}.
+     * {@code detail} 에는 {@code action=run.force_confirm}, {@code reason}, {@code fallback_used}, {@code route_version_id} 를 담는다.
+     *
+     * @param academyId      회차의 학원 식별자 — {@code null} 이면 학원 조건 조회(academy_id 필터)에서 빠진다
+     * @param actorAccountId 강제 확정을 실행한 메인 관리자 계정 id
+     * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷
+     * @param runId          강제 확정된 회차 id
+     * @param reason         강제 확정 사유 — {@code detail.reason}
+     * @param fallbackUsed   저장된 {@code route_version.fallback_used} 값 — {@code detail.fallback_used}
+     * @param routeVersionId 새로 만든 {@code route_version} 의 id — {@code detail.route_version_id}
+     * @param ip             요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param occurredAt     확정 시각
+     */
     public static AuditLog forRunForceConfirm(Long academyId, Long actorAccountId, String actorLoginId, Long runId,
             String reason, boolean fallbackUsed, Long routeVersionId, String ip, OffsetDateTime occurredAt) {
         return AuditDataRows.forRunForceConfirm(academyId, actorAccountId, actorLoginId, runId, reason, fallbackUsed, routeVersionId, ip, occurredAt);
     }
 
-    /** 운행일이 지난 이동 중 회차의 강제 종료(API_SPEC §6.17, Ruling 724) — 상세 설명은 {@link AuditDataRows#forRunForceFinish} 참고. */
+    /**
+     * 운행일이 지난 이동 중 회차의 강제 종료(API_SPEC §6.17, Ruling 724).
+     *
+     * <p>저장값: {@code category=data_access} · {@code action=update} · {@code target_type=run} · {@code target_id=runId}.
+     * {@code detail} 에는 {@code action=run.force_finish}, {@code reason}, {@code boarded_count} 를 담는다.
+     *
+     * @param academyId      회차의 학원 식별자 — {@code null} 이면 학원 조건 조회(academy_id 필터)에서 빠진다
+     * @param actorAccountId 강제 종료를 실행한 메인 관리자 계정 id
+     * @param actorLoginId   그 관리자의 로그인 아이디 스냅샷
+     * @param runId          강제 종료된 회차 id
+     * @param reason         강제 종료 사유 — {@code detail.reason}
+     * @param boardedCount   종료 시점에 아직 {@code boarded} 였던 탑승자 수 — 하차 처리 없이 남겨진 인원, {@code detail.boarded_count}
+     * @param ip             요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param occurredAt     종료 시각
+     */
     public static AuditLog forRunForceFinish(Long academyId, Long actorAccountId, String actorLoginId, Long runId,
             String reason, long boardedCount, String ip, OffsetDateTime occurredAt) {
         return AuditDataRows.forRunForceFinish(academyId, actorAccountId, actorLoginId, runId, reason, boardedCount, ip, occurredAt);
     }
 
-    /** 관계자·메인 관리자가 L3 필드를 고치거나({@code update}) 학생을 퇴원시킨({@code delete}) 사실(Ruling 333 · SYS-01) — 상세 설명은 {@link AuditDataRows#forDataAccessChange} 참고. */
+    /**
+     * 관계자·메인 관리자가 L3 필드를 고치거나({@code update}) 학생을 퇴원시킨({@code delete}) 사실(Ruling 333 · SYS-01).
+     *
+     * <p>저장값: {@code category=data_access} · {@code action} 은 인자 그대로({@code update} 또는 {@code delete}) ·
+     * {@code target_type}·{@code target_id}·{@code detail} 도 인자 그대로 저장한다. {@code detail} 에는 바뀐 필드명만 담고 값은 담지 않는다.
+     *
+     * @param action         {@code update} 또는 {@code delete}
+     * @param academyId      학원 식별자
+     * @param actorAccountId 변경을 실행한 계정 id
+     * @param actorLoginId   그 계정의 로그인 아이디 스냅샷
+     * @param targetType     대상 종류 문자열
+     * @param targetId       대상 id
+     * @param detail         바뀐 필드명 목록
+     * @param ip             요청 발신 IP — 요청 밖에서 불렀거나 IP 표기가 아니면 {@code null}
+     * @param occurredAt     변경 시각
+     */
     public static AuditLog forDataAccessChange(AuditAction action, Long academyId, Long actorAccountId, String actorLoginId, String targetType,
             Long targetId, Map<String, Object> detail, String ip, OffsetDateTime occurredAt) {
         return AuditDataRows.forDataAccessChange(action, academyId, actorAccountId, actorLoginId, targetType, targetId, detail, ip, occurredAt);

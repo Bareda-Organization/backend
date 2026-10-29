@@ -12,24 +12,11 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.notification.entity.NotificationLog;
 
 /**
- * 아웃박스 행의 적재·회수·발송 상태 전이(TECH_DECISIONS §7.2) + 관계자 웹의 알림 로그 조회
- * (API_SPEC §5.17, NTF-10·11, A-13).
- *
- * <p>상태 전이를 전부 {@code @Modifying} 조건부 UPDATE 로 두는 이유는 §7 규칙 3 이다 — 변경 감지는
- * "읽고 판단하고 쓰는" 사이에 창이 생겨, 즉시 발송과 워커가 같은 행을 함께 집는다.
- *
- * <p>전이 메서드가 전부 {@code REQUIRES_NEW} 인 것은 호출 시점 때문이다. 즉시 발송은
- * {@code AFTER_COMMIT} 리스너에서 부르는데, 그 시점의 스레드에는 <b>이미 커밋된</b> 트랜잭션의
- * {@code EntityManager} 가 아직 묶여 있다. {@code REQUIRED} 로 두면 그 끝난 트랜잭션에 합류해
- * UPDATE 가 아무 데도 반영되지 않고, 그런데도 예외가 부재해 초록으로 지나간다.
- *
- * <p><b>조회 메서드({@code searchForStaffLog}·{@code countUnackedForStaffLog})는 §5.17 전용이다.</b>
- * 이름에 {@code ForStaffLog} 를 붙인 이유는 이 파일이 전이 메서드와 조회 메서드를 함께 갖게 되면서,
- * 양쪽 담당이 서로 다른 뜻으로 같은 이름을 지어 충돌하는 것이 실제 위험이기 때문이다(Ruling 222) —
- * 아웃박스 전이 메서드는 전부 단건({@code id} 로 특정)이라 이름이 겹칠 일이 없지만, 조회는 그렇지
- * 않다. 이 인터페이스는 질의 묶음별 조각 인터페이스({@link NotificationLogStateTransitions} ·
- * {@link NotificationLogRetryQueries} · {@link NotificationLogInboxQueries} · {@link NotificationLogStaffLogQueries})를 상속해 하나로 합친다 —
- * 저장소 빈은 엔티티 하나에 이것 하나이고 호출부는 이 이름으로 모든 메서드를 부른다(Ruling 222, 크기 분할).
+ * 알림 아웃박스의 적재·회수·발송 상태 전이와 관계자 웹의 알림 로그 조회를 한 저장소로 묶는다. 질의는 묶음별 조각 인터페이스에 나뉘어 있고
+ * 이 인터페이스가 전부 상속한다 — 발송 상태 전이 {@link NotificationLogStateTransitions}(선점 · 성공 · 실패 · 건너뜀 · 시도 되돌리기) ·
+ * 워커 회수 조회 {@link NotificationLogRetryQueries}(재시도 후보 · 정체 행 실패 전이) · 수신자 알림함 {@link NotificationLogInboxQueries}(목록 · 미읽음 수 ·
+ * 읽음 처리 · 수신 확인) · 관계자 알림 로그 조회 {@link NotificationLogStaffLogQueries}(목록 · 묶어 보기 · 미확인 배지). 보존 정리 후보 id 와
+ * 관제 적체 수는 이 인터페이스에 직접 둔다. 호출부는 조각 인터페이스가 아니라 {@code NotificationLogRepository} 로 모든 메서드를 부른다.
  */
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long>, NotificationLogStateTransitions,
         NotificationLogRetryQueries, NotificationLogInboxQueries, NotificationLogStaffLogQueries {

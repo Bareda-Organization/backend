@@ -46,7 +46,7 @@ public interface AccountConsoleQueries extends Repository<Account, Long> {
      * (API_SPEC §6.4)이 요청 행에 신청자 정보를 채울 때 쓰고, 비상 알림 목록
      * ({@code EmergencyStaffQueryService})이 확인자(acked_by)를 이름으로 바꿀 때도 쓴다.
      *
-     * <p>학원 조건을 함께 걸 수 없는 것이 §6.3 의 {@link #findAllByAcademyIdAndIdIn} 과 갈리는
+     * <p>학원 조건을 함께 걸 수 없는 것이 §6.3 의 {@link AccountRepository#findAllByAcademyIdAndIdIn} 과 갈리는
      * 지점이다 — 그쪽은 목록 전체가 한 학원이고 이쪽은 한 페이지(또는 목록)에 여러 학원이 섞일 수 있다.
      */
     @AcademyScopeExempt(reason = "§6.4 메인 관리자 콘솔의 전 학원 조회(ARCHITECTURE §6.2 격리 예외) — 한 페이지에 여러 학원이 "

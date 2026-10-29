@@ -13,7 +13,7 @@ import src.backend.notification.domain.spec.NotificationMessage;
  * 비상 알림(EXC-04) 문구 — 고정 문구 표({@link NotificationTexts})와 같은 규칙(글자는 {@code NotificationTextGoldenTest} 가 고정)을 따르되, 수신자가 관계자와
  * 메인 관리자라는 점이 달라 따로 둔다.
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
 public class EmergencyNotificationTexts {
 
     /** 비상 신고 접수 — 수신자 관계자·메인관리자 공통. 상황 유형을 한글로 싣는다(차량 번호만으로는 심각도를 가늠할 수 없다). */

@@ -1,7 +1,7 @@
 package src.backend.global.common;
 
 /**
- * {@code db/fixture/V2__seed_data.sql} 이 적재하는 식별자·코드·로그인 아이디의 단일 원천이다 — 시험이 시드 값을 손으로
+ * {@code db/fixture/V800__seed_data.sql} 이 적재하는 식별자·코드·로그인 아이디의 단일 원천이다 — 시험이 시드 값을 손으로
  * 옮겨 적지 않고 이 상수를 참조하고, {@code SeedFixturesContractTest} 가 상수가 실제 시드 행과 같은지 대조한다.
  *
  * <p>모든 상수는 {@code public static final String} 이다 — bigint PK 도 문자열로 담는다. bigint 컬럼과 비교할 때

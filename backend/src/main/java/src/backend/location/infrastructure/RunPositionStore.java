@@ -48,7 +48,7 @@ public class RunPositionStore {
     /** {@code run:{runId}:position} 전체 — 개발용 초기화만 쓴다. */
     private static final String KEY_PATTERN = "run:*:position";
 
-    /** Redis 키가 없을 때 DB 를 읽는 범위 — 위치가 낡았다고 보는 기준과 같다({@code StudentBusPositionQueryService.STALE_THRESHOLD}, 같은 값임을 시험이 본다). 이보다 오래된 행은 어차피 낡은 위치다. */
+    /** 키가 없을 때 DB 를 읽는 범위 — {@link RunPositionHistoryFallback#MISS_LOOKBACK} 와 같은 값이다(시험이 이 이름으로 읽는다). */
     static final Duration MISS_LOOKBACK = RunPositionHistoryFallback.MISS_LOOKBACK;
 
     /** 받아들이지 못한 위치를 이유별로 세는 지표 이름 — 중복·과다 수신 차단({@code PositionIntakeGuard})도 같은 이름에 다른 이유로 센다. */

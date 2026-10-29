@@ -38,7 +38,7 @@ import src.backend.observability.metrics.WebSocketPublishMetrics;
  * <p><b>과부하 때 이벤트 종류별로 버림 여부가 갈리는 자리도 여기다</b>(BR-170, Ruling 349) —
  * 리스너를 고치지 않고 이 송신 채널에서 가른다. 위치({@code position})는 2~5초 뒤 새 값이
  * 덮어쓰는 데이터라 팬아웃 실행기 큐가 가득 차면 버리고, 나머지(비상·승하차 등)는 큐가 가득
- * 차도 {@code CallerRunsPolicy}(호출 스레드가 대신 보냄, {@link src.backend.global.config.WebSocketConfig})
+ * 차도 {@code CallerRunsPolicy}(호출 스레드가 대신 보냄, {@link src.backend.global.config.WebSocketExecutorConfig})
  * 로 유실 없이 전달된다.
  */
 @Component

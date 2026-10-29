@@ -63,7 +63,7 @@ public class OpenApiConfig {
 
     /**
      * Swagger UI 최상단에 그대로 렌더링되는 안내문(Markdown). {@code %s} 자리는 태그 이름이다. 데모 계정표는
-     * {@code db/fixture/V2__seed_data.sql} 의 시드 계정과 같은 값을 적은 것이라, 시드 계정을 바꾸면 이 표도 함께 고친다.
+     * {@code db/fixture/V800__seed_data.sql} 의 시드 계정과 같은 값을 적은 것이라, 시드 계정을 바꾸면 이 표도 함께 고친다.
      */
     private static final String DESCRIPTION_TEMPLATE = """
             바래다 — 학원 통원버스 운행·등하원 관리 멀티 테넌트 플랫폼 백엔드 API.

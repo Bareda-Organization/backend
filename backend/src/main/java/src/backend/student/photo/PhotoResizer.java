@@ -167,7 +167,10 @@ public final class PhotoResizer {
         return PhotoRaster.encode(reduced, extension).map(bytes -> new StudentPhoto(extension, bytes));
     }
 
-    /** JPEG 의 EXIF 회전값(1~8) — 읽는 방법은 {@link ExifOrientation}. 깨진 구조는 예외를 던져 호출부가 원본을 둔다. */
+    /**
+     * JPEG 의 EXIF 회전값(1~8)을 돌려준다 — EXIF 가 없거나 회전 태그가 없으면 1 이다({@code ExifOrientation.of}).
+     * 잘린 마커나 범위를 벗어난 엔트리는 1 로 처리한다. 구조가 깨져 읽다가 런타임 예외가 나면 그대로 전파되고, {@code shrinkHoldingSlot} 이 그 예외를 잡아 원본을 둔다.
+     */
     static int exifOrientation(byte[] jpeg) {
         return ExifOrientation.of(jpeg);
     }

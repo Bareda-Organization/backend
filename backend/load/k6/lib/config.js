@@ -13,7 +13,7 @@ const API_PREFIX = '/api/v1';
 export const BASE_URL = (__ENV.BASE_URL || 'http://localhost:18080') + API_PREFIX;
 export const WS_URL = __ENV.WS_URL || 'ws://localhost:18080/ws/location';
 
-// db/fixture/V2__seed_data.sql · scenario2_prep.sql · scenario4_prep.sql 이 공통으로 쓰는
+// db/fixture/V800__seed_data.sql · scenario2_prep.sql · scenario4_prep.sql 이 공통으로 쓰는
 // 시드 비밀번호 평문. 해시(BCrypt)는 SQL 쪽에만 있고 여기는 로그인에 쓸 평문만 필요하다.
 export const SEED_PASSWORD = 'password';
 

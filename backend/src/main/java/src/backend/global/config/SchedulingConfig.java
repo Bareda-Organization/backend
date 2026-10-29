@@ -16,7 +16,7 @@ import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
  * {@code @Scheduled} 전용 스케줄러(BR-010).
  *
  * <p>이 설정이 없으면 컨텍스트의 유일한 {@code TaskScheduler} 빈이 WebSocket 하트비트용(스레드 1개,
- * {@link WebSocketConfig#heartbeatScheduler})이라 Boot 기본 스케줄러가 물러나고, {@code @Scheduled} 작업
+ * {@link WebSocketExecutorConfig#heartbeatScheduler})이라 Boot 기본 스케줄러가 물러나고, {@code @Scheduled} 작업
  * 전부가 그 스레드 하나를 차례로 쓴다. 확정 배치 한 틱이 수 분을 돌면 그동안 미승차 에스컬레이션
  * (EXC-01 3분) · 근접 알림 · 아웃박스 재발송 · 자동 거절이 전부 멈춘다.
  *

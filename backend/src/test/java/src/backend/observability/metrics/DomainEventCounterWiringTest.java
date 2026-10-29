@@ -60,7 +60,7 @@ class DomainEventCounterWiringTest {
 
     private static final Instant FIXED = Instant.parse("2033-04-01T03:00:00Z"); // 2033-04-01 12:00 KST
 
-    /** 시드의 유일한 미발송 {@code notification_log} 행({@code V2__seed_data.sql}). */
+    /** 시드의 유일한 미발송 {@code notification_log} 행({@code V800__seed_data.sql}). */
     private static final long 시드_미발송_알림 = 4L;
 
     /** 시드의 유일한 대기중 {@code change_request} 행 — 마감이 실제 벽시계로 곧 지난다(실측 확인). */
