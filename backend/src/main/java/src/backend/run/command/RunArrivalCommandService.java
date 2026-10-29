@@ -73,11 +73,10 @@ public class RunArrivalCommandService {
      */
     public RunArriveResponse arrive(AuthUser requester, Long runId, Long runStopId) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
-        Long academyId = requester.academyId();
-        Run locked = lockedRun(runId, academyId);
+        Run locked = lockedRun(runId, requester.academyId());
         OffsetDateTime now = OffsetDateTime.now(clock);
-        assertMoving(locked, academyId, runStopId);
-        Run run = departEarlierStops(runId, academyId, runStopId, now);
+        assertMoving(locked, requester.academyId(), runStopId);
+        Run run = departEarlierStops(runId, requester.academyId(), runStopId, now);
         Arrival arrival = recordArrival(run, runStopId, now);
         RunFinalArrival.Outcome outcome = arrival.isFinal() ? finalArrival.handle(run, now) : RunFinalArrival.Outcome.NONE;
         return RunArriveResponse.of(now, arrival.nextStop(), arrival.isFinal(), run, outcome.remaining(),

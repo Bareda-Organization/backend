@@ -32,7 +32,7 @@ public class RunApproachingStopNotificationListener {
 
     /**
      * {@code dedup_key} 형태 — 대상 자리는 runId·stopId·studentId·수신자 구분(parent/student) 이다.
-     * <b>시각을 넣지 않는다</b> — 최초 1회 발송의 실제 강제자는 {@code RunStopRepository
+     * <b>시각을 넣지 않는다</b> — 최초 1회 발송의 실제 강제자는 {@code RunStopProximityRepository
      * #claimProximityNotice} 의 조건부 UPDATE 이고, 이 키는 그 선점이 새더라도 같은 정차지·
      * 같은 학생·같은 수신자에게 두 번 적재되는 것을 막는 마지막 방어선이다. 시각을 넣으면 재판정
      * 시각마다 값이 달라져 이 방어선이 통과만 하는 장식이 된다(소비 시점 시계로

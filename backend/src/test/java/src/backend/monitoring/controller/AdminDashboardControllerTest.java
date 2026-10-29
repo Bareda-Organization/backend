@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static testsupport.auth.TestTokens.메인관리자_토큰;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -24,7 +23,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,7 +46,7 @@ import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.run.scheduler.RunConfirmationScheduler;
+import src.backend.run.scheduler.ConfirmationBatchHeartbeat;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
@@ -86,7 +84,7 @@ class AdminDashboardControllerTest {
     private StringRedisTemplate stringRedisTemplate;
 
     @Autowired
-    private RunConfirmationScheduler runConfirmationScheduler;
+    private ConfirmationBatchHeartbeat confirmationBatchHeartbeat;
 
     @Autowired
     private RunRepository runRepository;
@@ -539,7 +537,7 @@ class AdminDashboardControllerTest {
     void 시스템_상태_4칸() throws Exception {
         // 정상 기준선 — 다른 시험이 남긴 대기 알림을 걷고 확정 배치의 마지막 성공을 지금으로 맞춘다
         jdbcTemplate.update("UPDATE notification_log SET push_state = 'sent' WHERE push_state = 'pending'");
-        ReflectionTestUtils.setField(runConfirmationScheduler, "lastSuccessAt", Instant.now());
+        confirmationBatchHeartbeat.markSuccess();
         DocumentContext healthy = 대시보드("?days=1");
         assertThat(healthy.<List<Object>>read("$.data.health")).hasSize(4);
         for (String key : new String[] { "api", "position", "confirm_batch", "notification" }) {
