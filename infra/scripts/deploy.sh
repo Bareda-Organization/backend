@@ -10,6 +10,9 @@
 # 동기화해 둔 상태다(저장소를 EC2 에 클론하지 않는다 — 비공개 저장소 자격증명을 두지 않기 위해).
 #
 # 운영 백엔드는 1대다 — `up -d` 로 한 번에 올리고 재생성 중 수십 초 다운타임이 생긴다(docs/backend/infra/DEPLOYMENT.md §15).
+#
+# 새 이미지가 못 받아지거나(pull) 못 뜨거나(up) 3분 안에 헬스체크가 UP 이 되지 않으면 직전 배포의 태그로 되돌린다(DEPLOYMENT.md §6).
+# 되돌려도 이 스크립트는 실패(종료 코드 1)로 끝난다 — 새 태그 배포가 실패했다는 사실을 워크플로가 알아야 한다.
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/school-bus}"
@@ -22,6 +25,15 @@ LOG_GROUP="/school-bus/demo"
 LOG_RETENTION_DAYS=7
 IMAGE_TAG="${1:?사용법: deploy.sh <이미지태그>}"
 COMPOSE="docker compose -f $APP_DIR/docker-compose.prod.yml --env-file $ENV_FILE"
+# 직전 배포가 .env 에 남긴 태그 — 새 태그가 안 뜨면 이것으로 되돌린다. 첫 배포이거나 형식이 다르면 비워 두고 되돌릴 곳이 없다고 본다.
+PREVIOUS_TAG="$(sed -n "s/^IMAGE_TAG='\(.*\)'$/\1/p" "$ENV_FILE" 2>/dev/null | head -n 1 || true)"
+[[ "$PREVIOUS_TAG" =~ ^[A-Za-z0-9_.-]+$ ]] || PREVIOUS_TAG=""
+
+use_image_tag() {
+    # .env 의 IMAGE_TAG 한 줄만 바꾼다($1 = 태그). 같은 폴더의 임시 파일에 다 쓴 뒤 이름을 바꿔 덮는다 — 아래 .env 생성과 같은 이유(BR-372).
+    sed "s/^IMAGE_TAG=.*/IMAGE_TAG='$1'/" "$ENV_FILE" > "$ENV_FILE.tmp"
+    mv "$ENV_FILE.tmp" "$ENV_FILE"
+}
 
 get_param() {
     # 조회 실패(비영 종료코드) 또는 빈 값/"None" 이면 어떤 파라미터인지 stderr 에
@@ -126,6 +138,36 @@ assert_rendered_hash() {
         echo "      .env 인용이 깨져 bcrypt 해시가 잘렸을 가능성이 크다 — 배포를 중단한다." >&2
         return 1
     fi
+}
+
+backend_is_up() { # <서비스> — 관리 포트 헬스가 UP 인가
+    $COMPOSE exec -T "$1" curl -fsS http://localhost:8081/actuator/health 2>/dev/null | grep -q '"status":"UP"'
+}
+
+wait_for_backend() { # 최대 3분 — 5초마다 헬스를 본다
+    for _ in $(seq 1 36); do
+        backend_is_up backend && return 0
+        sleep 5
+    done
+    return 1
+}
+
+roll_back_to_previous() {
+    # 직전 태그로 다시 받아 띄우고 UP 을 기다린다($1 = 되돌리는 이유). 직전 이미지는 72시간 정리(아래 docker image prune)로 지워졌을 수 있어 다시 받는다.
+    # 이 함수는 결과가 어떻든 0 으로 돌아온다 — 호출한 쪽이 새 태그 배포의 실패(종료 코드 1)를 낸다.
+    if [[ -z "$PREVIOUS_TAG" || "$PREVIOUS_TAG" == "$IMAGE_TAG" ]]; then
+        echo "되돌릴 직전 이미지 태그가 없다 — 실패한 이미지가 그대로 떠 있다. 원인을 고쳐 다시 배포할 것(DEPLOYMENT.md §6)" >&2
+        return 0
+    fi
+    echo "== 되돌리기 — $1. 직전 태그($PREVIOUS_TAG)로 다시 띄운다 ==" >&2
+    use_image_tag "$PREVIOUS_TAG"
+    if $COMPOSE pull backend && $COMPOSE up -d && wait_for_backend; then
+        echo "직전 태그($PREVIOUS_TAG)로 되돌렸고 백엔드가 UP 이다. 새 태그($IMAGE_TAG) 배포는 실패다." >&2
+    else
+        echo "되돌린 태그($PREVIOUS_TAG)도 UP 이 되지 않았다 — 수동 조치가 필요하다(DEPLOYMENT.md §6)." >&2
+        $COMPOSE logs --tail 120 backend >&2 || true
+    fi
+    return 0
 }
 
 echo "== 1. SSM 에서 시크릿을 읽어 .env 생성 =="
@@ -252,7 +294,20 @@ ECR_REGISTRY="$(get_param ECR_REGISTRY)"
 aws ecr get-login-password --region "$AWS_REGION" \
     | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
-$COMPOSE pull backend
+if ! $COMPOSE pull backend; then
+    # 컨테이너는 아직 건드리지 않았다 — .env 의 태그만 받지 못한 새 태그에서 직전 태그로 되돌린다(백업 크론 등 .env 를 읽는 쪽이 없는 이미지를 가리키지 않게).
+    echo "배포 실패 — 새 이미지($IMAGE_TAG)를 받지 못했다. 컨테이너는 건드리지 않았다." >&2
+    [[ -n "$PREVIOUS_TAG" ]] && use_image_tag "$PREVIOUS_TAG"
+    exit 1
+fi
+
+# 앱은 비루트 사용자(uid 10001 · backend/Dockerfile)로 돈다 — 루트 시절에 만들어진 photo-data 볼륨은 root 소유라 그대로는 사진 저장이 실패한다(앱은 정상 기동하고 업로드만 실패).
+# 매 배포 멱등하게 소유자를 맞춘다. 컨테이너는 권한(capability)을 전부 버리고 도므로 chown 에 필요한 CHOWN 만 이 일회용 실행에 더한다.
+if ! $COMPOSE run --rm --no-deps -T --user root --cap-add CHOWN --entrypoint chown backend -R 10001:10001 /app/var/photos; then
+    echo "배포 실패 — 사진 폴더의 소유자를 맞추지 못했다. 컨테이너는 건드리지 않았다." >&2
+    [[ -n "$PREVIOUS_TAG" ]] && use_image_tag "$PREVIOUS_TAG"
+    exit 1
+fi
 
 echo "== 3. 기동 =="
 # 백엔드 1대: 재생성 중 수십 초 다운타임이 생긴다(설계 문서 §4.3). 데모에서는 수용한다.
@@ -264,6 +319,7 @@ echo "== 3. 기동 =="
 if ! $COMPOSE up -d; then
     echo "기동 실패 — backend 가 healthy 가 되지 않아 의존 서비스(proxy)가 뜨지 못했을 가능성이 크다." >&2
     $COMPOSE logs --tail 120 backend >&2 || true
+    roll_back_to_previous "기동 실패"
     exit 1
 fi
 
@@ -290,28 +346,22 @@ if ! $COMPOSE run --rm --no-deps -T proxy nginx -t; then
 fi
 $COMPOSE restart proxy
 
-backend_is_up() { # <서비스> — 관리 포트 헬스가 UP 인가
-    $COMPOSE exec -T "$1" curl -fsS http://localhost:8081/actuator/health 2>/dev/null | grep -q '"status":"UP"'
-}
-
 echo "== 4. 스모크 테스트 (최대 3분 대기) =="
-for _ in $(seq 1 36); do
-    if backend_is_up backend; then
-        echo "배포 성공 (tag=$IMAGE_TAG)"
-        # 안 쓰는 이미지를 72시간 뒤 전부 지운다 — 매 배포가 새 SHA 태그라 옛 이미지는 이름이 있어 이름 없는 것만
-        # 지우는 옵션으로는 남는다(디스크 30GB 를 배포마다 ~400MB 씩 채운다). 컨테이너가 쓰는(정지 포함) 이미지는
-        # 시간과 무관하게 안 지워진다. 72시간은 이미지 **생성** 시각 기준이라 더 오래전에 빌드된 직전 이미지는
-        # 바로 지워지고, 그 태그로의 롤백(§6)은 ECR 에서 다시 받는다.
-        docker image prune -af --filter until=72h >/dev/null
-        # 로그 그룹은 Docker 가 만들어 보관 기간이 무기한이다 — 배포마다 멱등하게 건다. 실패해도 배포는 성공이다.
-        aws logs put-retention-policy --region "$AWS_REGION" --log-group-name "$LOG_GROUP" \
-            --retention-in-days "$LOG_RETENTION_DAYS" \
-            || echo "경고: CloudWatch 로그 보관 기간 설정 실패 — IAM logs:PutRetentionPolicy 를 확인할 것(DEPLOYMENT.md §2.3)" >&2
-        exit 0
-    fi
-    sleep 5
-done
+if wait_for_backend; then
+    echo "배포 성공 (tag=$IMAGE_TAG)"
+    # 안 쓰는 이미지를 72시간 뒤 전부 지운다 — 매 배포가 새 SHA 태그라 옛 이미지는 이름이 있어 이름 없는 것만
+    # 지우는 옵션으로는 남는다(디스크 30GB 를 배포마다 ~400MB 씩 채운다). 컨테이너가 쓰는(정지 포함) 이미지는
+    # 시간과 무관하게 안 지워진다. 72시간은 이미지 **생성** 시각 기준이라 더 오래전에 빌드된 직전 이미지는
+    # 바로 지워지고, 그 태그로의 롤백(§6)은 ECR 에서 다시 받는다.
+    docker image prune -af --filter until=72h >/dev/null
+    # 로그 그룹은 Docker 가 만들어 보관 기간이 무기한이다 — 배포마다 멱등하게 건다. 실패해도 배포는 성공이다.
+    aws logs put-retention-policy --region "$AWS_REGION" --log-group-name "$LOG_GROUP" \
+        --retention-in-days "$LOG_RETENTION_DAYS" \
+        || echo "경고: CloudWatch 로그 보관 기간 설정 실패 — IAM logs:PutRetentionPolicy 를 확인할 것(DEPLOYMENT.md §2.3)" >&2
+    exit 0
+fi
 
 echo "배포 실패 — 3분 안에 헬스체크가 UP 이 되지 않았다" >&2
 $COMPOSE logs --tail 120 backend >&2
+roll_back_to_previous "스모크 테스트 실패"
 exit 1
