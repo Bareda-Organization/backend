@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -145,42 +144,21 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
             @Param("stopId") Long stopId);
 
     /**
-     * 다음 미도착 승하차지 1건(근접 알림 NTF-04, API_SPEC §4.12 Ruling 207) — {@code Pageable} 의
-     * limit 1 과 {@code seq} 오름차순이 "다음" 을 결정한다.
+     * 판본마다 {@code seq} 가 가장 작은 미도착 정차 항목 하나씩(근접 알림 NTF-04, API_SPEC §4.12 Ruling 207 · DA-1, Ruling 899) — 판본
+     * 목록을 한 번에 읽어 근접 판정이 틱마다 회차 수만큼 쿼리를 내지 않게 한다. 같은 조건을 서브쿼리로도 걸어 판본마다 첫 항목만 남긴다.
      *
-     * <p>{@code stopId IS NOT NULL} 로 강제 경유지를 뺀다 — 경유지는 학생이 배정되지 않아 알릴
-     * 보호자가 없다. {@code change <> 'skipped'} 로 건너뛴 정차 항목도 뺀다 — {@link RunStop
-     * #markSkipped} 가 표시한 항목은 버스가 실제로 서지 않으므로 근접해도 "곧 도착합니다" 가 거짓이
-     * 된다({@code change} 가 {@code null}(정상 배정)인 항목은 그대로 포함).
+     * <p>{@code stopId IS NOT NULL} 로 강제 경유지를 뺀다 — 경유지는 학생이 배정되지 않아 알릴 보호자가 없다. {@code change <> 'skipped'}
+     * 로 건너뛴 정차 항목도 뺀다 — {@link RunStop#markSkipped} 가 표시한 항목은 버스가 실제로 서지 않으므로 근접해도 "곧 도착합니다" 가
+     * 거짓이 된다({@code change} 가 {@code null}(정상 배정)인 항목은 그대로 포함).
      *
-     * <p>{@code departedAt IS NULL} 로 <b>이미 지나친 항목</b>도 뺀다 — 도착을 누르지 않은 채 다음 승하차지
-     * 도착으로 강제 출발된 항목은 {@code arrived_at} 이 비고 {@code departed_at} 만 있다. 이를 "다음" 으로 계속 잡으면 버스가 이미
-     * 지나친 곳을 기다리느라 그 뒤 승하차지의 "곧 도착" 알림이 멈춘다.
+     * <p>{@code departedAt IS NULL} 로 <b>이미 지나친 항목</b>도 뺀다 — 도착을 누르지 않은 채 다음 승하차지 도착으로 강제 출발된 항목은
+     * {@code arrived_at} 이 비고 {@code departed_at} 만 있다. 이를 "다음" 으로 계속 잡으면 버스가 이미 지나친 곳을 기다리느라 그 뒤
+     * 승하차지의 "곧 도착" 알림이 멈춘다.
      *
-     * <p>{@code routeVersionId} 근거는 {@link #findByRouteVersionIdAndStopId} 와 같다 — 근접 알림
-     * 스케줄러가 {@code RunRepository} 로 이미 학원과 무관하게 골라낸 {@code run.id} 에서 파생된 값만
-     * 넘긴다는 전제다.
+     * <p>{@code routeVersionIds} 근거는 {@link #findByRouteVersionIdAndStopId} 와 같다 — 근접 알림 스케줄러가 {@code RunRepository} 로
+     * 이미 학원과 무관하게 골라낸 {@code run.id} 에서 파생된 값만 넘긴다는 전제다.
      */
-    @AcademyScopeExempt(reason = "routeVersionId 는 근접 알림 스케줄러가 RunRepository 로 이미 학원과 무관하게 골라낸 "
-            + "run.id 에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다(findByRouteVersionIdAndStopId 와 "
-            + "같은 근거) — 확정 배치가 findDueForConfirmation 로 "
-            + "전 학원을 대상으로 골라내는 것과 같은 형태")
-    @Query("""
-            SELECT rs FROM RunStop rs
-            WHERE rs.routeVersionId = :routeVersionId
-              AND rs.stopId IS NOT NULL
-              AND rs.arrivedAt IS NULL
-              AND rs.departedAt IS NULL
-              AND (rs.change IS NULL OR rs.change <> src.backend.global.common.enums.ChangeType.SKIPPED)
-            ORDER BY rs.seq ASC
-            """)
-    List<RunStop> findNextUnarrived(@Param("routeVersionId") Long routeVersionId, Pageable pageable);
-
-    /**
-     * {@link #findNextUnarrived} 의 여러 노선 판본 한 번 조회판(DA-1, Ruling 899) — 판본마다 {@code seq} 가 가장 작은 미도착 정차 항목
-     * 하나씩. 같은 조건을 서브쿼리로도 걸어 판본마다 첫 항목만 남긴다(근접 판정이 틱마다 회차 수만큼 읽지 않게 한다).
-     */
-    @AcademyScopeExempt(reason = "findNextUnarrived 와 같은 근거 — 판본 id 는 근접 알림 스케줄러가 RunRepository 로 이미 학원과 무관하게 "
+    @AcademyScopeExempt(reason = "findNextUnarrivedOfVersions 와 같은 근거 — 판본 id 는 근접 알림 스케줄러가 RunRepository 로 이미 학원과 무관하게 "
             + "골라낸 run.id 에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다")
     @Query("""
             SELECT rs FROM RunStop rs
@@ -214,37 +192,18 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @AcademyScopeExempt(reason = "findNextUnarrived 가 이미 학원과 무관하게 골라낸 정차 항목 id 하나를 조건부로 갱신하는 "
+    @AcademyScopeExempt(reason = "findNextUnarrivedOfVersions 가 이미 학원과 무관하게 골라낸 정차 항목 id 하나를 조건부로 갱신하는 "
             + "단건 호출이다 — 그 조회가 이미 좁힌 대상이라 이 시점에 학원을 다시 물을 근거가 없다(RunRepository.confirmIfIdle 과 "
             + "같은 근거)")
     @Query("UPDATE RunStop rs SET rs.proximityNotifiedAt = :now WHERE rs.id = :id AND rs.proximityNotifiedAt IS NULL")
     int claimProximityNotice(@Param("id") Long id, @Param("now") OffsetDateTime now);
 
     /**
-     * 도착했지만 아직 출발 처리되지 않은 정차지 1건(Ruling 307, 출발 판정) — {@code Pageable} 의
-     * limit 1 과 {@code seq} 오름차순이 "먼저 도착한 정차지를 먼저 판정" 순서를 정한다.
-     *
-     * <p>{@code stopId IS NOT NULL} 로 강제 경유지를 뺀다 — 경유지는 학생이 배정되지 않아 출발
-     * 판정의 대상일 필요가 없다({@link #findNextUnarrived} 와 같은 근거).
-     *
-     * <p>{@code routeVersionId} 근거는 {@link #findByRouteVersionIdAndStopId} 와 같다 — 출발 판정
-     * 스케줄러가 {@code RunRepository} 로 이미 학원과 무관하게 골라낸 {@code run.id} 에서 파생된 값만
-     * 넘긴다는 전제다({@link #findNextUnarrived} 와 같은 근거).
+     * 판본마다 {@code seq} 가 가장 작은 도착·미출발 정차 항목 하나씩(Ruling 307 출발 판정 · DA-1) — {@code seq} 오름차순이 "먼저 도착한
+     * 정차지를 먼저 판정" 순서를 정한다. {@code stopId IS NOT NULL} 로 강제 경유지를 뺀다 — 경유지는 학생이 배정되지 않아 출발 판정의
+     * 대상일 필요가 없다. {@code routeVersionIds} 근거는 {@link #findNextUnarrivedOfVersions} 와 같다.
      */
-    @AcademyScopeExempt(reason = "routeVersionId 는 근접 알림과 같은 출발 판정 스케줄러가 RunRepository 로 이미 학원과 무관하게 "
-            + "골라낸 run.id 에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다(findNextUnarrived 와 같은 근거)")
-    @Query("""
-            SELECT rs FROM RunStop rs
-            WHERE rs.routeVersionId = :routeVersionId
-              AND rs.stopId IS NOT NULL
-              AND rs.arrivedAt IS NOT NULL
-              AND rs.departedAt IS NULL
-            ORDER BY rs.seq ASC
-            """)
-    List<RunStop> findFirstArrivedNotDeparted(@Param("routeVersionId") Long routeVersionId, Pageable pageable);
-
-    /** {@link #findFirstArrivedNotDeparted} 의 여러 노선 판본 한 번 조회판(DA-1) — 판본마다 {@code seq} 가 가장 작은 도착·미출발 정차 항목 하나씩. */
-    @AcademyScopeExempt(reason = "findFirstArrivedNotDeparted 와 같은 근거 — 판본 id 는 출발 판정 스케줄러가 RunRepository 로 이미 학원과 "
+    @AcademyScopeExempt(reason = "findFirstArrivedNotDepartedOfVersions 와 같은 근거 — 판본 id 는 출발 판정 스케줄러가 RunRepository 로 이미 학원과 "
             + "무관하게 골라낸 run.id 에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다")
     @Query("""
             SELECT rs FROM RunStop rs
@@ -262,12 +221,12 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
 
     /**
      * 아직 출발 처리되지 않은 정차지 <b>전부</b> — <b>도착 처리 여부와 무관</b>하다(Ruling 312). 운행 종료 시
-     * 강제 적용이 "남은 전부"를 한 번에 쓸어야 해서 {@link #findFirstArrivedNotDeparted} 의 limit 1 로는 못 쓴다.
+     * 강제 적용이 "남은 전부"를 한 번에 쓸어야 해서 {@link #findFirstArrivedNotDepartedOfVersions} 의 limit 1 로는 못 쓴다.
      * 기사가 도착을 누르지 않은 정차지도 포함하는 이유는 FEATURE_SPEC "위치 유실·기사의 도착 미처리로 출발 판정이 안
      * 되면 다음 승하차지 도착 시 강제 발송" 때문이다 — {@code arrived_at IS NOT NULL} 을 걸면 그 정차지의 승차·
      * 미승차 알림이 끝내 나가지 않는다. 강제 경유지·도착지는 학생이 없어 {@code stopId IS NOT NULL} 로 뺀다.
      */
-    @AcademyScopeExempt(reason = "findFirstArrivedNotDeparted 와 같은 근거 — routeVersionId 는 호출부(StopDepartureService)가 "
+    @AcademyScopeExempt(reason = "findFirstArrivedNotDepartedOfVersions 와 같은 근거 — routeVersionId 는 호출부(StopDepartureService)가 "
             + "이미 학원과 무관하게 골라낸 회차에서 confirmed_route.current_version_id 로 얻은 값만 넘긴다는 전제다")
     @Query("""
             SELECT rs FROM RunStop rs
@@ -305,7 +264,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @AcademyScopeExempt(reason = "findFirstArrivedNotDeparted 가 이미 학원과 무관하게 골라낸 정차 항목 id 하나를 조건부로 "
+    @AcademyScopeExempt(reason = "findFirstArrivedNotDepartedOfVersions 가 이미 학원과 무관하게 골라낸 정차 항목 id 하나를 조건부로 "
             + "갱신하는 단건 호출이다 — 그 조회가 이미 좁힌 대상이라 이 시점에 학원을 다시 물을 근거가 없다"
             + "(claimProximityNotice 와 같은 근거)")
     @Query("UPDATE RunStop rs SET rs.departedAt = :now WHERE rs.id = :id AND rs.departedAt IS NULL")
@@ -317,7 +276,7 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
      */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @AcademyScopeExempt(reason = "findFirstArrivedNotDeparted 가 이미 학원과 무관하게 골라낸 정차 항목 id 하나를 조건부로 "
+    @AcademyScopeExempt(reason = "findFirstArrivedNotDepartedOfVersions 가 이미 학원과 무관하게 골라낸 정차 항목 id 하나를 조건부로 "
             + "갱신하는 단건 호출이다 — 그 조회가 이미 좁힌 대상이라 이 시점에 학원을 다시 물을 근거가 없다"
             + "(claimDeparture 와 같은 근거)")
     @Query("UPDATE RunStop rs SET rs.nearObservedAt = :now "
