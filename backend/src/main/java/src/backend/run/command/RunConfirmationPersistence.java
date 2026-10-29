@@ -87,8 +87,22 @@ public class RunConfirmationPersistence {
     @Transactional(noRollbackFor = ConfirmationInputsChangedException.class)
     public boolean persist(Run run, RouteComputation computation, RunRouteEndpoints.Endpoints endpoints,
             Weekday weekday, ProjectedRoster roster, OffsetDateTime confirmedAt) {
-        // 회차 행을 먼저 잠근다. 명단은 확정 계산 전에 짧은 별도 트랜잭션들로 읽었으므로 그 사이 들어오거나 취소된 강제 추가·이동, 학부모의 ①구간 탑승 끄기, 승인된 승하차지 이동이 빠졌을 수 있다 —
-        // 잠근 뒤 같은 규칙으로 다시 읽어 대조한다(이후 강제 추가·이동 저장은 이 잠금에 막힌다). 다르면 쓰기 전에 물러나고 회차는 idle 로 남아 다음 틱이 다시 읽는다.
+        if (!claimIdle(run, roster, confirmedAt)) {
+            return false;
+        }
+        saveArtifacts(run, computation, endpoints, weekday, roster, confirmedAt);
+        publishConfirmed(run, confirmedAt);
+        return true;
+    }
+
+    /**
+     * 회차 행을 먼저 잠그고 확정을 선점한다. 명단은 확정 계산 전에 짧은 별도 트랜잭션들로 읽었으므로 그 사이 들어오거나 취소된 강제 추가·이동, 학부모의 ①구간 탑승 끄기, 승인된 승하차지 이동이 빠졌을 수 있다 —
+     * 잠근 뒤 같은 규칙으로 다시 읽어 대조한다(이후 강제 추가·이동 저장은 이 잠금에 막힌다). 다르면 쓰기 전에 물러나고 회차는 idle 로 남아 다음 틱이 다시 읽는다.
+     *
+     * @return 선점했으면 {@code true}, 회차가 없거나 취소 · idle 아님 · 동시 선점에서 졌으면 {@code false}
+     * @throws ConfirmationInputsChangedException 명단 입력이 확정 계산 뒤 바뀌었을 때
+     */
+    private boolean claimIdle(Run run, ProjectedRoster roster, OffsetDateTime confirmedAt) {
         Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), run.getAcademyId()).orElse(null);
         if (locked == null || locked.isCanceled() || locked.getStatus() != RunStatus.IDLE) {
             return false;
@@ -96,11 +110,12 @@ public class RunConfirmationPersistence {
         if (!roster.sameInputs(rosterReader.read(run))) {
             throw new ConfirmationInputsChangedException(run.getId());
         }
-        int updated = runRepository.confirmIfIdle(run.getId(), confirmedAt);
-        if (updated == 0) {
-            return false;
-        }
+        return runRepository.confirmIfIdle(run.getId(), confirmedAt) != 0;
+    }
 
+    /** 확정 노선 · 탑승자 명단 · 도착 이동 표시를 저장하고 비어 있는 동승자를 자동 배정한다. */
+    private void saveArtifacts(Run run, RouteComputation computation, RunRouteEndpoints.Endpoints endpoints,
+            Weekday weekday, ProjectedRoster roster, OffsetDateTime confirmedAt) {
         String fingerprint = RunConfirmationFingerprint.of(run.getAcademyId(), weekday, run.getDirection(),
                 run.getDepartTime(), endpoints.origin(), endpoints.destination(), roster.studentStops(), List.of());
         routeVersionDeploymentService.confirmInitial(run, computation, fingerprint, confirmedAt);
@@ -112,13 +127,13 @@ public class RunConfirmationPersistence {
 
         // 노선 확정 알림보다 먼저 — 자동 배정된 동승자도 확정 노선 알림(route_changed)의 수신자가 된다.
         attendantAutoAssignment.assignIfVacant(run, computation.estDurationMin(), confirmedAt);
+    }
 
-        // 서버가 오래 멈췄다 살아나 운행 시작 창이 이미 닫힌 회차를 확정할 때는 확정만 하고 노선 알림을 보내지 않는다.
+    /** 서버가 오래 멈췄다 살아나 운행 시작 창이 이미 닫힌 회차를 확정할 때는 확정만 하고 노선 알림을 보내지 않는다. */
+    private void publishConfirmed(Run run, OffsetDateTime confirmedAt) {
         if (!startWindowPolicy.isClosed(run.getDepartTime(), confirmedAt)) {
             eventPublisher.publishEvent(
                     new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), confirmedAt));
         }
-
-        return true;
     }
 }
