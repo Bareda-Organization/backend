@@ -1,5 +1,6 @@
 package src.backend.global.websocket;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,6 +42,7 @@ public class ConnectDeadlineFactory implements WebSocketHandlerDecoratorFactory 
     /** CONNECT 마감(ms) — 사양 값이 10초다(API_SPEC §7.2). 시험이 줄여 쓸 수 있게 속성으로 둔다. */
     @Value("${app.ws.connect-deadline-ms:10000}")
     private final long deadlineMs;
+    private final Clock clock;
 
     private final Map<String, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
 
@@ -50,7 +52,7 @@ public class ConnectDeadlineFactory implements WebSocketHandlerDecoratorFactory 
             @Override
             public void afterConnectionEstablished(WebSocketSession session) throws Exception {
                 pending.put(session.getId(), scheduler.getObject()
-                        .schedule(() -> closeIfNotConnected(session), java.time.Instant.now().plus(Duration.ofMillis(deadlineMs))));
+                        .schedule(() -> closeIfNotConnected(session), clock.instant().plus(Duration.ofMillis(deadlineMs))));
                 super.afterConnectionEstablished(session);
             }
 

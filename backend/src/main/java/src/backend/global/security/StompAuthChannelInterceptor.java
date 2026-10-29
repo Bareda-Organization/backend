@@ -39,13 +39,11 @@ import src.backend.student.repository.StudentRepository;
 @RequiredArgsConstructor
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
-    private static final String HEADER = "Authorization";
-    private static final String PREFIX = "Bearer ";
     private static final String APP_DESTINATION_PREFIX = "/app/";
 
-    private static final Pattern STUDENT_RUN_PATTERN = Pattern.compile("^/topic/students/(\\d+)/run$");
-    private static final Pattern MANAGER_RUN_PATTERN = Pattern.compile("^/topic/manager/runs/(\\d+)$");
-    private static final Pattern ACADEMY_LIVE_PATTERN = Pattern.compile("^/topic/academy/(\\d+)/live$");
+    private static final Pattern STUDENT_RUN_PATTERN = Pattern.compile("^/topic/students/(\\d{1,18})/run$");
+    private static final Pattern MANAGER_RUN_PATTERN = Pattern.compile("^/topic/manager/runs/(\\d{1,18})$");
+    private static final Pattern ACADEMY_LIVE_PATTERN = Pattern.compile("^/topic/academy/(\\d{1,18})/live$");
     private static final Pattern ADMIN_LIVE_PATTERN = Pattern.compile("^/topic/admin/live$");
 
     private final JwtTokenProvider tokenProvider;
@@ -122,18 +120,18 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     private void authenticateConnect(StompHeaderAccessor accessor) {
-        String header = accessor.getFirstNativeHeader(HEADER);
-        String token = (header != null && header.startsWith(PREFIX)) ? header.substring(PREFIX.length()) : null;
+        String token = BearerToken.from(accessor.getFirstNativeHeader(BearerToken.HEADER));
         if (token == null) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
-        AuthUser user = tokenProvider.authenticateAccess(token);
+        JwtTokenProvider.Authenticated access = tokenProvider.authenticateWithExpiry(token);
+        AuthUser user = access.user();
         if (accountStanding.isLost(user.accountId())) {
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED); // 새 연결도 같은 규칙(Ruling 880)
         }
         assertActiveAccount(user);
         accessor.setUser(user);
-        sessionExpiry.record(accessor.getSessionId(), user.accountId(), tokenProvider.parse(token).getExpiration().toInstant());
+        sessionExpiry.record(accessor.getSessionId(), user.accountId(), access.expiresAt());
     }
 
     /**
@@ -175,7 +173,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     }
 
     /**
-     * 목적지 4종을 순서대로 매칭해 채널별 인가로 넘긴다 — 어느 패턴에도 안 걸리면 기본 차단.
+     * 목적지 4종을 순서대로 매칭해 채널별 인가로 넘긴다 — 어느 패턴에도 안 걸리면 기본 차단. 숫자 id 는 18자리까지만 패턴에 걸려
+     * {@code long} 범위를 넘는 id 도 예외 없이 기본 차단으로 끝난다.
      * CODE_CONVENTIONS §20.2 크기 신호(23줄) — 표·루프로 데이터화하면 패턴 4개 각각의 인가 메서드 시그니처가 달라(구독자
      * 만·구독자+id) 오히려 캐스팅이 늘어난다. 순서대로 읽는 조기 반환이 더 단순하다.
      */

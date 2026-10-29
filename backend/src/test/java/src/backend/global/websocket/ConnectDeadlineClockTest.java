@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.concurrent.ScheduledFuture;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ class ConnectDeadlineClockTest {
         TaskScheduler scheduler = mock(TaskScheduler.class);
         ObjectProvider<TaskScheduler> provider = mock(ObjectProvider.class);
         when(provider.getObject()).thenReturn(scheduler);
+        when(scheduler.schedule(any(Runnable.class), any(Instant.class))).thenReturn(mock(ScheduledFuture.class));
         ConnectDeadlineFactory factory = new ConnectDeadlineFactory(mock(StompSessionExpiry.class), provider,
                 new SimpleMeterRegistry(), 10_000L, Clock.fixed(NOW, ZoneOffset.UTC));
         WebSocketSession session = mock(WebSocketSession.class);

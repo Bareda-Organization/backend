@@ -36,8 +36,6 @@ import src.backend.global.error.ErrorCode;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String HEADER = "Authorization";
-    private static final String PREFIX = "Bearer ";
     /** 토큰 거부 사유({@link ErrorCode})를 엔트리 포인트로 넘기는 요청 속성 이름. */
     static final String AUTH_FAILURE_ATTR = JwtAuthenticationFilter.class.getName() + ".failure";
 
@@ -47,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String token = resolveToken(request);
+        String token = BearerToken.from(request.getHeader(BearerToken.HEADER));
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             authenticate(request, token);
         }
@@ -88,11 +86,4 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    private String resolveToken(HttpServletRequest request) {
-        String header = request.getHeader(HEADER);
-        if (header != null && header.startsWith(PREFIX)) {
-            return header.substring(PREFIX.length());
-        }
-        return null;
-    }
 }

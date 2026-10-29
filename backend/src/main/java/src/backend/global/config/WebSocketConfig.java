@@ -170,6 +170,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         return executor;
     }
 
+    /** 구독자에게 나가는 프레임의 인터셉터(세션 만료)와 쓰기 실행기({@link #outboundTaskExecutor})를 건다. */
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        registration.interceptors(sessionExpiry);
+        registration.taskExecutor(outboundTaskExecutor());
+    }
+
     /**
      * 구독자에게 프레임을 실제로 써 내보내는 실행기의 스레드 수 — 팬아웃 처리량의 상한이다.
      *
@@ -192,14 +199,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      * <p>큐 길이는 Spring Boot 의 {@code TaskExecutorMetricsAutoConfiguration} 이 이 빈을 빈 이름
      * (메서드 이름 {@code outboundTaskExecutor})으로 자동 계측한다(실측 확인 —
      * {@code executor_queued_tasks{name="outboundTaskExecutor"}}가 코드 추가 없이 이미 노출됨).
-     */
-    @Override
-    public void configureClientOutboundChannel(ChannelRegistration registration) {
-        registration.interceptors(sessionExpiry);
-        registration.taskExecutor(outboundTaskExecutor());
-    }
-
-    /**
+     *
      * 팬아웃 실행기를 독립된 {@code @Bean} 으로 둔다 — Spring 프레임워크가 내부에서 만드는
      * {@code clientOutboundChannelExecutor} 빈은 선언 타입이 {@code Executor} 뿐이라, 다른 무언가가
      * 먼저 만들어 두지 않은 채(예: {@code SimpMessagingTemplate} 을 {@code @MockitoBean} 으로 대체한

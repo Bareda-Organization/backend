@@ -2,6 +2,7 @@ package src.backend.global.security;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
@@ -120,12 +121,21 @@ public class JwtTokenProvider {
      * 토큰·클레임 누락은 {@link ErrorCode#UNAUTHORIZED}(로그인부터 할 자리).
      */
     public AuthUser authenticateAccess(String token) {
+        return authenticateWithExpiry(token).user();
+    }
+
+    /** 인증된 access 토큰의 주체와 만료 시각 — 서명은 한 번만 검증한다. */
+    public record Authenticated(AuthUser user, Instant expiresAt) {
+    }
+
+    /** {@link #authenticateAccess} 와 같은 판정에 토큰의 만료 시각을 함께 돌려준다 — 만료를 쓰는 STOMP CONNECT 가 토큰을 두 번 파싱하지 않게 한다. */
+    public Authenticated authenticateWithExpiry(String token) {
         try {
             Claims claims = parse(token);
             if (!isAccessToken(claims)) {
                 throw new BusinessException(ErrorCode.UNAUTHORIZED);
             }
-            return resolveAuthUser(claims);
+            return new Authenticated(resolveAuthUser(claims), claims.getExpiration().toInstant());
         } catch (ExpiredJwtException e) {
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         } catch (JwtException | IllegalArgumentException e) {
