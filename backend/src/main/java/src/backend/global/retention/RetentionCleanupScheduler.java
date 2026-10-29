@@ -114,8 +114,13 @@ public class RetentionCleanupScheduler {
         tableCleaner.cleanUpSafely("verification_code", retentionPolicy.verificationCodeCutoff(now), RetentionPolicy.BATCH_SIZE,
                 verificationCodeRepository::findIdsForRetentionCleanup, verificationCodeRepository::deleteAllByIdInBatch);
         studentAnonymizer.anonymizeSafely(retentionPolicy.withdrawnStudentCutoff(now));
+        cleanUpAuditLogs(retentionPolicy.auditLogCutoff(now));
+    }
+
+    /** 감사 로그를 category 마다 따로 묶음 삭제한다. */
+    private void cleanUpAuditLogs(OffsetDateTime auditCutoff) {
         for (AuditCategory category : AuditCategory.values()) {
-            tableCleaner.cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now), RetentionPolicy.BATCH_SIZE,
+            tableCleaner.cleanUpSafely("audit_log/" + category, auditCutoff, RetentionPolicy.BATCH_SIZE,
                     (cutoff, limit) -> auditLogRepository.findIdsForRetentionCleanup(category, cutoff, limit),
                     auditLogRepository::deleteAllByIdInBatch);
         }
