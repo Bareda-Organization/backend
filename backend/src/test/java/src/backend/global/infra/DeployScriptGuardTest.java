@@ -427,7 +427,7 @@ class DeployScriptGuardTest {
               *" config") printf '      SEED_PASSWORD_HASH: %s\\n' "$FAKE_RENDERED_HASH" ;;
               *" pull backend") listed "${FAKE_PULL_FAIL_TAG:-}" "$tag" && exit 1 ;;
               *" up -d") listed "${FAKE_UP_FAIL_TAG:-}" "$tag" && exit 1 ;;
-              *" run "*) listed "${FAKE_RUN_FAIL_TAG:-}" "$tag" && exit 1 ;;
+              *" run --rm "*) listed "${FAKE_RUN_FAIL_TAG:-}" "$tag" && exit 1 ;;
               *" ps --status running -q postgres"*) [ -n "${FAKE_GATE_BLOCK:-}" ] && echo fake-postgres-id ;;
               *" exec -T postgres psql"*) case "$*" in *to_regclass*) echo t ;; *) echo 2 ;; esac ;;
               *" logs "*) [ -n "${FAKE_LOGS_FAIL:-}" ] && exit 1 ;;
