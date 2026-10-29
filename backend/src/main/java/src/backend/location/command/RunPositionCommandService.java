@@ -110,14 +110,8 @@ public class RunPositionCommandService {
      */
     private RunPositionReceivedEvent persist(Long runId, Long academyId, RunPositionRequest request,
             OffsetDateTime recordedAt, OffsetDateTime receivedAt) {
-        Run run = runRepository.findLockedByIdAndAcademyId(runId, academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        if (run.getStatus() != RunStatus.MOVING) {
-            throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
-        }
-        OffsetDateTime windowStart = receivedAt.minus(PositionIntakeGuard.MIN_INTERVAL);
-        if (runPositionRepository.insertUnlessOverlapping(runId, request.lat(), request.lng(), recordedAt, receivedAt,
-                request.speed(), request.heading(), windowStart, windowStart.minus(RECORDED_AT_TOLERANCE)) == 0) {
+        lockMovingRun(runId, academyId);
+        if (!insertUnlessOverlapping(runId, request, recordedAt, receivedAt)) {
             positionIntakeGuard.countOverlapped();
             return null;
         }
@@ -131,6 +125,24 @@ public class RunPositionCommandService {
         return new RunPositionReceivedEvent(runId, request.lat(), request.lng(), recordedAt, receivedAt,
                 academyId, current.map(PositionStopView::name).orElse(null),
                 nextEtaAfter(stops, current.map(PositionStopView::seq).orElse(-1)));
+    }
+
+    /** 회차 행을 잠그고 아직 운행 중인지 본다 — 같은 회차의 송신이 이 잠금에서 줄을 선다. */
+    private void lockMovingRun(Long runId, Long academyId) {
+        Run run = runRepository.findLockedByIdAndAcademyId(runId, academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.getStatus() != RunStatus.MOVING) {
+            throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
+        }
+    }
+
+    /** 직전 1초 안에 겹쳐 먼저 적재된 송신이 없을 때만 적재한다 — 적재했으면 {@code true}. */
+    private boolean insertUnlessOverlapping(Long runId, RunPositionRequest request, OffsetDateTime recordedAt,
+            OffsetDateTime receivedAt) {
+        OffsetDateTime windowStart = receivedAt.minus(PositionIntakeGuard.MIN_INTERVAL);
+        return runPositionRepository.insertUnlessOverlapping(runId, request.lat(), request.lng(), recordedAt,
+                receivedAt, request.speed(), request.heading(), windowStart,
+                windowStart.minus(RECORDED_AT_TOLERANCE)) != 0;
     }
 
     private static boolean isSkewed(OffsetDateTime recordedAt, OffsetDateTime receivedAt) {
