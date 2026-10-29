@@ -62,20 +62,38 @@ public class RunStartCommandService {
     /**
      * 시작 창(±10분) 안인지 확인하고 confirmed → moving 전이 + 미결 변경 요청 종결 + 하원 자동
      * 탑승을 한 트랜잭션에 묶는다(§4.4).
-     *
-     * <p>CODE_CONVENTIONS §20.2 — 본문이 기준(20줄)을 간발의 차로 넘긴다. 네 목표(창 확인·전이·요청 종결·자동 탑승)가
-     * 전부 이 한 트랜잭션 커밋에 같이 들어가야 하는 게 요점이라(클래스 javadoc), 쪼개면 그 "같이"를
-     * 코드에서 더 이상 한눈에 볼 수 없다.
      */
     public RunStartResponse start(AuthUser requester, Long runId) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
-        Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        // 회차 행을 잠그고 다시 읽은 뒤 판정한다(BR-041, §7 규칙 3) — 시작 요청 두 건이 겹치면 늦은 쪽은
-        // 앞쪽 커밋 뒤의 moving 을 보고 409 로 끝난다. 잠그지 않으면 둘 다 confirmed 를 보고 통과해 운행 시작
-        // 알림이 두 번 나간다.
-        entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
+        Run run = lockedRun(runId, requester.academyId());
+        assertStartable(run);
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        if (!runStartWindowPolicy.isWithinWindow(run.getDepartTime(), now)) {
+            throw new BusinessException(ErrorCode.START_WINDOW_CLOSED);
+        }
+        Run started = markStarted(requester.academyId(), runId, now);
+        Integer autoBoardedCount = null;
+        if (started.getDirection() == Direction.FROM_ACADEMY) {
+            autoBoardedCount = autoBoardWaitingRiders(started, now);
+        }
+        eventPublisher.publishEvent(
+                new RunStartedEvent(runId, requester.academyId(), now, autoBoardedCount == null ? 0 : autoBoardedCount));
+        return RunStartResponse.of(started, autoBoardedCount);
+    }
 
+    /**
+     * 회차를 읽어 행 잠금을 건다. 잠그고 다시 읽은 뒤 판정한다(BR-041, §7 규칙 3) — 시작 요청 두 건이 겹치면 늦은 쪽은
+     * 앞쪽 커밋 뒤의 moving 을 보고 409 로 끝난다. 잠그지 않으면 둘 다 confirmed 를 보고 통과해 운행 시작 알림이 두 번 나간다.
+     */
+    private Run lockedRun(Long runId, Long academyId) {
+        Run run = runRepository.findByIdAndAcademyId(runId, academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        entityManager.refresh(run, LockModeType.PESSIMISTIC_WRITE);
+        return run;
+    }
+
+    /** 취소 · 이미 시작 · 아직 확정 전인 회차를 거절한다. */
+    private void assertStartable(Run run) {
         if (run.isCanceled()) {
             // 취소 뒤에도 confirmed 로 남으므로 상태 판정보다 먼저 본다(BR-042).
             throw new BusinessException(ErrorCode.RUN_CANCELED);
@@ -86,28 +104,18 @@ public class RunStartCommandService {
         if (run.getStatus() != RunStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
         }
+    }
 
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        if (!runStartWindowPolicy.isWithinWindow(run.getDepartTime(), now)) {
-            throw new BusinessException(ErrorCode.START_WINDOW_CLOSED);
-        }
-
-        // 자동 거절의 갱신 쿼리는 영속성 컨텍스트를 비우므로(clearAutomatically) 먼저 돌리고, 비워진 뒤 다시 읽은 회차에 시작을 쓴다 —
-        // 회차를 먼저 바꿔 두면 그 뒤에 회차에 더하는 변경이 분리된 엔티티에 얹혀 커밋되지 않는다.
-        changeRequestAutoRejectionService.terminateForRun(requester.academyId(), runId, now);
-        run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+    /**
+     * 미결 변경 요청을 자동 거절한 뒤 회차를 시작 상태로 쓴다. 자동 거절의 갱신 쿼리는 영속성 컨텍스트를 비우므로(clearAutomatically) 먼저 돌리고,
+     * 비워진 뒤 다시 읽은 회차에 시작을 쓴다 — 회차를 먼저 바꿔 두면 그 뒤에 회차에 더하는 변경이 분리된 엔티티에 얹혀 커밋되지 않는다.
+     */
+    private Run markStarted(Long academyId, Long runId, OffsetDateTime now) {
+        changeRequestAutoRejectionService.terminateForRun(academyId, runId, now);
+        Run run = runRepository.findByIdAndAcademyId(runId, academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         run.start(now);
-
-        Integer autoBoardedCount = null;
-        if (run.getDirection() == Direction.FROM_ACADEMY) {
-            autoBoardedCount = autoBoardWaitingRiders(run, now);
-        }
-
-        eventPublisher.publishEvent(
-                new RunStartedEvent(runId, requester.academyId(), now, autoBoardedCount == null ? 0 : autoBoardedCount));
-
-        return RunStartResponse.of(run, autoBoardedCount);
+        return run;
     }
 
     /**
