@@ -5,7 +5,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,11 +17,12 @@ import static testsupport.auth.TestTokens.토큰;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,11 +36,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
+import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.run.controller.DriverRunFixtures;
 
 /**
@@ -58,6 +66,12 @@ class RunPositionIntakeEdgeTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private RunPositionStore runPositionStore;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     @MockitoSpyBean
     private WebSocketBroadcastGateway gateway;
@@ -100,27 +114,58 @@ class RunPositionIntakeEdgeTest {
     }
 
     @Test
-    void 겹쳐_온_두_송신은_이력_행을_한_건만_남긴다() throws Exception {
+    void 겹쳐_온_두_송신은_둘_다_204_이고_이력_행과_방송은_먼저_커밋된_한_건만_남고_나머지는_too_frequent_로_센다() throws Exception {
         MovingRun run = 움직이는_회차를_만든다();
-        CyclicBarrier bothPassedGuard = new CyclicBarrier(2);
-        // 두 요청 모두 중복 판정을 통과한 뒤에야 적재로 넘어가게 해 겹침을 만든다
+        CountDownLatch firstPassedGuard = new CountDownLatch(1);
+        CountDownLatch firstDone = new CountDownLatch(1);
+        AtomicInteger guardCalls = new AtomicInteger();
+        // 두 요청이 모두 중복 판정을 통과한 뒤 적재로 넘어가게 한다 — 두 번째 요청은 첫 요청이 커밋될 때까지 판정 직후에 선다.
+        // 두 번째 요청은 첫 요청이 판정을 통과한 뒤에 들어오므로 수신 시각이 같거나 더 늦다
         doAnswer(invocation -> {
             Object dropped = invocation.callRealMethod();
-            bothPassedGuard.await(5, TimeUnit.SECONDS);
+            if (guardCalls.incrementAndGet() == 1) {
+                firstPassedGuard.countDown();
+            } else {
+                assertThat(firstDone.await(15, TimeUnit.SECONDS)).isTrue();
+            }
             return dropped;
         }).when(guard).shouldDrop(eq(run.runId()), any(), any());
+        double droppedBefore = 버린_횟수("too_frequent");
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
-            Future<?> first = pool.submit(() -> 보낸다(run, "37.500000", OffsetDateTime.now().minusSeconds(3)));
-            Future<?> second = pool.submit(() -> 보낸다(run, "37.510000", OffsetDateTime.now().minusSeconds(2)));
-            first.get(15, TimeUnit.SECONDS);
-            second.get(15, TimeUnit.SECONDS);
+            Future<?> first = pool.submit(() -> {
+                보낸다(run, "37.500000", OffsetDateTime.now().minusSeconds(3));
+                firstDone.countDown();
+            });
+            Future<?> second = pool.submit(() -> {
+                assertThat(firstPassedGuard.await(15, TimeUnit.SECONDS)).isTrue();
+                보낸다(run, "37.510000", OffsetDateTime.now().minusSeconds(2));
+                return null;
+            });
+            first.get(30, TimeUnit.SECONDS);
+            second.get(30, TimeUnit.SECONDS);
         } finally {
             pool.shutdownNow();
         }
 
-        assertThat(행_수(run)).as("겹친 두 송신 중 하나는 늦게 커밋돼 버려진다").isEqualTo(1);
+        assertThat(행_수(run)).as("겹친 두 송신 중 먼저 커밋된 하나만 이력 행을 남긴다").isEqualTo(1);
+        verify(gateway, times(1)).broadcast(eq("position"), eq(run.runId()), any(), any());
+        assertThat(버린_횟수("too_frequent") - droppedBefore).as("적재하지 않은 송신은 too_frequent 로 센다").isEqualTo(1.0);
+    }
+
+    @Test
+    void 수신_시각이_더_늦은_행이_이미_있어도_다음_위치는_적재되고_Redis_와_방송이_따라온다() throws Exception {
+        MovingRun run = 움직이는_회차를_만든다();
+        // 시계가 빠른 다른 인스턴스가 남긴 행 — 이 요청의 수신 시각보다 30초 뒤다
+        jdbcTemplate.update("INSERT INTO run_position (run_id, lat, lng, recorded_at, received_at) "
+                + "VALUES (?, 37.4, 127.0, now(), now() + interval '30 seconds')", run.runId());
+
+        위치를_보낸다(run, "37.500000", OffsetDateTime.now().minusSeconds(1)).andExpect(status().isNoContent());
+
+        assertThat(행_수(run)).as("수신 시각이 더 늦은 행은 이 위치를 막지 못한다").isEqualTo(2);
+        verify(gateway, times(1)).broadcast(eq("position"), eq(run.runId()), any(), any());
+        assertThat(runPositionStore.find(run.runId())).as("Redis 최신 좌표도 갱신된다").isPresent();
     }
 
     @Test
@@ -138,7 +183,7 @@ class RunPositionIntakeEdgeTest {
                 .andExpect(jsonPath("$.error.code").value("RUN_NOT_MOVING"));
 
         assertThat(행_수(run)).isZero();
-        org.mockito.Mockito.verify(gateway, org.mockito.Mockito.never()).broadcast(eq("position"), eq(run.runId()),
+        verify(gateway, never()).broadcast(eq("position"), eq(run.runId()),
                 any(), any());
     }
 
@@ -156,6 +201,11 @@ class RunPositionIntakeEdgeTest {
                 .header("Authorization", 토큰(tokenProvider, run.driverAccountId(), run.academyId(), Role.DRIVER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"lat\": %s, \"lng\": 127.001000, \"recorded_at\": \"%s\"}".formatted(lat, recordedAt)));
+    }
+
+    private double 버린_횟수(String reason) {
+        Counter counter = meterRegistry.find("schoolbus.location.position.dropped").tag("reason", reason).counter();
+        return counter == null ? 0.0 : counter.count();
     }
 
     private int 행_수(MovingRun run) {

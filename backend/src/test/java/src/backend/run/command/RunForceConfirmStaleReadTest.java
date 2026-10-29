@@ -33,6 +33,8 @@ import src.backend.request.domain.ChangeWindow;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunForcedAddition;
+import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.roster.ProjectedRosterReader;
 import testsupport.clock.FixedClock20300401Config;
 
@@ -55,6 +57,7 @@ class RunForceConfirmStaleReadTest {
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private Clock clock;
     @Autowired private BoardingIntentRepository boardingIntentRepository;
+    @Autowired private RunForcedAdditionRepository forcedAdditionRepository;
     @MockitoSpyBean private ProjectedRosterReader rosterReader;
 
     @Test
@@ -80,7 +83,28 @@ class RunForceConfirmStaleReadTest {
                 Long.class, ids[0])).isZero();
     }
 
-    /** 회차 id 와 학생 id 를 돌려준다. */
+    @Test
+    void 명단을_읽은_뒤_강제_추가_행의_승하차지가_제자리에서_바뀌면_회차가_idle_이어도_RUN_CONFIRM_INPUTS_CHANGED_로_답한다()
+            throws Exception {
+        long[] ids = 확정_대상_회차를_만든다();
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        long firstStop = fx.stop(ids[2], "37.570000", "126.980000");
+        long secondStop = fx.stop(ids[2], "37.580000", "126.990000");
+        long added = fx.student(ids[2], "추가학생");
+        forcedAdditionRepository.saveAndFlush(RunForcedAddition.forRun(ids[0], added, firstStop, 1L,
+                OffsetDateTime.now(clock), null));
+
+        // 강제 확정 트랜잭션이 이미 읽어 둔 강제 추가 행을 다른 트랜잭션이 제자리에서 고친다 — 회차는 idle 그대로다
+        읽은_직후에(() -> jdbcTemplate.update("UPDATE run_forced_addition SET stop_id = ? WHERE run_id = ?", secondStop,
+                ids[0]));
+
+        강제_확정한다(ids[0]).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("RUN_CONFIRM_INPUTS_CHANGED"));
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM run WHERE id = ?", String.class, ids[0]))
+                .isEqualTo("idle");
+    }
+
+    /** 회차 id · 학생 id · 학원 id 를 돌려준다. */
     private long[] 확정_대상_회차를_만든다() {
         Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
@@ -91,20 +115,27 @@ class RunForceConfirmStaleReadTest {
         fx.verifiedAddress(studentId, stopId, Weekday.MON, Direction.TO_ACADEMY, "37.560000", "126.970000");
         OffsetDateTime depart = OffsetDateTime.now(clock).plusMinutes(29);
         long runId = fx.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, depart, depart.minusMinutes(30));
-        return new long[] { runId, studentId };
+        return new long[] { runId, studentId, academyId };
     }
 
     /** 확정 계산 입력을 처음 읽은 직후 회차를 바꾸고 학부모의 ①구간 탑승 끄기도 커밋된 것으로 만든다. */
     private void 읽은_직후에_바꾼다(long[] ids, Runnable runChange) {
+        읽은_직후에(() -> {
+            runChange.run();
+            OffsetDateTime now = OffsetDateTime.now(clock);
+            BoardingIntent intent = BoardingIntent.forRun(ids[0], ids[1], now);
+            intent.applyRiding(false, ChangeWindow.IMMEDIATE, now, null);
+            boardingIntentRepository.saveAndFlush(intent);
+        });
+    }
+
+    /** 확정 계산 입력을 처음 읽은 직후 {@code change} 를 한 번 돌린다. */
+    private void 읽은_직후에(Runnable change) {
         AtomicBoolean changed = new AtomicBoolean();
         doAnswer(invocation -> {
             Object roster = invocation.callRealMethod();
             if (changed.compareAndSet(false, true)) {
-                runChange.run();
-                OffsetDateTime now = OffsetDateTime.now(clock);
-                BoardingIntent intent = BoardingIntent.forRun(ids[0], ids[1], now);
-                intent.applyRiding(false, ChangeWindow.IMMEDIATE, now, null);
-                boardingIntentRepository.saveAndFlush(intent);
+                change.run();
             }
             return roster;
         }).when(rosterReader).read(any(Run.class), any(Weekday.class), anyList());
