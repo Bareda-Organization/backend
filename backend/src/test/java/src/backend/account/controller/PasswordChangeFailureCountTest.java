@@ -1,6 +1,8 @@
 package src.backend.account.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +16,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -41,7 +44,7 @@ class PasswordChangeFailureCountTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Autowired
+    @MockitoSpyBean
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -116,6 +119,27 @@ class PasswordChangeFailureCountTest {
         변경한다(PASSWORD).andExpect(status().isNoContent());
 
         assertThat(실패_횟수()).isZero();
+    }
+
+    /**
+     * 잠금 밖 대조는 통과했는데 그 사이 다른 요청이 비밀번호를 바꿔, 행을 잠근 뒤의 재대조에서 틀린 것으로 드러난 시도도 같은 카운터에
+     * 쌓인다. 새 해시를 만드는 동안(대조 뒤 · 잠금 앞) 행의 해시를 직접 바꿔 그 경우를 만든다.
+     */
+    @Test
+    void 잠근_뒤_재대조에서_틀린_것으로_드러난_시도도_카운터에_쌓인다() throws Exception {
+        String otherHash = passwordEncoder.encode("changed-meanwhile-1");
+        doAnswer(invocation -> {
+            jdbcTemplate.update("UPDATE account SET password_hash = ? WHERE id = ?", otherHash, accountId);
+            return invocation.callRealMethod();
+        }).when(passwordEncoder).encode(eq("new-password-1234"));
+
+        변경한다(PASSWORD).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
+                .andExpect(jsonPath("$.error.details.remaining_attempts").value(4));
+
+        assertThat(실패_횟수()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT password_hash FROM account WHERE id = ?", String.class,
+                accountId)).as("비밀번호는 바뀌지 않는다").isEqualTo(otherHash);
     }
 
     private ResultActions 변경한다(String currentPassword) throws Exception {
