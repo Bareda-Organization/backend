@@ -112,7 +112,7 @@ public class AccountRecoveryCommandService {
      * 복구 요청 한 건을 처리한다 — {@code verificationCode} 가 없으면 발급, 있으면 대조.
      *
      * <p>{@code rawPhone} 은 하이픈 있는 표기와 없는 표기를 모두 받고 {@link PhoneNumber#normalize} 표준형으로 바꿔 쓴다. 계정은 저장된 표기와
-     * 무관하게 하이픈을 뺀 숫자로 찾는다(예전에 다른 표기로 저장된 계정도 찾는다).
+     * 무관하게 하이픈을 뺀 숫자로 찾는다(다른 표기로 저장된 계정도 찾는다).
      *
      * @throws BusinessException {@code RECOVERY_UNAVAILABLE}(발송기 없음) · {@code RECOVERY_RATE_LIMITED}(발급 빈도
      *                           초과 — 가입 여부와 무관) · {@code VERIFICATION_CODE_INVALID}(대조 실패)
