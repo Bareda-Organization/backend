@@ -147,6 +147,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Page<Account> findAllBlockedExcludingReason(@Param("retentionReason") String retentionReason, Pageable pageable);
 
     /** 로그인 실패 등으로 막힌 계정 — 퇴원 보존 익명화로 막힌 계정({@link Account#RETENTION_BLOCK_REASON})은 뺀다(API_SPEC §6.10). */
+    @AcademyScopeExempt(reason = "§6.10 메인 관리자 콘솔 — findAllBlockedExcludingReason 을 사유 상수로 부를 뿐이며 전 학원 범위 근거가 같다")
     default Page<Account> findAllLoginBlocked(Pageable pageable) {
         return findAllBlockedExcludingReason(Account.RETENTION_BLOCK_REASON, pageable);
     }
@@ -227,6 +228,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     long countBlockedExcludingReason(@Param("retentionReason") String retentionReason);
 
     /** 로그인 실패 등으로 막힌 계정 수 — 퇴원 보존 익명화로 막힌 계정은 세지 않는다(API_SPEC §6.10 · §6.18). */
+    @AcademyScopeExempt(reason = "§6.18 대시보드 차단 계정 수 — countBlockedExcludingReason 을 사유 상수로 부를 뿐이며 전 학원 범위 근거가 같다")
     default long countLoginBlocked() {
         return countBlockedExcludingReason(Account.RETENTION_BLOCK_REASON);
     }
