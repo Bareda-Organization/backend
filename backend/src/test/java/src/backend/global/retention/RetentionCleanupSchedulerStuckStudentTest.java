@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import src.backend.account.repository.RefreshTokenRepository;
+import src.backend.account.repository.VerificationCodeRepository;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.notification.repository.NotificationLogRepository;
@@ -86,7 +87,7 @@ class RetentionCleanupSchedulerStuckStudentTest {
         given(refreshTokens.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(linkCodes.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(auditLogs.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
-        return new RetentionCleanupScheduler(notificationLogs, mock(RunPositionPartitionManager.class), refreshTokens, linkCodes, auditLogs, mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class), new RetentionPolicy(),
+        return new RetentionCleanupScheduler(notificationLogs, mock(RunPositionPartitionManager.class), refreshTokens, linkCodes, mock(VerificationCodeRepository.class), auditLogs, mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class), new RetentionPolicy(),
                 new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
                         mock(org.springframework.jdbc.core.JdbcTemplate.class)), registry),
                 new WithdrawnStudentAnonymizer(studentRepository, anonymization, new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),

@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.account.repository.RefreshTokenRepository;
+import src.backend.account.repository.VerificationCodeRepository;
 import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
@@ -29,6 +30,7 @@ import src.backend.student.repository.LinkCodeRepository;
  * ({@link StudentAnonymizationService}). Ruling 894 가 두 가지를 더했다 — 지연 알림 발신 기록({@code delay_notice})을
  * {@code notification_log} 와 같은 14일로 지우고, 회차 종료 24시간이 지난 멱등 키를 비운다({@link IdempotencyKeyExpiry} — 승하차 이력 · 연락 기록의
  * 키 값만 비우고 행은 무기한 보존한다).
+ * 복구 인증 코드 발급 행({@code verification_code})은 만든 지 하루가 지나면 지운다 — 발급 요청 안의 인스턴스 메모리 타이머가 아니라 이 배치의 분산 락 아래에서 지운다.
  *
  * <p><b>여기 없는 테이블은 지우지 않는 것이 이 클래스의 본체다</b>(ERD §7.1·§7.2 무기한 보존
  * 대상 — {@code rider_status_history} · {@code no_show_case} ·
@@ -61,6 +63,8 @@ public class RetentionCleanupScheduler {
     private final RefreshTokenRepository refreshTokenRepository;
 
     private final LinkCodeRepository linkCodeRepository;
+
+    private final VerificationCodeRepository verificationCodeRepository;
 
     private final AuditLogRepository auditLogRepository;
 
@@ -107,6 +111,8 @@ public class RetentionCleanupScheduler {
         recordRefreshTokenRowsSafely();
         tableCleaner.cleanUpSafely("link_code", now, RetentionPolicy.BATCH_SIZE,
                 linkCodeRepository::findIdsForRetentionCleanup, linkCodeRepository::deleteAllByIdInBatch);
+        tableCleaner.cleanUpSafely("verification_code", retentionPolicy.verificationCodeCutoff(now), RetentionPolicy.BATCH_SIZE,
+                verificationCodeRepository::findIdsForRetentionCleanup, verificationCodeRepository::deleteAllByIdInBatch);
         studentAnonymizer.anonymizeSafely(retentionPolicy.withdrawnStudentCutoff(now));
         for (AuditCategory category : AuditCategory.values()) {
             tableCleaner.cleanUpSafely("audit_log/" + category, retentionPolicy.auditLogCutoff(now), RetentionPolicy.BATCH_SIZE,
