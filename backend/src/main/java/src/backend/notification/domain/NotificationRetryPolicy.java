@@ -19,6 +19,7 @@ public class NotificationRetryPolicy {
 
     /**
      * 발송 시도 상한 — 넘기면 {@code push_state='failed'} 로 옮기고 레코드는 사후 추적용으로 남긴다.
+     * 예외: 비상 알림({@code emergency} · {@code emergency_canceled})은 {@link #EMERGENCY_RETRY_WINDOW} 안에서는 상한에 닿아도 포기하지 않는다.
      * 시드의 {@code failed} 행({@code notification_log} id=9)이 {@code push_attempts=3} 인 것과 같은 값이다.
      */
     public static final int MAX_ATTEMPTS = 3;

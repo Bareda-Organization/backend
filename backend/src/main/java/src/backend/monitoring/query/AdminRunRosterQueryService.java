@@ -35,7 +35,7 @@ import src.backend.student.repository.StudentRepository;
  *
  * <p>L3 조회다 — 사진·연락처를 원문으로 담는다(SYS-01 감사 대상).
  *
- * <p>{@code RosterQueryService#phonesOf} 와 판정 방식은 같지만(학생당 첫 보호자 연락처) 그 메서드가
+ * <p>{@code RosterDataReader#phonesOf} 와 판정 방식은 같지만(학생당 첫 보호자 연락처) 그 메서드가
  * {@code private} 이라 직접 재사용할 수 없어 같은 {@link
  * GuardianStudentRepository#findGuardianPhonesByAcademyId} 호출을 이 클래스가 다시 감싼다.
  *
@@ -155,7 +155,7 @@ public class AdminRunRosterQueryService {
     }
 
     /**
-     * 학생당 첫 보호자 연락처만 취한다 — {@code RosterQueryService#phonesOf} 와 같은 판정
+     * 학생당 첫 보호자 연락처만 취한다 — {@code RosterDataReader#phonesOf} 와 같은 판정
      * (한 학생에 보호자가 여럿이어도 대표 1건).
      */
     private Map<Long, String> guardianPhonesOf(Long academyId, Set<Long> studentIds) {

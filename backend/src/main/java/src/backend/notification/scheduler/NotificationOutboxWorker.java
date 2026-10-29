@@ -88,8 +88,9 @@ public class NotificationOutboxWorker {
     }
 
     /**
-     * 후보 한 건을 격리해 처리한다 — 한 행에서 난 예외가 같은 틱의 나머지 행을 막지 않는다. 격리하지 않으면 앞쪽에서 늘 예외를 던지는 행이 매 틱 같은 자리에서
-     * 틱을 끊어, 그 뒤 행(비상 알림 포함)이 영영 발송되지 않는다.
+     * 후보 한 건을 격리해 처리한다 — 한 행에서 난 예외가 같은 틱의 나머지 행을 막지 않는다.
+     *
+     * <p>격리하지 않으면 앞쪽에서 늘 예외를 던지는 행이 매 틱 같은 자리에서 틱을 끊어, 그 뒤 행(비상 알림 포함)이 영영 발송되지 않는다.
      */
     private void dispatchIfDue(NotificationLog candidate, OffsetDateTime now) {
         try {
@@ -115,8 +116,7 @@ public class NotificationOutboxWorker {
     }
 
     /**
-     * {@code dispatch} 는 반환값이 없어 소진 여부를 알 수 없다({@code NotificationDispatcher} 는
-     * 범위 밖) — {@code markAttemptFailed} 가 이미 {@code REQUIRES_NEW} 로 커밋한 뒤라 재조회하면
+     * {@code dispatch} 는 반환값이 없어 소진 여부를 알 수 없다 — {@code markAttemptFailed} 가 이미 {@code REQUIRES_NEW} 로 커밋한 뒤라 재조회하면
      * 확정된 결과를 본다.
      */
     private void dispatchAndObserve(NotificationLog candidate) {

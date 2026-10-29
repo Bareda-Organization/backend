@@ -134,7 +134,7 @@ public class WebSocketExecutorConfig {
      * 팬아웃 실행기를 독립된 {@code @Bean} 으로 둔다 — Spring 프레임워크가 내부에서 만드는
      * {@code clientOutboundChannelExecutor} 빈은 선언 타입이 {@code Executor} 뿐이라, 다른 무언가가
      * 먼저 만들어 두지 않은 채(예: {@code SimpMessagingTemplate} 을 {@code @MockitoBean} 으로 대체한
-     * 시험) {@link WebSocketBroadcastGateway} 가 {@code ThreadPoolTaskExecutor} 타입으로 그 빈을
+     * 시험) {@link src.backend.global.websocket.WebSocketBroadcastGateway} 가 {@code ThreadPoolTaskExecutor} 타입으로 그 빈을
      * 먼저 요구하면 타입 사전판별에서 걸러져 {@code NoSuchBeanDefinitionException} 이 난다. 이 빈은
      * 선언 타입 자체가 {@code ThreadPoolTaskExecutor} 라 그 문제가 없다.
      *

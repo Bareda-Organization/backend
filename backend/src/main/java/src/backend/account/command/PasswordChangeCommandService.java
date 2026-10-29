@@ -42,6 +42,7 @@ public class PasswordChangeCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         String comparedHash = snapshot.getPasswordHash();
         if (!passwordEncoder.matches(currentPassword, comparedHash)) {
+            // shortcut: 잠금 밖 첫 대조 뒤 다른 세션이 비밀번호를 바꾸면 실패 1건이 센다(LoginSettlement 는 잠근 뒤 다시 대조한다) — 창이 좁고 횟수 제한 용도라 받아들이며, 오탐 차단이 보고되면 record 안에서 해시를 다시 확인한다
             throw failureRecorder.record(accountId); // 틀린 시도는 로그인 실패와 같은 카운터에 쌓인다(C-11)
         }
         String newHash = passwordEncoder.encode(newPassword);

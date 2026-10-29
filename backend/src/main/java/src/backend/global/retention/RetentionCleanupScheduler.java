@@ -23,9 +23,8 @@ import src.backend.student.repository.LinkCodeRepository;
 
 /**
  * 보존 정리 배치의 진입점(ERD §7 · TECH_DECISIONS §12.2 · Ruling 243) — 보유 기간이 지난
- * 5개 테이블({@code notification_log} · {@code run_position} · {@code refresh_token} ·
- * {@code link_code} · {@code audit_log})의 행을 회차(배치) 단위로 나눠 지운다(Ruling 324 — {@code link_request}
- * 삭제로 5개→4개, Ruling 445 — {@code audit_log} 편입으로 4개→5개). 여기에 <b>퇴원 90일이 지난 학생의 개인정보 파기</b>
+ * 보존 대상 표({@code notification_log} · {@code run_position} · {@code refresh_token} ·
+ * {@code link_code} · {@code audit_log})의 행을 회차(배치) 단위로 나눠 지운다(Ruling 324 — {@code link_request} 는 목록 밖이다 · Ruling 445 — {@code audit_log} 가 목록에 든다). 여기에 <b>퇴원 90일이 지난 학생의 개인정보 파기</b>
  * (Ruling 480 ②·520)가 같은 배치 상한·같은 잠금으로 편입돼 있다 — 이쪽은 행을 지우지 않고 익명화한다
  * ({@link StudentAnonymizationService}). Ruling 894 가 두 가지를 더했다 — 지연 알림 발신 기록({@code delay_notice})을
  * {@code notification_log} 와 같은 14일로 지우고, 회차 종료 24시간이 지난 멱등 키를 비운다({@link IdempotencyKeyExpiry} — 승하차 이력 · 연락 기록의
@@ -44,11 +43,7 @@ import src.backend.student.repository.LinkCodeRepository;
  * {@link RetentionPolicy#BATCH_SIZE} 로 잘라 여러 회차에 나눠 지운다 — 상한 없이 전건을 한 트랜잭션에서 지우면
  * 오래 쌓인 테이블에서 행 잠금을 길게 붙들어 운영 중 조회를 막는다.
  *
- * <p><b>테이블마다 개별 트랜잭션이다</b> — 조회({@code findIdsForRetentionCleanup})와 삭제
- * ({@code deleteAllByIdInBatch}, {@link org.springframework.data.jpa.repository.JpaRepository} 상속
- * 메서드)는 각각 별도의 리포지토리 메서드 호출이라, {@code SimpleJpaRepository} 의 메서드별
- * {@code @Transactional} 프록시가 호출마다 독립된 트랜잭션을 연다 — 이 클래스에 별도의
- * {@code REQUIRES_NEW} 헬퍼를 두지 않아도 된다. {@link RetentionTableCleaner#cleanUpSafely} 가 테이블 하나의 예외를
+ * <p><b>묶음마다 새 트랜잭션이다</b> — {@code RetentionTransactions.call} 이 묶음 하나의 조회({@code findIdsForRetentionCleanup})와 삭제를 한 트랜잭션에서 실행한다(세부는 {@link RetentionTableCleaner}). {@link RetentionTableCleaner#cleanUpSafely} 가 테이블 하나의 예외를
  * 삼켜 다른 테이블의 정리를 막지 않게 한다({@code NoShowEscalationScheduler} 와 같은 축).
  */
 @Slf4j
@@ -83,7 +78,7 @@ public class RetentionCleanupScheduler {
     private final RefreshTokenRowsMetrics refreshTokenRowsMetrics;
 
     /**
-     * 보유 기간이 지난 5개 테이블의 행을 지우고, 퇴원 90일이 지난 학생의 개인정보를 익명화한다.
+     * 보유 기간이 지난 보존 대상 표의 행을 지우고, 퇴원 90일이 지난 학생의 개인정보를 익명화한다.
      *
      * <p>실행 주기를 설정으로 받는 이유는 <b>테스트에서 배경 실행을 끄기 위함</b>이다 —
      * {@code DailyRunGenerator} 와 같은 형태로, {@code build.gradle} 이 {@code -}(비활성)를 넣는다.

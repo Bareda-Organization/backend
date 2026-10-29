@@ -29,7 +29,7 @@ public class RetentionTableCleaner {
      * 테이블 하나를 정리하고, 무엇이 됐든 실패를 삼켜 다른 테이블의 정리를 막지 않는다.
      *
      * <p>{@code BusinessException} 처럼 예상한 실패로 좁히지 않고 {@link Exception} 전체를 잡는다 —
-     * 좁히면 예상 못 한 버그가 이 메서드를 끊어 {@code RetentionCleanupScheduler#cleanUp} 의 나머지 4개 테이블 정리 여부와
+     * 좁히면 예상 못 한 버그가 이 메서드를 끊어 {@code RetentionCleanupScheduler#cleanUp} 의 나머지 보존 대상 표 정리 여부와
      * 무관하게 배치 자체가 실패로 끝난다({@code NoShowEscalationScheduler.escalateSafely} 와 같은 근거).
      */
     public void cleanUpSafely(String tableName, OffsetDateTime cutoff, int batchSize,
