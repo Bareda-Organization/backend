@@ -27,6 +27,7 @@ import src.backend.global.security.AccountStandingChangedEvent;
  *
  * <p>별도 빈인 이유 — 호출자({@link PasswordChangeCommandService#changePassword})는 이 기록을 커밋한 뒤에야 예외를 던져야 하는데, 던지는
  * 예외가 같은 트랜잭션을 지나가면 방금 올린 카운터까지 롤백된다. 그래서 이 빈이 카운터를 올려 커밋하고 <b>던질 예외를 돌려준다</b>.
+ * 행을 잠근 뒤의 재대조에서 틀린 것으로 드러난 경우에는 호출자의 트랜잭션에 합류해 같은 커밋으로 카운터를 남긴다.
  * 5회째에는 로그인과 같이 계정을 {@code blocked} 로 옮기고 유효 refresh 토큰을 전량 무효화하며 차단 감사 행을 남긴다.
  */
 @Component
