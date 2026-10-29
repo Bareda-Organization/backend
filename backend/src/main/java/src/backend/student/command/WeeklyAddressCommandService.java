@@ -3,6 +3,9 @@ package src.backend.student.command;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -15,9 +18,11 @@ import src.backend.student.domain.VerifiedAddressEntry;
 import src.backend.student.domain.VerifiedAddressEntry.AddressSlot;
 import src.backend.student.dto.WeeklyAddressResponse;
 import src.backend.student.dto.WeeklyAddressUpdateRequest;
+import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.WeeklyAddress;
 import src.backend.student.geocoding.spec.GeocodedPoint;
+import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.WeeklyAddressRepository;
 import src.backend.student.service.AddressVerification;
 import src.backend.student.service.AddressVerification.KnownAddress;
@@ -44,6 +49,8 @@ public class WeeklyAddressCommandService {
 
     private final WeeklyAddressRepository weeklyAddressRepository;
 
+    private final StopRepository stopRepository;
+
     /**
      * 요일 × 방향 칸들의 주소를 검증하고 저장한다 — 검증에 실패하면 아무 행도 남지 않는다.
      *
@@ -59,14 +66,22 @@ public class WeeklyAddressCommandService {
                 weeklyAddressStore.apply(student.getId(), student.getAcademyId(), verified));
     }
 
-    /** 이미 검증돼 좌표가 저장된 칸 — 같은 주소를 다시 보낸 칸은 공급자를 다시 부르지 않는다. */
+    /**
+     * 이미 검증돼 좌표가 저장된 칸 — 같은 주소를 다시 보낸 칸은 공급자를 다시 부르지 않는다. 그 칸이 가리키는 승하차지가 아직 있어야 쓴다: 그 주소가 승하차지를
+     * 새로 만들게 되면 이름과 주소는 사용자가 친 문구가 아니라 옛 승하차지의 주소이고, 승하차지가 없으면 다시 검증한다.
+     */
     private Map<AddressSlot, KnownAddress> knownAddresses(Student student) {
+        List<WeeklyAddress> savedRows = weeklyAddressRepository.findAllByStudentIdAndAcademyId(student.getId(),
+                student.getAcademyId());
+        Map<Long, Stop> stops = stopRepository.findAllByAcademyIdAndIdIn(student.getAcademyId(),
+                savedRows.stream().map(WeeklyAddress::getStopId).filter(Objects::nonNull).toList()).stream()
+                .collect(Collectors.toMap(Stop::getId, Function.identity()));
         Map<AddressSlot, KnownAddress> known = new HashMap<>();
-        for (WeeklyAddress saved : weeklyAddressRepository.findAllByStudentIdAndAcademyId(student.getId(),
-                student.getAcademyId())) {
-            if (saved.isVerified() && saved.getLat() != null && saved.getLng() != null) {
-                known.put(new AddressSlot(saved.getWeekday(), saved.getDirection()),
-                        new KnownAddress(saved.getAddress(), new GeocodedPoint(saved.getLat(), saved.getLng(), saved.getAddress())));
+        for (WeeklyAddress saved : savedRows) {
+            Stop stop = stops.get(saved.getStopId());
+            if (saved.isVerified() && saved.getLat() != null && saved.getLng() != null && stop != null) {
+                known.put(new AddressSlot(saved.getWeekday(), saved.getDirection()), new KnownAddress(
+                        saved.getAddress(), new GeocodedPoint(saved.getLat(), saved.getLng(), stop.getAddress())));
             }
         }
         return known;
