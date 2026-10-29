@@ -72,10 +72,14 @@ class SeedMigrationVersionTest extends MigratedPostgresTestBase {
     }
 
     @Test
-    void load_프로파일은_V2_가_더해져도_이주된다() throws SQLException {
-        List<String> versions = migrate(true, false, "load");
+    void 시험_시드를_이미_적용한_load_DB_는_뒤늦게_생긴_V2_를_받고_기동한다() throws SQLException {
+        List<String> seeded = migrate(false, false, "load");
+        assertThat(seeded).as("스키마와 시험 시드만 적용한 load DB 의 버전 — load 는 기동마다 DB 를 비우지 않아 같은 DB 가 이어진다")
+                .containsExactly("1", "800", "801", "802");
 
-        assertThat(versions).contains("1", "2").hasSizeGreaterThan(2);
+        List<String> upgraded = migrate(true, false, "load");
+
+        assertThat(upgraded).as("V800 이상 뒤에 V2 가 순서를 거슬러 적용돼야 한다").contains("2", "800", "801", "802");
     }
 
     @Test

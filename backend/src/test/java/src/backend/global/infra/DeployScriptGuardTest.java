@@ -211,6 +211,16 @@ class DeployScriptGuardTest {
     }
 
     @Test
+    @DisplayName("로그를 읽어 오지 못해도 스모크 테스트 실패 뒤의 되돌리기는 건너뛰지 않는다")
+    void rollbackRunsEvenWhenReadingLogsFails(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_BAD_TAG", NEW_TAG, "FAKE_LOGS_FAIL", "1"));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.dockerTagsOf("up -d")).as("로그 조회가 실패해도 직전 태그 기동까지 간다").containsExactly(NEW_TAG, "oldtag");
+        assertThat(run.envFile()).contains("IMAGE_TAG='oldtag'");
+    }
+
+    @Test
     @DisplayName("직전 태그로 되돌린 뒤에도 백엔드가 안 뜨면 그 사실을 알리고 실패로 끝낸다")
     void rollbackThatDoesNotComeUpIsReported(@TempDir Path tmp) throws Exception {
         Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_BAD_TAG", NEW_TAG + ",oldtag"));
@@ -347,7 +357,7 @@ class DeployScriptGuardTest {
 
     /**
      * docker 호출을 기록하고({@code FAKE_DOCKER_LOG}) 환경변수가 가리키는 태그에서만 실패한다. 태그 목록은 쉼표로 잇는다 —
-     * {@code FAKE_PULL_FAIL_TAG}(이미지 수신) · {@code FAKE_UP_FAIL_TAG}(기동) · {@code FAKE_BAD_TAG}(헬스체크 무응답).
+     * {@code FAKE_PULL_FAIL_TAG}(이미지 수신) · {@code FAKE_UP_FAIL_TAG}(기동) · {@code FAKE_BAD_TAG}(헬스체크 무응답), {@code FAKE_LOGS_FAIL}(로그 조회 실패, 값이 있으면 태그와 무관).
      * 그 밖의 호출은 성공이고, compose 설정 출력은 {@code FAKE_RENDERED_HASH} 를 시드 해시로 보여 준다.
      */
     private static final String FAKE_DOCKER = """
@@ -360,6 +370,7 @@ class DeployScriptGuardTest {
               *" config") printf '      SEED_PASSWORD_HASH: %s\\n' "$FAKE_RENDERED_HASH" ;;
               *" pull backend") listed "${FAKE_PULL_FAIL_TAG:-}" "$tag" && exit 1 ;;
               *" up -d") listed "${FAKE_UP_FAIL_TAG:-}" "$tag" && exit 1 ;;
+              *" logs "*) [ -n "${FAKE_LOGS_FAIL:-}" ] && exit 1 ;;
               *" exec -T backend curl"*) listed "${FAKE_BAD_TAG:-}" "$tag" && exit 1; echo '{"status":"UP"}' ;;
             esac
             exit 0
