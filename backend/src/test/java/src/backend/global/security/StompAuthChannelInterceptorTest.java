@@ -26,9 +26,8 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.run.access.RunAssignmentAccess;
-import src.backend.student.access.GuardianChildAccess;
-import src.backend.student.repository.StudentRepository;
+import src.backend.global.security.access.RunChannelAccess;
+import src.backend.global.security.access.StudentChannelAccess;
 
 /** CONNECT 인증과 SUBSCRIBE 인가의 입력 경계 — 목적지의 숫자 id 가 비정상이어도 일반 거절로 끝나고, 토큰은 한 번만 검증한다. */
 class StompAuthChannelInterceptorTest {
@@ -43,8 +42,8 @@ class StompAuthChannelInterceptorTest {
     @BeforeEach
     void setUp() {
         tokenProvider = spy(new JwtTokenProvider(SECRET, 900, 3600, Clock.systemUTC()));
-        StompSubscribeAuthorizer authorizer = new StompSubscribeAuthorizer(mock(GuardianChildAccess.class),
-                mock(RunAssignmentAccess.class), mock(StudentRepository.class));
+        StompSubscribeAuthorizer authorizer = new StompSubscribeAuthorizer(mock(StudentChannelAccess.class),
+                mock(RunChannelAccess.class));
         interceptor = new StompAuthChannelInterceptor(tokenProvider, authorizer, mock(StompSessionExpiry.class), meters,
                 mock(AccountStanding.class));
     }
