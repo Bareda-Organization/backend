@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v7
 
       # 에러 코드 대조 시험(ErrorCodeSpecParityTest)이 읽는 사양 — 문서는 작업 공간 저장소(같은 조직, 공개)에 있다. 한 파일만 받는다.
-      # ci.yml 과 같은 준비다(WorkflowGuardTest 가 두 파일을 함께 본다) — 한쪽만 고치면 다른 쪽 시험이 항상 실패한다.
+      # ci.yml 과 같은 준비다 — 한쪽을 고치면 다른 쪽도 고친다(지키는 시험은 없다).
       - uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/workspace
@@ -48,7 +48,7 @@ jobs:
       # @SpringBootTest 가 실제 DB·Redis 를 요구한다. 루트 compose 가 노출하는
       # 포트(15432·16379)가 application.yml local 기본값과 그대로 맞는다.
       - name: 테스트용 인프라 기동
-        run: docker compose up -d postgres redis
+        run: docker compose up -d --wait postgres redis
 
       # 2026-09-14 부터 `-PtestDbUrl` 없는 `./gradlew test` 는 즉시 실패한다(build.gradle
       # 인자 부재 시 실패 정책). 이 러너는 매번 새로 뜨는 단일 소비자라 공용 이름(schoolbus)을
