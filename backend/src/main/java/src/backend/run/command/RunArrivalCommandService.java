@@ -98,12 +98,15 @@ public class RunArrivalCommandService {
      */
     public RunArriveResponse arrive(AuthUser requester, Long runId, Long runStopId) {
         runAssignmentAccess.assertAssignedDriver(requester, runId);
+        // 회차 행을 가장 먼저 쥐고 상태를 새로 읽는다 — 아래 앞 승하차지 강제 출발이 승하차지 행을 먼저 쥐면, 승하차지 행을 쥔 채 회차 행을 기다리는
+        // 승하차 기록(PATCH)과 서로를 기다린다. 도착 시각은 잠금을 얻은 뒤에 정해 도착 순서가 커밋 순서를 따른다.
+        Run locked = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        runRowLock.acquire(locked);
         OffsetDateTime now = OffsetDateTime.now(clock);
-        // 회차 행을 가장 먼저 쥔다 — 아래 앞 승하차지 강제 출발이 승하차지 행을 먼저 쥐면, 승하차지 행을 쥔 채 회차 행을 기다리는
-        // 승하차 기록(PATCH)과 서로를 기다린다. 엔티티는 읽지 않는다 — 강제 출발의 clearAutomatically 가 어차피 컨텍스트를 비운다.
-        runRowLock.acquire(runId, requester.academyId());
+        assertMoving(locked, requester.academyId(), runStopId);
         // 폴백(Ruling 308) — 이 새 도착 처리보다 앞 순번이면서 아직 출발 판정이 안 된
-        // 정차지가 있으면 도착 처리 여부와 무관하게 강제로 출발 처리한다(기사가 도착을 안 누른 정차지 포함). run·target 을 로드하기 <b>전에</b> 부른다 —
+        // 정차지가 있으면 도착 처리 여부와 무관하게 강제로 출발 처리한다(기사가 도착을 안 누른 정차지 포함). run·target 은 이 호출 <b>뒤에</b> 다시 읽는다 —
         // claimDeparture 의 clearAutomatically 가 영속성 컨텍스트를 비우는데, 그 뒤에 로드한
         // 엔티티만 이 트랜잭션 끝까지 안전하게 관리된다(먼저 로드해 두면 이 호출이 그 엔티티를
         // detach 시켜, 그 뒤의 markArrived·finish 같은 변경이 커밋되지 않고 조용히 사라진다).
@@ -111,19 +114,10 @@ public class RunArrivalCommandService {
         // 하차보다 먼저 일어나 그 승차지의 확정 결과가 "승차" 로 나간다.
         stopDepartureService.forceAllBefore(runId, requester.academyId(), runStopId, now);
 
+        // 잠금은 위에서 이미 쥐었다 — 같은 정차 항목 도착 두 건, 하원 최종 도착과 마지막 하차({@link RunCompletionService} 도 같은 행을 잠근다)가 겹쳐도
+        // 한쪽이 끝난 뒤에 세고 판정한다(BR-041).
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        // 회차 행을 다시 읽은 뒤 판정한다(BR-041) — 잠금은 위에서 이미 쥐었고, 같은 정차 항목 도착 두 건, 하원 최종 도착과 마지막
-        // 하차({@link RunCompletionService} 도 같은 행을 잠근다)가 겹쳐도 한쪽이 끝난 뒤에 세고 판정한다.
-        runRowLock.acquire(run);
-        if (run.getStatus() != RunStatus.MOVING) {
-            // 이미 처리된 도착의 재전송은 회차가 끝난 뒤에도 DUPLICATE_ARRIVE 다(API_SPEC §4.5 · Ruling 859) — 앱은 이 짝만 성공으로
-            // 흡수하므로, 회차를 끝낸 도착이나 끝난 뒤 재생된 앞 도착이 RUN_NOT_MOVING 으로 돌아오면 처리된 도착이 "안 됨" 으로 센다.
-            if (isAlreadyArrived(runId, requester.academyId(), runStopId)) {
-                throw new BusinessException(ErrorCode.DUPLICATE_ARRIVE);
-            }
-            throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
-        }
 
         List<RunStop> ordered = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
                 currentVersionIdOf(runId), requester.academyId());
@@ -167,6 +161,20 @@ public class RunArrivalCommandService {
         }
 
         return RunArriveResponse.of(now, nextStop, isFinal, run, remaining, autoAlightedCount);
+    }
+
+    /**
+     * 운행 중이 아니면 거절한다. 이미 처리된 도착의 재전송은 회차가 끝난 뒤에도 DUPLICATE_ARRIVE 다(API_SPEC §4.5 · Ruling 859) — 앱은 이 짝만 성공으로
+     * 흡수하므로, 회차를 끝낸 도착이나 끝난 뒤 재생된 앞 도착이 RUN_NOT_MOVING 으로 돌아오면 처리된 도착이 "안 됨" 으로 센다.
+     */
+    private void assertMoving(Run run, Long academyId, Long runStopId) {
+        if (run.getStatus() == RunStatus.MOVING) {
+            return;
+        }
+        if (isAlreadyArrived(run.getId(), academyId, runStopId)) {
+            throw new BusinessException(ErrorCode.DUPLICATE_ARRIVE);
+        }
+        throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
     }
 
     /** 이 회차의 확정 노선에서 그 정차 항목이 이미 도착 처리됐는가 — 확정 노선이 없거나 다른 회차의 항목이면 {@code false}. */
