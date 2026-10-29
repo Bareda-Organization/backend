@@ -17,6 +17,9 @@ import io.micrometer.core.instrument.MeterRegistry;
  * 개인정보(L3) 조회 감사 행의 적재가 실패해도 응답은 그대로지만 실패 건수가 지표
  * {@code schoolbus.audit.read.record.failures}(Prometheus {@code schoolbus_audit_read_record_failures_total})에 오른다 —
  * 로그만 남기면 감사 누락이 계속돼도 알림이 울릴 수단이 없다. 적재가 성공하면 지표는 오르지 않는다.
+ *
+ * <p>묶기 기록(행위자·학생·필드)이 10분간 Redis 에 남으므로 시험마다 다른 학생 id 를 쓴다 — 같은 학생을 쓰면 앞선 시험의 묶기 기록이
+ * 적재 자체를 건너뛰게 해 실행 순서에 따라 결과가 갈린다.
  */
 @SpringBootTest
 class AuditReadRecordFailureMetricTest {
@@ -45,7 +48,7 @@ class AuditReadRecordFailureMetricTest {
         double before = 실패_건수();
 
         auditRecorder.recordDataAccessRead(1L, ACTOR, "t".repeat(51), 1L,
-                Map.of("student_ids", List.of("1"), "fields", List.of("guardian_phone")));
+                Map.of("student_ids", List.of("11"), "fields", List.of("guardian_phone")));
 
         assertThat(실패_건수() - before).isEqualTo(1.0);
     }
@@ -55,8 +58,8 @@ class AuditReadRecordFailureMetricTest {
         double before = 실패_건수();
 
         auditRecorder.recordDataAccessReads(1L, ACTOR, "t".repeat(51), Map.of(
-                1L, Map.of("student_ids", List.of("1"), "fields", List.of("guardian_phone")),
-                2L, Map.of("student_ids", List.of("2"), "fields", List.of("guardian_phone"))));
+                1L, Map.of("student_ids", List.of("21"), "fields", List.of("guardian_phone")),
+                2L, Map.of("student_ids", List.of("22"), "fields", List.of("guardian_phone"))));
 
         assertThat(실패_건수() - before).isEqualTo(1.0);
     }
@@ -66,7 +69,7 @@ class AuditReadRecordFailureMetricTest {
         double before = 실패_건수();
 
         auditRecorder.recordDataAccessRead(1L, ACTOR, "student", 1L,
-                Map.of("student_ids", List.of("1"), "fields", List.of("guardian_phone")));
+                Map.of("student_ids", List.of("31"), "fields", List.of("guardian_phone")));
 
         assertThat(실패_건수() - before).isZero();
     }
