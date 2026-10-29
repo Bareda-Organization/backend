@@ -1,6 +1,7 @@
 package src.backend.run.command;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -68,10 +69,15 @@ public class RunCommandService {
      * 두 번 도는 것은 정상 동작이다.
      */
     public RunResponse add(AuthUser requester, RunCreateRequest request) {
+        LocalDate serviceDate = ApiValues.date(request.serviceDate());
+        if (serviceDate.isBefore(LocalDate.now(clock))) {
+            // 지난 운행일의 idle 회차는 확정 배치가 집지 않아 영원히 남는다 — 오늘 날짜의 지난 출발 시각은 구간 규칙이 맡는다.
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
         Bus bus = busRepository.findByIdAndAcademyId(request.busId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         Run run = create(new RunDraft(requester.academyId(), request.busId(), null,
-                ApiValues.date(request.serviceDate()), ApiValues.direction(request.direction()),
+                serviceDate, ApiValues.direction(request.direction()),
                 ApiValues.time(request.departTime()), request.originName(), request.destinationName(),
                 request.estDurationMin()));
         return RunResponse.of(run, bus.getBusNo(), List.of());
