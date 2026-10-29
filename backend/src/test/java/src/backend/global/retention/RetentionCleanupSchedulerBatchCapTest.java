@@ -71,13 +71,10 @@ class RetentionCleanupSchedulerBatchCapTest {
                 .willReturn(firstRound)
                 .willReturn(secondRound);
 
-        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
-                notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
-                linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
-                mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
-                retentionPolicy, passThroughTransactions(), clock,
-                new SimpleMeterRegistry(),
-                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
+        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(notificationLogRepository, runPositionPartitionManager, refreshTokenRepository, linkCodeRepository, auditLogRepository, mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class), retentionPolicy,
+                new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry()),
+                new WithdrawnStudentAnonymizer(studentRepository, studentAnonymizationService, new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry())),
+                clock, new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
 
@@ -106,12 +103,10 @@ class RetentionCleanupSchedulerBatchCapTest {
                 .willReturn(fakeIds(50));
         given(studentAnonymizationService.anonymize(any()))
                 .willAnswer(invocation -> ((List<?>) invocation.getArgument(0)).size());
-        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
-                notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
-                linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
-                mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
-                retentionPolicy, passThroughTransactions(), clock, new SimpleMeterRegistry(),
-                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
+        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(notificationLogRepository, runPositionPartitionManager, refreshTokenRepository, linkCodeRepository, auditLogRepository, mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class), retentionPolicy,
+                new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry()),
+                new WithdrawnStudentAnonymizer(studentRepository, studentAnonymizationService, new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry())),
+                clock, new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
 
@@ -136,12 +131,10 @@ class RetentionCleanupSchedulerBatchCapTest {
         given(studentRepository.findIdsForAnonymization(any(), any())).willReturn(fakeIds(200));
         given(studentAnonymizationService.anonymize(any())).willReturn(0);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
-                notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
-                linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
-                mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
-                retentionPolicy, passThroughTransactions(), clock, registry,
-                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
+        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(notificationLogRepository, runPositionPartitionManager, refreshTokenRepository, linkCodeRepository, auditLogRepository, mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class), retentionPolicy,
+                new RetentionTableCleaner(passThroughTransactions(), registry),
+                new WithdrawnStudentAnonymizer(studentRepository, studentAnonymizationService, new RetentionTableCleaner(passThroughTransactions(), registry)),
+                clock, new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
 
@@ -163,12 +156,10 @@ class RetentionCleanupSchedulerBatchCapTest {
         given(auditLogRepository.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
         given(studentRepository.findIdsForAnonymization(any(), any())).willReturn(List.of());
         given(runPositionPartitionManager.dropExpired(any())).willThrow(new IllegalStateException("lock timeout"));
-        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(
-                notificationLogRepository, runPositionPartitionManager, refreshTokenRepository,
-                linkCodeRepository, auditLogRepository, studentRepository, studentAnonymizationService,
-                mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class),
-                retentionPolicy, passThroughTransactions(), clock, new SimpleMeterRegistry(),
-                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
+        RetentionCleanupScheduler scheduler = new RetentionCleanupScheduler(notificationLogRepository, runPositionPartitionManager, refreshTokenRepository, linkCodeRepository, auditLogRepository, mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class), retentionPolicy,
+                new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry()),
+                new WithdrawnStudentAnonymizer(studentRepository, studentAnonymizationService, new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry())),
+                clock, new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
 
         scheduler.cleanUp();
 

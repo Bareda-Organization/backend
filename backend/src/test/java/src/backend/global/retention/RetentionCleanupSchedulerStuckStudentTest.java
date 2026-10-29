@@ -86,13 +86,12 @@ class RetentionCleanupSchedulerStuckStudentTest {
         given(refreshTokens.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(linkCodes.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(auditLogs.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
-        return new RetentionCleanupScheduler(notificationLogs, mock(RunPositionPartitionManager.class), refreshTokens,
-                linkCodes, auditLogs, studentRepository, anonymization, mock(DelayNoticeRepository.class),
-                mock(IdempotencyKeyExpiry.class), new RetentionPolicy(),
-                new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
-                        mock(org.springframework.jdbc.core.JdbcTemplate.class)),
-                Clock.fixed(Instant.parse("2032-06-15T00:00:00Z"), ZoneId.of("Asia/Seoul")), registry,
-                new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
+        return new RetentionCleanupScheduler(notificationLogs, mock(RunPositionPartitionManager.class), refreshTokens, linkCodes, auditLogs, mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class), new RetentionPolicy(),
+                new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
+                        mock(org.springframework.jdbc.core.JdbcTemplate.class)), registry),
+                new WithdrawnStudentAnonymizer(studentRepository, anonymization, new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
+                        mock(org.springframework.jdbc.core.JdbcTemplate.class)), registry)),
+                Clock.fixed(Instant.parse("2032-06-15T00:00:00Z"), ZoneId.of("Asia/Seoul")), new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
     }
 
     private static List<Long> ids(long first, int count) {
