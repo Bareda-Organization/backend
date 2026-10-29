@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.broker.AbstractBrokerMessageHandler;
@@ -86,6 +87,10 @@ class RunBroadcastWiringIntegrationTest {
     @Autowired private GuardianRepository guardianRepository;
     @Autowired private GuardianStudentRepository guardianStudentRepository;
     @Autowired private ChangeRequestRepository changeRequestRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
+
+    /** 이 시험이 커밋한 학원 — 같은 이름의 공용 시험 학원을 지우는 다른 시험이 남은 학생 행에 막히지 않게 끝에서 지운다. */
+    private Long academyId;
 
     /** 하원 회차 하나를 시작 → 위치 → 최종 지점 도착 → 마지막 하차까지 태우며 단계마다 나간 방송을 본다. */
     @Test
@@ -96,7 +101,7 @@ class RunBroadcastWiringIntegrationTest {
                 academyStaffRepository, guardianRepository, guardianStudentRepository, changeRequestRepository);
         OffsetDateTime now = OffsetDateTime.now();
         String unique = String.valueOf(System.nanoTime());
-        long academyId = fixtures.academy();
+        academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
         long runId = fixtures.confirmedRun(academyId, busId, Direction.FROM_ACADEMY, now, now.minusMinutes(30));
@@ -134,8 +139,15 @@ class RunBroadcastWiringIntegrationTest {
     }
 
     @AfterEach
-    void 구독자를_치운다() {
+    void 구독자와_커밋한_행을_치운다() {
         ((SimpleBrokerMessageHandler) broker).getSubscriptionRegistry().unregisterAllSubscriptions("wiring-test-session");
+        if (academyId == null) {
+            return;
+        }
+        for (String table : new String[] { "notification_log", "run", "student", "manager", "account", "stop", "bus" }) {
+            jdbcTemplate.update("DELETE FROM " + table + " WHERE academy_id = ?", academyId);
+        }
+        jdbcTemplate.update("DELETE FROM academy WHERE id = ?", academyId);
     }
 
     private void 구독자를_둔다(String destination) {
