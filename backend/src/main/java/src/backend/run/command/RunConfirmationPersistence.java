@@ -17,6 +17,7 @@ import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.domain.RunRouteEndpoints;
 import src.backend.run.domain.RunStartWindowPolicy;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunStatus;
 import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.entity.RunTransferStatus;
@@ -72,6 +73,10 @@ public class RunConfirmationPersistence {
      * 확정한 스레드의 결과와 이 결과가 같은 입력에서 나왔다는 보장이 없어(그 사이 명단이 바뀌었을 수
      * 있다), 대신 넣으면 먼저 커밋된 버전을 뒤엎는 꼴이 된다.
      *
+     * <p><b>회차 행을 먼저 잠그고 명단 입력을 다시 읽는다.</b> 다르면 아무것도 쓰기 전에
+     * {@link ConfirmationInputsChangedException} 을 던진다 — 이 예외는 트랜잭션을 롤백 표시하지 않고({@code noRollbackFor}, 바깥 트랜잭션에 합류한 호출도 롤백 전용이 되지 않는다),
+     * 호출부는 확정 실패로 세지 않는다. 회차는 {@code idle} 로 남아 다음 틱이 바뀐 입력으로 다시 읽는다.
+     *
      * @return 이 호출이 실제로 확정을 저장했으면 {@code true}, 진 경쟁이라 조용히 반환했으면
      *         {@code false} — 호출부({@code RunConfirmationService#confirmOne})가 이 값으로 배치
      *         지연 지표를 승자 1건에만 기록한다. 이 값이 없으면 진 스레드도 이 지점까지
@@ -79,17 +84,21 @@ public class RunConfirmationPersistence {
      *         {@code ARCHITECTURE §9.4})이 인스턴스를 늘려 경합이 잦아지는 바로 그 시점에 가장
      *         부정확해진다.
      */
+    @Transactional(noRollbackFor = ConfirmationInputsChangedException.class)
     public boolean persist(Run run, RouteComputation computation, RunRouteEndpoints.Endpoints endpoints,
             Weekday weekday, ProjectedRoster roster, OffsetDateTime confirmedAt) {
+        // 회차 행을 먼저 잠근다. 명단은 확정 계산 전에 짧은 별도 트랜잭션들로 읽었으므로 그 사이 들어오거나 취소된 강제 추가·이동, 학부모의 ①구간 탑승 끄기, 승인된 승하차지 이동이 빠졌을 수 있다 —
+        // 잠근 뒤 같은 규칙으로 다시 읽어 대조한다(이후 강제 추가·이동 저장은 이 잠금에 막힌다). 다르면 쓰기 전에 물러나고 회차는 idle 로 남아 다음 틱이 다시 읽는다.
+        Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), run.getAcademyId()).orElse(null);
+        if (locked == null || locked.isCanceled() || locked.getStatus() != RunStatus.IDLE) {
+            return false;
+        }
+        if (!roster.sameInputs(rosterReader.read(run))) {
+            throw new ConfirmationInputsChangedException(run.getId());
+        }
         int updated = runRepository.confirmIfIdle(run.getId(), confirmedAt);
         if (updated == 0) {
             return false;
-        }
-        // confirmIfIdle 이 잡은 행 잠금 뒤라 이후 강제 추가·이동 저장은 confirmed 를 보고 막힌다(StagingRunGuard). 명단은 확정 계산 전에 짧은 별도 트랜잭션들로 읽었으므로
-        // 그 사이 들어오거나 취소된 강제 추가·이동, 학부모의 ①구간 탑승 끄기, 승인된 승하차지 이동이 빠졌을 수 있다 — 여기서 같은 규칙으로 다시 읽어 대조하고,
-        // 다르면 이번 확정을 무른다. 롤백되면 idle 로 남아 다음 틱이 다시 읽는다.
-        if (!roster.sameInputs(rosterReader.read(run))) {
-            throw new IllegalStateException("확정 계산 중 명단 입력이 바뀌었다 — 다음 틱에 다시 읽는다: runId=" + run.getId());
         }
 
         String fingerprint = RunConfirmationFingerprint.of(run.getAcademyId(), weekday, run.getDirection(),

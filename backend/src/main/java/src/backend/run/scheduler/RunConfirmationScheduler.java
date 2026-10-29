@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.global.error.BusinessException;
 import src.backend.observability.metrics.RunConfirmationMetrics;
+import src.backend.run.command.ConfirmationInputsChangedException;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.domain.RunConfirmationPolicy;
 import src.backend.run.entity.Run;
@@ -113,6 +114,9 @@ public class RunConfirmationScheduler {
     private void confirmSafely(Long runId, int failuresSoFar) {
         try {
             confirmationService.confirmOne(runId);
+        } catch (ConfirmationInputsChangedException e) {
+            // 학부모의 탑승 끄기·승인된 이동이 계산 사이에 커밋됐다 — 확정 실패가 아니라 정상 경합이라 횟수 · 재시도 시각 · 지표를 건드리지 않고 다음 틱이 다시 읽는다.
+            log.info("회차 {} 명단 입력이 확정 계산 중 바뀌어 다음 틱에 다시 읽는다", runId);
         } catch (Exception e) {
             Duration delay = RunConfirmationPolicy.retryDelayAfter(failuresSoFar + 1);
             logFailure(runId, e, delay);
