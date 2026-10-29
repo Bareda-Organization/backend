@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   # 백엔드 코드나 시험이 읽는 입력(infra · docker-compose*.yml · .github — 인프라 지침 시험이 읽는다)이 바뀔 때만 시험을 돈다 —
-  # 문서만 바뀐 커밋에 40분짜리 시험을 돌리지 않는다. 시험이 새 입력을 읽게 되면 WorkflowGuardTest 가 여기 빠진 것을 잡는다.
+  # 문서만 바뀐 커밋에 40분짜리 시험을 돌리지 않는다. 시험이 새 입력을 읽게 되면 이 목록에 같이 더한다(지키는 시험은 없다).
   # ⚠ 워크플로 수준 `on.push.paths` 로 바꾸지 마라 — 2026-10-02 조직 저장소에서 push 두 번이 실행 자체를 만들지 않았다.
   #   워크플로는 늘 시작하고 이 작업이 거른다(통합 저장소에서 쓰던 방식). 손으로 돌리면 거르지 않는다.
   changes:
@@ -34,6 +34,7 @@ jobs:
       pull-requests: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      image: ${{ steps.filter.outputs.image }}
     steps:
       - uses: actions/checkout@v7
       # 제3자 액션은 움직이는 태그가 아니라 커밋 SHA 로 고정한다(WorkflowGuardTest) — 버전은 줄 끝 주석이고, Dependabot github-actions 가 SHA 와 함께 올린다.
@@ -46,6 +47,30 @@ jobs:
               - 'infra/**'
               - 'docker-compose*.yml'
               - '.github/**'
+            # 이미지 빌드에 들어가는 입력 — 소스는 위 시험이 컴파일로 보므로 여기에 넣지 않는다.
+            image:
+              - 'backend/Dockerfile'
+              - 'backend/.dockerignore'
+              - 'backend/build.gradle'
+              - 'backend/settings.gradle'
+              - 'backend/gradle.properties'
+              - 'backend/lombok.config'
+              - 'backend/gradle/**'
+              - '.github/workflows/ci.yml'
+
+  # 배포 이미지가 실제로 빌드되고 비루트 사용자로 도는지 — 시험은 jar 가 아니라 소스를 컴파일해 돌므로 Dockerfile 이 깨져도 위 작업이 초록이다.
+  # 빌드 입력(Dockerfile · 빌드 스크립트 · Gradle 래퍼)이 바뀔 때만 돈다.
+  image:
+    needs: changes
+    if: needs.changes.outputs.image == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: 이미지 빌드
+        run: docker build -t school-bus-backend:ci backend
+      - name: 실행 사용자는 root 가 아니다
+        run: test "$(docker run --rm --entrypoint id school-bus-backend:ci -u)" != 0
 
   backend:
     needs: changes

@@ -30,7 +30,7 @@ import org.springframework.core.env.Environment;
  *
  * <p>상한을 20 으로 줄인 실서버(RANDOM_PORT)에서 앱 포트 연결을 상한만큼 쥐고 본다. 같은 서버의 앱 포트 {@code /healthz} 가 응답이 없는 것이
  * "정말 가득 찼다" 는 대조군이라, 관리 포트가 200 인 것이 포화가 안 걸려서 생긴 우연이 아님을 보인다. 운영 프로파일(prod·demo·staging)이
- * 관리 포트를 따로 여는지는 {@code DeploymentConfigGuardTest} 가 설정 파일로 고정한다 — 이 시험은 그 설정이 만드는 동작을 본다.
+ * 관리 포트를 따로 여는지는 이 시험이 지키지 않는다(application.yml · docker-compose.prod.yml · docker-compose.staging.yml 을 함께 고친다) — 이 시험은 그 설정이 만드는 동작을 본다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "management.server.port=0",

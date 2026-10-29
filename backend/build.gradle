@@ -246,7 +246,8 @@ tasks.withType(Test).configureEach {
 
     // 시험은 시험 전용 시드(db/fixture)만 깐다 — local 의 QA Mock(db/qa-seed)은 사람이 보며 시험할 데이터라
     // 수시로 바뀌고, 그 데이터를 시험이 붙들면 QA 데이터를 고칠 때마다 시험이 깨진다(2026-10-03 분리).
-    // application.yml 의 fixture 프로파일 목록과 같은 값이다 — 한쪽을 바꾸면 다른 쪽도 바꾼다.
+    // application.yml 의 fixture 프로파일 목록과 같은 값이다 — 한쪽을 바꾸면 다른 쪽도 바꾼다. db/fixture 의 버전은 V800 이상이라
+    // 첫 배포 뒤 db/migration 에 생기는 V2… 와 겹치지 않는다(SeedMigrationVersionTest 가 V2 를 더해 이주해 본다).
     systemProperty 'spring.flyway.locations', 'classpath:db/migration,classpath:db/fixture'
 
     // 실 API 시험(NaverDirectionsClientLiveTest 등 @Tag("live"))은 위 stub 설정을 인라인

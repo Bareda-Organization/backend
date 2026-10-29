@@ -9,10 +9,10 @@
 --   · 좌표는 numeric(9,6), enum 은 varchar(n) + CHECK 목록
 --   · 운행일은 date, 스케줄의 시각 원본은 time, 실제 발생 시각은 timestamptz
 --
--- ⚠️ 첫 배포 이전이라 새 버전을 쌓지 않고 이 파일을 직접 고친다(CLAUDE.md · IMPLEMENTATION_PLAN §2.1).
---    테이블 정의는 이 파일 하나뿐이다 — 2026-10-03 그 사이 덧붙였던 V3~V11 · V15(컬럼 3 · 테이블 3 · CHECK 2 · 인덱스 9)를
---    여기로 합쳤다(합치기 전후 pg_dump --schema-only 동일). 데이터는 db/qa-seed(QA) · db/fixture(시험)에 따로 있다.
---    고치면 체크섬이 바뀌므로 `docker compose down` 후 `up` 으로 로컬 DB 를 재구성해야 한다.
+-- ⚠️ 첫 배포 이전이라 새 버전을 쌓지 않고 이 파일을 직접 고친다(CLAUDE.md · IMPLEMENTATION_PLAN §2.1). 고치면 체크섬이 바뀌므로 `docker compose down` 후 `up` 으로 로컬 DB 를 재구성해야 한다.
+--    테이블 정의는 이 파일 하나뿐이다. 데이터는 db/qa-seed(QA · V900+) · db/fixture(시험 · V800+)에 따로 있다 —
+--    첫 배포 뒤 이 폴더에 생기는 V2… 와 번호가 겹치지 않는다. 새 마이그레이션은 V2 부터 잇고 V800 이상은 쓰지 않는다.
+--    demo 는 시드를 이미 적용한 DB 에 뒤늦은 V2… 가 들어오므로 application.yml 의 demo 섹션이 out-of-order 를 켠다.
 --    demo·prod 에 한 번이라도 적용된 뒤에는 원칙이 뒤집혀 V{n} 추가만 허용된다 — 그 시점에 이 주석을 갱신할 것.
 
 

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code V2__seed_data.sql}(로컬 데모 시드)이 {@code V1__init_schema.sql} 위에서 예외 없이
+ * {@code V800__seed_data.sql}(시험 시드)이 {@code V1__init_schema.sql} 위에서 예외 없이
  * 적재되고, Swagger 로 역할·상태별 로그인 흐름을 밟을 수 있을 만큼 계정이 갖춰졌는지 본다.
  *
  * <p>이 클래스는 TDD RED→GREEN 대상이다 — 단언 3개를 먼저 쓰고, RED 를 확인한 뒤, 시드를 채워 GREEN 으로 만든다. {@code SeedFixtures}

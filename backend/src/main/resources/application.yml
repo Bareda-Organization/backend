@@ -453,16 +453,17 @@ server:
       max: 100
     # 스레드가 다 찬 뒤 TCP 대기열 — 기본값(100)과 같다. 더 키우면 거절 대신 오래 기다리다 3초 뒤 5xx 가 되는 요청이 늘 뿐이다.
     accept-count: 100
-    # 동시 연결 상한(R46-CONNCAP, Ruling 690) — HTTP 와 WebSocket 연결을 합친 수다(WebSocket 은 업그레이드된 같은 소켓이라 끊길 때까지 센다).
-    # 기본 8,192 의 최악 힙 ≈ 기준 274MB + 세션당 0.13MB(09-09 실측: 500세션 339MB · 6,000세션 1,063MB) × 8,192 + 송신 버퍼 상한
-    # 64KB(WebSocketConfig) × 8,192 ≈ 1.85GB 라 운영 힙(컨테이너 3,072MB × 70% ≈ 2.15GB)에 너무 가깝다. 4,000(목표 동시 세션 2,000 의
-    # 2배)이면 ≈ 1.05GB. 닿으면 OOM 대신 새 연결이 accept-count 대기열에서 기다리다 거절된다(docs/backend/infra/DEPLOYMENT.md §11.7).
+    # 동시 연결 상한(Ruling 690) — HTTP 와 WebSocket 연결을 합친 수다(WebSocket 은 업그레이드된 같은 소켓이라 끊길 때까지 센다).
+    # 상한이 정하는 최악 힙 = 기준 274MB + 세션당 0.13MB(실측: 500세션 339MB · 6,000세션 1,063MB) × 연결 수 + 송신 버퍼 상한 64KB(WebSocketConfig) × 연결 수.
+    # 4,000(목표 동시 세션 2,000 의 2배)이면 ≈ 1.05GB 로, 운영 힙(컨테이너 8,192MB × MaxRAMPercentage 50% = 4,096MB — docker-compose.prod.yml · Ruling 927)의
+    # 약 26% 다. 기본 8,192 로 두면 ≈ 1.85GB(약 45%). 닿으면 OOM 대신 새 연결이 accept-count 대기열에서 기다리다 거절된다(docs/backend/infra/DEPLOYMENT.md §11.7).
     max-connections: 4000
 management:
   server:
     # 헬스·지표를 앱 커넥터와 따로 둔다(R47, Ruling 740) — 앱 포트가 동시 연결 상한(max-connections)에 닿으면 새 연결을 받지 못해 같은 커넥터의
     # 헬스·지표도 함께 응답이 없었다(R46 누수 검토 R-3). 이 포트는 호스트에 열지 않고 nginx 도 가지 않는다 — compose 네트워크 안의 헬스체크·Prometheus 만 닿는다
-    # (compose·deploy.sh·prometheus.prod.yml 이 같은 값을 쓴다 — DeploymentConfigGuardTest 가 맞는지 본다).
+    # (아래 파일이 같은 값을 쓴다 — 이 값을 지키는 시험이 없으니 함께 고친다: docker-compose.prod.yml · docker-compose.staging.yml 의 healthcheck ·
+    # infra/scripts/deploy.sh · infra/observability/prometheus/prometheus.prod.yml).
     port: 8081
 
 # 운영은 localhost 개발 출처를 신뢰하면 안 되므로 기본값 없이 환경변수로만 명시 주입(미설정 시 빈 목록 = 전부 차단)
@@ -523,6 +524,9 @@ spring:
       - SET lock_timeout = 5000;
       - SET idle_in_transaction_session_timeout = 30000;
     locations: classpath:db/migration,classpath:db/qa-seed
+    # 시드(db/qa-seed V900·V901)가 이미 적용된 demo DB 에 뒤늦게 생기는 db/migration 의 V2… 가 순서를 거슬러 적용되게 한다 — 끄면 그 기동은
+    # "Detected resolved migration not applied" 검증 실패로 끝난다. 시험 시드는 db/fixture V800+ 라 같은 문제가 없다.
+    out-of-order: true
     clean-disabled: true   # demo 는 시드를 적재하되 clean() 은 여전히 금지 — 운영과 같은 볼륨 영속 DB 다
     placeholders:
       # ⚠️ 기본값을 두지 않는다. 기본값을 두면 주입을 깜빡했을 때 조용히 "password" 로 떠서

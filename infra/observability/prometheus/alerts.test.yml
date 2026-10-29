@@ -166,6 +166,83 @@ tests:
             exp_annotations:
               summary: 방송 중계(Redis) 발행이 실패하고 있다 — 다른 인스턴스에 붙은 구독자는 그동안의 방송을 받지 못한다
 
+  # 조회 감사 기록 저장 실패(Ruling 937): 첫 실패 때 카운터가 1 로 태어나도(increase 는 0) 발화하고, 이미 있던 카운터가 늘어도 발화한다. 멈추고 창(3분)이 지나면 꺼지며,
+  # 한 번도 실패하지 않은 시리즈(0 유지)와 부하 시험 job 의 시리즈는 발화하지 않는다.
+  - interval: 30s
+    input_series:
+      - series: 'schoolbus_audit_read_record_failures_total{job="backend",instance="a"}'
+        values: '_x10 1x40'
+      - series: 'schoolbus_audit_read_record_failures_total{job="backend",instance="b"}'
+        values: '0x50'
+      - series: 'schoolbus_audit_read_record_failures_total{job="school-bus-load",instance="c"}'
+        values: '_x10 5x40'
+    alert_rule_test:
+      - eval_time: 4m   # 아직 아무 실패도 없다
+        alertname: AuditReadRecordFailing
+        exp_alerts: []
+      - eval_time: 6m   # 첫 실패로 시리즈가 1 에서 태어났다 — increase() 는 0 이지만 새 시리즈라 발화한다
+        alertname: AuditReadRecordFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+            exp_annotations:
+              summary: 조회 감사 기록 저장이 실패하고 있다 — 응답은 나갔지만 누가 개인정보를 조회했는지 남지 않은 건이 있다
+      - eval_time: 12m   # 첫 실패 뒤 3분 창을 지나 더 늘지 않았다 — 꺼진다
+        alertname: AuditReadRecordFailing
+        exp_alerts: []
+  - interval: 30s
+    input_series:
+      - series: 'schoolbus_audit_read_record_failures_total{job="backend",instance="a"}'
+        values: '0x10 1x5 3x40'
+    alert_rule_test:
+      - eval_time: 5m30s   # 있던 카운터가 0 에서 1 로 늘었다
+        alertname: AuditReadRecordFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: backend
+            exp_annotations:
+              summary: 조회 감사 기록 저장이 실패하고 있다 — 응답은 나갔지만 누가 개인정보를 조회했는지 남지 않은 건이 있다
+
+  # 긴급 푸시 발송 실패(Ruling 937): 같은 모양이고 for 가 없는 critical 이다.
+  - interval: 30s
+    input_series:
+      - series: 'schoolbus_notification_push_emergency_failures_total{job="backend",instance="a"}'
+        values: '_x10 1x40'
+      - series: 'schoolbus_notification_push_emergency_failures_total{job="backend",instance="b"}'
+        values: '0x50'
+      - series: 'schoolbus_notification_push_emergency_failures_total{job="school-bus-load",instance="c"}'
+        values: '_x10 5x40'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: EmergencyPushFailing
+        exp_alerts: []
+      - eval_time: 6m   # 첫 실패로 시리즈가 1 에서 태어났다
+        alertname: EmergencyPushFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+            exp_annotations:
+              summary: 긴급 푸시 발송이 실패하고 있다 — 재시도하는 동안 기사·학부모에게 닿지 않았을 수 있다
+      - eval_time: 12m
+        alertname: EmergencyPushFailing
+        exp_alerts: []
+  - interval: 30s
+    input_series:
+      - series: 'schoolbus_notification_push_emergency_failures_total{job="backend",instance="a"}'
+        values: '0x10 1x5 3x40'
+    alert_rule_test:
+      - eval_time: 5m30s   # 있던 카운터가 0 에서 1 로 늘었다
+        alertname: EmergencyPushFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+            exp_annotations:
+              summary: 긴급 푸시 발송이 실패하고 있다 — 재시도하는 동안 기사·학부모에게 닿지 않았을 수 있다
+
   # 디스크: 루트(`/`)와 데이터 디스크(`/var/lib/docker/volumes` — DB·사진·지표·인증서, bootstrap-ec2.sh 0단계가 마운트)가 각각
   # 80% 를 넘어 10분 유지돼야 발화한다. 이름이 비슷한 다른 마운트 지점(`/var/lib/docker`)은 보지 않는다 — 식이 정확히 일치할 때만 본다.
   - interval: 1m
