@@ -53,11 +53,7 @@ public class RunCanceledNotificationListener {
         }
 
         NotificationMessage message = runCanceledComposer.compose(event);
-        String busNo = runRepository.findByIdAndAcademyId(event.runId(), event.academyId())
-                .map(Run::getBusId)
-                .flatMap(busId -> busRepository.findByIdAndAcademyId(busId, event.academyId()))
-                .map(Bus::getBusNo)
-                .orElse(null);
+        String busNo = busNoOf(event);
         for (AssignedManagerAccountView assignee : assignees) {
             if (assignee.accountId() == null) {
                 continue;
@@ -68,6 +64,14 @@ public class RunCanceledNotificationListener {
                     DEDUP_KEY_FORMAT.formatted(event.runId(), assignee.managerId(), event.canceledAt()),
                     null, null, busNo, event.runId()));
         }
+    }
+
+    private String busNoOf(RunCanceledEvent event) {
+        return runRepository.findByIdAndAcademyId(event.runId(), event.academyId())
+                .map(Run::getBusId)
+                .flatMap(busId -> busRepository.findByIdAndAcademyId(busId, event.academyId()))
+                .map(Bus::getBusNo)
+                .orElse(null);
     }
 
     /** 운행 배치 역할({@code manager.role})을 계정 역할({@code account.role})로 옮긴다 — 값 이름이 같아 직접 대응한다. */

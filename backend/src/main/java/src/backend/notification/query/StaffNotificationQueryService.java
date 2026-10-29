@@ -75,27 +75,33 @@ public class StaffNotificationQueryService {
         LocalDate date = ApiValues.date(request.date());
         Boolean acked = ApiValues.ackedFilter(request.acked());
 
-        OffsetDateTime from = UNBOUNDED_FROM;
-        OffsetDateTime to = UNBOUNDED_TO;
-        if (date != null) {
-            ZoneId zone = clock.getZone();
-            from = date.atStartOfDay(zone).toOffsetDateTime();
-            to = date.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
-        }
+        TimeWindow window = windowOf(date);
 
         Role recipientRole = request.recipientRole() == null ? null : ApiValues.recipientRole(request.recipientRole());
         PageParams pageParams = PageParams.of(request.page(), request.size());
         long unackedCount = notificationLogRepository.countUnackedForStaffLog(
                 academyId, NotificationType.IMPORTANT_FOR_ACK);
         if (Boolean.TRUE.equals(ApiValues.groupFilter(request.group()))) {
-            return groupedList(academyId, type, recipientRole, acked, from, to, pageParams, unackedCount);
+            return groupedList(academyId, type, recipientRole, acked, window.from(), window.to(), pageParams, unackedCount);
         }
         Page<NotificationLog> page = notificationLogRepository.searchForStaffLog(academyId, type, acked,
-                NotificationType.IMPORTANT_FOR_ACK, recipientRole, from, to,
+                NotificationType.IMPORTANT_FOR_ACK, recipientRole, window.from(), window.to(),
                 PageRequest.of(pageParams.page(), pageParams.size()));
 
         List<StaffNotificationItemResponse> items = page.getContent().stream().map(this::toItem).toList();
         return StaffNotificationListResponse.of(page, items, unackedCount);
+    }
+
+    /** 조회 구간 — 날짜를 주면 서비스 시간대 그날 하루이고, 주지 않으면 제한이 없다. */
+    private record TimeWindow(OffsetDateTime from, OffsetDateTime to) {
+    }
+
+    private TimeWindow windowOf(LocalDate date) {
+        if (date == null) {
+            return new TimeWindow(UNBOUNDED_FROM, UNBOUNDED_TO);
+        }
+        ZoneId zone = clock.getZone();
+        return new TimeWindow(date.atStartOfDay(zone).toOffsetDateTime(), date.plusDays(1).atStartOfDay(zone).toOffsetDateTime());
     }
 
     /**

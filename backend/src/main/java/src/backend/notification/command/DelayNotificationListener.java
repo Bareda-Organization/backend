@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.context.event.EventListener;
@@ -61,36 +62,52 @@ public class DelayNotificationListener {
     @EventListener
     public void appendDelayNotice(DelayRequestedEvent event) {
         DelaySubject subject = new DelaySubject(event.reason(), event.minutes(), event.message());
-        List<NotificationDraft> drafts = new ArrayList<>();
-        // 관계자 알림에만 호차를 채운다(정본 범위) — 학부모·학생 알림은 자녀 이름이 있다.
+        List<NotificationDraft> drafts = new ArrayList<>(staffDrafts(event, subject));
+        drafts.addAll(guardianDrafts(event, subject));
+        drafts.addAll(studentDrafts(event, subject));
+        notificationOutbox.appendAll(drafts);
+    }
+
+    /** 관계자 몫 — 관계자 알림에만 호차를 채운다(정본 범위). 학부모·학생 알림은 자녀 이름이 있다. */
+    private List<NotificationDraft> staffDrafts(DelayRequestedEvent event, DelaySubject subject) {
         String busNo = busNoOf(event.runId(), event.academyId());
-        for (DelayNoticeRecipient recipient : event.staffRecipients()) {
-            drafts.add(draft(event, recipient, Role.STAFF, delayComposer.compose(subject), null, busNo));
-        }
-        // 대상 자녀는 id 목록으로 한 번씩 읽는다 — 수신자마다 다시 조회하지 않는다(BR-143).
+        return event.staffRecipients().stream()
+                .map(recipient -> draft(event, recipient, Role.STAFF, delayComposer.compose(subject), null, busNo))
+                .toList();
+    }
+
+    /** 학부모 몫 — 대상 자녀는 id 목록으로 한 번씩 읽는다(수신자마다 다시 조회하지 않는다, BR-143). 학생 행이 없는 수신자는 건너뛴다. */
+    private List<NotificationDraft> guardianDrafts(DelayRequestedEvent event, DelaySubject subject) {
         Map<Long, Student> byId = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(),
                 event.guardianRecipients().stream().map(DelayNoticeRecipient::dedupTargetId).toList())
                 .stream().collect(Collectors.toMap(Student::getId, student -> student));
-        for (DelayNoticeRecipient recipient : event.guardianRecipients()) {
-            Student student = byId.get(recipient.dedupTargetId());
-            if (student == null) {
-                warnMissingStudent(event, recipient);
-                continue;
-            }
-            drafts.add(draft(event, recipient, Role.PARENT, messageFor(subject, student), student, null));
-        }
+        return event.guardianRecipients().stream()
+                .map(recipient -> recipientDraft(event, subject, recipient, Role.PARENT,
+                        byId.get(recipient.dedupTargetId())))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /** 학생 본인 몫 — 학생 행을 계정으로 한 번에 읽는다. 학생 행이 없는 수신자는 건너뛴다. */
+    private List<NotificationDraft> studentDrafts(DelayRequestedEvent event, DelaySubject subject) {
         Map<Long, Student> byAccount = studentRepository.findAllByAcademyIdAndAccountIdIn(event.academyId(),
                 event.studentRecipients().stream().map(DelayNoticeRecipient::accountId).toList())
                 .stream().collect(Collectors.toMap(Student::getAccountId, student -> student));
-        for (DelayNoticeRecipient recipient : event.studentRecipients()) {
-            Student student = byAccount.get(recipient.accountId());
-            if (student == null) {
-                warnMissingStudent(event, recipient);
-                continue;
-            }
-            drafts.add(draft(event, recipient, Role.STUDENT, messageFor(subject, student), student, null));
+        return event.studentRecipients().stream()
+                .map(recipient -> recipientDraft(event, subject, recipient, Role.STUDENT,
+                        byAccount.get(recipient.accountId())))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /** 자녀 이름을 실은 초안 하나 — 학생 행을 못 찾았으면 경고를 남기고 {@code null} 이다. */
+    private NotificationDraft recipientDraft(DelayRequestedEvent event, DelaySubject subject,
+            DelayNoticeRecipient recipient, Role role, Student student) {
+        if (student == null) {
+            warnMissingStudent(event, recipient);
+            return null;
         }
-        notificationOutbox.appendAll(drafts);
+        return draft(event, recipient, role, messageFor(subject, student), student, null);
     }
 
     /** 학부모·학생 몫 문구 — 자녀 이름을 싣는다(ATT-03, BR-077). */
