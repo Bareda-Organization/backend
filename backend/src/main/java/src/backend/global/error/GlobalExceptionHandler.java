@@ -1,28 +1,33 @@
 package src.backend.global.error;
 
-import java.util.Locale;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+
+import jakarta.servlet.http.HttpServletResponse;
 
 import src.backend.global.response.ErrorResponse;
 import src.backend.routing.map.spec.MapRouteUnavailableException;
@@ -75,17 +80,13 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * {@code @Valid} 바디 검증 실패(API_SPEC §1.11 {@code VALIDATION_FAILED}, 422) — 이 핸들러가
-     * 이 저장소 최초의 {@code @Valid} DTO 를 다루는 소비자라, 기존
-     * {@code INVALID_INPUT}(400)을 참조하는 다른 코드가 없어 사양값으로 바로 맞췄다.
+     * {@code @Valid} 바디 검증 실패와 {@code @ModelAttribute} 바인딩 실패(API_SPEC §1.11 {@code VALIDATION_FAILED}, 422). 문구는 한국어이고 위반이 여럿이면
+     * 필드명 순으로 첫 위반 하나를 싣는다({@link ValidationFailureMessage}).
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e) {
         ErrorCode code = ErrorCode.VALIDATION_FAILED;
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .findFirst()
-                .map(err -> snakeCase(err.getField()) + ": " + err.getDefaultMessage())
-                .orElse(code.getMessage());
+        String message = ValidationFailureMessage.of(e.getBindingResult()).orElse(code.getMessage());
         return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), message));
     }
 
@@ -208,12 +209,31 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMethodNotAllowed(HttpRequestMethodNotSupportedException e) {
         ErrorCode code = ErrorCode.METHOD_NOT_ALLOWED;
         log.warn("[routing] 지원하지 않는 메서드 {}", e.getMessage());
-        return ResponseEntity.status(code.getStatus()).body(ErrorResponse.of(code.name(), code.getMessage()));
+        return ResponseEntity.status(code.getStatus()).headers(e.getHeaders()).body(ErrorResponse.of(code.name(), code.getMessage()));
     }
 
-    /** 자바 필드 경로({@code newStudent.name})를 요청 본문의 키 표기({@code new_student.name}, Ruling 104)로 옮긴다. */
-    private static String snakeCase(String field) {
-        return field.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(Locale.ROOT);
+    /**
+     * 자기 HTTP 상태를 싣고 온 프레임워크 예외 — 받을 수 없는 {@code Accept}(406) · 필수 헤더 누락 같은 바인딩 오류(400) · 서버 안에서 상태를 지정해 던진
+     * {@code ResponseStatusException}. 아래 catch-all 로 떨어지면 클라이언트 실수가 {@code 500} 과 ERROR 스택으로 보이므로 상태 분류에 맞는 코드로 답한다
+     * ({@link StatusErrorCodes}). 응답은 JSON 으로 고정한다 — 406 은 요청의 {@code Accept} 가 바로 응답 형식을 못 맞춘 경우라 협상에 맡기면 같은 오류가 되풀이된다.
+     */
+    @ExceptionHandler({HttpMediaTypeNotAcceptableException.class, ServletRequestBindingException.class,
+            ResponseStatusException.class})
+    public ResponseEntity<ErrorResponse> handleStatusCarrying(Exception e) {
+        int status = e instanceof org.springframework.web.ErrorResponse carrier ? carrier.getStatusCode().value() : 500;
+        ErrorCode code = StatusErrorCodes.of(status);
+        if (code == ErrorCode.INTERNAL_ERROR) {
+            return handleUnexpected(e);
+        }
+        log.warn("[request] {} {}", e.getClass().getSimpleName(), e.getMessage());
+        return ResponseEntity.status(code.getStatus()).contentType(MediaType.APPLICATION_JSON)
+                .body(ErrorResponse.of(code.name(), code.getMessage()));
+    }
+
+    /** 응답을 받기 전에 클라이언트가 끊은 요청 — 쓸 곳이 없으므로 본문을 쓰지 않고, 서버 결함이 아니라 ERROR 로 남기지 않는다. */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleClientAbort(AsyncRequestNotUsableException e, HttpServletResponse response) {
+        log.debug("[client-abort] {}", e.getMessage());
     }
 
     /** 클라이언트에겐 상세를 감추되, 서버 로그엔 스택트레이스를 남겨야 원인 추적이 가능하다. */

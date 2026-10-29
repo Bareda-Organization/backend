@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -90,6 +91,8 @@ public class SecurityConfig {
                         // (nginx 가 외부의 /actuator 를 404 로 막고, Prometheus 는 compose 내부망에서만 닿는다).
                         .requestMatchers("/actuator/prometheus").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+                        // 컨테이너 단계 오류(잘못된 요청 · 방화벽 거절)가 넘어오는 경로 — 인증을 요구하면 원래 오류가 401 로 바뀐다. 본문은 ContainerErrorController 가 쓴다.
+                        .requestMatchers("/error").permitAll()
                         // API 테스트용 Swagger UI(springdoc) — 문서·UI 자체는 공개, 보호 API 호출은 Authorize 로 넣은 토큰이 검증
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
@@ -142,8 +145,8 @@ public class SecurityConfig {
         // `credentials: include` 요청을 통째로 거부해 웹 로그인 자체가 성립하지 않는다.
         // 허용 출처가 `*` 가 아니라 명시 목록이라 이 조합이 성립한다.
         configuration.setAllowCredentials(true);
-        // 브라우저는 노출 목록에 없는 응답 헤더를 스크립트에 숨긴다 — 웹이 요청 추적 식별자(§1.3)를 읽게 한다
-        configuration.setExposedHeaders(List.of(RequestIdFilter.HEADER));
+        // 브라우저는 노출 목록에 없는 응답 헤더를 스크립트에 숨긴다 — 웹이 요청 추적 식별자와 503 의 재시도 대기(§1.3)를 읽게 한다
+        configuration.setExposedHeaders(List.of(RequestIdFilter.HEADER, HttpHeaders.RETRY_AFTER));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);
@@ -174,7 +177,7 @@ public class SecurityConfig {
      * 이 메서드가 인스턴스 상태를 안 쓰기 때문에 가능한 것이고, 옆의 다른 @Bean 들은
      * {@code jwtAuthenticationFilter}·{@code allowedOrigins} 를 쓰므로 static 이 될 수 없다.
      *
-     * <p>부여표는 {@code RolePermissions.HIERARCHY} 를 쓴다(권한 31종, FEATURE_SPEC §6.2, Ruling 71 · Ruling 76).
+     * <p>부여표는 {@code RolePermissions.HIERARCHY} 를 쓴다(권한 29종, FEATURE_SPEC §6.2, Ruling 71 · Ruling 76).
      */
     @Bean
     static RoleHierarchy roleHierarchy() {

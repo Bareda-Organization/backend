@@ -22,8 +22,8 @@ public class BusinessException extends RuntimeException {
     }
 
     /**
-     * 코드마다 구조가 다른 부가 정보(§1.10 {@code error.details})를 함께 싣는다 — 이 저장소 최초
-     * 소비처는 {@code INVALID_CREDENTIALS.details.remaining_attempts}(API_SPEC §2.5)다.
+     * 코드마다 구조가 다른 부가 정보(§1.10 {@code error.details})를 함께 싣는다 — 예:
+     * {@code INVALID_CREDENTIALS.details.remaining_attempts}(API_SPEC §2.5).
      */
     public BusinessException(ErrorCode errorCode, Object details) {
         super(errorCode.getMessage());

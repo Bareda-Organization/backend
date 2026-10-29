@@ -214,7 +214,7 @@ public enum ErrorCode {
     // 틀린 경우라 전용 코드를 쓴다. 역할은 맞는데 이 회차에 배치되지 않은 경우는 일반
     // FORBIDDEN 이다(배치 여부를 응답에서 드러내지 않는다).
     DRIVER_ONLY(HttpStatus.FORBIDDEN, "기사만 처리할 수 있습니다"),
-    // 출발 시각 ±10분 창 밖의 운행 시작 시도(API_SPEC §4.4). ⚠ Ruling 202 — 이 값은 문서의 ±3분 기준을 정정한 것이다. 코드 상수이며 application.yml·DB 로
+    // 출발 시각 ±10분 창 밖의 운행 시작 시도(API_SPEC §4.4, Ruling 202). 코드 상수이며 application.yml·DB 로
     // 바꾸지 않는다(창을 여닫는 기준이 정책이 아니라 안전 여유이기 때문).
     START_WINDOW_CLOSED(HttpStatus.FORBIDDEN, "지금은 운행을 시작할 수 없는 시간입니다"),
     // 이미 moving·finished 인 회차의 재시작 시도(API_SPEC §4.4). 403 이 아니라 409 인 것은 막는
@@ -241,7 +241,6 @@ public enum ErrorCode {
     // 권한 카탈로그의 hasAuthority(...) 를 실제 게이트로 쓰면 Spring Security 의 AccessDeniedException
     // 경로가 전부 일반 FORBIDDEN 으로만 응답해 이 도메인 코드에 닿지 못한다.
     ESCORT_ONLY(HttpStatus.FORBIDDEN, "동승자만 처리할 수 있습니다"),
-    // 회차가 운행 중(MOVING)이 아닐 때의 승하차 처리·되돌리기 시도(API_SPEC §4.6·§4.7).
     // 미존재 탑승자, 또는 absent 로 명단에서 이미 제외된 탑승자 지정(API_SPEC §4.6·§4.7) — 둘을
     // 응답에서 구별하지 않는다(WAYPOINT_NOT_FOUND 와 같은 형태).
     RIDER_NOT_FOUND(HttpStatus.NOT_FOUND, "탑승자를 찾을 수 없습니다"),
@@ -316,7 +315,7 @@ public enum ErrorCode {
     // 같은 학생을 다시 이동 신청할 때 — 이미 처리 대기 중인 이동 건이 있으면 어느 회차가 최종
     // 목적지인지 판정할 수 없어 새 신청을 막는다.
     TRANSFER_ALREADY_STAGED(HttpStatus.CONFLICT, "이미 처리 대기 중인 이동 요청이 있습니다"),
-    // 도착 회차 명단(예정 명단 포함)에 그 학생이 이미 있을 때(Ruling 392) — 옮길 것이 없는데 201 이 나가고 impact 가 +1 로 부풀던 결함.
+    // 도착 회차 명단(예정 명단 포함)에 그 학생이 이미 있을 때(Ruling 392) — 옮길 것이 없으므로 201 로 받지 않고 409 로 거절한다.
     STUDENT_ALREADY_IN_RUN(HttpStatus.CONFLICT, "학생이 이미 도착 회차 명단에 있습니다"),
     // 같은 학생을 같은 회차에 다시 강제 추가할 때(§5.7, Ruling 378) — 대기 행은 회차당 학생 1건이라 두 번째는 UNIQUE 위반이
     // 되는데, 그 위반을 옮기지 않으면 500 으로 샌다. 두 번째 요청의 승하차지를 조용히 버리지 않으려 멱등 201 이 아니라 409 다.
@@ -327,7 +326,7 @@ public enum ErrorCode {
     // ── 라우팅 실패 ─────────────────────────────────────────────────────────────
     // 둘 다 **클라이언트의 실수**이지 서버 고장이 아니다. 없으면 catch-all 로 떨어져 500 이 나가고,
     // 그 응답은 "주소를 잘못 불렀다" 와 "서버가 죽었다" 를 구별하지 못하게 만든다 — 앱·웹이
-    // 재시도할지 고칠지 판단할 근거가 사라지고 운영 알림도 오탐으로 는다(실측).
+    // 재시도할지 고칠지 판단할 근거가 사라지고 운영 알림도 오탐으로 는다.
     ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 주소를 찾을 수 없습니다"),
     // 경로는 맞고 메서드만 틀린 경우 — 404 와 가르지 않으면 어느 쪽을 고칠지 알 수 없다.
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다"),
