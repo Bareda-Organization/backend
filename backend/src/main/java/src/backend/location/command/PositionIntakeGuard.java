@@ -18,13 +18,11 @@ import src.backend.location.infrastructure.RunPositionStore;
  * {@link #MIN_INTERVAL} 이 지나기 전에 온 위치는 버린다. 단말의 재전송·중복 전달이 이력 행과 방송을 부풀리지 않게 한다.
  *
  * <p>마지막으로 받아들인 위치는 Redis 최신 좌표 키에서 읽는다 — 새 컬럼이나 조회를 만들지 않는다. Redis 가 응답하지 않거나 키가 없으면(만료
- * 포함) 버리지 않고 받아들인다. 버린 위치는 {@value #DROPPED_METRIC} 에 {@code reason} 별로 센다.
+ * 포함) 버리지 않고 받아들인다. 버린 위치는 {@value RunPositionStore#DROPPED_METRIC} 에 {@code reason} 별로 센다.
  */
 @Component
 @RequiredArgsConstructor
 public class PositionIntakeGuard {
-
-    private static final String DROPPED_METRIC = "schoolbus.location.position.dropped";
 
     private static final String NOT_NEWER = "not_newer";
 
@@ -55,7 +53,7 @@ public class PositionIntakeGuard {
     }
 
     private boolean count(String reason) {
-        meterRegistry.counter(DROPPED_METRIC, "reason", reason).increment();
+        meterRegistry.counter(RunPositionStore.DROPPED_METRIC, "reason", reason).increment();
         return true;
     }
 
@@ -63,7 +61,7 @@ public class PositionIntakeGuard {
     @PostConstruct
     void registerMetrics() {
         for (String reason : new String[] { NOT_NEWER, TOO_FREQUENT }) {
-            meterRegistry.counter(DROPPED_METRIC, "reason", reason);
+            meterRegistry.counter(RunPositionStore.DROPPED_METRIC, "reason", reason);
         }
     }
 }

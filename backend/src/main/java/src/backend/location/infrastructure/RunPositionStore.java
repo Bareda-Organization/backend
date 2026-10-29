@@ -81,6 +81,12 @@ public class RunPositionStore {
     /** 단말 시계 오차 허용(5분, BR-243)을 덮는 상한 여유 — 이보다 미래의 기록 시각은 수신 시각으로 바뀌어 저장된다. */
     private static final Duration FALLBACK_LOOKAHEAD = Duration.ofMinutes(10);
 
+    /** 받아들이지 못한 위치를 이유별로 세는 지표 이름 — 중복·과다 수신 차단({@code PositionIntakeGuard})도 같은 이름에 다른 이유로 센다. */
+    public static final String DROPPED_METRIC = "schoolbus.location.position.dropped";
+
+    /** 비교 쓰기가 상한만큼 밀려 쓰지 못한 위치의 {@code reason} 값. */
+    private static final String WRITE_CONTENDED = "write_contended";
+
     /** 쓰기 경합으로 비교 쓰기가 밀릴 때 읽기부터 다시 하는 상한 — 이 안에서 못 쓰면 더 새로운 값이 계속 들어오는 것이라 쓰지 않는다. */
     private static final int WRITE_ATTEMPTS = 5;
 
@@ -104,6 +110,10 @@ public class RunPositionStore {
     private final MeterRegistry meterRegistry;
 
     private final Clock clock;
+
+    /** 경합이 이어지면 송신마다 같은 일이 난다 — 분당 한 번만 남긴다. */
+    private final RateLimitedWarn writeContention = RateLimitedWarn.perMinute(
+            org.slf4j.LoggerFactory.getLogger(RunPositionStore.class));
 
     /** Redis 가 죽으면 폴링마다 같은 실패가 난다 — 분당 한 번만 스택과 함께 남긴다. */
     private final RateLimitedWarn redisReadFailure = RateLimitedWarn.perMinute(
@@ -156,6 +166,9 @@ public class RunPositionStore {
                 return true;
             }
         }
+        meterRegistry.counter(DROPPED_METRIC, "reason", WRITE_CONTENDED).increment();
+        writeContention.warn(null, "[location] Redis 최신 좌표 비교 쓰기가 {}번 밀려 이 위치를 쓰지 않는다(방송도 건너뛴다). runId={}",
+                WRITE_ATTEMPTS, runId);
         return false;
     }
 
@@ -282,6 +295,8 @@ public class RunPositionStore {
     void registerMetrics() {
         Counter.builder(FALLBACK_METRIC).description("Redis 장애로 최신 좌표를 DB 이력 최신 행으로 대체 조회한 횟수")
                 .register(meterRegistry);
+        Counter.builder(DROPPED_METRIC).tag("reason", WRITE_CONTENDED)
+                .description("받아들이지 못한 위치 수 — 이유별(중복·과다 수신, 비교 쓰기 경합)").register(meterRegistry);
         Counter.builder(MISS_FALLBACK_METRIC).description("Redis 는 살아 있는데 운행 중 회차의 키가 비어 DB 최신 행으로 채운 읽기 횟수")
                 .register(meterRegistry);
     }
