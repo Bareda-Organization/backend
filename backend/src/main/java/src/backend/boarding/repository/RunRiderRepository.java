@@ -1,6 +1,7 @@
 package src.backend.boarding.repository;
 
 import java.util.Collection;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,7 +49,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             WHERE rr.id IN :ids
               AND r.academyId = :academyId
             """)
-    List<RunRider> findAllByIdInAndAcademyId(@Param("ids") java.util.Collection<Long> ids,
+    List<RunRider> findAllByIdInAndAcademyId(@Param("ids") Collection<Long> ids,
             @Param("academyId") Long academyId);
 
     /**
@@ -80,7 +81,7 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
             WHERE rr.runId IN :runIds
               AND r.academyId = :academyId
             """)
-    List<RunRider> findAllByRunIdInAndAcademyId(@Param("runIds") java.util.Collection<Long> runIds,
+    List<RunRider> findAllByRunIdInAndAcademyId(@Param("runIds") Collection<Long> runIds,
             @Param("academyId") Long academyId);
 
     /**

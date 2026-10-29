@@ -155,9 +155,10 @@ public class BoardingCommandService {
         // 출발 판정과 이 기록이 같은 순간이어도 알림이 0건·2건이 되지 않도록 run_stop 잠금을 먼저 쥐고 출발 여부를 읽는다(Ruling 878).
         boolean stopDeparted = isStopDepartedLocked(run.getId(), rider.getStopId());
         applyTransition(rider, run.getDirection(), fromStatus, targetStatus, now);
-        riderStatusHistoryRepository.save(RiderStatusHistory.of(new RiderStatusHistory.Context(rider.getId(),
-                fromStatus, targetStatus, false, null, verifyMethod, request.clientKey(), request.occurredAt(),
-                ActorType.ESCORT, now, requester.accountId())));
+        RiderStatusHistory history = riderStatusHistoryRepository
+                .save(RiderStatusHistory.of(new RiderStatusHistory.Context(rider.getId(), fromStatus, targetStatus,
+                        false, null, verifyMethod, request.clientKey(), request.occurredAt(), ActorType.ESCORT, now,
+                        requester.accountId())));
         if (stopDeparted) {
             eventPublisher.publishEvent(new RiderRecordedAfterDepartureEvent(run.getId(), run.getAcademyId(),
                     run.getDirection(), rider.getStudentId(), rider.getId(), targetStatus, now));
@@ -165,6 +166,7 @@ public class BoardingCommandService {
 
         if (targetStatus == RiderStatus.NO_SHOW) {
             RiderStatusUpdateResponse response = handleNoShow(run, rider, now);
+            history.recordStopSkipped(response.stopSkipped());
             // 하원 보류 회차 — 마지막 탑승자가 미승차로 빠져도 boarded 0명이다(BR-031, C-15).
             notifyIfRunJustEnded(run, now);
             return response;
@@ -376,7 +378,7 @@ public class BoardingCommandService {
 
     /**
      * 재전송 응답 재구성 — 새로 아무것도 만들지 않고 최초 처리 결과를 그대로 옮긴다.
-     * {@code no_show_case} 는 최초 처리 때 만들어진 케이스를 다시 찾아 싣고, {@code stop_skipped} 는 그 승하차지의 건너뜀 표시를 다시 읽어 싣는다.
+     * {@code no_show_case} 는 최초 처리 때 만들어진 케이스를 다시 찾아 싣고, {@code stop_skipped} 는 이력 행에 남긴 최초 응답 값을 싣는다.
      */
     private RiderStatusUpdateResponse replayResponse(RiderStatusHistory history, Long runId, Long riderId,
             String status) {
@@ -385,7 +387,7 @@ public class BoardingCommandService {
         if (toStatus != RiderStatus.NO_SHOW) {
             return RiderStatusUpdateResponse.of(rider.getId(), statusName(toStatus), history.getChangedAt(), false);
         }
-        boolean stopSkipped = stopSkipJudge.isSkipped(runId, rider.getStopId());
+        boolean stopSkipped = history.isStopSkipped();
         return noShowCaseAccess.find(rider.getId())
                 .map(noShowCase -> RiderStatusUpdateResponse.withNoShowCase(rider.getId(), history.getChangedAt(),
                         new RiderStatusUpdateResponse.NoShowCaseSummary(noShowCase.caseId(), noShowCase.startedAt(),

@@ -662,6 +662,8 @@ CREATE TABLE rider_status_history (
     changed_at   timestamptz NOT NULL,
     actor_type   varchar(10) NOT NULL,
     changed_by   bigint,
+    -- 미승차(no_show) 처리의 최초 응답 stop_skipped — 같은 client_key 재전송이 정차지 상태가 바뀐 뒤에도 최초 응답을 돌려준다. 다른 전이는 false.
+    stop_skipped boolean     NOT NULL DEFAULT false,
     CONSTRAINT uk_rider_status_history_client_key UNIQUE (client_key),
     -- 상태 값은 run_rider.status 와 같은 5종이다 — 잘못된 값은 저장은 되고 이력을 읽는 쪽이 Enum.valueOf 에서 실패한다(R46 A-5).
     CONSTRAINT ck_rider_status_history_from_status CHECK (from_status IN ('waiting', 'boarded', 'alighted', 'absent', 'no_show')),

@@ -72,6 +72,10 @@ public class RiderStatusHistory {
     @Column(name = "changed_by")
     private Long changedBy;
 
+    /** 미승차 처리에서 그 정차지가 건너뜀이 됐는지의 최초 응답 — 같은 {@code client_key} 재전송이 이 값을 그대로 돌려준다. */
+    @Column(name = "stop_skipped", nullable = false)
+    private boolean stopSkipped;
+
     private RiderStatusHistory(Long runRiderId, RiderStatus fromStatus, RiderStatus toStatus,
             ActorType actorType, OffsetDateTime changedAt) {
         this.runRiderId = runRiderId;
@@ -116,6 +120,11 @@ public class RiderStatusHistory {
      */
     public static RiderStatusHistory of(Context context) {
         return new RiderStatusHistory(context);
+    }
+
+    /** 미승차 처리가 정한 {@code stop_skipped} 를 이 이력 행에 남긴다 — 처리와 같은 트랜잭션에서 한 번 부른다. */
+    public void recordStopSkipped(boolean stopSkipped) {
+        this.stopSkipped = stopSkipped;
     }
 
     /** {@link #of} 의 파라미터 객체 — 승하차 처리는 {@code reason} 을, 되돌리기는 {@code verifyMethod}·{@code clientKey}·{@code occurredAt} 을 null 로 넘긴다. */
