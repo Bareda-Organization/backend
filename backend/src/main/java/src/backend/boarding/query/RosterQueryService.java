@@ -1,12 +1,8 @@
 package src.backend.boarding.query;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -14,47 +10,19 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.entity.Academy;
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.audit.service.AuditRecorder;
 import src.backend.boarding.dto.ManagerRosterResponse;
-import src.backend.boarding.dto.ManagerRosterResponse.Counts;
-import src.backend.boarding.dto.ManagerRosterResponse.NoShowCountdown;
 import src.backend.boarding.dto.ManagerRosterResponse.RosterStudent;
 import src.backend.boarding.dto.ManagerRosterResponse.StopGroup;
 import src.backend.boarding.dto.StaffRosterItemResponse;
-import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.bus.entity.Bus;
-import src.backend.bus.repository.BusRepository;
-import src.backend.exception.dto.NoShowContactView;
-import src.backend.exception.entity.NoShowCase;
-import src.backend.exception.entity.NoShowContact;
-import src.backend.exception.repository.NoShowCaseRepository;
-import src.backend.exception.repository.NoShowContactRepository;
-import src.backend.global.common.enums.ChangeType;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
 import src.backend.manager.access.ManagerRunAccess;
-import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.RunStop;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
-import src.backend.run.entity.RunTransfer;
-import src.backend.run.roster.ProjectedRoster;
-import src.backend.run.roster.ProjectedRosterReader;
-import src.backend.student.entity.Stop;
-import src.backend.student.entity.Student;
-import src.backend.student.repository.GuardianPhone;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * 회차 명단 조회 — 매니저 앱(§4.2)과 관계자 웹(§5.4)이 <b>같은 원본</b>({@code run_rider} ·
@@ -63,7 +31,8 @@ import src.backend.student.repository.StudentRepository;
  * <p>두 메서드가 대칭으로 갈리는 지점이 <b>둘</b>이다 — {@code guardian_phone}
  * 마스킹 여부({@link GuardianPhoneMasker})와 {@code absent} 학생의 노출 여부(매니저 앱은 행 제외
  * · 관계자 웹은 빨강 표시로 존치). 한쪽만 고치면 어느 화면이 깨졌는지 코드만 보고는 알 수 없어
- * 이 클래스 하나에 함께 둔다.
+ * 이 클래스 하나에 함께 둔다. 응답 조립은 {@link ManagerRosterAssembler} · {@link StaffRosterAssembler},
+ * 저장소 조회는 {@link RosterDataReader} 가 맡고 이 클래스는 읽기 트랜잭션 경계와 감사 기록 순서를 쥔다.
  *
  * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 감사 기록({@code AuditRecorder}, {@code REQUIRES_NEW})이 읽기
  * 트랜잭션 안에서 돌면 요청 하나가 DB 연결을 둘 쥐고, 동시 요청이 풀 크기에 닿으면 서로의 두 번째 연결을 기다려
@@ -74,33 +43,13 @@ import src.backend.student.repository.StudentRepository;
 @RequiredArgsConstructor
 public class RosterQueryService {
 
-    private final ManagerRunAccess managerRunAccess;
-
     private final RunRepository runRepository;
-
-    private final BusRepository busRepository;
-
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RunStopRepository runStopRepository;
-
-    private final RunRiderRepository runRiderRepository;
-
-    private final StopRepository stopRepository;
-
-    private final AcademyRepository academyRepository;
-
-    private final StudentRepository studentRepository;
-
-    private final GuardianStudentRepository guardianStudentRepository;
 
     private final AuditRecorder auditRecorder;
 
-    private final NoShowCaseRepository noShowCaseRepository;
+    private final ManagerRosterAssembler managerRosterAssembler;
 
-    private final NoShowContactRepository noShowContactRepository;
-
-    private final ProjectedRosterReader projectedRosterReader;
+    private final StaffRosterAssembler staffRosterAssembler;
 
     private final PlatformTransactionManager transactionManager;
 
@@ -113,40 +62,9 @@ public class RosterQueryService {
      * 접근이 아니라 자원 상태를 묻는 질문이라 별도 계층에 둔다.
      */
     public ManagerRosterResponse managerRoster(AuthUser requester, Long runId) {
-        ManagerRosterResponse response = readOnly(() -> assembleManagerRoster(requester, runId));
+        ManagerRosterResponse response = readOnly(() -> managerRosterAssembler.assemble(requester, runId));
         recordManagerRosterAudit(requester, runId, response.stops());
         return response;
-    }
-
-    /** 매니저 명단 조립 — 읽기 트랜잭션 하나 안에서 돈다(감사 기록은 이 뒤에 호출부가 한다). */
-    private ManagerRosterResponse assembleManagerRoster(AuthUser requester, Long runId) {
-        ManagerRunAccess.RunAssignment assigned = managerRunAccess.requireAssignedRun(requester, runId);
-        Run run = assigned.run();
-        if (run.getStatus() == RunStatus.IDLE) {
-            throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
-        }
-        String busNo = busNoOf(requester, run);
-        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), requester.academyId());
-        Map<Long, Student> studentsById = studentsOf(requester.academyId(), riders);
-        Map<Long, String> maskedPhonesById = maskedPhonesOf(requester.academyId(), studentsById.keySet());
-        List<RunStop> boardingStops = boardingStopsOf(requester, run);
-        Map<Long, Stop> stopsById = stopRepository
-                .findAllByAcademyIdAndIdIn(requester.academyId(),
-                        boardingStops.stream().map(RunStop::getStopId).filter(id -> id != null).toList())
-                .stream()
-                .collect(Collectors.toMap(Stop::getId, stop -> stop));
-        Academy academy = academyRepository.findById(run.getAcademyId()).orElse(null);
-        Map<Long, List<RunRider>> ridersByStopId = riders.stream().collect(Collectors.groupingBy(RunRider::getStopId));
-        Map<Long, NoShowCountdown> countdownsByRiderId = countdownsOf(run.getId(), requester.academyId());
-        List<StopGroup> stops = boardingStops.stream()
-                .map(runStop -> runStop.isDestination()
-                        ? destinationGroupOf(runStop, academy)
-                        : toStopGroup(runStop, stopsById.get(runStop.getStopId()),
-                                ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById,
-                                maskedPhonesById, countdownsByRiderId))
-                .toList();
-        return new ManagerRosterResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
-                countsOf(riders), stops);
     }
 
     /**
@@ -197,8 +115,8 @@ public class RosterQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         AcademyScope.assertAccessible(requester, run.getAcademyId());
         List<StaffRosterItemResponse> items = run.getStatus() == RunStatus.IDLE
-                ? plannedStaffItems(requester, run)
-                : confirmedStaffItems(requester, run);
+                ? staffRosterAssembler.plannedItems(run)
+                : staffRosterAssembler.confirmedItems(run);
         return new StaffRoster(run, items);
     }
 
@@ -210,72 +128,6 @@ public class RosterQueryService {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         template.setReadOnly(true);
         return template.execute(status -> read.get());
-    }
-
-    /** 확정 뒤 회차의 명단 — {@code run_rider} 원본 그대로다. */
-    private List<StaffRosterItemResponse> confirmedStaffItems(AuthUser requester, Run run) {
-        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId());
-        Map<Long, Student> studentsById = studentsOf(run.getAcademyId(), riders);
-        Map<Long, String> rawPhonesById = rawPhonesOf(run.getAcademyId(), studentsById.keySet());
-        List<Long> stopIds = riders.stream().map(RunRider::getStopId).distinct().toList();
-        Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(run.getAcademyId(), stopIds).stream()
-                .collect(Collectors.toMap(Stop::getId, stop -> stop));
-        Map<Long, RunStop> runStopsByStopId = runStopsByStopId(run);
-        return riders.stream()
-                .map(rider -> toStaffItem(rider, studentsById.get(rider.getStudentId()), stopsById.get(rider.getStopId()),
-                        runStopsByStopId.get(rider.getStopId()), rawPhonesById.get(rider.getStudentId())))
-                .toList();
-    }
-
-    /**
-     * 확정 노선의 현재 버전에서 승하차지 id → 정차 항목(run_stop)을 찾는 표 — 관계자 명단 행의 {@code stop_id}·{@code stop_seq}
-     * 출처다(§5.4, Ruling 811). 학원은 요청자가 아니라 회차 소속이다(메인 관리자 토큰은 학원 id 가 없다).
-     */
-    private Map<Long, RunStop> runStopsByStopId(Run run) {
-        Long currentVersionId = confirmedRouteRepository.findById(run.getId())
-                .map(ConfirmedRoute::getCurrentVersionId)
-                .orElse(null);
-        if (currentVersionId == null) {
-            return Map.of();
-        }
-        return runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId, run.getAcademyId())
-                .stream()
-                .filter(runStop -> runStop.getStopId() != null)
-                .collect(Collectors.toMap(RunStop::getStopId, runStop -> runStop, (first, duplicate) -> first));
-    }
-
-    /**
-     * 확정 전(idle) 회차의 예정 명단 — {@code run_rider} 는 확정이 채우므로 아직 비어 있다. 확정 배치와
-     * §5.8 이동 판정이 쓰는 {@link ProjectedRosterReader} 규칙을 그대로 읽는다(요일별 주소 − 탑승 OFF +
-     * 강제 추가 − 출발 이동 + 도착 이동) — 명단 표시용 계산을 따로 두면 화면에 보이는 학생과 이동 판정이
-     * 어긋난다. 탑승 OFF·출발 이동으로 빠진 학생은 넣지 않고, 행은 {@code status=waiting} 이다.
-     *
-     * <p>{@code change} 는 확정이 붙일 값과 같다(Ruling 370) — 확정({@code RunRiderPersistence#ridersOf})이
-     * {@code added} 를 붙이는 집합({@link ProjectedRoster#addedStudentIds()}: 강제 추가·도착 이동)이면
-     * {@code added}, 아니면 없다. {@code transfer_id} 는 그중 도착 이동 대기 행에만 실린다(§5.8.1 취소용).
-     */
-    private List<StaffRosterItemResponse> plannedStaffItems(AuthUser requester, Run run) {
-        ProjectedRoster planned = projectedRosterReader.read(run);
-        Map<Long, Student> studentsById = studentRepository
-                .findAllByAcademyIdAndIdIn(run.getAcademyId(), planned.studentIds()).stream()
-                .collect(Collectors.toMap(Student::getId, student -> student));
-        Map<Long, String> rawPhonesById = rawPhonesOf(run.getAcademyId(), studentsById.keySet());
-        Map<Long, Stop> stopsById = stopRepository
-                .findAllByAcademyIdAndIdIn(run.getAcademyId(), planned.studentStops().values().stream().distinct().toList())
-                .stream().collect(Collectors.toMap(Stop::getId, stop -> stop));
-        Map<Long, Long> transferIdsByStudent = planned.incomingTransfers().stream()
-                .collect(Collectors.toMap(RunTransfer::getStudentId, RunTransfer::getId, (first, duplicate) -> first));
-        return planned.studentIds().stream()
-                .filter(studentsById::containsKey)
-                .map(studentId -> {
-                    Student student = studentsById.get(studentId);
-                    Stop stop = stopsById.get(planned.studentStops().get(studentId));
-                    return new StaffRosterItemResponse(studentId, student.getName(), student.getClassName(),
-                            stop == null ? null : stop.getName(), null, null, rawPhonesById.get(studentId),
-                            planned.addedStudentIds().contains(studentId) ? lower(ChangeType.ADDED.name()) : null,
-                            lower(RiderStatus.WAITING.name()), student.getNote(), transferIdsByStudent.get(studentId));
-                })
-                .toList();
     }
 
     /**
@@ -299,123 +151,5 @@ public class RosterQueryService {
         }
         auditRecorder.recordDataAccessRead(run.getAcademyId(), requester.accountId(), "run_roster", run.getId(),
                 Map.of("student_ids", studentIds, "fields", List.of("guardian_phone", "note")));
-    }
-
-    private StopGroup toStopGroup(RunStop runStop, Stop stopInfo, List<RunRider> ridersAtStop,
-            Map<Long, Student> studentsById, Map<Long, String> maskedPhonesById,
-            Map<Long, NoShowCountdown> countdownsByRiderId) {
-        List<RosterStudent> students = ridersAtStop.stream()
-                // absent 는 개인 행을 빼되, 버스 간 이동으로 빠진 removed 행은 빨강으로 보인다(RTE-04 · §4.2)
-                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT || rider.getChange() == ChangeType.REMOVED)
-                .map(rider -> toRosterStudent(rider, studentsById.get(rider.getStudentId()),
-                        maskedPhonesById.get(rider.getStudentId()), countdownsByRiderId.get(rider.getId())))
-                .toList();
-        String name = stopInfo == null ? null : stopInfo.getName();
-        String address = stopInfo == null ? null : stopInfo.getAddress();
-        return new StopGroup(String.valueOf(runStop.getId()), runStop.getSeq(), name, address,
-                runStop.getChange() == null ? null : lower(runStop.getChange().name()), runStop.getSkipNotice(),
-                runStop.getArrivedAt(), false, students);
-    }
-
-    /** 등원 회차의 학원 항목(Ruling 327) — 탈 학생이 없고 이름·주소는 학원 것이다. */
-    private StopGroup destinationGroupOf(RunStop runStop, Academy academy) {
-        return new StopGroup(String.valueOf(runStop.getId()), runStop.getSeq(),
-                academy == null ? null : academy.getName(), academy == null ? null : academy.getAddress(), null, null,
-                runStop.getArrivedAt(), true, List.of());
-    }
-
-    /** {@code countdown} 은 {@code no_show} 학생에게만 싣는다 — 되돌려 종결된 케이스는 조회에서 이미 빠진다. */
-    private RosterStudent toRosterStudent(RunRider rider, Student student, String maskedPhone,
-            NoShowCountdown countdown) {
-        return new RosterStudent(String.valueOf(rider.getId()), String.valueOf(rider.getStudentId()),
-                student.getName(), student.getPhotoUrl(), student.getClassName(), maskedPhone, student.getNote(),
-                student.isCanGoAlone(), lower(rider.getStatus().name()),
-                rider.getChange() == null ? null : lower(rider.getChange().name()),
-                rider.getStatus() == RiderStatus.NO_SHOW ? countdown : null);
-    }
-
-    private StaffRosterItemResponse toStaffItem(RunRider rider, Student student, Stop stop, RunStop runStop,
-            String rawPhone) {
-        return new StaffRosterItemResponse(rider.getStudentId(), student.getName(), student.getClassName(),
-                stop == null ? null : stop.getName(), runStop == null ? null : runStop.getId(),
-                runStop == null ? null : runStop.getSeq(), rawPhone,
-                rider.getChange() == null ? null : lower(rider.getChange().name()), lower(rider.getStatus().name()),
-                student.getNote(), null);
-    }
-
-    /** 열린 미승차 케이스를 탑승자별 카운트다운으로 — 연락 이력은 케이스 전체를 쿼리 한 번으로 읽어 시각순으로 붙인다(Ruling 823). */
-    private Map<Long, NoShowCountdown> countdownsOf(Long runId, Long academyId) {
-        List<NoShowCase> openCases = noShowCaseRepository.findOpenByRunIdAndAcademyId(runId, academyId);
-        Map<Long, List<NoShowContactView>> contactsByCaseId = openCases.isEmpty() ? Map.of()
-                : noShowContactRepository.findAllByNoShowCaseIdInOrderByAttemptedAtAscIdAsc(
-                        openCases.stream().map(NoShowCase::getId).toList()).stream()
-                        .collect(Collectors.groupingBy(NoShowContact::getNoShowCaseId,
-                                Collectors.mapping(NoShowContactView::from, Collectors.toList())));
-        return openCases.stream().collect(Collectors.toMap(NoShowCase::getRunRiderId,
-                noShowCase -> new NoShowCountdown(String.valueOf(noShowCase.getId()), noShowCase.getStartedAt(),
-                        noShowCase.getExpiresAt(), contactsByCaseId.getOrDefault(noShowCase.getId(), List.of()))));
-    }
-
-    private Counts countsOf(List<RunRider> riders) {
-        long boarded = riders.stream().filter(rider -> rider.getStatus() == RiderStatus.BOARDED).count();
-        long waiting = riders.stream().filter(rider -> rider.getStatus() == RiderStatus.WAITING).count();
-        long noShow = riders.stream().filter(rider -> rider.getStatus() == RiderStatus.NO_SHOW).count();
-        // 다른 버스로 옮긴 학생(removed)은 미등원이 아니다
-        long absentN = riders.stream()
-                .filter(rider -> rider.getStatus() == RiderStatus.ABSENT && rider.getChange() != ChangeType.REMOVED)
-                .count();
-        return new Counts(boarded, waiting, noShow, absentN);
-    }
-
-    /**
-     * 확정 노선의 정차 항목 중 <b>학생 승하차지</b>와 등원 <b>학원 항목</b>을 순번대로 고른다 — 강제
-     * 경유지(RTE-10)는 도착 처리 대상이 아니라 뺀다. 학원 항목을 빼면 앱에 등원 종료 수단이 없다(Ruling 327).
-     */
-    private List<RunStop> boardingStopsOf(AuthUser requester, Run run) {
-        Long currentVersionId = confirmedRouteRepository.findById(run.getId())
-                .map(ConfirmedRoute::getCurrentVersionId)
-                .orElse(null);
-        if (currentVersionId == null) {
-            return List.of();
-        }
-        List<RunStop> runStops = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId,
-                requester.academyId());
-        return runStops.stream().filter(stop -> stop.getStopId() != null || stop.isDestination()).toList();
-    }
-
-    private Map<Long, Student> studentsOf(Long academyId, List<RunRider> riders) {
-        List<Long> studentIds = riders.stream().map(RunRider::getStudentId).distinct().toList();
-        return studentRepository.findAllByAcademyIdAndIdIn(academyId, studentIds).stream()
-                .collect(Collectors.toMap(Student::getId, student -> student));
-    }
-
-    private Map<Long, String> maskedPhonesOf(Long academyId, Set<Long> studentIds) {
-        return phonesOf(academyId, studentIds).entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> GuardianPhoneMasker.mask(entry.getValue())));
-    }
-
-    private Map<Long, String> rawPhonesOf(Long academyId, Set<Long> studentIds) {
-        return phonesOf(academyId, studentIds);
-    }
-
-    /** 학생 1명에 보호자가 여럿이면 조회가 이미 고정한 정렬의 <b>첫 값</b>만 남긴다(원본과 같은 근거). */
-    private Map<Long, String> phonesOf(Long academyId, Set<Long> studentIds) {
-        List<GuardianPhone> phones = guardianStudentRepository.findGuardianPhonesByAcademyId(academyId,
-                studentIds.stream().toList());
-        Map<Long, String> result = new LinkedHashMap<>();
-        for (GuardianPhone phone : phones) {
-            result.putIfAbsent(phone.getStudentId(), phone.getPhone());
-        }
-        return result;
-    }
-
-    private String busNoOf(AuthUser requester, Run run) {
-        return busRepository.findByIdAndAcademyId(run.getBusId(), requester.academyId())
-                .map(Bus::getBusNo)
-                .orElse(null);
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

@@ -78,11 +78,30 @@ public class EmergencyStaffQueryService {
 
         List<EmergencyAlert> alerts = alertsOf(requester.academyId(), statusFilter, parsedDate);
 
-        Map<Long, List<AssignedManagerContactView>> contactsByRunId = alerts.isEmpty() ? Map.of()
-                : assignmentRepository.findAssignedManagerContacts(requester.academyId(),
+        EmergencyAlertLookup lookup = lookupOf(alerts, requester.academyId());
+
+        List<EmergencyStaffItemResponse> items = alerts.stream().map(alert -> toItem(alert, lookup)).toList();
+
+        // 배지는 필터(상태·날짜)와 무관하다(BR-066) — 목록에서 세면 "확인됨" 탭에서 0 이 된다.
+        long unackedCount =
+                emergencyAlertRepository.countByAcademyIdAndAckedAtIsNullAndCanceledAtIsNull(requester.academyId());
+
+        return new EmergencyStaffListResponse(items, unackedCount);
+    }
+
+    /** 목록에 나온 회차 전부의 배치 연락처를 쿼리 한 번으로 읽어 회차별로 묶는다(BR-087). */
+    private Map<Long, List<AssignedManagerContactView>> contactsByRunId(List<EmergencyAlert> alerts,
+            Long academyId) {
+        return alerts.isEmpty() ? Map.of()
+                : assignmentRepository.findAssignedManagerContacts(academyId,
                                 alerts.stream().map(EmergencyAlert::getRunId).distinct().toList())
                         .stream()
                         .collect(Collectors.groupingBy(AssignedManagerContactView::runId));
+    }
+
+    /** 목록 조립에 필요한 배치 연락처·매니저·확인자·회차를 이 순서로 한 번씩 읽는다. */
+    private EmergencyAlertLookup lookupOf(List<EmergencyAlert> alerts, Long academyId) {
+        Map<Long, List<AssignedManagerContactView>> contactsByRunId = contactsByRunId(alerts, academyId);
 
         Set<Long> managerIds = new HashSet<>(alerts.stream().map(EmergencyAlert::getRaisedBy).toList());
         contactsByRunId.values().forEach(views -> views.forEach(v -> managerIds.add(v.managerId())));
@@ -97,21 +116,10 @@ public class EmergencyStaffQueryService {
 
         Map<Long, Run> runsById = runRepository
                 .findAllByIdInAndAcademyId(alerts.stream().map(EmergencyAlert::getRunId).distinct().toList(),
-                        requester.academyId())
+                        academyId)
                 .stream()
                 .collect(Collectors.toMap(Run::getId, r -> r));
-
-        List<EmergencyStaffItemResponse> items = alerts.stream()
-                .map(alert -> toItem(alert, managersById.get(alert.getRaisedBy()),
-                        alert.getAckedBy() == null ? null : ackersById.get(alert.getAckedBy()),
-                        runsById.get(alert.getRunId()), contactsByRunId.get(alert.getRunId()), managersById))
-                .toList();
-
-        // 배지는 필터(상태·날짜)와 무관하다(BR-066) — 목록에서 세면 "확인됨" 탭에서 0 이 된다.
-        long unackedCount =
-                emergencyAlertRepository.countByAcademyIdAndAckedAtIsNullAndCanceledAtIsNull(requester.academyId());
-
-        return new EmergencyStaffListResponse(items, unackedCount);
+        return new EmergencyAlertLookup(managersById, ackersById, runsById, contactsByRunId);
     }
 
     /** {@code date} 생략(null) 이면 날짜 조건 없이, 있으면 {@code receivedAt} 을 학원 자정 경계 구간으로 거른다. */
@@ -125,31 +133,42 @@ public class EmergencyStaffQueryService {
                 LIST_LIMIT);
     }
 
-    private EmergencyStaffItemResponse toItem(EmergencyAlert alert, Manager raiser, Account acker, Run run,
-            List<AssignedManagerContactView> assigned, Map<Long, Manager> managersById) {
-        EmergencyStaffItemResponse.RaisedBy raisedBy = new EmergencyStaffItemResponse.RaisedBy(
-                raiser == null ? null : raiser.getName(),
-                LowerCaseFormatter.lower(alert.getRaisedByRole().name()),
-                raiser == null ? null : raiser.getPhone());
+    private EmergencyStaffItemResponse toItem(EmergencyAlert alert, EmergencyAlertLookup lookup) {
+        Manager raiser = lookup.managersById().get(alert.getRaisedBy());
+        Account acker = alert.getAckedBy() == null ? null : lookup.ackersById().get(alert.getAckedBy());
+        Run run = lookup.runsById().get(alert.getRunId());
 
         EmergencyStaffItemResponse.Position position = new EmergencyStaffItemResponse.Position(alert.getLat(),
                 alert.getLng(), alert.getPositionRecordedAt());
-
-        List<EmergencyStaffItemResponse.Contact> contacts = assigned == null ? List.of()
-                : assigned.stream()
-                        .filter(v -> isLive(managersById.get(v.managerId())))
-                        .map(v -> new EmergencyStaffItemResponse.Contact(v.name(),
-                                LowerCaseFormatter.lower(v.role().name()), v.phone()))
-                        .toList();
 
         EmergencyStaffItemResponse.AckedBy ackedBy = acker == null ? null
                 : new EmergencyStaffItemResponse.AckedBy(acker.getName(), alert.getAckMemo());
 
         return new EmergencyStaffItemResponse(alert.getId(), LowerCaseFormatter.lower(alert.getType().name()),
-                alert.getMemo(), raisedBy, alert.getRunId(), alert.getBusNo(),
+                alert.getMemo(), raisedByOf(alert, raiser), alert.getRunId(), alert.getBusNo(),
                 run == null ? null : LowerCaseFormatter.lower(run.getDirection().name()), position,
-                alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.getOccurredAt(), alert.getAckedAt(),
+                alert.getRiderCount(), contactsOf(lookup.contactsByRunId().get(alert.getRunId()), lookup.managersById()),
+                alert.getReceivedAt(), alert.getOccurredAt(), alert.getAckedAt(),
                 alert.getCanceledAt(), alert.isAcked(), ackedBy);
+    }
+
+    /** 발신자 이름·역할·전화 — 발신 매니저를 못 찾으면 이름·전화는 null. */
+    private EmergencyStaffItemResponse.RaisedBy raisedByOf(EmergencyAlert alert, Manager raiser) {
+        return new EmergencyStaffItemResponse.RaisedBy(
+                raiser == null ? null : raiser.getName(),
+                LowerCaseFormatter.lower(alert.getRaisedByRole().name()),
+                raiser == null ? null : raiser.getPhone());
+    }
+
+    /** 그 회차 배치 기사·동승자 연락처 — 삭제된 매니저는 뺀다. */
+    private List<EmergencyStaffItemResponse.Contact> contactsOf(List<AssignedManagerContactView> assigned,
+            Map<Long, Manager> managersById) {
+        return assigned == null ? List.of()
+                : assigned.stream()
+                        .filter(v -> isLive(managersById.get(v.managerId())))
+                        .map(v -> new EmergencyStaffItemResponse.Contact(v.name(),
+                                LowerCaseFormatter.lower(v.role().name()), v.phone()))
+                        .toList();
     }
 
     /** 삭제된 매니저는 연락처에서 뺀다 — 회차별로 읽던 옛 조회({@code findAssignedManagerAccounts})와 같은 결과. */

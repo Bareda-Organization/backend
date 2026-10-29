@@ -1,14 +1,6 @@
 package src.backend.request.query;
 
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -16,61 +8,28 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.entity.Academy;
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.account.entity.Account;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.ManagerRole;
-import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.PageParams;
 import src.backend.global.security.AuthUser;
-import src.backend.manager.dto.AssignedManagerView;
-import src.backend.manager.repository.AssignmentRepository;
 import src.backend.request.assembly.RoutePreviewAssembler;
 import src.backend.request.domain.ChangeWindow;
-import src.backend.request.dto.AffectedStudentResponse;
 import src.backend.request.dto.ApprovalCapacityResponse;
 import src.backend.request.dto.ApprovalDetailResponse;
 import src.backend.request.dto.ApprovalListResponse;
 import src.backend.request.dto.ApprovalSummaryResponse;
-import src.backend.request.dto.PreviewStopResponse;
-import src.backend.request.dto.RoutePreviewResponse;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.preview.ApprovalPreviewResolver;
-import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
-import src.backend.request.preview.ApprovalPreviewResolver.PreviewResult;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.engine.spec.FixedStop;
-import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.Route;
-import src.backend.routing.entity.RouteStop;
-import src.backend.routing.entity.RouteVersion;
-import src.backend.routing.entity.RunStop;
-import src.backend.routing.pipeline.DailyRoster;
-import src.backend.routing.pipeline.RouteComputation;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.routing.repository.RunStopRepository;
-import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.entity.Stop;
-import src.backend.student.entity.Student;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentDailyStop;
-import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 승인 대기 목록·상세 조회(API_SPEC §5.5) — 목록은 저장된 값만 집계하고 재최적화를 실행하지 않는다.
@@ -81,9 +40,11 @@ import src.backend.student.repository.WeeklyAddressRepository;
  * 승인 화면은 한 건씩 열므로 목록은 요약만, 대조는 상세에서 1건만 계산한다(ARCHITECTURE §8.4).
  *
  * <p>온디맨드 미리보기 계산(캐시 조회·재최적화 1회 실행)은 {@link ApprovalPreviewResolver} 에,
- * 전/후 노선 대조 조립(정차 목록·순번 비교·영향 학생 산출)은 {@link RoutePreviewAssembler} 에 위임한다
- * — 이 클래스는 "무엇을 언제 부르는가" 라는 조회 오케스트레이션만 갖는다(CODE_CONVENTIONS.md §20.2 클래스
- * 크기 관례에 따른 분리이며, 값 조립·계산 로직 자체는 바뀌지 않았다).
+ * 전/후 노선 대조 조립(정차 목록·순번 비교·영향 학생 산출)은 {@link RoutePreviewAssembler} 에 위임한다.
+ * 목록 항목 조립은 {@link ApprovalListItemsReader}, 요약 조립은 {@link ApprovalSummaryAssembler},
+ * 결정 대기 건의 상세 조립은 {@link ApprovalPendingDetailAssembler}, 결정·배치 인력 조회는
+ * {@link ApprovalDecisionReader} 가 맡는다 — 이 클래스는 "무엇을 언제 부르는가" 라는 조회
+ * 오케스트레이션만 갖는다(CODE_CONVENTIONS.md §20.2 클래스 크기 관례).
  */
 @Service
 @RequiredArgsConstructor
@@ -95,33 +56,15 @@ public class ApprovalQueryService {
 
     private final BusRepository busRepository;
 
-    private final StudentRepository studentRepository;
-
-    private final StopRepository stopRepository;
-
     private final RunRiderRepository runRiderRepository;
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
+    private final ApprovalSummaryAssembler summaryAssembler;
 
-    private final AcademyRepository academyRepository;
+    private final ApprovalListItemsReader listItemsReader;
 
-    private final RouteRepository routeRepository;
+    private final ApprovalDecisionReader decisionReader;
 
-    private final RouteStopRepository routeStopRepository;
-
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RouteVersionRepository routeVersionRepository;
-
-    private final RunStopRepository runStopRepository;
-
-    private final AccountRepository accountRepository;
-
-    private final AssignmentRepository assignmentRepository;
-
-    private final RoutePreviewAssembler routePreviewAssembler;
-
-    private final ApprovalPreviewResolver previewResolver;
+    private final ApprovalPendingDetailAssembler pendingDetailAssembler;
 
     /**
      * 승인 대기 목록(§5.5 목록) — 재최적화를 실행하지 않는다. 저장된 값과 단순 집계만 반환한다.
@@ -133,34 +76,8 @@ public class ApprovalQueryService {
      */
     public ApprovalListResponse list(AuthUser requester, ChangeRequestStatus status, PageParams pageParams) {
         Page<ChangeRequest> page = changeRequestRepository.findAllByAcademyIdAndStatusAndWindowSegment(
-                requester.academyId(), status, ChangeWindow.APPROVAL_REQUIRED.code(),
-                pageParams.toPageable(sortOf(status)));
-        List<ChangeRequest> requests = page.getContent();
-        Map<Long, Run> runs = runRepository
-                .findAllByIdInAndAcademyId(requests.stream().map(ChangeRequest::getRunId).distinct().toList(), requester.academyId())
-                .stream().collect(Collectors.toMap(Run::getId, run -> run));
-        Map<Long, List<RunRider>> ridersByRun = runRiderRepository
-                .findAllByRunIdInAndAcademyId(runs.keySet(), requester.academyId()).stream()
-                .collect(Collectors.groupingBy(RunRider::getRunId));
-        runs.keySet().forEach(runId -> ridersByRun.putIfAbsent(runId, List.of()));
-        Map<Long, String> busNos = busRepository
-                .findAllByAcademyIdAndIdIn(requester.academyId(), runs.values().stream().map(Run::getBusId).distinct().toList())
-                .stream().collect(Collectors.toMap(Bus::getId, Bus::getBusNo));
-        Map<Long, String> studentNames = studentRepository
-                .findAllByAcademyIdAndIdIn(requester.academyId(), requests.stream().map(ChangeRequest::getStudentId).distinct()
-                        .toList())
-                .stream().collect(Collectors.toMap(Student::getId, Student::getName));
-        Map<Long, Stop> stops = stopsOf(requests, ridersByRun.values(), requester.academyId());
-
-        List<ApprovalSummaryResponse> items = requests.stream().map(cr -> {
-            Run run = Optional.ofNullable(runs.get(cr.getRunId()))
-                    .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-            String busNo = Optional.ofNullable(busNos.get(run.getBusId()))
-                    .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-            String studentName = Optional.ofNullable(studentNames.get(cr.getStudentId()))
-                    .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
-            return toSummary(cr, run, ridersByRun.get(run.getId()), busNo, studentName, stops, requester.academyId());
-        }).toList();
+                requester.academyId(), status, ChangeWindow.APPROVAL_REQUIRED.code(), pageParams.toPageable(sortOf(status)));
+        List<ApprovalSummaryResponse> items = listItemsReader.itemsOf(page.getContent(), requester.academyId());
         long pendingCount = changeRequestRepository.countByAcademyIdAndStatus(requester.academyId(), ChangeRequestStatus.PENDING);
         return ApprovalListResponse.of(page, items, pendingCount);
     }
@@ -178,16 +95,6 @@ public class ApprovalQueryService {
             return Sort.by(Sort.Direction.ASC, "deadlineAt");
         }
         return Sort.by(Sort.Direction.DESC, "decidedAt").and(Sort.by(Sort.Direction.DESC, "requestedAt"));
-    }
-
-    /** 목록이 표시할 승하차지 전부 — 명단의 승하차지와 이동 요청의 목적지를 한 번에 읽는다(BR-075). */
-    private Map<Long, Stop> stopsOf(List<ChangeRequest> requests, Collection<List<RunRider>> riders,
-            Long academyId) {
-        Set<Long> stopIds = new HashSet<>();
-        riders.forEach(list -> list.forEach(rider -> stopIds.add(rider.getStopId())));
-        requests.stream().map(ChangeRequest::getNewStopId).filter(Objects::nonNull).forEach(stopIds::add);
-        return stopRepository.findAllByAcademyIdAndIdIn(academyId, List.copyOf(stopIds)).stream()
-                .collect(Collectors.toMap(Stop::getId, stop -> stop));
     }
 
     /**
@@ -211,98 +118,32 @@ public class ApprovalQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPROVAL_NOT_FOUND));
         Long academyId = cr.getAcademyId();
 
-        Run run = runRepository.findById(cr.getRunId())
+        Run run = runRepository.findByIdAndAcademyId(cr.getRunId(), academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        Weekday weekday = Weekday.of(run.getServiceDate());
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId);
-        ApprovalSummaryResponse summary = toSummary(cr, run, riders, academyId);
-        ApprovalDetailResponse.Decision decision = decisionOf(cr, run.getId(), academyId);
+        ApprovalSummaryResponse summary = summaryAssembler.toSummary(cr, run, riders, academyId);
+        ApprovalDetailResponse.Decision decision = decisionReader.decisionOf(cr, run.getId(), academyId);
 
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
         if (cr.getStatus() != ChangeRequestStatus.PENDING) {
             return decidedDetailOf(summary, run, riders, bus, decision);
         }
+        assertRunConfirmed(run);
+        return pendingDetailAssembler.pendingDetailOf(approvalId,
+                new ApprovalPendingDetailAssembler.Subject(cr, run, riders, bus, summary, decision));
+    }
+
+    /** {@code PENDING} 건의 회차가 아직 {@code idle} 이면 {@code 409 RUN_NOT_CONFIRMED} 로 막는다. */
+    private void assertRunConfirmed(Run run) {
         // ②구간 승인 대기 신청은 confirmAt 도래 즉시(ChangeWindowPolicy) 성립하지만, 회차의 실제
         // idle → confirmed 전이와 그때 함께 만들어지는 confirmed_route 는 30초 폴링 확정 배치가
-        // 돌아야 반영된다(RunConfirmationScheduler). 그 사이 창에서 이 조회가 들어오면 아래
+        // 돌아야 반영된다(RunConfirmationScheduler). 그 사이 창에서 이 조회가 들어오면 뒤이은
         // ConfirmedRoute 조회가 항상 비어 있어 막지 않으면 원시 IllegalStateException(비구조 500)이
         // 난다 — RosterQueryService.managerRoster 와 같은 경계에서 같은 코드로 막는다.
         if (run.getStatus() == RunStatus.IDLE) {
             throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
         }
-
-        Academy academy = academyRepository.findById(academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
-        if (!academy.hasCoordinates()) {
-            throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
-        }
-        Route route = routeRepository
-                .findByAcademyIdAndBusIdAndWeekdayAndDirection(academyId, run.getBusId(), weekday, run.getDirection())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN));
-        List<RouteStop> routeStops = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(), academyId);
-        OriginDestination originDestination = previewResolver.originDestinationOf(academy, routeStops,
-                run.getDirection(), academyId);
-
-        DailyRoster roster = previewResolver.candidateRosterOf(cr, run, weekday, riders);
-        List<FixedStop> fixedStops = previewResolver.fixedStopsOf(run, roster);
-        String fingerprint = RunConfirmationFingerprint.of(academyId, weekday, run.getDirection(),
-                run.getDepartTime(), originDestination.origin(), originDestination.destination(),
-                roster.stopOverrides(), fixedStops);
-
-        PreviewResult previewResult = previewResolver.resolvePreview(approvalId, fingerprint, roster,
-                originDestination, fixedStops, run);
-        RouteComputation computation = previewResult.preview().computation();
-
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
-                .orElseThrow(() -> new IllegalStateException("확정 노선이 없다 — runId=" + run.getId()));
-        Long currentVersionId = confirmedRoute.getCurrentVersionId();
-        RouteVersion currentVersion = routeVersionRepository.findById(currentVersionId)
-                .orElseThrow(() -> new IllegalStateException("노선 버전이 없다 — versionId=" + currentVersionId));
-        List<RunStop> beforeRunStops = runStopRepository
-                .findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId, academyId);
-
-        Map<Long, Stop> stopsById = routePreviewAssembler.stopsByIdOf(
-                routePreviewAssembler.unionOfStopIds(beforeRunStops, computation), academyId);
-        List<PreviewStopResponse> stopsBefore = routePreviewAssembler.toPreviewStopsFromRunStops(beforeRunStops,
-                stopsById);
-        List<PreviewStopResponse> stopsAfter = routePreviewAssembler.toPreviewStopsFromComputation(computation,
-                stopsById);
-        Map<Long, Integer> beforeSeq = routePreviewAssembler.seqMapOfRunStops(beforeRunStops);
-        Map<Long, Integer> afterSeq = routePreviewAssembler.seqMapOfComputation(computation);
-
-        RoutePreviewResponse routePreview = RoutePreviewResponse.of(stopsBefore, stopsAfter,
-                routePreviewAssembler.reorderedOf(beforeSeq, afterSeq, stopsById),
-                routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById),
-                routePreviewAssembler.roadPathOrEmpty(currentVersion.getRoadPath()), computation.roadPath());
-
-        ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(),
-                roster.studentIds().size());
-
-        List<AffectedStudentResponse> affectedStudents = routePreviewAssembler.affectedStudentsOf(academyId,
-                cr.getStudentId(),
-                summary.studentName(), riders, beforeSeq, afterSeq);
-
-        return ApprovalDetailResponse.of(summary, routePreview, run.getDepartTime(),
-                routePreviewAssembler.lastEtaOf(stopsBefore), routePreviewAssembler.lastEtaOf(stopsAfter),
-                currentVersion.getEstDistanceKm(), computation.estDistanceKm(), currentVersion.getEstDurationMin(),
-                computation.estDurationMin(), affectedStudents, capacity, previewResult.preview().token(),
-                previewResult.stale(), decision);
-    }
-
-    /**
-     * 상세에 붙는 결정·배치 인력 묶음(Ruling 812) — 결정 시각·결정자는 요청 행 그대로({@code 대기} 는 둘 다 null, 자동 거절은
-     * 결정자 없음), 기사·동승자 이름은 그 회차의 현재 배치다(배치 전이면 null). 학원 조건은 두 조회에 각각 건다.
-     */
-    private ApprovalDetailResponse.Decision decisionOf(ChangeRequest cr, Long runId, Long academyId) {
-        String decidedByName = cr.getDecidedBy() == null ? null
-                : accountRepository.findByIdAndAcademyId(cr.getDecidedBy(), academyId).map(Account::getName)
-                        .orElse(null);
-        Map<ManagerRole, String> assignedNames = assignmentRepository.findAssignedManagers(academyId, List.of(runId))
-                .stream().collect(Collectors.toMap(AssignedManagerView::role, AssignedManagerView::name,
-                        (first, duplicate) -> first));
-        return new ApprovalDetailResponse.Decision(cr.getStatus().name().toLowerCase(Locale.ROOT), cr.getDecidedAt(),
-                decidedByName, assignedNames.get(ManagerRole.DRIVER), assignedNames.get(ManagerRole.ESCORT));
     }
 
     /**
@@ -330,96 +171,6 @@ public class ApprovalQueryService {
         ApprovalCapacityResponse capacity = new ApprovalCapacityResponse(bus.getStudentCapacity(), (int) assigned);
         return ApprovalDetailResponse.of(summary, null, run.getDepartTime(), null, null, null, null, null, null,
                 List.of(), capacity, null, false, decision);
-    }
-
-    /** 요약 1건 — 목록(§5.5 목록)이 회차·명단을 매번 새로 읽어야 할 때 쓰는 얕은 진입점. */
-    /** 상세(§5.5 상세)용 요약 — 한 건이라 버스·학생·승하차지를 그 자리에서 읽는다. */
-    private ApprovalSummaryResponse toSummary(ChangeRequest cr, Run run, List<RunRider> riders, Long academyId) {
-        Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-        Student student = studentRepository.findById(cr.getStudentId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
-        return toSummary(cr, run, riders, bus.getBusNo(), student.getName(),
-                stopsOf(List.of(cr), List.of(riders), academyId), academyId);
-    }
-
-    private ApprovalSummaryResponse toSummary(ChangeRequest cr, Run run, List<RunRider> riders, String busNo,
-            String studentName, Map<Long, Stop> stops, Long academyId) {
-        Optional<RunRider> mine = riders.stream()
-                .filter(r -> r.getStudentId().equals(cr.getStudentId()))
-                .findFirst();
-        SubjectStop subject = mine.isPresent()
-                ? liveSubjectStopOf(mine.get(), cr, riders, stops)
-                : decidedSubjectStopOf(cr, run, riders, stops, academyId);
-        return ApprovalSummaryResponse.of(cr, studentName, busNo, run.getDirection(),
-                cr.getDeadlineAt(), subject.stopName(), subject.remainingRiders(), subject.willRemoveStop());
-    }
-
-    private SubjectStop liveSubjectStopOf(RunRider mine, ChangeRequest cr, List<RunRider> riders,
-            Map<Long, Stop> stops) {
-        Stop stop = Optional.ofNullable(stops.get(mine.getStopId()))
-                .orElseThrow(() -> new IllegalStateException("승하차지가 없다 — stopId=" + mine.getStopId()));
-        long remaining = riders.stream()
-                .filter(r -> !r.getStudentId().equals(cr.getStudentId()))
-                .filter(r -> mine.getStopId().equals(r.getStopId()))
-                .filter(r -> r.getStatus() != RiderStatus.ABSENT)
-                .count();
-        return new SubjectStop(stop.getName(), (int) remaining, remaining == 0);
-    }
-
-    /**
-     * 이 학생이 지금 그 회차 명단에 없는 경우 — {@code rejected}·{@code auto_rejected} 는 이것이
-     * 정상이다({@code reject}·{@code autoReject} 는 {@code RunRider} 를 건드리지 않는다). API_SPEC
-     * §5.5 목록의 "명단에 없을 때" 표(Ruling 265)가 이 상황과 아래 우선순위를 정본에
-     * 명시한다 — "이 학생이 지금 타고 있는 승하차지를 비우면 어떻게 되는가" 라는 질문 자체가 성립하지
-     * 않으므로, 저장된 값만으로 "이 요청이 가리키던 승하차지" 를 최선으로 되짚는다(§5.5 가 명시한
-     * "재최적화 없이 저장된 값·단순 집계만" 취지를 따름).
-     *
-     * <p>우선순위 — ① RELOCATE 의 확정된 목적지({@code new_stop_id}) ② 그 요일·방향의 등록 주소
-     * ({@code weekly_address}, CANCEL 포함 전 유형을 커버) ③ RELOCATE 의 미확정 주소 원문
-     * ({@code new_address}, {@code Stop} 조회는 안 되므로 표시용 문자열 그대로) ④ 그마저 없으면
-     * 플레이스홀더.
-     *
-     * <p>결정이 이미 끝난 건이라 "승인 시 제거되는가" 자체가 성립하지 않는다 — {@code will_remove_stop}
-     * 은 이 경로에서 항상 {@code false}. 상태값으로 분기하지 않고 "명단에 있는가" 로만 가른 이유는
-     * {@code approved} 도 구조적으로만 명단에 있는 것이 보장될 뿐이라, 가정이 깨지는 경우(예: 향후
-     * 다른 승인 경로가 추가돼 명단을 지우는 경우)에도 이 경로가 방어선이 되게 하기 위함이다.
-     */
-    private SubjectStop decidedSubjectStopOf(ChangeRequest cr, Run run, List<RunRider> riders,
-            Map<Long, Stop> stops, Long academyId) {
-        Long resolvedStopId = cr.getNewStopId();
-        if (resolvedStopId == null) {
-            Weekday weekday = Weekday.of(run.getServiceDate());
-            resolvedStopId = weeklyAddressRepository
-                    .findDailyStops(academyId, List.of(cr.getStudentId()), weekday, run.getDirection())
-                    .stream()
-                    .map(StudentDailyStop::getStopId)
-                    .findFirst()
-                    .orElse(null);
-        }
-        if (resolvedStopId != null) {
-            // 요일별 주소에서 찾은 승하차지는 명단·이동 목적지에 없을 수 있어 그때만 따로 읽는다.
-            Long lookupId = resolvedStopId;
-            Optional<Stop> stop = Optional.ofNullable(stops.get(lookupId))
-                    .or(() -> stopRepository.findAllByAcademyIdAndIdIn(academyId, List.of(lookupId)).stream()
-                            .findFirst());
-            if (stop.isPresent()) {
-                Long stopId = resolvedStopId;
-                long remaining = riders.stream()
-                        .filter(r -> stopId.equals(r.getStopId()))
-                        .filter(r -> r.getStatus() != RiderStatus.ABSENT)
-                        .count();
-                return new SubjectStop(stop.get().getName(), (int) remaining, false);
-            }
-        }
-        if (cr.getNewAddress() != null) {
-            return new SubjectStop(cr.getNewAddress(), 0, false);
-        }
-        return new SubjectStop("배정 정보 없음", 0, false);
-    }
-
-    /** {@link #liveSubjectStopOf}·{@link #decidedSubjectStopOf} 가 채우는 3필드 묶음(§5.5 목록 필수). */
-    private record SubjectStop(String stopName, int remainingRiders, boolean willRemoveStop) {
     }
 
 }

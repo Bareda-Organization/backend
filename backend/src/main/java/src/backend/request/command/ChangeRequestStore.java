@@ -24,6 +24,7 @@ import src.backend.request.event.AbsentRecordedEvent;
 import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
+import src.backend.run.command.RunRowLock;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.command.StopMatcher;
@@ -54,6 +55,9 @@ public class ChangeRequestStore {
     private final ApplicationEventPublisher eventPublisher;
 
     private final RunRepository runRepository;
+
+    /** 구간 재판정 전에 쥐는 회차 행 잠금 — 운행 시작과 겹쳐도 움직이는 회차에 대기 요청이 남지 않는다({@link RunRowLock}). */
+    private final RunRowLock runRowLock;
 
     private final Clock clock;
 
@@ -106,11 +110,12 @@ public class ChangeRequestStore {
     /**
      * 구간을 <b>저장 시점</b>에 다시 판정한다(BR-074) — 주소 검증을 트랜잭션 밖에서 기다리는 동안 확정 시각이
      * 지나거나 운행이 시작될 수 있어, 앞서 판정한 구간으로 저장하면 ①로 "즉시 반영" 이라 답하면서 확정
-     * 노선에는 빠진다. 회차 상태도 다시 읽는다.
+     * 노선에는 빠진다. 회차 행을 잠그고 상태를 다시 읽는다.
      */
     private ChangeWindow windowAt(Run run, OffsetDateTime now) {
         Run fresh = runRepository.findByIdAndAcademyId(run.getId(), run.getAcademyId()).orElseThrow(
                 () -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        runRowLock.acquire(fresh);
         ChangeWindowPolicy.assertNotCanceled(fresh);
         ChangeWindow window = ChangeWindowPolicy.segmentOf(fresh, now);
         if (window == ChangeWindow.CLOSED) {

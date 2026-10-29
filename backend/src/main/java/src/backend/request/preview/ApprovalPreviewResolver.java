@@ -83,6 +83,21 @@ public class ApprovalPreviewResolver {
         if (versionId == null) {
             return List.of();
         }
+        Map<Long, Integer> seqByWaypointId = seqByWaypointIdOf(run, versionId, roster);
+        List<FixedStop> fixedStops = new ArrayList<>();
+        for (Waypoint waypoint : waypointRepository.findAllAppliedByRunIdAndAcademyId(run.getId(),
+                run.getAcademyId())) {
+            Integer seq = seqByWaypointId.get(waypoint.getId());
+            if (seq != null) {
+                fixedStops.add(new FixedStop(waypoint.getId(), new GeoPoint(waypoint.getLat(), waypoint.getLng()),
+                        seq));
+            }
+        }
+        return fixedStops;
+    }
+
+    /** 판본의 경유 지점 항목 순번을 구한다 — 그 앞에서 빠지는 승하차지 수만큼 당긴 값이다. */
+    private Map<Long, Integer> seqByWaypointIdOf(Run run, Long versionId, DailyRoster roster) {
         Set<Long> keptStopIds = new HashSet<>(roster.stopOverrides().values());
         Map<Long, Integer> seqByWaypointId = new LinkedHashMap<>();
         int removedBefore = 0;
@@ -94,16 +109,7 @@ public class ApprovalPreviewResolver {
                 removedBefore++;
             }
         }
-        List<FixedStop> fixedStops = new ArrayList<>();
-        for (Waypoint waypoint : waypointRepository.findAllAppliedByRunIdAndAcademyId(run.getId(),
-                run.getAcademyId())) {
-            Integer seq = seqByWaypointId.get(waypoint.getId());
-            if (seq != null) {
-                fixedStops.add(new FixedStop(waypoint.getId(), new GeoPoint(waypoint.getLat(), waypoint.getLng()),
-                        seq));
-            }
-        }
-        return fixedStops;
+        return seqByWaypointId;
     }
 
     /**

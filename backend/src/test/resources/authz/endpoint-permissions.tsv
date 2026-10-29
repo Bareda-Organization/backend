@@ -74,7 +74,7 @@ PATCH /admin/academies/{id}	can:ACADEMY_MANAGE	§6.3
 PATCH /admin/staff-accounts/{id}	can:STAFF_APPROVE	§6.7
 PATCH /me/notification-settings	can:NOTIFICATION_SETTING_WRITE	§3.14
 PATCH /notifications/{id}/read	authenticated	§3.13
-PATCH /runs/{runId}/riders/{riderId}	authenticated	§4.6	BoardingCommandService#requireEscort
+PATCH /runs/{runId}/riders/{riderId}	authenticated	§4.6	EscortGuard#require
 PATCH /staff/academy-settings	authenticated	§5.21	AcademySettingCommandService#requireStaff
 PATCH /staff/buses/{id}	can:BUS_MANAGE	§5.12
 PATCH /staff/managers/{id}	can:MANAGER_MANAGE	§5.13
@@ -106,8 +106,8 @@ POST /runs/{runId}/delay	authenticated	§4.9	RunAssignmentAccess#assertAssignedE
 POST /runs/{runId}/emergency	can:EMERGENCY_RAISE	§4.14
 POST /runs/{runId}/position	service	§4.12	RunAssignmentAccess#assertAssignedDriverExists
 POST /runs/{runId}/reports	service	§4.13	RunAssignmentAccess#assertAssignedDriverOrEscort
-POST /runs/{runId}/riders/{riderId}/no-show-contacts	authenticated	§4.8	NoShowContactCommandService#requireEscort
-POST /runs/{runId}/riders/{riderId}/revert	authenticated	§4.7	BoardingCommandService#requireEscort
+POST /runs/{runId}/riders/{riderId}/no-show-contacts	authenticated	§4.8	EscortGuard#require
+POST /runs/{runId}/riders/{riderId}/revert	authenticated	§4.7	EscortGuard#require
 POST /runs/{runId}/start	service	§4.4	RunAssignmentAccess#assertAssignedDriver
 POST /runs/{runId}/stops/{stopId}/arrive	service	§4.5	RunAssignmentAccess#assertAssignedDriver
 POST /staff/accounts/{accountId}/password-reset	can:ACCOUNT_PASSWORD_RESET	§5.22

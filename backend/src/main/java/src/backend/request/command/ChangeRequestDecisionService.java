@@ -2,20 +2,12 @@ package src.backend.request.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.List;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.entity.Academy;
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.boarding.command.RunRiderPersistence;
-import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -23,34 +15,13 @@ import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.dto.DecideChangeRequestRequest;
 import src.backend.request.dto.DecideChangeRequestResponse;
-import src.backend.request.entity.BoardingIntent;
 import src.backend.request.entity.ChangeRequest;
-import src.backend.request.entity.ChangeRequestType;
-import src.backend.request.event.AbsentRecordedEvent;
-import src.backend.request.event.ChangeRequestDecidedEvent;
-import src.backend.request.preview.ApprovalPreviewResolver;
-import src.backend.request.preview.ApprovalPreviewResolver.OriginDestination;
 import src.backend.request.preview.spec.ApprovalPreview;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
-import src.backend.request.repository.BoardingIntentRepository;
 import src.backend.request.repository.ChangeRequestRepository;
-import src.backend.routing.command.RouteVersionDeploymentService;
-import src.backend.routing.command.RouteVersionDeploymentService.DeployedVersion;
-import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.Route;
-import src.backend.routing.entity.RouteStop;
-import src.backend.routing.entity.RouteVersion;
-import src.backend.routing.entity.RouteVersionSource;
-import src.backend.routing.pipeline.DailyRoster;
 import src.backend.routing.pipeline.RouteComputation;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
-import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.run.domain.RunConfirmationFingerprint;
-import src.backend.run.entity.Run;
 import src.backend.run.command.RunRowLock;
-import src.backend.run.event.RunRouteConfirmedEvent;
+import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -83,34 +54,14 @@ public class ChangeRequestDecisionService {
 
     private final RunRepository runRepository;
 
-    private final RunRiderRepository runRiderRepository;
+    /** 승인 경로(재최적화 결과 배포 · 명단 반영 · 통보) — 이 서비스의 트랜잭션에 그대로 참여한다. */
+    private final ChangeRequestApprovalStep approvalStep;
 
-    private final BoardingIntentRepository boardingIntentRepository;
-
-    /** 명단 반영 진입점(BR-095) — {@code boarding} 소유 {@code run_rider} 에 직접 쓰지 않는다. */
-    private final RunRiderPersistence runRiderPersistence;
-
-    private final ApprovalPreviewCache previewCache;
-
-    private final ApprovalPreviewResolver previewResolver;
-
-    private final AcademyRepository academyRepository;
-
-    private final RouteRepository routeRepository;
-
-    private final RouteStopRepository routeStopRepository;
-
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RouteVersionRepository routeVersionRepository;
-
-    /** 새 노선 버전 배포 진입점(BR-094·095) — {@code routing} 소유 테이블에 직접 쓰지 않는다. */
-    private final RouteVersionDeploymentService routeVersionDeploymentService;
+    /** 거절 경로 — 이 서비스의 트랜잭션에 그대로 참여한다. */
+    private final ChangeRequestRejectionStep rejectionStep;
 
     /** 요청 행({@code change_request})을 잠그기 전에 먼저 쥐는 회차 행 잠금 — 운행 시작(회차 → 요청)과 같은 순서({@link RunRowLock}). */
     private final RunRowLock runRowLock;
-
-    private final ApplicationEventPublisher eventPublisher;
 
     private final Clock clock;
 
@@ -123,6 +74,21 @@ public class ChangeRequestDecisionService {
      */
     @Transactional
     public DecideChangeRequestResponse decide(AuthUser requester, Long approvalId, DecideChangeRequestRequest req) {
+        ChangeRequest cr = lockPendingRequest(requester, approvalId);
+        Run run = runRepository.findByIdAndAcademyId(cr.getRunId(), cr.getAcademyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+
+        OffsetDateTime decidedAt = OffsetDateTime.now(clock);
+        assertChangeWindowOpen(run, decidedAt);
+
+        if (Boolean.TRUE.equals(req.approve())) {
+            return approvalStep.approve(requester, cr, run, decidedAt, req.previewToken());
+        }
+        return rejectionStep.reject(requester, cr, run, decidedAt, req.rejectReason());
+    }
+
+    /** 회차 행 → 요청 행 순으로 잠그고 아직 처리 전인 요청을 읽는다(없음 · 다른 학원 · 이미 처리됨은 예외). */
+    private ChangeRequest lockPendingRequest(AuthUser requester, Long approvalId) {
         // 회차 행을 요청 행보다 먼저 쥔다 — 운행 시작은 회차 행 → 요청 행(자동 거절) 순이라, 요청 행을 먼저 쥐고 승인에서 회차 행을
         // 기다리면 서로를 기다리는 교착(deadlock detected)이 된다. 회차 id 는 잠금 없이 값으로만 읽는다(없거나 다른 학원이면 아래와 같은 404).
         Long runId = changeRequestRepository.findRunIdByIdAndAcademyId(approvalId, requester.academyId())
@@ -134,151 +100,14 @@ public class ChangeRequestDecisionService {
         // 이미 처리된 건은 창 판정보다 먼저 걸러야 한다 — 두 번째 decide 시도는 캐시가 이미 비어 있어
         // (§ evict), 창 검사보다 뒤에 두면 PREVIEW_STALE 로 오답한다.
         cr.assertPending();
+        return cr;
+    }
 
-        Long academyId = cr.getAcademyId();
-        Run run = runRepository.findByIdAndAcademyId(cr.getRunId(), academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-
-        OffsetDateTime decidedAt = OffsetDateTime.now(clock);
+    /** 변경 창이 닫혔으면 {@code 403 CHANGE_WINDOW_CLOSED} 로 막는다. */
+    private void assertChangeWindowOpen(Run run, OffsetDateTime decidedAt) {
         // 자동 거절 스케줄러의 폴링(30초)만 믿으면 그 사이 도착한 결정이 새어 나간다 — 여기서 직접·동기로 판정한다.
         if (ChangeWindowPolicy.segmentOf(run, decidedAt) == ChangeWindow.CLOSED) {
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
-        }
-
-        if (Boolean.TRUE.equals(req.approve())) {
-            return approve(requester, cr, run, decidedAt, req.previewToken());
-        }
-        return reject(requester, cr, run, decidedAt, req.rejectReason());
-    }
-
-    /**
-     * 승인 — 명단 제외(취소형)·경유지 이동(이동형) → 캐시된 재최적화 결과를 새 노선 버전으로 배포 →
-     * 기사·동승자 재배포({@code route_changed}, 기존 경로 재사용) + 학부모 통보.
-     */
-    private DecideChangeRequestResponse approve(AuthUser requester, ChangeRequest cr, Run run,
-            OffsetDateTime decidedAt, String previewToken) {
-        Long academyId = cr.getAcademyId();
-        // BR-171 — 경유 지점 배포(routing/command/WaypointStore#assertStillDeployable)와 같은 잠금을
-        // 재사용해 이 회차를 잠근다. 두 배포가 같은 순간이면 늦게 온 쪽이 이 자리에서 기다렸다가 방금
-        // 배포된 노선 버전을 보고 다음 판본 번호를 매겨야 하는데, 잠금이 없으면 둘 다 같은 옛 버전을
-        // 기준으로 같은 판본 번호를 써 uk_route_version_confirmed_route_version_no UNIQUE 위반(500)이
-        // 난다. 새 잠금 수단을 만들지 않고 그쪽이 쓰는 저장소 메서드를 호출만 한다. decide 가 요청 행보다 먼저 쥔 잠금이라 여기서는 기다리지 않는다.
-        Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        // Ruling 376 — 취소된 회차에는 노선을 새로 배포하지 않는다(거절은 허용). 잠근 뒤 판정해야 취소와 겹쳐도 안전하다.
-        ChangeWindowPolicy.assertNotCanceled(locked);
-        ApprovalPreview preview = previewCache.find(cr.getId())
-                .filter(cached -> cached.token().equals(previewToken))
-                .orElseThrow(() -> new BusinessException(ErrorCode.PREVIEW_STALE));
-        RouteComputation computation = preview.computation();
-
-        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId);
-
-        // 지문 재검증 — 이 토큰이 발급된 뒤 같은 회차의 다른 승인 건이 먼저 결정돼 명단이 바뀌었으면
-        // 토큰 문자열은 여전히 일치해도 그 계산은 이미 낡은 명단을 전제한 것이다(§ 클래스 javadoc).
-        assertFingerprintFresh(cr, run, academyId, riders, preview.fingerprint());
-
-        RunRider target = riders.stream()
-                .filter(rider -> rider.getStudentId().equals(cr.getStudentId()))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_IN_RUN));
-
-        DeployedVersion deployment = routeVersionDeploymentService.deployNewVersion(run, computation,
-                preview.fingerprint(), RouteVersionSource.APPROVAL, requester.accountId(), decidedAt,
-                target.getStopId());
-
-        // assignCurrentVersion 이 clearAutomatically=true 라 deployNewVersion 안에서 영속 컨텍스트
-        // 전체가 비워진다 — target·cr 은 그 이전에 로드해 둔 인스턴스라 이 시점부턴 준영속(detached)
-        // 상태다. 세터만 부르고 끝내면 변경이 메모리에만 남고 커밋 때 반영되지 않으므로,
-        // runRiderPersistence.applyApprovalDecision() 이 그 인스턴스를 다시 save() 로 붙인다(merge,
-        // ConfirmedRoute.assignCurrentVersion 의 javadoc이 이미 경고한 것과 같은 함정).
-        boolean cancel = cr.getType() == ChangeRequestType.CANCEL;
-        runRiderPersistence.applyApprovalDecision(target, cancel, cr.getNewStopId(), decidedAt);
-        if (cancel) {
-            turnRidingOff(cr, decidedAt, requester.accountId());
-        }
-
-        cr.approve(requester.accountId(), decidedAt, deployment.stopRemoved(), deployment.newVersion().getId());
-        changeRequestRepository.save(cr);
-        previewCache.evict(cr.getId());
-
-        // route_changed — 이미 있는 경로를 재사용한다(새 발행 경로를 만들지 않는다).
-        eventPublisher.publishEvent(
-                new RunRouteConfirmedEvent(run.getId(), academyId, run.getBusId(), decidedAt));
-        eventPublisher.publishEvent(new ChangeRequestDecidedEvent(academyId, cr.getId(), run.getId(),
-                cr.getStudentId(), cr.getRequestedBy(), true, null, decidedAt));
-        if (cr.getType() == ChangeRequestType.CANCEL) {
-            // ②구간 취소 승인 → 관계자 absent 통지(§9.7, BR-110)
-            eventPublisher.publishEvent(new AbsentRecordedEvent(run.getId(), academyId, cr.getStudentId(), decidedAt));
-        }
-
-        return new DecideChangeRequestResponse("approved", deployment.stopRemoved(),
-                deployment.newVersion().getVersionNo(), requester.accountId(), decidedAt);
-    }
-
-    /**
-     * ②구간 취소 승인의 탑승 의사 반영(BR-203) — {@code run_rider} 만 {@code absent} 로 바꾸면 학부모 회차
-     * 목록이 {@code riding=true} + {@code rider_status=absent} 를 함께 돌려준다. 접수 때 만든 행을 다시
-     * 읽어 끈다(영속 컨텍스트가 배포 중 비워져 이전 인스턴스는 쓸 수 없다).
-     */
-    private void turnRidingOff(ChangeRequest cr, OffsetDateTime decidedAt, Long decidedBy) {
-        boardingIntentRepository.insertIfAbsent(cr.getRunId(), cr.getStudentId(), decidedAt);
-        BoardingIntent intent = boardingIntentRepository.findByRunIdAndStudentId(cr.getRunId(), cr.getStudentId())
-                .orElseThrow();
-        intent.applyRiding(false, ChangeWindow.APPROVAL_REQUIRED, decidedAt, decidedBy);
-        boardingIntentRepository.save(intent);
-    }
-
-    /** 거절 — 재최적화를 전혀 부르지 않고 기존 노선을 유지한 채 사유와 함께 학부모에게 통보한다. */
-    private DecideChangeRequestResponse reject(AuthUser requester, ChangeRequest cr, Run run,
-            OffsetDateTime decidedAt, String rejectReason) {
-        if (rejectReason == null || rejectReason.isBlank()) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
-        }
-
-        cr.reject(requester.accountId(), decidedAt, rejectReason);
-        previewCache.evict(cr.getId());
-
-        eventPublisher.publishEvent(new ChangeRequestDecidedEvent(cr.getAcademyId(), cr.getId(), run.getId(),
-                cr.getStudentId(), cr.getRequestedBy(), false, rejectReason, decidedAt));
-
-        Integer currentVersionNo = confirmedRouteRepository.findById(run.getId())
-                .map(ConfirmedRoute::getCurrentVersionId)
-                .flatMap(routeVersionRepository::findById)
-                .map(RouteVersion::getVersionNo)
-                .orElse(null);
-
-        return new DecideChangeRequestResponse("rejected", false, currentVersionNo, requester.accountId(),
-                decidedAt);
-    }
-
-    /**
-     * 미리보기 지문 재검증 — {@code ApprovalQueryService.detail} 이 토큰을 발급할 때 쓴 것과 <b>같은
-     * 재료</b>(현재 명단·기준점)로 지문을 다시 뽑는다. 새 계산 경로를 만들지 않고
-     * {@link ApprovalPreviewResolver} 의 조립 메서드를 그대로 재사용한다 — 이 재료가 하나라도
-     * 상세 조회 때와 달라지면(가장 흔한 경우가 그 사이 결정된 다른 승인 건이 명단을 바꾼 것) 지문이
-     * 어긋나 여기서 잡힌다.
-     */
-    private void assertFingerprintFresh(ChangeRequest cr, Run run, Long academyId, List<RunRider> riders,
-            String cachedFingerprint) {
-        Weekday weekday = Weekday.of(run.getServiceDate());
-        Academy academy = academyRepository.findById(academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
-        if (!academy.hasCoordinates()) {
-            throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
-        }
-        Route route = routeRepository
-                .findByAcademyIdAndBusIdAndWeekdayAndDirection(academyId, run.getBusId(), weekday, run.getDirection())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN));
-        List<RouteStop> routeStops = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(), academyId);
-        OriginDestination originDestination = previewResolver.originDestinationOf(academy, routeStops,
-                run.getDirection(), academyId);
-        DailyRoster roster = previewResolver.candidateRosterOf(cr, run, weekday, riders);
-        String freshFingerprint = RunConfirmationFingerprint.of(academyId, weekday, run.getDirection(),
-                run.getDepartTime(), originDestination.origin(), originDestination.destination(),
-                roster.stopOverrides(), previewResolver.fixedStopsOf(run, roster));
-        if (!freshFingerprint.equals(cachedFingerprint)) {
-            throw new BusinessException(ErrorCode.PREVIEW_STALE);
         }
     }
 

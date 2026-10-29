@@ -28,7 +28,7 @@ import src.backend.student.repository.StudentRepository;
  * {@code run.command.RunStartedBroadcastListener} 와 같다.
  *
  * <p>{@link RiderStatusChangedEvent} 갈래는 {@code stop_skipped} 를 항상 {@code false} 로 채운다 —
- * 정차지 skip 은 미승차로 잔여가 0명이 될 때만 일어나는데({@code BoardingCommandService.handleNoShow}),
+ * 정차지 skip 은 미승차로 잔여가 0명이 될 때만 일어나는데({@code NoShowStep.handleNoShow}),
  * 그 경로는 이 이벤트를 발행하지 않고 {@link RiderMarkedNoShowEvent} 만 발행한다. 그 경로의 방송은
  * {@link #broadcast(RiderMarkedNoShowEvent)} 가 별도로 맡는다(API_SPEC
  * §7.1 line 1995 의 트리거가 {@code PATCH /runs/{runId}/riders/{riderId}} <b>엔드포인트</b>로 적혀
@@ -57,9 +57,8 @@ public class RiderChangedBroadcastListener {
     }
 
     private void deliverRiderStatusChangedEvent(RiderStatusChangedEvent event) {
-        String studentName = studentRepository.findById(event.studentId())
-                .map(student -> student.getName())
-                .orElse(null);
+        String studentName = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(), List.of(event.studentId())).stream()
+                .findFirst().map(student -> student.getName()).orElse(null);
         Long stopId = runRiderRepository.findByRunIdAndStudentId(event.runId(), event.studentId())
                 .map(rider -> rider.getStopId())
                 .orElse(null);
@@ -84,9 +83,8 @@ public class RiderChangedBroadcastListener {
     }
 
     private void deliverRiderMarkedNoShowEvent(RiderMarkedNoShowEvent event) {
-        String studentName = studentRepository.findById(event.studentId())
-                .map(student -> student.getName())
-                .orElse(null);
+        String studentName = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(), List.of(event.studentId())).stream()
+                .findFirst().map(student -> student.getName()).orElse(null);
         Counts counts = countsOf(event.runId());
 
         Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, "no_show", event.stopId(),

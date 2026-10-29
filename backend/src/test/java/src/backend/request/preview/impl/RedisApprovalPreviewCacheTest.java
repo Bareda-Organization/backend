@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -47,7 +48,7 @@ class RedisApprovalPreviewCacheTest extends RedisTestContainerBase {
         factory = new LettuceConnectionFactory(REDIS.getHost(), REDIS.getMappedPort(6379));
         factory.afterPropertiesSet();
         redis = new StringRedisTemplate(factory);
-        cache = new RedisApprovalPreviewCache(redis, mapper);
+        cache = new RedisApprovalPreviewCache(redis, mapper, Clock.systemUTC());
     }
 
     @AfterEach
@@ -88,7 +89,7 @@ class RedisApprovalPreviewCacheTest extends RedisTestContainerBase {
         given(broken.opsForValue()).willReturn(ops);
         given(ops.get(anyString())).willThrow(new RedisConnectionFailureException("끊김"));
         given(broken.delete(anyString())).willThrow(new RedisConnectionFailureException("끊김"));
-        RedisApprovalPreviewCache brokenCache = new RedisApprovalPreviewCache(broken, mapper);
+        RedisApprovalPreviewCache brokenCache = new RedisApprovalPreviewCache(broken, mapper, Clock.systemUTC());
 
         assertThat(brokenCache.find(approvalId)).isEmpty();
         brokenCache.evict(approvalId);

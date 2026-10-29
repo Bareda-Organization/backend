@@ -55,7 +55,7 @@ public class NoShowCaseAccess {
     /** 되돌리기가 {@code no_show} 를 벗어날 때 케이스를 종결한다(BR-009) — 없으면 아무 일도 하지 않는다. */
     @Transactional(propagation = Propagation.MANDATORY)
     public void resolveByRevert(Long runRiderId, OffsetDateTime resolvedAt) {
-        noShowCaseRepository.findByRunRiderId(runRiderId)
+        noShowCaseRepository.findLockedByRunRiderId(runRiderId)
                 .ifPresent(noShowCase -> noShowCase.resolveByRevert(resolvedAt));
     }
 

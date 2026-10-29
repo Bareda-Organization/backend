@@ -46,11 +46,6 @@ public class RedisApprovalPreviewCache implements ApprovalPreviewCache {
     private final ObjectReader reader;
     private final LocalFallbackMemory<ApprovalPreview> whileRedisIsDown;
 
-    /** 시험이 시계를 따로 만들지 않고 쓰는 생성자 — 운영은 아래 시계를 받는 생성자다. */
-    public RedisApprovalPreviewCache(StringRedisTemplate redis, JsonMapper mapper) {
-        this(redis, mapper, Clock.systemUTC());
-    }
-
     @Autowired
     public RedisApprovalPreviewCache(StringRedisTemplate redis, JsonMapper mapper, Clock clock) {
         this.redis = redis;

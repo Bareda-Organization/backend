@@ -21,7 +21,7 @@ public class BoardingIntentReadQueryService {
 
     /**
      * 그 회차 그 학생의 탑승 의사 — 행이 없으면 기본값(탑승 ON · 한도 미사용)이다
-     * ({@code BoardingIntentCommandService.riderStatusOf}·{@code quotaLeftOf} 와 같은 기본값 규칙).
+     * ({@code BoardingIntentStatusReader.riderStatusOf}·{@code quotaLeftOf} 와 같은 기본값 규칙).
      */
     public Intent findIntent(Long runId, Long studentId) {
         return boardingIntentRepository.findByRunIdAndStudentId(runId, studentId)

@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
+import src.backend.boarding.event.RiderMarkedNoShowEvent;
 import src.backend.boarding.event.RiderStatusChangedEvent;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
@@ -53,7 +54,7 @@ class RiderChangedBroadcastListenerTest {
 
         Student student = mock(Student.class);
         given(student.getName()).willReturn("홍길동");
-        given(studentRepository.findById(studentId)).willReturn(Optional.of(student));
+        given(studentRepository.findAllByAcademyIdAndIdIn(academyId, List.of(studentId))).willReturn(List.of(student));
         given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.empty());
         given(runRiderRepository.countByRunIdAndStatus(eq(runId), any(RiderStatus.class))).willReturn(0L);
 
@@ -78,7 +79,7 @@ class RiderChangedBroadcastListenerTest {
 
         Student student = mock(Student.class);
         given(student.getName()).willReturn("김민성");
-        given(studentRepository.findById(studentId)).willReturn(Optional.of(student));
+        given(studentRepository.findAllByAcademyIdAndIdIn(1L, List.of(studentId))).willReturn(List.of(student));
 
         RunRider rider = RunRider.uponConfirmation(runId, studentId, 55L);
         given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.of(rider));
@@ -92,6 +93,47 @@ class RiderChangedBroadcastListenerTest {
         verify(gateway, times(1)).sendToAll(any(), eq("rider_changed"), eq(runId), any(), argThat(payload -> {
             String text = String.valueOf(payload);
             assertThat(text).contains("김민성").contains("stopId=55");
+            return true;
+        }));
+    }
+
+    @Test
+    @DisplayName("다른 학원의 학생 id 가 실려 와도 이름은 채우지 않는다 — 이벤트의 학원 조건으로만 학생을 읽는다")
+    void 다른_학원_학생의_이름은_싣지_않는다() {
+        Long runId = 10L;
+        Long studentId = 100L;
+        RiderStatusChangedEvent event = new RiderStatusChangedEvent(runId, 1L, studentId, 200L, "boarded",
+                OffsetDateTime.now(), false);
+        Student otherAcademyStudent = mock(Student.class);
+        given(otherAcademyStudent.getName()).willReturn("남의학원학생");
+        given(studentRepository.findById(studentId)).willReturn(Optional.of(otherAcademyStudent));
+        given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.empty());
+        given(runRiderRepository.countByRunIdAndStatus(eq(runId), any(RiderStatus.class))).willReturn(0L);
+
+        listener.broadcast(event);
+
+        verify(gateway, times(1)).sendToAll(any(), eq("rider_changed"), eq(runId), any(), argThat(payload -> {
+            assertThat(String.valueOf(payload)).doesNotContain("남의학원학생");
+            return true;
+        }));
+    }
+
+    @Test
+    @DisplayName("미승차 방송도 이벤트의 학원 안에서만 학생 이름을 읽는다")
+    void 미승차_방송은_이벤트_학원의_학생만_읽는다() {
+        Long runId = 10L;
+        Long studentId = 100L;
+        RiderMarkedNoShowEvent event = new RiderMarkedNoShowEvent(runId, 1L, studentId, 200L, 300L, 55L, true,
+                OffsetDateTime.now());
+        Student student = mock(Student.class);
+        given(student.getName()).willReturn("김민성");
+        given(studentRepository.findAllByAcademyIdAndIdIn(1L, List.of(studentId))).willReturn(List.of(student));
+        given(runRiderRepository.countByRunIdAndStatus(eq(runId), any(RiderStatus.class))).willReturn(0L);
+
+        listener.broadcast(event);
+
+        verify(gateway, times(1)).sendToAll(any(), eq("rider_changed"), eq(runId), any(), argThat(payload -> {
+            assertThat(String.valueOf(payload)).contains("김민성");
             return true;
         }));
     }

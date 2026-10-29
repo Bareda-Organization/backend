@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.boarding.command.ClientKeyReplay;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
@@ -24,7 +25,6 @@ import src.backend.exception.query.ExceptionReportQueryService;
 import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.run.access.RunAssignmentAccess;
@@ -66,8 +66,8 @@ public class ExceptionReportCommandService {
 
     private final Clock clock;
 
-    /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
-    private final ClientKeyLock clientKeyLock;
+    /** 같은 {@code client_key} 재전송의 키 잠금 · 이전 처리 조회 절차(BR-226). */
+    private final ClientKeyReplay clientKeyReplay;
 
     /** 현장 예외 보고 등록(§4.13) — 저장과 같은 트랜잭션에서 관계자 통지 이벤트를 발행한다. */
     public ExceptionReportCreateResponse report(AuthUser requester, Long runId,
@@ -77,13 +77,18 @@ public class ExceptionReportCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
         ExceptionReportType type = ApiValues.reportType(request.type());
-        if (request.clientKey() != null) {
-            clientKeyLock.acquire(request.clientKey());
-            Optional<ExceptionReport> replay = exceptionReportRepository.findByClientKey(request.clientKey());
-            if (replay.isPresent()) {
-                return replayResponse(replay.get(), run.getId(), type, request.riderId());
-            }
+        Optional<ExceptionReportCreateResponse> replayed = clientKeyReplay.replay(request.clientKey(),
+                exceptionReportRepository::findByClientKey,
+                existing -> replayResponse(existing, run.getId(), type, request.riderId()));
+        if (replayed.isPresent()) {
+            return replayed.get();
         }
+        return create(requester, run, type, request);
+    }
+
+    /** 재전송이 아닌 새 보고를 저장하고 관계자 통지 이벤트를 발행한다. */
+    private ExceptionReportCreateResponse create(AuthUser requester, Run run, ExceptionReportType type,
+            ExceptionReportCreateRequest request) {
         Long runRiderId = type == ExceptionReportType.GUARDIAN_ABSENT
                 ? resolveRunRiderId(request.riderId(), run.getId())
                 : null;
