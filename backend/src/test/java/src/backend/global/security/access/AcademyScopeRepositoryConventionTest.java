@@ -113,7 +113,7 @@ class AcademyScopeRepositoryConventionTest {
     private static final Set<String> ERD_OUT_OF_SCOPE_TABLES = Set.of("academy", "system_admin");
 
     /**
-     * 학원으로 좁히면 <b>깨지는</b> 조회 6개 — 로그인·토큰 재발급·계정 복구는 소속을 아직 모르는 상태에서
+     * 학원으로 좁히면 <b>깨지는</b> 조회 5개 — 로그인·토큰 재발급·계정 복구는 소속을 아직 모르는 상태에서
      * 시작하고, 소속을 알아야 좁힐 수 있는데 좁혀야 소속을 안다는 순환이 된다(Ruling 100).
      *
      * <p>{@code existsByLoginId} 만은 근거가 다르다 — 격리 예외가 아니라 <b>유일성 제약 그 자체</b>다.
@@ -126,7 +126,6 @@ class AcademyScopeRepositoryConventionTest {
             "AccountRepository#findByLoginId",
             "AccountRepository#existsByLoginId",
             "RefreshTokenRepository#findByTokenHash",
-            "RefreshTokenRepository#findAllByAccountIdAndRevokedAtIsNull",
             "VerificationCodeRepository#findTopByPhoneAndPurposeOrderByCreatedAtDesc");
 
     @Test
@@ -266,7 +265,7 @@ class AcademyScopeRepositoryConventionTest {
      * 조건을 넣는 절반짜리 변경도 실패로 만든다.
      */
     @Test
-    void 로그인과_복구_경로_조회_6개는_학원으로_좁혀지지_않은_채_남는다() {
+    void 로그인과_복구_경로_조회_5개는_학원으로_좁혀지지_않은_채_남는다() {
         List<Method> named = allRepositoryMethods().stream()
                 .filter(method -> MUST_STAY_UNSCOPED.contains(AcademyScopeScan.key(method)))
                 .toList();
