@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.observability.metrics.RunUnconfirmedMetrics;
 import src.backend.run.entity.RunStatus;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunDashboardRepository;
 
 /**
  * {@code schoolbus.run.unconfirmed} 게이지(TECH_DECISIONS §13.1·§13.4)를 갱신한다 —
@@ -31,7 +31,7 @@ import src.backend.run.repository.RunRepository;
 @RequiredArgsConstructor
 public class RunUnconfirmedGaugeScheduler {
 
-    private final RunRepository runRepository;
+    private final RunDashboardRepository runDashboardRepository;
 
     private final RunUnconfirmedMetrics metrics;
 
@@ -48,7 +48,7 @@ public class RunUnconfirmedGaugeScheduler {
     @SchedulerLock(name = "run-unconfirmed-gauge", lockAtMostFor = "PT2M")
     public void refresh() {
         OffsetDateTime threshold = OffsetDateTime.now(clock).minusMinutes(5);
-        long count = runRepository.countOverdueUnconfirmed(RunStatus.IDLE, threshold, LocalDate.now(clock));
+        long count = runDashboardRepository.countOverdueUnconfirmed(RunStatus.IDLE, threshold, LocalDate.now(clock));
         metrics.update(count);
     }
 }

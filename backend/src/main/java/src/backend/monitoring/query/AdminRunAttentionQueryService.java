@@ -22,7 +22,7 @@ import src.backend.monitoring.dto.AdminRunAttentionResponse;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.AcademyRunCount;
 import src.backend.run.repository.AcademyRunStatusCount;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunDashboardRepository;
 
 /**
  * 전체 관제의 학원별 오늘 지연·확정 실패 집계(API_SPEC §6.15, Ruling 543) — 두 집계를 학원 식별자로 합쳐 문제가 있는
@@ -34,7 +34,7 @@ import src.backend.run.repository.RunRepository;
 @Transactional(readOnly = true)
 public class AdminRunAttentionQueryService {
 
-    private final RunRepository runRepository;
+    private final RunDashboardRepository runDashboardRepository;
 
     private final AcademyRepository academyRepository;
 
@@ -43,8 +43,8 @@ public class AdminRunAttentionQueryService {
     /** 오늘 지연 회차 또는 확정 실패 회차가 있는 학원({@code items})과 전 학원의 오늘 요약({@code today}) — 둘 다 학원 식별자 순. */
     public AdminRunAttentionResponse list() {
         LocalDate today = LocalDate.now(clock);
-        Map<Long, Long> delayed = byAcademy(runRepository.countDelayedByAcademy(today));
-        Map<Long, Long> confirmFailed = byAcademy(runRepository.countConfirmFailedByAcademy(today));
+        Map<Long, Long> delayed = byAcademy(runDashboardRepository.countDelayedByAcademy(today));
+        Map<Long, Long> confirmFailed = byAcademy(runDashboardRepository.countConfirmFailedByAcademy(today));
 
         Set<Long> academyIds = new TreeSet<>(delayed.keySet());
         academyIds.addAll(confirmFailed.keySet());
@@ -57,7 +57,7 @@ public class AdminRunAttentionQueryService {
 
     private List<AdminRunAttentionResponse.Today> todayOf(LocalDate today, Map<Long, Long> delayed,
             Map<Long, Long> confirmFailed) {
-        Map<Long, Map<RunStatus, Long>> countsByAcademy = runRepository.countByAcademyAndStatus(today).stream()
+        Map<Long, Map<RunStatus, Long>> countsByAcademy = runDashboardRepository.countByAcademyAndStatus(today).stream()
                 .collect(Collectors.groupingBy(AcademyRunStatusCount::getAcademyId,
                         Collectors.toMap(AcademyRunStatusCount::getStatus, AcademyRunStatusCount::getRunCount)));
         return academyRepository.findAll(Sort.by("id")).stream()

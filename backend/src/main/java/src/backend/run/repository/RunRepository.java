@@ -8,7 +8,6 @@ import java.util.Optional;
 
 import jakarta.persistence.LockModeType;
 
-import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -18,26 +17,13 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-
-import src.backend.boarding.entity.RiderStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.security.access.AcademyScopeExempt;
-import src.backend.global.security.authz.Permissions;
 import src.backend.run.entity.Run;
-import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunStatus;
 
 /** {@link Run} 영속성 접근 — 조회는 전부 학원으로 좁혀져 호출부가 조건을 빼먹을 자리가 부재하다. */
-public interface RunRepository extends JpaRepository<Run, Long> {
-
-    /**
-     * <b>끝나지 않은 이동 중 회차</b>의 조건 한 벌(Ruling 701 · Ruling 724) — 미취소 {@code moving} 이고 운행일이
-     * {@code :before} 보다 이르다. {@link #countStaleMoving}(경보 지표) · {@link #findStaleMoving}(관리자 목록) ·
-     * {@link #finishIfStaleMoving}(강제 종료)가 이 문자열을 같이 이어 쓴다 — 조건이 두 벌이면 경보가 센 회차와 목록에 뜬 회차가
-     * 어긋나고, 강제 종료가 목록에 없는 회차를 끝낼 수 있다. {@code :before} 는 {@code MovingRunWindowPolicy#earliestServiceDate}.
-     */
-    String STALE_MOVING = "r.status = src.backend.run.entity.RunStatus.MOVING AND r.canceledAt IS NULL "
-            + "AND r.serviceDate < :before";
+public interface RunRepository extends JpaRepository<Run, Long>, MovingRunQueries, RunScheduleQueries {
 
     /**
      * 한 학원의 <b>그 날짜</b> 회차 목록(SCH-02 결과 조회, §5.10 {@code GET /staff/runs}).
@@ -59,19 +45,6 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 판정을 이 메서드 이름이 아니라 자신의 자바독에 명시하게 하기 위함이다.
      */
     List<Run> findAllByAcademyIdAndStatusOrderByDepartTimeAsc(Long academyId, RunStatus status);
-
-    /**
-     * 한 학원에서 그 상태인 미취소 회차가 있는 <b>차량의 호차 이름</b>(학원 상세 {@code stats.moving_bus_nos[]}, §6.3 · Ruling 806) — 운행일이
-     * {@code since} 이후인 회차만 센다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate} 라
-     * 근접 판정·유실 집계·노선 잠금과 같은 범위다(Ruling 701) — 그보다 이른 {@code moving} 회차는 끝나지 않은 회차로
-     * {@link #countStaleMoving} 이 센다. 차량이 같으면 한 번만 나온다(회차 수가 아니다, BR-057). 호차 이름은 학원 안에서 유일하다
-     * ({@code uk_bus_academy_bus_no}) — 그래서 이 목록의 크기가 곧 {@code moving_bus_count} 이고, 두 값이 같은 범위일 수밖에 없다.
-     */
-    @Query("SELECT DISTINCT b.busNo FROM Run r JOIN Bus b ON b.id = r.busId AND b.academyId = r.academyId "
-            + "WHERE r.academyId = :academyId AND r.status = :status "
-            + "AND r.canceledAt IS NULL AND r.serviceDate >= :since ORDER BY b.busNo")
-    List<String> findBusNosByStatusFromServiceDate(@Param("academyId") Long academyId,
-            @Param("status") RunStatus status, @Param("since") LocalDate since);
 
     /**
      * 임시 취소·배치 대상 회차 1건(SCH-03 · MGR-05, §5.10·§5.14) — 학원이 어긋나면 빈 결과이고
@@ -101,9 +74,6 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 조회마다 학원 조건을 직접 갖는 관례를 여기서도 지킨다.
      */
     List<Run> findAllByIdInAndAcademyId(Collection<Long> ids, Long academyId);
-
-    /** 학원 여러 곳 안에서 id 로 일괄 조회한다 — 메인 관리자 대시보드(§6.18)가 학원을 가로질러 읽되 선택한 학원 안으로만 좁힌다. */
-    List<Run> findAllByAcademyIdInAndIdIn(Collection<Long> academyIds, Collection<Long> ids);
 
     /**
      * 같은 유일성 조합의 회차가 이미 있는지 본다 — {@code uk_run_bus_date_direction_depart} 위반을
@@ -149,82 +119,6 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             Pageable pageable);
 
     /**
-     * 근접 알림 스케줄러(NTF-04)의 조회 대상 — 시각 문턱이 없다는 점이
-     * {@link #findDueForConfirmation} 와 다르다.
-     * 근접 판정은 "판정 시각이 지났는가" 가 아니라 "지금 운행 중인가" 만 묻는다({@code RunStatus.MOVING}) —
-     * 실제 좌표가 300m 안에 들어왔는지는 이 조회가 아니라 정차 항목별 판정이 담당한다.
-     *
-     * <p>{@code canceled_at IS NULL} 을 더한 이유는 {@link #confirmIfIdle} 과 같다 — 조회와 판정
-     * 사이에 회차가 취소돼도 {@code status} 는 그대로일 수 있어, 취소 배제를 별도로 걸어야 한다.
-     *
-     * <p>{@code afterId} 보다 큰 id 만 {@code pageable} 크기씩 읽는다 — 판정 뒤에도 회차는 {@code moving}
-     * 그대로라 늘 0쪽만 집으면 다음 틱도 같은 묶음이다. 호출부가 마지막 id 를 넘겨 끝까지 이어 읽는다
-     * (BR-011). 쪽 번호 대신 id 를 쓰는 이유는 읽는 사이에 회차가 끝나 목록이 줄어도 건너뛰는 행이 없게
-     * 하려는 것이다.
-     *
-     * <p><b>{@code service_date >= since}</b> 로 지난 운행일의 이동 중 회차를 뺀다(Ruling 701) — 잔류 인원을
-     * 정리하지 못해 끝나지 않은 회차가 처리 집합에 영구히 남으면 틱마다 읽는 양이 날마다 늘고, 위치가 없는 그 회차가 유실
-     * 경보를 계속 켜 둔다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate} 다. 빠진 회차의 수는
-     * {@link #countStaleMoving} 이 센다. {@code ix_run_moving}(부분 인덱스)이 이동 중 회차만 골라 주므로 날짜 조건은 그 소수에
-     * 대한 걸러내기다. {@code status} 를 바인딩 파라미터가 아니라 <b>리터럴</b>로 둔 것도 이 인덱스 때문이다 — 부분 인덱스는 리터럴일 때만 쓰여, 파라미터로 받으면
-     * 일반(generic) 계획이 {@code run_pkey} 로 전 행을 훑는다(14.6만 행 실측 20.7ms · 리터럴은 0.033ms, {@code ix_run_status_confirm_at} 주석과 같은
-     * 근거). 읽기 전용 트랜잭션 한 개로 묶는다 — 근접 판정 시험이 한 틱의 트랜잭션 수를 세는데, 이 조회가
-     * 그중 하나다.
-     */
-    @AcademyScopeExempt(reason = "근접 알림 스케줄러는 시각이 촉발하는 전 학원 대상 조회라 좁힐 학원이 부재하다 — "
-            + "findDueForConfirmation 와 같은 근거. 호출부는 "
-            + "배치(ProximityNotificationScheduler · RunPositionLostGaugeScheduler)뿐이라는 전제 — 요청 경로에서 부르면 이 예외가 우회로가 된다")
-    @Transactional(readOnly = true)
-    @Query("SELECT r FROM Run r WHERE r.status = src.backend.run.entity.RunStatus.MOVING AND r.canceledAt IS NULL "
-            + "AND r.serviceDate >= :since AND r.id > :afterId ORDER BY r.id ASC")
-    List<Run> findMovingFromServiceDate(@Param("since") LocalDate since, @Param("afterId") Long afterId,
-            Pageable pageable);
-
-    /**
-     * 처리 집합에서 빠진 <b>끝나지 않은 이동 중 회차</b> 수 — 운행일이 {@code before} 보다 이른 미취소 {@code moving} 회차
-     * (Ruling 701). {@link #findMovingFromServiceDate} 가 집지 않는 바로 그 회차라, 근접 판정·유실 집계·노선
-     * 잠금이 못 보는 대신 {@code schoolbus.run.moving.stale} 게이지로 사람에게 드러낸다.
-     */
-    @AcademyScopeExempt(reason = "끝나지 않은 이동 중 회차 게이지는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 부재하다 — "
-            + "countOverdueUnconfirmed 와 같은 근거. 호출부는 관측 스케줄러(StaleMovingRunGaugeScheduler)뿐이라는 전제")
-    @Query("SELECT COUNT(r) FROM Run r WHERE " + STALE_MOVING)
-    long countStaleMoving(@Param("before") LocalDate before);
-
-    /**
-     * 끝나지 않은 이동 중 회차 목록(Ruling 724) — {@link #countStaleMoving} 이 세는 바로 그 회차를 운행일 오름차순으로,
-     * 학원 이름 · 호차 · 아직 {@code boarded} 인 탑승자 수와 함께 읽는다(그 상태는 §9.1 대로 파라미터 — 호출부가 {@code BOARDED} 를 넘긴다). 학원·차량은 theta 조인이라 회차마다 한 번에 읽힌다.
-     * {@code limit} 은 목록 상한이다({@code PageParams#UNPAGED_LIST_MAX}) — 오래된 회차부터 자르므로 처리하면 다음 회차가 올라온다.
-     */
-    @AcademyScopeExempt(reason = "메인 관리자 콘솔의 끝나지 않은 이동 중 회차 목록(AdminStaleMovingRunQueryService)은 전 학원 대상 조회라 "
-            + "좁힐 학원이 부재하다 — countStaleMoving 과 같은 근거. 호출부는 @Can(Permissions.MONITOR_ALL) 로 보호되는 그 서비스뿐이라는 전제")
-    @Query("SELECT r.id AS runId, r.academyId AS academyId, a.name AS academyName, a.contact AS academyContact, r.serviceDate AS serviceDate, "
-            + "r.direction AS direction, b.busNo AS busNo, r.startedAt AS startedAt, r.finishPending AS finishPending, "
-            + "(SELECT COUNT(rr) FROM RunRider rr WHERE rr.runId = r.id "
-            + "AND rr.status = :boarded) AS boardedCount "
-            + "FROM Run r, Academy a, Bus b WHERE a.id = r.academyId AND b.id = r.busId AND " + STALE_MOVING
-            + " ORDER BY r.serviceDate ASC, r.id ASC")
-    List<StaleMovingRunRow> findStaleMoving(@Param("before") LocalDate before, @Param("boarded") RiderStatus boarded,
-            Limit limit);
-
-    /**
-     * 끝나지 않은 이동 중 회차 1건을 {@code finished} 로 닫는다(Ruling 724) — 영향받은 행 수가 성공 여부다.
-     *
-     * <p><b>{@link #STALE_MOVING} 이 조건에 그대로 들어 있는 것이 동시성 방어의 전부다.</b> 동승자가 같은 순간 마지막 하차를
-     * 눌러 {@code RunCompletionService} 가 회차 행을 잠그고 종료하면, 이 갱신은 그 커밋을 기다렸다가 {@code status = 'moving'}
-     * 조건이 거짓이 되어 0행을 갱신한다 — 반대로 이 갱신이 먼저면 그쪽의 다시 읽기가 {@code finished} 를 보고 종료를 건너뛴다.
-     * 먼저 읽어 판정한 뒤 갱신하면 그 사이에 둘 다 통과한다. 탑승자 상태·하차 기록은 건드리지 않는다(지난 운행의 하차 시각을 지어낼 수 없다).
-     */
-    @Transactional
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @AcademyScopeExempt(reason = "메인 관리자 콘솔이 목록(findStaleMoving)에서 고른 run.id 하나를 조건부로 닫는 단건 호출이다 — "
-            + "그 목록이 이미 전 학원 대상이라 이 시점에 학원을 다시 물을 근거가 없다. 호출부는 @Can(Permissions.RUN_FORCE_FINISH) 으로 보호되는 "
-            + "RunForceFinishCommandService 뿐이라는 전제")
-    @Query("UPDATE Run r SET r.status = src.backend.run.entity.RunStatus.FINISHED, r.finishedAt = :finishedAt, "
-            + "r.finishPending = false WHERE r.id = :id AND " + STALE_MOVING)
-    int finishIfStaleMoving(@Param("id") Long id, @Param("before") LocalDate before,
-            @Param("finishedAt") OffsetDateTime finishedAt);
-
-    /**
      * 회차를 idle → confirmed 로 전이한다 — 영향받은 행 수로 성공 여부를 판정한다.
      *
      * <p><b>{@code WHERE status = 'idle'} 조건이 멱등성의 전부다.</b> 같은 회차를 동시에 두 스레드가
@@ -253,48 +147,6 @@ public interface RunRepository extends JpaRepository<Run, Long> {
             + "AND r.status = src.backend.run.entity.RunStatus.IDLE "
             + "AND r.canceledAt IS NULL")
     int confirmIfIdle(@Param("id") Long id, @Param("confirmedAt") OffsetDateTime confirmedAt);
-
-    /**
-     * 스케줄이 만든 <b>오늘 이후 · 주어진 상태 · 미취소</b> 회차 — 스케줄 수정·삭제를 미리 만든 회차에 반영할 때
-     * 고른다(Ruling 366 ②). 오늘({@code today})은 포함하지 않는다 — 오늘 회차는 확정 배치가 이미 걸려 있을 수 있다.
-     */
-    List<Run> findAllByAcademyIdAndScheduleIdAndServiceDateAfterAndStatusAndCanceledAtIsNull(Long academyId,
-            Long scheduleId, LocalDate today, RunStatus status);
-
-    /**
-     * 스케줄이 <b>취소한</b> 오늘 이후 · 주어진 상태 회차 — 스케줄 재활성·요일/방향 복귀 때 되살릴 후보다(Ruling 367 ②).
-     * 관계자가 직접 취소한 회차({@code cancel_source = staff})와 출처를 모르는 옛 취소({@code NULL})는 고르지 않는다.
-     */
-    List<Run> findAllByAcademyIdAndScheduleIdAndServiceDateAfterAndStatusAndCancelSource(Long academyId,
-            Long scheduleId, LocalDate today, RunStatus status, RunCancelSource cancelSource);
-
-    /**
-     * 그 차량·날짜·방향·출발 시각을 <b>다른</b> 회차가 이미 잡고 있는가 — 스케줄 수정이 회차를 옮기기 전에 본다.
-     * 취소된 회차도 센다({@code uk_run_bus_date_direction_depart} 가 취소 여부를 가리지 않는다).
-     */
-    boolean existsByAcademyIdAndBusIdAndServiceDateAndDirectionAndDepartTimeAndIdNot(Long academyId, Long busId,
-            LocalDate serviceDate, Direction direction, OffsetDateTime departTime, Long id);
-
-    /**
-     * 그 스케줄이 그날 그 방향으로 <b>살아 있는</b>(미취소) 회차를 이미 가졌는가 — 스케줄이 취소했던 회차를 되살리기
-     * 전에 본다(관계자 취소까지 막는 생성 쪽 판정은 {@link #existsLiveOrNonScheduleCanceled}). 확정·시작된 회차는 수정
-     * 반영 대상이 아니라 옛 출발 시각으로 남으므로, 유일성 조합만 보면 같은 스케줄의 회차가 하나 더 살아난다.
-     */
-    boolean existsByAcademyIdAndScheduleIdAndServiceDateAndDirectionAndCanceledAtIsNull(Long academyId,
-            Long scheduleId, LocalDate serviceDate, Direction direction);
-
-    /**
-     * 그 스케줄이 그날 그 방향으로 <b>스케줄이 새로 만들면 안 되는</b> 회차를 이미 가졌는가(BR-316) — 살아 있는(미취소) 회차이거나
-     * {@code scheduleSource} 가 아닌 출처로 취소된 회차다. 관계자가 취소한 날은 스케줄이 어떻게 바뀌어도 되살리지 않으므로(§5.10),
-     * 출발 시각·차량이 바뀌어 유일성 조합이 달라져도 그 자리에 새 회차를 만들지 않는다. 스케줄이 취소한 회차는 세지 않는다 —
-     * 그 회차는 되살림 경로가 맡는다. 출처가 비어 있는 취소(출처를 모르는 옛 행)는 관계자 취소와 같이 취급한다.
-     */
-    @Query("SELECT COUNT(r) > 0 FROM Run r WHERE r.academyId = :academyId AND r.scheduleId = :scheduleId "
-            + "AND r.serviceDate = :serviceDate AND r.direction = :direction "
-            + "AND (r.canceledAt IS NULL OR r.cancelSource IS NULL OR r.cancelSource <> :scheduleSource)")
-    boolean existsLiveOrNonScheduleCanceled(@Param("academyId") Long academyId, @Param("scheduleId") Long scheduleId,
-            @Param("serviceDate") LocalDate serviceDate, @Param("direction") Direction direction,
-            @Param("scheduleSource") RunCancelSource scheduleSource);
 
     /** 차량의 오늘 이후 · 미취소 회차 중 주어진 상태의 것 — 정원 축소 경고(§5.12, BR-116)가 쓴다. */
     List<Run> findAllByAcademyIdAndBusIdAndServiceDateGreaterThanEqualAndCanceledAtIsNullAndStatusIn(Long academyId,
@@ -332,130 +184,4 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     @Query("UPDATE Run r SET r.consecutiveFailures = 0, r.confirmRetryAt = NULL WHERE r.academyId = :academyId "
             + "AND r.status = src.backend.run.entity.RunStatus.IDLE AND r.consecutiveFailures > 0")
     int resetConfirmationFailures(@Param("academyId") Long academyId);
-
-    /**
-     * 회차 id 목록을 학원 조건 없이 읽는다(AdminEmergencyQueryService, §6.11) — 호출부가 넘기는
-     * id 는 이미 emergency_alert.run_id 에서 온 값이고, 그 조회(EmergencyAlertRepository
-     * #findAllByState) 자체가 메인 관리자 콘솔의 명시적 전 학원 예외라 여기서 다시
-     * 학원으로 좁힐 근거가 부재하다(AccountRepository#findAllByIdIn 과 같은 근거).
-     */
-    @AcademyScopeExempt(reason = "메인 관리자 콘솔의 전 학원 비상 알림 조회(AdminEmergencyQueryService) — 호출부가 "
-            + "넘기는 runId 는 emergency_alert.run_id 에서 온 값이라 학원별로 미리 좁힐 수 없다. emergency_alert "
-            + "조회 자체가 이미 §6.11 의 명시적 전 학원 예외다(AccountRepository#findAllByIdIn 과 같은 근거)")
-    List<Run> findAllByIdIn(Collection<Long> ids);
-
-    /**
-     * {@code schoolbus.run.unconfirmed} 게이지(TECH_DECISIONS §13.1·§13.4)의 조회 대상 — 판정 시각을
-     * 5분 넘긴(경고 여유) idle 회차 수. {@code threshold} 에 {@code now - 5분} 을 넘겨받는다 — 알럿
-     * 조건과 확정 배치 조회의 문턱이 다르므로({@code +5분} 여유) 이 메서드를 따로 둔다.
-     *
-     * <p>{@link #findDueForConfirmation} 과 같은 두 조건을 건다. ① {@code canceled_at IS NULL} — 취소된 회차는 애초에
-     * 확정 대상이 아니라 "노선을 못 받은" 위험이 없다. ② {@code service_date >= today}(BR-231) — 지난 날짜 idle 회차는
-     * 확정 배치가 집지 않아 영구히 idle 이고, 세면 "0 이 아니면 곧 운행 사고" 경보가 다시 꺼지지 않는다.
-     */
-    @AcademyScopeExempt(reason = "미확정 회차 게이지는 시각이 촉발하는 전 학원 대상 집계라 좁힐 학원이 "
-            + "부재하다 — findDueForConfirmation 와 같은 근거. "
-            + "호출부는 관측 스케줄러(RunUnconfirmedGaugeScheduler)뿐이라는 전제")
-    @Query("SELECT COUNT(r) FROM Run r WHERE r.status = :status AND r.confirmAt <= :threshold "
-            + "AND r.serviceDate >= :today AND r.canceledAt IS NULL")
-    long countOverdueUnconfirmed(@Param("status") RunStatus status, @Param("threshold") OffsetDateTime threshold,
-            @Param("today") LocalDate today);
-
-    /**
-     * 학원별로 <b>오늘 확정에 실패 중인</b> 회차 수 — 임시 취소를 뺀 오늘 회차 중 아직 {@code idle} 이면서
-     * {@code consecutive_failures > 0} 인 것(§6.15, Ruling 543). 이미 확정된 회차의 옛 실패 횟수는 읽지 않는다. 상태를 enum 리터럴로
-     * 쓰는 이유는 {@link #countDelayedByAcademy} 와 같다({@code ix_run_status_confirm_at} 의 {@code status = 'idle'} 부분 조건).
-     */
-    @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15)가 전 학원을 학원별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
-            + "호출부는 @Can(Permissions.MONITOR_ALL) 로 보호되는 AdminRunAttentionQueryService 뿐이라는 전제 — 요청 경로에서 학원 권한으로 "
-            + "부르면 이 예외가 우회로가 된다(findDueForConfirmation 과 같은 근거)")
-    @Query("SELECT r.academyId AS academyId, COUNT(r) AS runCount FROM Run r "
-            + "WHERE r.serviceDate = :today AND r.canceledAt IS NULL "
-            + "AND r.status = src.backend.run.entity.RunStatus.IDLE "
-            + "AND r.consecutiveFailures > 0 GROUP BY r.academyId")
-    List<AcademyRunCount> countConfirmFailedByAcademy(@Param("today") LocalDate today);
-
-    /**
-     * 학원·상태별로 <b>그날 미취소 회차</b> 수(§6.15 {@code today[]}, Ruling 805) — 전체 관제의 학원 레일·지표 칸이 학원마다 §6.8 을
-     * 부르지 않고 한 번에 읽는다. 회차가 없는 학원·상태는 행이 없다(호출부가 0 으로 채운다).
-     */
-    @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15 today[])가 전 학원을 학원·상태별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
-            + "countConfirmFailedByAcademy 와 같은 근거와 같은 호출부 전제")
-    @Query("SELECT r.academyId AS academyId, r.status AS status, COUNT(r) AS runCount FROM Run r "
-            + "WHERE r.serviceDate = :day AND r.canceledAt IS NULL GROUP BY r.academyId, r.status")
-    List<AcademyRunStatusCount> countByAcademyAndStatus(@Param("day") LocalDate day);
-
-    /**
-     * 학원별로 <b>오늘 지연 알림이 나간 채 아직 끝나지 않은</b> 회차 수(§6.15, Ruling 543) — 임시 취소를 뺀 오늘
-     * 회차 중 {@code finished} 가 아니고 {@code delay_notice} 가 1건 이상인 것. 알림이 여러 건이어도 회차는 한 번만
-     * 센다({@code EXISTS}). 상태를 파라미터가 아니라 enum 리터럴로 쓰는 이유는 부분 인덱스
-     * {@code ix_run_open_service_date}({@code status <> 'finished'} 조건)가 일반(generic) 계획에서도 쓰이게 하려는 것이다 —
-     * 파라미터이면 플래너가 조건이 인덱스 조건을 함의하는지 알 수 없다(Ruling 673).
-     */
-    @AcademyScopeExempt(reason = "메인 관리자 전체 관제(§6.15)가 전 학원을 학원별로 묶어 세는 조회라 좁힐 학원이 부재하다 — "
-            + "countConfirmFailedByAcademy 와 같은 근거와 같은 호출부 전제")
-    @Query("SELECT r.academyId AS academyId, COUNT(r) AS runCount FROM Run r "
-            + "WHERE r.serviceDate = :today AND r.canceledAt IS NULL "
-            + "AND r.status <> src.backend.run.entity.RunStatus.FINISHED "
-            + "AND EXISTS (SELECT 1 FROM DelayNotice d WHERE d.runId = r.id) GROUP BY r.academyId")
-    List<AcademyRunCount> countDelayedByAcademy(@Param("today") LocalDate today);
-
-    /**
-     * 학원·운행일별 회차 집계(§6.18, Ruling 801~802) — 미취소 회차 수 · 취소 수 · 시작한 수 · 정시 출발 수(Ruling 802: 실제 시작이 출발 예정 + 5분 이내,
-     * 정확히 +5분은 정시) · 지연 알림이 나간 회차 수(알림이 여러 건이어도 회차는 한 번)를 한 번에 센다. 학원 조건이 {@code academy_id IN} 으로 걸려
-     * {@code ix_run_academy_date_depart} 를 탄다 — 30일 범위에서도 전 행 스캔이 아니다.
-     */
-    @AcademyScopeExempt(reason = "메인 관리자 대시보드(§6.18)가 학원 선택(academy_id) 또는 전 학원 목록으로 묶어 세는 조회다 — academyIds 는 "
-            + "호출부(AdminDashboardQueryService)가 존재하는 학원 식별자로만 채운다. 요청 경로에서 학원 권한으로 부르면 이 예외가 우회로가 된다")
-    @Query(value = """
-            SELECT r.service_date AS "serviceDate", r.academy_id AS "academyId",
-                   COUNT(*) FILTER (WHERE r.canceled_at IS NULL) AS "runCount",
-                   COUNT(*) FILTER (WHERE r.canceled_at IS NOT NULL) AS "canceledCount",
-                   COUNT(*) FILTER (WHERE r.canceled_at IS NULL AND r.started_at IS NOT NULL) AS "startedCount",
-                   COUNT(*) FILTER (WHERE r.canceled_at IS NULL AND r.started_at IS NOT NULL
-                                    AND r.started_at <= r.depart_time + interval '5 minutes') AS "onTimeCount",
-                   COUNT(*) FILTER (WHERE r.canceled_at IS NULL
-                                    AND EXISTS (SELECT 1 FROM delay_notice d WHERE d.run_id = r.id)) AS "delayedCount"
-              FROM run r
-             WHERE r.academy_id IN (:academyIds) AND r.service_date BETWEEN :from AND :to
-             GROUP BY r.service_date, r.academy_id
-            """, nativeQuery = true)
-    List<RunDailyAggregate> aggregateDaily(@Param("academyIds") Collection<Long> academyIds,
-            @Param("from") LocalDate from, @Param("to") LocalDate to);
-
-    /** 그날 미취소 회차 — 출발 순(§6.18 {@code today_runs[]}, 학원 선택에 따라 좁힌다). */
-    List<Run> findAllByAcademyIdInAndServiceDateAndCanceledAtIsNullOrderByDepartTimeAsc(Collection<Long> academyIds,
-            LocalDate serviceDate);
-
-    /**
-     * 오늘 지연 회차(§6.18 {@code attention.delayed_runs[]}) — {@link #countDelayedByAcademy}(§6.15)와 같은 정의다: 미취소 · 아직 {@code finished}
-     * 가 아님 · 지연 알림 1건 이상.
-     */
-    @Query("SELECT r FROM Run r WHERE r.academyId IN :academyIds AND r.serviceDate = :today AND r.canceledAt IS NULL "
-            + "AND r.status <> src.backend.run.entity.RunStatus.FINISHED "
-            + "AND EXISTS (SELECT 1 FROM DelayNotice d WHERE d.runId = r.id) ORDER BY r.departTime ASC, r.id ASC")
-    List<Run> findDelayedToday(@Param("academyIds") Collection<Long> academyIds, @Param("today") LocalDate today);
-
-    /** 학원 선택에 따라 좁힌 끝나지 않은 이동 중 회차 수(§6.18 {@code attention.stale_runs}) — {@link #STALE_MOVING} 조건을 {@link #countStaleMoving} 과 같이 쓴다. */
-    @Query("SELECT COUNT(r) FROM Run r WHERE r.academyId IN :academyIds AND " + STALE_MOVING)
-    long countStaleMovingByAcademyIds(@Param("academyIds") Collection<Long> academyIds,
-            @Param("before") LocalDate before);
-
-    /** 최근 확정된 회차(§6.18 {@code recent_events[]} {@code run_confirmed}) — 시각 내림차순 · 최대 {@code limit} 건. */
-    @Query("SELECT r FROM Run r WHERE r.academyId IN :academyIds AND r.serviceDate >= :sinceDate "
-            + "AND r.canceledAt IS NULL AND r.confirmedAt >= :since ORDER BY r.confirmedAt DESC, r.id DESC")
-    List<Run> findRecentlyConfirmed(@Param("academyIds") Collection<Long> academyIds,
-            @Param("sinceDate") LocalDate sinceDate, @Param("since") OffsetDateTime since, Limit limit);
-
-    /** 최근 출발한 회차({@code run_started}) — 시각 내림차순 · 최대 {@code limit} 건. */
-    @Query("SELECT r FROM Run r WHERE r.academyId IN :academyIds AND r.serviceDate >= :sinceDate "
-            + "AND r.canceledAt IS NULL AND r.startedAt >= :since ORDER BY r.startedAt DESC, r.id DESC")
-    List<Run> findRecentlyStarted(@Param("academyIds") Collection<Long> academyIds,
-            @Param("sinceDate") LocalDate sinceDate, @Param("since") OffsetDateTime since, Limit limit);
-
-    /** 최근 끝난 회차({@code run_finished}) — 시각 내림차순 · 최대 {@code limit} 건. */
-    @Query("SELECT r FROM Run r WHERE r.academyId IN :academyIds AND r.serviceDate >= :sinceDate "
-            + "AND r.canceledAt IS NULL AND r.finishedAt >= :since ORDER BY r.finishedAt DESC, r.id DESC")
-    List<Run> findRecentlyFinished(@Param("academyIds") Collection<Long> academyIds,
-            @Param("sinceDate") LocalDate sinceDate, @Param("since") OffsetDateTime since, Limit limit);
 }

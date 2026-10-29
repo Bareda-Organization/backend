@@ -25,7 +25,7 @@ import src.backend.request.repository.ExpiringChangeRequestRow;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.AcademyRunCount;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunDashboardRepository;
 
 /**
  * 대시보드의 "지금 처리할 것"(API_SPEC §6.18 {@code attention}) — 기간과 무관한 지금 상태다. 지연 회차 목록은 오늘 회차 보드에서 받는다.
@@ -44,7 +44,7 @@ class AdminDashboardAttentionReader {
 
     private final ChangeRequestRepository changeRequestRepository;
 
-    private final RunRepository runRepository;
+    private final RunDashboardRepository runDashboardRepository;
 
     private final BusRepository busRepository;
 
@@ -55,11 +55,11 @@ class AdminDashboardAttentionReader {
     AdminDashboardResponse.Attention read(DashboardScope scope, LocalDate today, OffsetDateTime now,
             List<AdminDashboardResponse.DelayedRun> delayedRuns) {
         List<Long> academyIds = scope.academyIds();
-        long confirmFailed = runRepository.countConfirmFailedByAcademy(today).stream()
+        long confirmFailed = runDashboardRepository.countConfirmFailedByAcademy(today).stream()
                 .filter(row -> academyIds.contains(row.getAcademyId())).mapToLong(AcademyRunCount::getRunCount).sum();
         return new AdminDashboardResponse.Attention(signupBlockedOf(scope), delayedRuns, expiringOf(scope, now),
                 emergencyAlertRepository.countByAcademyIdInAndAckedAtIsNullAndCanceledAtIsNull(academyIds),
-                runRepository.countStaleMovingByAcademyIds(academyIds, movingRunWindowPolicy.earliestServiceDate()),
+                runDashboardRepository.countStaleMovingByAcademyIds(academyIds, movingRunWindowPolicy.earliestServiceDate()),
                 confirmFailed, accountRepository.countLoginBlocked());
     }
 
@@ -85,7 +85,7 @@ class AdminDashboardAttentionReader {
         if (rows.isEmpty()) {
             return List.of();
         }
-        Map<Long, Run> runs = runRepository.findAllByAcademyIdInAndIdIn(scope.academyIds(), rows.stream().map(ExpiringChangeRequestRow::getRunId).toList())
+        Map<Long, Run> runs = runDashboardRepository.findAllByAcademyIdInAndIdIn(scope.academyIds(), rows.stream().map(ExpiringChangeRequestRow::getRunId).toList())
                 .stream().collect(Collectors.toMap(Run::getId, Function.identity()));
         Map<Long, Bus> buses = busRepository.findAllByAcademyIdInAndIdIn(scope.academyIds(), runs.values().stream().map(Run::getBusId).distinct().toList())
                 .stream().collect(Collectors.toMap(Bus::getId, Function.identity()));

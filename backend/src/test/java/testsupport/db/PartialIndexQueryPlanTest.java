@@ -35,6 +35,7 @@ import src.backend.global.retention.IdempotencyKeyExpiry;
 import src.backend.notification.entity.PushState;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.run.entity.RunStatus;
+import src.backend.run.repository.RunDashboardRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -71,6 +72,9 @@ class PartialIndexQueryPlanTest {
 
     @Autowired
     private RunRepository runRepository;
+
+    @Autowired
+    private RunDashboardRepository runDashboardRepository;
 
     @Autowired
     private StudentRepository studentRepository;
@@ -126,7 +130,7 @@ class PartialIndexQueryPlanTest {
     /** 30초마다 도는 확정 지연 게이지 — 상태는 파라미터다(Ruling 631). */
     @Test
     void 확정_지연_집계는_ix_run_status_confirm_at_으로_풀린다() throws Exception {
-        String sql = 실행된_SQL(RUN_STATEMENT, () -> runRepository.countOverdueUnconfirmed(RunStatus.IDLE,
+        String sql = 실행된_SQL(RUN_STATEMENT, () -> runDashboardRepository.countOverdueUnconfirmed(RunStatus.IDLE,
                 OffsetDateTime.now(), LocalDate.now()));
 
         String plan = 맞춤_계획을_본다(sql, List.of("'idle'", "now()", "current_date"), List.of("ix_run_open_service_date"));
@@ -136,7 +140,7 @@ class PartialIndexQueryPlanTest {
 
     @Test
     void 확정_실패_집계는_idle_리터럴로_ix_run_status_confirm_at_을_일반_계획에서도_탄다() throws Exception {
-        String sql = 실행된_SQL(RUN_STATEMENT, () -> runRepository.countConfirmFailedByAcademy(LocalDate.now()));
+        String sql = 실행된_SQL(RUN_STATEMENT, () -> runDashboardRepository.countConfirmFailedByAcademy(LocalDate.now()));
 
         String plan = 일반_계획을_본다(sql, List.of("ix_run_open_service_date"));
 
@@ -146,7 +150,7 @@ class PartialIndexQueryPlanTest {
 
     @Test
     void 주의_회차_지연_집계는_finished_리터럴로_ix_run_open_service_date_를_일반_계획에서도_탄다() throws Exception {
-        String sql = 실행된_SQL(RUN_STATEMENT, () -> runRepository.countDelayedByAcademy(LocalDate.now()));
+        String sql = 실행된_SQL(RUN_STATEMENT, () -> runDashboardRepository.countDelayedByAcademy(LocalDate.now()));
 
         String plan = 일반_계획을_본다(sql, List.of());
 
