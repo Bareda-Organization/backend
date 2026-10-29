@@ -75,7 +75,7 @@ class RunConfirmationLateFailureTest {
         doAnswer(invocation -> {
             Long id = invocation.getArgument(0);
             if (id != runId) {
-                return invocation.callRealMethod();
+                return null; // 다른 시험이 남긴 도래 회차는 확정하지 않는다
             }
             jdbcTemplate.update("UPDATE run SET status = 'confirmed', confirmed_at = now() WHERE id = ?", id);
             throw new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN);
@@ -97,7 +97,7 @@ class RunConfirmationLateFailureTest {
         doAnswer(invocation -> {
             Long id = invocation.getArgument(0);
             if (id != runId) {
-                return invocation.callRealMethod();
+                return null; // 다른 시험이 남긴 도래 회차는 확정하지 않는다
             }
             throw new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN);
         }).when(confirmationService).confirmOne(anyLong());

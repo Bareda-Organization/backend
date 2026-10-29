@@ -21,6 +21,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.location.proximity.ProximityFixtures;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.repository.RunStopProximityRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.event.StopDepartedEvent;
 import src.backend.run.repository.RunRepository;
@@ -86,6 +87,9 @@ class StopDepartureForceAllRemainingEventsTest {
     private RunRiderRepository runRiderRepository;
 
     @Autowired
+    private RunStopProximityRepository runStopProximityRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @AfterEach
@@ -103,7 +107,7 @@ class StopDepartureForceAllRemainingEventsTest {
         OffsetDateTime now = OffsetDateTime.now();
         ProximityFixtures fx = new ProximityFixtures(academyRepository, busRepository, stopRepository,
                 studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository);
+                confirmedRouteRepository, routeVersionRepository, runStopRepository, runStopProximityRepository, runRiderRepository);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);

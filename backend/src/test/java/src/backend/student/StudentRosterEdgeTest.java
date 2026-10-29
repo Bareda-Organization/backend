@@ -42,6 +42,8 @@ class StudentRosterEdgeTest {
 
     private static final long SIBLING_1_ID = Long.parseLong(SeedFixtures.STUDENT_SIBLING_1_ID);
 
+    private static final long SIBLING_2_ID = Long.parseLong(SeedFixtures.STUDENT_SIBLING_2_ID);
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -63,7 +65,9 @@ class StudentRosterEdgeTest {
         mockMvc.perform(get("/api/v1/me/students")
                         .header("Authorization", 토큰(tokenProvider, SIBLINGS_GUARDIAN_ACCOUNT, ACADEMY_A, Role.PARENT)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_1_ID)).isEmpty());
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_1_ID)).isEmpty())
+                // 같은 보호자의 다른 자녀는 그대로 있다 — 목록 경로가 틀려 빈 결과가 나온 것과 구별한다
+                .andExpect(jsonPath("$.data.items[?(@.student_id == '%d')]".formatted(SIBLING_2_ID)).isNotEmpty());
     }
 
     @Test
@@ -80,6 +84,15 @@ class StudentRosterEdgeTest {
                 new StudentRegisterRequest("공백반학생", null, null, null, null, "   ", null, true), null);
 
         assertThat(jdbcTemplate.queryForObject("SELECT class_name FROM student WHERE id = ?", String.class, id)).isNull();
+    }
+
+    @Test
+    void 연락처_학년_메모를_공백만으로_등록해도_NULL_로_저장된다() {
+        long id = commandService.register(staff,
+                new StudentRegisterRequest("공백필드학생", "  ", null, null, " ", null, "   ", true), null);
+
+        assertThat(jdbcTemplate.queryForMap("SELECT student_phone, grade, note FROM student WHERE id = ?", id))
+                .containsEntry("student_phone", null).containsEntry("grade", null).containsEntry("note", null);
     }
 
     @Test

@@ -1,6 +1,8 @@
 package src.backend.run.scheduler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -14,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.bus.repository.BusRepository;
@@ -22,6 +25,7 @@ import src.backend.global.common.enums.Weekday;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.command.RunConfirmationFixtures;
+import src.backend.run.command.RunConfirmationService;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
@@ -50,6 +54,7 @@ class RunConfirmationDueBoundaryTest {
     @Autowired private RunRepository runRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private SettableClock clock;
+    @MockitoSpyBean private RunConfirmationService confirmationService;
 
     private RunConfirmationFixtures fixtures;
 
@@ -121,8 +126,12 @@ class RunConfirmationDueBoundaryTest {
         fixtures.route(academyId, busId, Weekday.MON, Direction.TO_ACADEMY, firstStop, lastStop);
         long student = fixtures.student(academyId, "학생1");
         fixtures.verifiedAddress(student, firstStop, Weekday.MON, Direction.TO_ACADEMY, "37.560000", "126.970000");
-        return fixtures.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, confirmAt.plusMinutes(30),
+        long runId = fixtures.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, confirmAt.plusMinutes(30),
                 confirmAt);
+        // 다른 시험이 남긴 도래 회차는 확정하지 않는다 — 이 시험의 회차만 실제로 확정한다
+        doAnswer(invocation -> Long.valueOf(runId).equals(invocation.getArgument(0)) ? invocation.callRealMethod() : null)
+                .when(confirmationService).confirmOne(anyLong());
+        return runId;
     }
 
     private String 상태(long runId) {

@@ -35,6 +35,7 @@ import src.backend.student.entity.Student;
 import src.backend.student.repository.StudentRepository;
 import testsupport.clock.FixedClock20300401Config;
 import testsupport.concurrency.AcademyRowsCleaner;
+import testsupport.concurrency.PgLockWait;
 import testsupport.concurrency.Race;
 import testsupport.concurrency.RepositoryReadHooks;
 
@@ -128,7 +129,7 @@ class ParentRequestRunStartRaceTest {
         RepositoryReadHooks.afterRead("findLockedByRunIdAndStudentId", () -> {
             if (fired.compareAndSet(false, true)) {
                 intentRead.countDown();
-                Race.hold();
+                상대가_잠금을_기다릴_때까지_세운다();
             }
         });
 
@@ -166,5 +167,14 @@ class ParentRequestRunStartRaceTest {
 
         raceRequestWithStart(stage, () -> changeRequestStore.submitCancel(student,
                 runRepository.findById(stage.runId()).orElseThrow(), stage.parent().accountId(), null));
+    }
+
+    /** 상대가 DB 잠금에서 기다리는 것이 보일 때까지 세워 둔다 — 잠금이 없어 상대가 기다리지 않으면 상한 뒤 예외로 시험이 실패한다. */
+    private void 상대가_잠금을_기다릴_때까지_세운다() {
+        try {
+            PgLockWait.awaitWaitersOr(jdbcTemplate, 1, () -> false);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

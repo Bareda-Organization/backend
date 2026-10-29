@@ -20,6 +20,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.repository.RunStopProximityRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.command.StopDepartureService;
 import src.backend.run.repository.RunRepository;
@@ -99,6 +100,9 @@ class ProximityDepartureObservationTest {
 
     @Autowired
     private RunRiderRepository runRiderRepository;
+
+    @Autowired
+    private RunStopProximityRepository runStopProximityRepository;
 
     @AfterEach
     void 뒷정리한다() {
@@ -202,7 +206,7 @@ class ProximityDepartureObservationTest {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         ProximityFixtures fx = new ProximityFixtures(academyRepository, busRepository, stopRepository,
                 studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository);
+                confirmedRouteRepository, routeVersionRepository, runStopRepository, runStopProximityRepository, runRiderRepository);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long firstStop = fx.stop(academyId, "37.500000", STOP_LNG);

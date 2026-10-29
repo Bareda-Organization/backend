@@ -113,7 +113,7 @@ class RunStopProximityClaimConcurrencyTest {
     void 같은_정차_항목을_동시에_선점해도_한_번만_성공한다() throws Exception {
         ProximityFixtures fixtures = new ProximityFixtures(academyRepository, busRepository, stopRepository,
                 studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository);
+                confirmedRouteRepository, routeVersionRepository, runStopRepository, runStopProximityRepository, runRiderRepository);
         OffsetDateTime now = OffsetDateTime.now();
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);

@@ -48,7 +48,7 @@ import org.springframework.context.annotation.Import;
  * 일어나는지 검증한다.
  *
  * <p>{@code @Transactional} 을 <b>의도적으로 쓰지 않는다</b> — Redis 갱신은
- * {@link RunPositionRedisListener} 가 {@code @TransactionalEventListener(AFTER_COMMIT)} 으로 도는데,
+ * {@link RunPositionAfterCommitListener} 가 {@code @TransactionalEventListener(AFTER_COMMIT)} 으로 부르는데,
  * 테스트가 트랜잭션을 열고 끝에 롤백하면 실제 커밋이 한 번도 일어나지 않아 그 리스너가 영원히 안
  * 돈다({@code DriverRunControllerTest} 와 다른 지점 — 그 쪽은 리스너 발화 여부를 보지 않는다).
  * 대신 {@code BusRegistrationConcurrencyTest} 와 같은 형태로 만든 행을 {@link #뒷정리한다()} 가

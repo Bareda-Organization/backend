@@ -37,6 +37,7 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import testsupport.clock.FixedClock20300401Config;
 import testsupport.concurrency.AcademyRowsCleaner;
+import testsupport.concurrency.PgLockWait;
 import testsupport.concurrency.Race;
 import testsupport.concurrency.RepositoryReadHooks;
 
@@ -126,7 +127,7 @@ class NoShowCaseEscalationRaceTest {
         Runnable pauseAfterCaseRead = () -> {
             if (fired.compareAndSet(false, true)) {
                 caseRead.countDown();
-                Race.hold();
+                상대가_잠금을_기다릴_때까지_세운다();
             }
         };
         RepositoryReadHooks.afterRead("findByRunRiderId", pauseAfterCaseRead);
@@ -175,5 +176,14 @@ class NoShowCaseEscalationRaceTest {
         assertThat(escalatedAt(stage.caseId()) != null)
                 .as("에스컬레이션이 반영됐다면(%s) escalated_at 이 남아 있어야 하고, 아니면 비어 있어야 한다", escalated)
                 .isEqualTo(escalated);
+    }
+
+    /** 상대가 DB 잠금에서 기다리는 것이 보일 때까지 세워 둔다 — 잠금이 없어 상대가 기다리지 않으면 상한 뒤 예외로 시험이 실패한다. */
+    private void 상대가_잠금을_기다릴_때까지_세운다() {
+        try {
+            PgLockWait.awaitWaitersOr(jdbcTemplate, 1, () -> false);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
