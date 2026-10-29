@@ -34,7 +34,7 @@ import testsupport.clock.FixedClock20300401Config;
 @Import(FixedClock20300401Config.class)
 class StagingRunGuardWindowTest {
 
-    /** 고정 시계는 2030-04-01 12:00 KST 다. */
+    /** 고정 시계({@code FixedClock20300401Config})가 가리키는 정오(KST). */
     private static final OffsetDateTime NOW = OffsetDateTime.parse("2030-04-01T12:00:00+09:00");
 
     @Autowired private ApplicationContext applicationContext;
