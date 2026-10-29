@@ -5,9 +5,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,26 +14,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.entity.Academy;
-import src.backend.academy.entity.AcademyStaff;
-import src.backend.academy.entity.StaffStatus;
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.dto.SignupRequestAcademyResponse;
 import src.backend.account.dto.SignupRequestListRequest;
 import src.backend.account.dto.SignupRequestListResponse;
 import src.backend.account.dto.SignupRequestSummaryResponse;
 import src.backend.account.dto.StaffSignupRequestSummaryResponse;
-import src.backend.account.entity.Account;
 import src.backend.account.entity.ApproverType;
 import src.backend.account.entity.SignupRequest;
 import src.backend.account.entity.SignupRequestStatus;
-import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.SignupRequestRepository;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.global.persistence.AcademyCount;
 import src.backend.global.request.PageParams;
 import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
@@ -77,11 +65,7 @@ public class SignupRequestQueryService {
 
     private final SignupRequestRepository signupRequestRepository;
 
-    private final AccountRepository accountRepository;
-
-    private final AcademyRepository academyRepository;
-
-    private final AcademyStaffRepository academyStaffRepository;
+    private final SignupRequestRowAssembler rows;
 
     /**
      * 관계자가 보는 가입 요청 목록(§5.1) — 소속 학원 · 승인 주체가 관계자인 건으로 좁힌다.
@@ -103,14 +87,7 @@ public class SignupRequestQueryService {
                 : signupRequestRepository.findAllByAcademyIdAndApproverTypeAndStatusAndRequestedRoleIn(academyId,
                         ApproverType.STAFF, status, roles, pageable(request));
 
-        Map<Long, Account> accounts = accountsOf(page.getContent(), academyId);
-        PageResponse<SignupRequestSummaryResponse> items = PageResponse.of(page, page.getContent().stream()
-                .filter(signupRequest -> accounts.containsKey(signupRequest.getAccountId()))
-                .map(signupRequest -> {
-                    Account account = accounts.get(signupRequest.getAccountId());
-                    return SignupRequestSummaryResponse.of(signupRequest, account.getName(), account.getPhone());
-                })
-                .toList());
+        PageResponse<SignupRequestSummaryResponse> items = rows.staffItems(page, academyId);
         return SignupRequestListResponse.of(items, signupRequestRepository
                 .countByAcademyIdAndApproverTypeAndStatus(academyId, ApproverType.STAFF,
                         SignupRequestStatus.PENDING));
@@ -125,61 +102,7 @@ public class SignupRequestQueryService {
     public PageResponse<StaffSignupRequestSummaryResponse> forAdmin(SignupRequestListRequest request) {
         Page<SignupRequest> page = signupRequestRepository.findAllByApproverTypeAndStatus(
                 ApproverType.SYSTEM_ADMIN, statusFilter(request.status()), pageable(request));
-        if (page.getContent().isEmpty()) {
-            return PageResponse.of(page, List.of());
-        }
-
-        List<Long> academyIds = page.getContent().stream().map(SignupRequest::getAcademyId).distinct().toList();
-        // 재직 관계자는 학원당 최대 1명이다(정원) — 신청자 계정과 한 번에 읽는다
-        Map<Long, Long> currentStaffAccountIds = academyStaffRepository
-                .findAllByAcademyIdInAndStatus(academyIds, StaffStatus.ACTIVE).stream()
-                .collect(Collectors.toMap(AcademyStaff::getAcademyId, AcademyStaff::getAccountId));
-        List<Long> accountIds = Stream.concat(page.getContent().stream().map(SignupRequest::getAccountId),
-                currentStaffAccountIds.values().stream()).distinct().toList();
-        Map<Long, Account> accounts = accountRepository.findAllByIdIn(accountIds).stream()
-                .collect(Collectors.toMap(Account::getId, Function.identity()));
-        Map<Long, Academy> academies = academyRepository.findAllById(academyIds).stream()
-                .collect(Collectors.toMap(Academy::getId, Function.identity()));
-        Map<Long, Long> staffCounts = academyStaffRepository
-                .countByAcademyIdInGroupedByAcademyId(academyIds, StaffStatus.ACTIVE).stream()
-                .collect(Collectors.toMap(AcademyCount::getAcademyId, AcademyCount::getTotal));
-
-        return PageResponse.of(page, page.getContent().stream()
-                .filter(signupRequest -> accounts.containsKey(signupRequest.getAccountId())
-                        && academies.containsKey(signupRequest.getAcademyId()))
-                .map(signupRequest -> {
-                    Account account = accounts.get(signupRequest.getAccountId());
-                    return StaffSignupRequestSummaryResponse.of(signupRequest, account.getName(),
-                            account.getPhone(),
-                            SignupRequestAcademyResponse.from(academies.get(signupRequest.getAcademyId())),
-                            staffCounts.getOrDefault(signupRequest.getAcademyId(), 0L),
-                            currentStaffOf(currentStaffAccountIds.get(signupRequest.getAcademyId()), accounts));
-                })
-                .toList());
-    }
-
-    /** 재직 관계자 계정을 표시값으로 옮긴다 — 재직자가 없으면(계정 id 가 없으면) {@code null} 이다. */
-    private StaffSignupRequestSummaryResponse.CurrentStaff currentStaffOf(Long accountId,
-            Map<Long, Account> accounts) {
-        Account account = accountId == null ? null : accounts.get(accountId);
-        return account == null ? null : StaffSignupRequestSummaryResponse.CurrentStaff.from(account);
-    }
-
-    /**
-     * 요청 행에 이름·연락처를 채운다 — {@code signup_request} 에 복제하지 않고 {@code account} 에서
-     * 가져오므로(ERD §3.1) 신청자가 연락처를 바꾸면 큐도 함께 따라간다.
-     *
-     * <p>계정을 못 찾은 행은 응답에서 빠진다 — {@code account_id} 가 NOT NULL FK 라 정상 상태에서는
-     * 생길 수 없고, 그 한 행 때문에 승인 큐 전체가 실패하는 것보다 낫다.
-     */
-    private Map<Long, Account> accountsOf(List<SignupRequest> requests, Long academyId) {
-        if (requests.isEmpty()) {
-            return Map.of();
-        }
-        return accountRepository
-                .findAllByAcademyIdAndIdIn(academyId, requests.stream().map(SignupRequest::getAccountId).toList())
-                .stream()
-                .collect(Collectors.toMap(Account::getId, Function.identity()));
+        return rows.adminItems(page);
     }
 
     private Pageable pageable(SignupRequestListRequest request) {

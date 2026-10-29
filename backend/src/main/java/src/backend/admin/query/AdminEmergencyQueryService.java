@@ -1,7 +1,6 @@
 package src.backend.admin.query;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,12 +22,10 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.admin.dto.AdminEmergencyItemResponse;
-import src.backend.exception.dto.EmergencyStaffItemResponse;
 import src.backend.admin.dto.AdminEmergencyListResponse;
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.query.EmergencyStatusFilter;
 import src.backend.exception.repository.EmergencyAlertRepository;
-import src.backend.global.common.LowerCaseFormatter;
 import src.backend.global.request.PageParams;
 import src.backend.manager.dto.AssignedManagerContactView;
 import src.backend.manager.entity.Manager;
@@ -81,50 +78,13 @@ public class AdminEmergencyQueryService {
      */
     public AdminEmergencyListResponse list(String status, Long academyId) {
         EmergencyStatusFilter statusFilter = EmergencyStatusFilter.from(status);
-
-        // 상태·학원 조건을 쿼리로 건다(BR-087) — 무기한 보존 테이블을 통째로 읽어 거르지 않는다.
-        List<EmergencyAlert> alerts = academyId == null
-                ? emergencyAlertRepository.findAllByState(statusFilter.name(), LIST_LIMIT)
-                : emergencyAlertRepository.findAllByAcademyIdAndState(academyId, statusFilter.name(), LIST_LIMIT);
-
-        Map<Long, Academy> academiesById = academyRepository
-                .findAllById(alerts.stream().map(EmergencyAlert::getAcademyId).toList())
-                .stream()
-                .collect(Collectors.toMap(Academy::getId, a -> a));
-
-        // 배치 인력은 학원마다 한 번에 읽는다(BR-087) — 신고마다 읽으면 쿼리 수가 누적 신고 수에 비례한다.
-        Map<Long, List<AssignedManagerContactView>> contactsByRunId = new HashMap<>();
-        alerts.stream()
-                .collect(Collectors.groupingBy(EmergencyAlert::getAcademyId,
-                        Collectors.mapping(EmergencyAlert::getRunId, Collectors.toSet())))
-                .forEach((alertAcademyId, runIds) -> assignmentRepository
-                        .findAssignedManagerContacts(alertAcademyId, runIds)
-                        .forEach(view -> contactsByRunId.computeIfAbsent(view.runId(), key -> new ArrayList<>())
-                                .add(view)));
-
-        Set<Long> managerIds = new HashSet<>(alerts.stream().map(EmergencyAlert::getRaisedBy).toList());
-        contactsByRunId.values().forEach(views -> views.forEach(v -> managerIds.add(v.managerId())));
-
-        Map<Long, Manager> managersById = managerRepository.findAllByIdIn(managerIds).stream()
-                .collect(Collectors.toMap(Manager::getId, m -> m));
-
-        Map<Long, Account> ackersById = accountRepository
-                .findAllByIdIn(alerts.stream().map(EmergencyAlert::getAckedBy).filter(Objects::nonNull).toList())
-                .stream()
-                .collect(Collectors.toMap(Account::getId, a -> a));
-
-        Map<Long, Run> runsById = runRepository
-                .findAllByIdIn(alerts.stream().map(EmergencyAlert::getRunId).distinct().toList())
-                .stream()
-                .collect(Collectors.toMap(Run::getId, r -> r));
+        List<EmergencyAlert> alerts = loadAlerts(statusFilter, academyId);
+        AdminEmergencyLookups lookups = loadLookups(alerts);
 
         OffsetDateTime now = OffsetDateTime.now(clock);
 
         List<AdminEmergencyItemResponse> items = alerts.stream()
-                .map(alert -> toItem(alert, academiesById.get(alert.getAcademyId()),
-                        managersById.get(alert.getRaisedBy()),
-                        alert.getAckedBy() == null ? null : ackersById.get(alert.getAckedBy()),
-                        runsById.get(alert.getRunId()), contactsByRunId.get(alert.getRunId()), managersById, now))
+                .map(alert -> AdminEmergencyItemAssembler.toItem(alert, lookups, now))
                 .toList();
 
         // 배지는 필터(상태·학원)와 무관하다(BR-066) — 목록에서 세면 "확인됨" 탭에서 0 이 된다.
@@ -135,55 +95,57 @@ public class AdminEmergencyQueryService {
                 countOf(EmergencyStatusFilter.CANCELED, academyId)));
     }
 
+    /** 상태·학원 조건을 쿼리로 건다(BR-087) — 무기한 보존 테이블을 통째로 읽어 거르지 않는다. */
+    private List<EmergencyAlert> loadAlerts(EmergencyStatusFilter statusFilter, Long academyId) {
+        return academyId == null
+                ? emergencyAlertRepository.findAllByState(statusFilter.name(), LIST_LIMIT)
+                : emergencyAlertRepository.findAllByAcademyIdAndState(academyId, statusFilter.name(), LIST_LIMIT);
+    }
+
+    /** 행 조립에 필요한 학원·배치 인력·매니저·확인자·회차를 종류별로 한 번씩 일괄 조회한다. */
+    private AdminEmergencyLookups loadLookups(List<EmergencyAlert> alerts) {
+        Map<Long, Academy> academiesById = academyRepository
+                .findAllById(alerts.stream().map(EmergencyAlert::getAcademyId).toList())
+                .stream()
+                .collect(Collectors.toMap(Academy::getId, a -> a));
+        Map<Long, List<AssignedManagerContactView>> contactsByRunId = loadContactsByRunId(alerts);
+        Map<Long, Manager> managersById = loadManagersById(alerts, contactsByRunId);
+        Map<Long, Account> ackersById = accountRepository
+                .findAllByIdIn(alerts.stream().map(EmergencyAlert::getAckedBy).filter(Objects::nonNull).toList())
+                .stream()
+                .collect(Collectors.toMap(Account::getId, a -> a));
+        Map<Long, Run> runsById = runRepository
+                .findAllByIdIn(alerts.stream().map(EmergencyAlert::getRunId).distinct().toList())
+                .stream()
+                .collect(Collectors.toMap(Run::getId, r -> r));
+        return new AdminEmergencyLookups(academiesById, managersById, ackersById, runsById, contactsByRunId);
+    }
+
+    /** 배치 인력은 학원마다 한 번에 읽는다(BR-087) — 신고마다 읽으면 쿼리 수가 누적 신고 수에 비례한다. */
+    private Map<Long, List<AssignedManagerContactView>> loadContactsByRunId(List<EmergencyAlert> alerts) {
+        Map<Long, List<AssignedManagerContactView>> contactsByRunId = new HashMap<>();
+        alerts.stream()
+                .collect(Collectors.groupingBy(EmergencyAlert::getAcademyId,
+                        Collectors.mapping(EmergencyAlert::getRunId, Collectors.toSet())))
+                .forEach((alertAcademyId, runIds) -> assignmentRepository
+                        .findAssignedManagerContacts(alertAcademyId, runIds)
+                        .forEach(view -> contactsByRunId.computeIfAbsent(view.runId(), key -> new ArrayList<>())
+                                .add(view)));
+        return contactsByRunId;
+    }
+
+    /** 신고자와 배치 인력의 매니저 행을 한 번에 읽는다. */
+    private Map<Long, Manager> loadManagersById(List<EmergencyAlert> alerts,
+            Map<Long, List<AssignedManagerContactView>> contactsByRunId) {
+        Set<Long> managerIds = new HashSet<>(alerts.stream().map(EmergencyAlert::getRaisedBy).toList());
+        contactsByRunId.values().forEach(views -> views.forEach(v -> managerIds.add(v.managerId())));
+        return managerRepository.findAllByIdIn(managerIds).stream()
+                .collect(Collectors.toMap(Manager::getId, m -> m));
+    }
+
     /** 탭 건수(§6.11 {@code counts}) — {@code status} 쿼리와 무관하게 {@code academy_id} 조건만 걸어 센다. */
     private long countOf(EmergencyStatusFilter state, Long academyId) {
         return academyId == null ? emergencyAlertRepository.countAllByState(state.name())
                 : emergencyAlertRepository.countByAcademyIdAndState(academyId, state.name());
-    }
-
-    /**
-     * 경과 시간의 종료 시점 — 취소·확인으로 이미 끝난 신고는 그 시각에서 멈춘다({@link
-     * AdminEmergencyItemResponse} 자바독). 아직 열려 있는 신고만 {@code now} 까지 계속 흐른다.
-     */
-    private AdminEmergencyItemResponse toItem(EmergencyAlert alert, Academy academy, Manager raiser, Account acker,
-            Run run, List<AssignedManagerContactView> assigned, Map<Long, Manager> managersById,
-            OffsetDateTime now) {
-        OffsetDateTime elapsedEnd = alert.getCanceledAt() != null ? alert.getCanceledAt()
-                : alert.getAckedAt() != null ? alert.getAckedAt() : now;
-        long elapsedSeconds = Duration.between(alert.getReceivedAt(), elapsedEnd).getSeconds();
-
-        AdminEmergencyItemResponse.AcademyInfo academyInfo = academy == null ? null
-                : new AdminEmergencyItemResponse.AcademyInfo(academy.getId(), academy.getName(),
-                        academy.getContact());
-
-        EmergencyStaffItemResponse.RaisedBy raisedBy = new EmergencyStaffItemResponse.RaisedBy(
-                raiser == null ? null : raiser.getName(),
-                LowerCaseFormatter.lower(alert.getRaisedByRole().name()),
-                raiser == null ? null : raiser.getPhone());
-
-        EmergencyStaffItemResponse.Position position = new EmergencyStaffItemResponse.Position(alert.getLat(),
-                alert.getLng(), alert.getPositionRecordedAt());
-
-        List<EmergencyStaffItemResponse.Contact> contacts = assigned == null ? List.of()
-                : assigned.stream()
-                        .filter(v -> isLive(managersById.get(v.managerId())))
-                        .map(v -> new EmergencyStaffItemResponse.Contact(v.name(),
-                                LowerCaseFormatter.lower(v.role().name()), v.phone()))
-                        .toList();
-
-        EmergencyStaffItemResponse.AckedBy ackedBy = acker == null ? null
-                : new EmergencyStaffItemResponse.AckedBy(acker.getName(), alert.getAckMemo());
-
-        return new AdminEmergencyItemResponse(alert.getId(), academyInfo,
-                LowerCaseFormatter.lower(alert.getType().name()), alert.getMemo(), raisedBy, alert.getRunId(),
-                alert.getBusNo(),
-                run == null ? null : LowerCaseFormatter.lower(run.getDirection().name()),
-                position, alert.getRiderCount(), contacts, alert.getReceivedAt(), alert.getOccurredAt(), alert.isAcked(),
-                alert.getAckedAt(), alert.getCanceledAt(), ackedBy, elapsedSeconds);
-    }
-
-    /** 삭제된 매니저는 연락처에서 뺀다 — 신고별로 읽던 옛 조회({@code findAssignedManagerAccounts})와 같은 결과. */
-    private boolean isLive(Manager manager) {
-        return manager != null && manager.getDeletedAt() == null;
     }
 }

@@ -95,27 +95,26 @@ public class LoginHistoryQueryService {
     }
 
     private LoginHistoryItemResponse toItem(AuditLog log, Map<Long, Account> unblockAccounts) {
+        if (log.getAction() == AuditAction.UNBLOCK) {
+            return toUnblockItem(log, unblockAccounts);
+        }
         String result = switch (log.getAction()) {
             case LOGIN_SUCCESS -> "success";
             case LOGIN_FAIL -> "fail";
             default -> null;
         };
-        String blockAction = switch (log.getAction()) {
-            case BLOCK -> "block";
-            case UNBLOCK -> "unblock";
-            default -> null;
-        };
-        boolean blockEvent = blockAction != null;
-        if (log.getAction() == AuditAction.UNBLOCK) {
-            // 행의 IP 는 해제한 관리자의 것이다(Ruling 595) — 이 행은 해제된 계정을 가리키므로 그 계정의 접속 IP 로 읽히지 않게 비운다.
-            Account unblocked = accountOf(unblockAccounts, log.getTargetId());
-            Account unblockedBy = accountOf(unblockAccounts, log.getActorAccountId());
-            return new LoginHistoryItemResponse(log.getTargetId(), unblocked == null ? null : unblocked.getLoginId(),
-                    result, null, log.getOccurredAt(), blockEvent, blockAction,
-                    unblockedBy == null ? null : unblockedBy.getName());
-        }
+        boolean blockEvent = log.getAction() == AuditAction.BLOCK;
         return new LoginHistoryItemResponse(log.getActorAccountId(), log.getActorLoginId(), result, log.getIp(),
-                log.getOccurredAt(), blockEvent, blockAction, null);
+                log.getOccurredAt(), blockEvent, blockEvent ? "block" : null, null);
+    }
+
+    /** 차단 해제 행을 응답 항목으로 옮긴다 — 해제된 계정의 로그인 아이디와 해제한 관리자의 이름을 싣는다. */
+    private LoginHistoryItemResponse toUnblockItem(AuditLog log, Map<Long, Account> unblockAccounts) {
+        // 행의 IP 는 해제한 관리자의 것이다(Ruling 595) — 이 행은 해제된 계정을 가리키므로 그 계정의 접속 IP 로 읽히지 않게 비운다.
+        Account unblocked = accountOf(unblockAccounts, log.getTargetId());
+        Account unblockedBy = accountOf(unblockAccounts, log.getActorAccountId());
+        return new LoginHistoryItemResponse(log.getTargetId(), unblocked == null ? null : unblocked.getLoginId(),
+                null, null, log.getOccurredAt(), true, "unblock", unblockedBy == null ? null : unblockedBy.getName());
     }
 
     /** 식별자가 없거나 계정을 못 찾으면 {@code null} 이다 — {@code Map.of()} 는 {@code null} 키 조회에 예외를 던져 따로 거른다. */

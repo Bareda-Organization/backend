@@ -63,28 +63,45 @@ public class RefreshCommandService {
         Claims claims = parseRefreshClaims(rawRefreshToken);
         Long accountId = Long.valueOf(claims.getSubject());
 
-        String tokenHash = RefreshTokenHasher.sha256Hex(rawRefreshToken);
-        RefreshToken stored = refreshTokenRepository.findByTokenHash(tokenHash)
-                .filter(t -> t.getRevokedAt() == null)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
+        RefreshToken stored = findValidStoredToken(rawRefreshToken);
 
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
 
+        assertStandingKept(accountId);
+
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        revokeStored(stored, now);
+        return issueRotated(account, now);
+    }
+
+    /** 원문 해시로 저장된 토큰을 찾는다 — 없거나 이미 무효화됐으면 {@code TOKEN_EXPIRED}. */
+    private RefreshToken findValidStoredToken(String rawRefreshToken) {
+        String tokenHash = RefreshTokenHasher.sha256Hex(rawRefreshToken);
+        return refreshTokenRepository.findByTokenHash(tokenHash)
+                .filter(t -> t.getRevokedAt() == null)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
+    }
+
+    private void assertStandingKept(Long accountId) {
         // 권한을 잃은 계정(차단 · 퇴사 · 삭제된 매니저)은 재발급하지 않는다(Ruling 880) — access 가 401 TOKEN_EXPIRED 로 막히는데 재발급이
         // 200 이면 클라이언트가 로그인으로 가지 못하고 재발급 → 401 을 되풀이한다. 위 무효화 분기와 겹치는 확인이지만, 무효화가 아직
         // 닿지 않은 틈(경합 · 보관 항목)에도 재발급이 나가지 않게 둔다
         if (accountStanding.isLost(accountId)) {
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         }
+    }
 
-        OffsetDateTime now = OffsetDateTime.now(clock);
+    private void revokeStored(RefreshToken stored, OffsetDateTime now) {
         // 조건부 무효화의 결과로 선점을 판정한다(BR-061) — 동시 요청이 둘 다 "미해지" 를 읽어도 무효화에 성공한
         // 한 건만 새 토큰을 받는다. 결과를 버리면 세션 사슬이 두 갈래로 갈린다.
         if (refreshTokenRepository.revokeByTokenHash(stored.getTokenHash(), now) != 1) {
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         }
+    }
 
+    /** 최신 계정 상태로 access · refresh 토큰을 새로 만들고 refresh 해시를 저장한다. */
+    private RefreshResult issueRotated(Account account, OffsetDateTime now) {
         String newAccessToken = jwtTokenProvider.createAccessToken(account.getId(), account.getAcademyId(),
                 account.getRole(), account.getStatus(), account.isMustChangePassword());
         String newRefreshToken = jwtTokenProvider.createRefreshToken(account.getId(), account.getAcademyId(),
