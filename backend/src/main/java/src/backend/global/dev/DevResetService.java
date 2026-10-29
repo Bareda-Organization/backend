@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.config.LocalFlywayCleanStrategy;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.request.preview.spec.ApprovalPreviewCache;
 import src.backend.schedule.command.RunGenerationService;
@@ -73,8 +76,13 @@ public class DevResetService {
      * 다 지운 <b>뒤에</b> 해서, 스케줄 하나가 실패해 예외가 올라와도 캐시 정리는 끝나 있다.
      *
      * @return 지운 위치 캐시 키 개수 — 되돌린 사실을 호출자가 눈으로 확인할 수 있게 한다
+     * @throws BusinessException clean 이 꺼진 서버(마이그레이션만 돌고 데이터는 남는다)에서는 아무것도 바꾸지 않고 이유를 담은 오류로 끝난다
      */
     public int reset() {
+        if (migrationStrategy instanceof LocalFlywayCleanStrategy cleanStrategy && cleanStrategy.isCleanSuppressed()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "이 서버는 DB 초기화가 꺼져 있어(app.flyway-clean.suppressed) 데이터를 지울 수 없다 — 아무것도 바꾸지 않았다");
+        }
         migrateRetryingOnDeadlock();
         previewCache.clear();
         int clearedPositionKeys = runPositionStore.deleteAll();
