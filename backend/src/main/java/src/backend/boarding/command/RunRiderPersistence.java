@@ -84,7 +84,7 @@ public class RunRiderPersistence {
 
     /**
      * ②구간 승인 결정을 이미 로드한 탑승자 행에 반영한다({@code request} 소유
-     * {@code ChangeRequestDecisionService#approve} 전용) — 취소는 결석 표시, 이동은 승하차지 변경.
+     * {@code ChangeRequestApprovalStep#approve} 전용) — 취소는 결석 표시, 이동은 승하차지 변경.
      * 재조회하지 않고 호출부가 지문 재검증에 이미 쓴 인스턴스를 그대로 받는다(중복 조회 방지).
      */
     @Transactional
@@ -131,14 +131,9 @@ public class RunRiderPersistence {
         List<RunRider> riders = new ArrayList<>();
         for (Map.Entry<Long, Long> entry : roster.studentStops().entrySet()) {
             Long studentId = entry.getKey();
-            if (unresolvedStudentIds.contains(studentId)) {
-                continue;
+            if (!unresolvedStudentIds.contains(studentId)) {
+                riders.add(waitingRider(runId, studentId, entry.getValue(), roster));
             }
-            RunRider rider = RunRider.uponConfirmation(runId, studentId, entry.getValue());
-            if (roster.addedStudentIds().contains(studentId)) {
-                rider.markAdded();
-            }
-            riders.add(rider);
         }
         for (Map.Entry<Long, Long> entry : roster.absentStops().entrySet()) {
             RunRider rider = RunRider.uponConfirmation(runId, entry.getKey(), entry.getValue());
@@ -151,5 +146,14 @@ public class RunRiderPersistence {
             riders.add(rider);
         }
         return riders;
+    }
+
+    /** 대기 상태로 시작하는 탑승자 — 당일 추가 학생이면 {@code added} 로 표시한다. */
+    private static RunRider waitingRider(Long runId, Long studentId, Long stopId, ProjectedRoster roster) {
+        RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
+        if (roster.addedStudentIds().contains(studentId)) {
+            rider.markAdded();
+        }
+        return rider;
     }
 }

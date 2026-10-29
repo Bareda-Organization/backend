@@ -15,13 +15,14 @@ import src.backend.global.common.enums.ChangeType;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.global.security.access.AcademyScopeExempt;
-import src.backend.boarding.dto.StaffRunRiderAggregateView;
 
 /**
  * {@link RunRider} 영속성 접근 — {@code run_rider} 는 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b>
  * 자원이다(ERD §6.1). 확정 배치는 {@code saveAll()} 로 회차별 명단을 한 번에 쌓는다. 조회 메서드는 ②구간 승인 미리보기가 그 명단을 다시 읽기 위해 둔다.
+ * 인원 집계는 {@link RunRiderCountQueries}, 알림·방송 대상 조회는 {@link RunRiderRecipientQueries} 에 선언하고 이 저장소가 상속해 노출한다.
  */
-public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
+public interface RunRiderRepository
+        extends JpaRepository<RunRider, Long>, RunRiderCountQueries, RunRiderRecipientQueries {
 
     /**
      * 회차 1건의 현재 라이더 명단 전체(②구간 승인 미리보기의 기준선) — 확정 배치가 쌓은
@@ -65,11 +66,6 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     Optional<RunRider> findByIdAndRunIdAndAcademyIdAndStatusNot(@Param("id") Long id, @Param("runId") Long runId,
             @Param("academyId") Long academyId, @Param("excludedStatus") RiderStatus excludedStatus);
 
-    /** 회차의 탑승자 수(상태 무관)를 센다 — 호출부가 이미 학원 범위에 좁힌 회차의 식별자를 넘긴다는 전제다({@link #findAllByRunId} 와 같은 근거). */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
-            + "회차의 식별자라는 전제다(findAllByRunId 와 같은 근거)")
-    long countByRunId(Long runId);
-
     /**
      * 회차 여러 개의 명단을 한 번에(BR-252) — {@link #findAllByRunIdAndAcademyId} 를 회차마다 부르던 목록 조회가
      * 페이지 크기만큼 질의를 내지 않게 한다. 학원 조건은 같은 부모(Run) 조인이다.
@@ -106,37 +102,6 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     Optional<RunRider> findLockedByRunIdAndStudentId(Long runId, Long studentId);
 
     /**
-     * 그 승하차지에 아직 남은(부재 처리되지 않은) 탑승자 수(API_SPEC §3.6 ③ "잔여 0명이면 {@code run_stop}
-     * 을 {@code skipped}") — 방금 부재로 바꾼 학생을 포함해 센 뒤 0이면 그 정차지를 건너뛴다.
-     *
-     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
-            + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
-    long countByRunIdAndStopIdAndStatusNot(Long runId, Long stopId, RiderStatus status);
-
-    /**
-     * 그 회차에서 아직 그 상태인 라이더 수(RUN-06·C-15) — 하원 마지막 하차·②구간 종결 뒤의
-     * 종료 판정({@code RunCompletionService})이 "아직 탑승 중({@code BOARDED})이 0명인가"를 이 메서드로
-     * 묻는다.
-     *
-     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부가 이미 학원 범위로
-     * 좁혀 얻은 회차의 식별자만 넘긴다는 전제다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
-            + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
-    long countByRunIdAndStatus(Long runId, RiderStatus status);
-
-    /**
-     * 그 회차 라이더를 상태별로 센 값을 질의 1번으로 읽는다. 승하차 방송이 5상태를 {@link #countByRunIdAndStatus} 로 5번 묻지 않도록 하나로 묶는다.
-     * 인원이 0인 상태는 결과에 없다. {@code runId} 근거는 {@link #countByRunIdAndStatus} 와 같다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
-            + "countByRunIdAndStatus 와 같은 근거(AcademyScope.assertAccessible 선확인)")
-    @Query("SELECT r.status AS status, COUNT(r) AS total FROM RunRider r WHERE r.runId = :runId GROUP BY r.status")
-    List<RiderStatusCount> countGroupedByStatus(@Param("runId") Long runId);
-
-    /**
      * 승하차 처리(API_SPEC §4.6·§4.7)가 다룰 탑승자 1건 — {@code status} 가 {@link RiderStatus#ABSENT}
      * 인 행은 제외한다. §4.6 이 "{@code absent} 로 명단에서 제외된 탑승자"를 {@code 404 RIDER_NOT_FOUND}
      * 로 명시하기 때문에, 존재하지 않는 {@code riderId} 와 이미 제외된 탑승자를 이 메서드 하나로
@@ -162,164 +127,6 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
             + "회차의 식별자라는 전제다(findByRunIdAndStudentId 와 같은 근거)")
     List<RunRider> findAllByRunId(Long runId);
-
-    /**
-     * 위치 방송 수신자 — 그 회차 탑승자 중 {@code excludedStatus}(absent) 가 아닌 학생의 id 만(중복 없이). 엔티티 20여 개를 읽어 학생 id 만
-     * 쓰는 {@link #findAllByRunId} 대신 투영으로 읽는다. 근거는 {@link #findAllByRunId} 와 같다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
-            + "회차의 식별자라는 전제다(findAllByRunId 와 같은 근거)")
-    @Query("SELECT DISTINCT rr.studentId FROM RunRider rr WHERE rr.runId = :runId AND rr.status <> :excludedStatus")
-    List<Long> findStudentIdsByRunIdAndStatusNot(@Param("runId") Long runId,
-            @Param("excludedStatus") RiderStatus excludedStatus);
-
-    /**
-     * 하원 최종 지점 도착 처리에서 종료가 보류될 때 기사 화면에 실을 미하차 잔류
-     * 명단 — 이름·현재 승하차지를 이 조회에서 함께 채운다({@code RunArriveResponse.remaining[]}
-     * 이 별도 조회 없이 바로 응답에 실릴 수 있게).
-     *
-     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
-            + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
-    @Query("""
-            SELECT rr.id AS riderId, s.name AS name, st.name AS stopName
-            FROM RunRider rr
-            JOIN Student s ON s.id = rr.studentId
-            JOIN Stop st ON st.id = rr.stopId
-            WHERE rr.runId = :runId
-              AND rr.status = :status
-            ORDER BY rr.id ASC
-            """)
-    List<RemainingRiderView> findRemainingByRunIdAndStatus(@Param("runId") Long runId,
-            @Param("status") RiderStatus status);
-
-    /**
-     * 그 승하차지에 아직 남은(부재·미승차 둘 다 빠진) 탑승자 수 — {@code no_show} 도 잔여 0명 판정에서
-     * 빠져야 한다. 다중값 NOT 제외를 메서드명만으로 표현할 수 없어 {@code @Query} 로 직접 쓴다.
-     *
-     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 이미 학원 소속을 확인한 회차의 식별자라는 전제다 — "
-            + "findByRunIdAndStudentId 와 같은 근거(AcademyScope.assertAccessible 선확인)")
-    @Query("""
-            SELECT COUNT(rr) FROM RunRider rr
-            WHERE rr.runId = :runId
-              AND rr.stopId = :stopId
-              AND rr.status NOT IN :excludedStatuses
-            """)
-    long countByRunIdAndStopIdAndStatusNotIn(@Param("runId") Long runId, @Param("stopId") Long stopId,
-            @Param("excludedStatuses") Collection<RiderStatus> excludedStatuses);
-
-    /**
-     * 그 승하차지에서 근접 알림(NTF-04)을 받을 학생 id 목록 — {@link RiderStatus#ABSENT} 인 학생은
-     * 뺀다(C-02: {@code absent} 학생은 {@code arrive}·{@code delay} 발송 대상 밖). {@code no_show} 는
-     * 이 알림이 아직 도착 전 상태에서만 발송되므로 굳이 배제하지 않는다 — 미승차 확정은 승차 시점
-     * 이후에 나는 상태다.
-     *
-     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(근접 알림 스케줄러)가
-     * {@code RunRepository} 로 이미 학원과 무관하게 골라낸 회차의 식별자만 넘긴다는 전제다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 근접 알림 스케줄러가 RunRepository 로 이미 학원과 무관하게 골라낸 회차의 "
-            + "식별자라는 전제다 — findByRunIdAndStudentId 와 같은 근거")
-    @Query("""
-            SELECT rr.studentId FROM RunRider rr
-            WHERE rr.runId = :runId
-              AND rr.stopId = :stopId
-              AND rr.status <> src.backend.boarding.entity.RiderStatus.ABSENT
-            """)
-    List<Long> findStudentIdsByRunIdAndStopIdExcludingAbsent(@Param("runId") Long runId, @Param("stopId") Long stopId);
-
-    /**
-     * 회차 목록의 탑승자를 {@code (runId, status, change)} 조합으로 묶어 센다(§5.3 {@code metrics.
-     * boarded}·{@code no_show}·{@code absent} 및 {@code runs[].boarded_count}·{@code total_count}·
-     * {@code added_count}·{@code removed_count}) — 관계자 웹 대시보드 전용이라는 뜻으로
-     * 메서드 이름에 용도를 남긴다(Ruling 238).
-     *
-     * <p>한 쿼리로 두 축(상태·변경 구분)을 함께 묶는 이유는 {@link StaffRunRiderAggregateView}
-     * 자바독을 본다 — 소비 측(서비스 계층)이 필요한 축으로 접어 합산한다. {@code run_rider} 는
-     * {@code academy_id} 컬럼이 부재한 부모 경유 자원이라(ERD §6.1, {@code Run} 경유) 학원 조건을
-     * {@code run} 쪽 조인에 건다.
-     */
-    @Query("SELECT new src.backend.boarding.dto.StaffRunRiderAggregateView(rr.runId, rr.status, rr.change, "
-            + "COUNT(rr)) FROM RunRider rr JOIN Run r ON r.id = rr.runId "
-            + "WHERE r.academyId = :academyId AND rr.runId IN :runIds "
-            + "GROUP BY rr.runId, rr.status, rr.change")
-    List<StaffRunRiderAggregateView> aggregateForStaffDashboard(@Param("academyId") Long academyId,
-            @Param("runIds") Collection<Long> runIds);
-
-    /**
-     * 지연 알림(NTF-06, API_SPEC §4.9)의 수신 대상 학생 id — 현재 승하차지 <b>이후</b>({@code stopIds},
-     * 호출부가 seq 로 미리 걸러 넘긴다) 승하차지의 탑승자 중, 이미 탑승한 학생과 결석 처리된 학생을
-     * 뺀다(수신 범위 표 "이미 탑승한 학생은 제외" · C-02 "absent 는 대상 밖").
-     *
-     * <p>두 배제를 <b>별개의 AND 절</b>로 쓴다 — {@code status NOT IN (BOARDED, ABSENT)} 로 합치면
-     * 한쪽 배제만 지워도 나머지가 가려 결함이 드러나지 않는다.
-     *
-     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(지연 알림 커맨드
-     * 서비스)가 이 메서드에 앞서 {@code runRepository.findByIdAndAcademyId} 로 이미 학원 범위에 좁혀
-     * 확인한 회차의 식별자만 넘긴다는 전제다({@code RunAssignmentAccess
-     * #assertAssignedEscort} 는 그 자신의 자바독대로 학원 범위를 확인하지 않는다. 확인은 뒤이은 그
-     * 조회가 성공했을 때 비로소 성립한다).
-     */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 runRepository.findByIdAndAcademyId 로 이미 학원 범위에 "
-            + "좁혀 확인한 회차의 식별자라는 전제다 — findByRunIdAndStudentId 와 같은 근거")
-    @Query("""
-            SELECT DISTINCT rr.studentId FROM RunRider rr
-            WHERE rr.runId = :runId
-              AND rr.stopId IN :stopIds
-              AND rr.status <> src.backend.boarding.entity.RiderStatus.BOARDED
-              AND rr.status <> src.backend.boarding.entity.RiderStatus.ABSENT
-            """)
-    List<Long> findStudentIdsForDelayNotification(@Param("runId") Long runId,
-            @Param("stopIds") Collection<Long> stopIds);
-
-    /**
-     * 하원 지연 알림 수신 학생(API_SPEC §4.9) — 아직 지나지 않은 승하차지의 탑승자 중 <b>탑승 중({@code boarded})</b>
-     * 인 학생. 하원은 시작 때 전원이 탑승 상태라 {@link #findStudentIdsForDelayNotification} 의 "아직 탑승하지 않은 학생"
-     * 조건으로는 수신자가 0명이었다. 결석·하차·미승차·대기는 탑승 중이 아니므로 자연히 빠진다.
-     *
-     * <p>{@code runId} 근거는 {@link #findStudentIdsForDelayNotification} 와 같다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 호출부가 runRepository.findByIdAndAcademyId 로 이미 학원 범위에 "
-            + "좁혀 확인한 회차의 식별자라는 전제다 — findStudentIdsForDelayNotification 와 같은 근거")
-    @Query("""
-            SELECT DISTINCT rr.studentId FROM RunRider rr
-            WHERE rr.runId = :runId
-              AND rr.stopId IN :stopIds
-              AND rr.status = src.backend.boarding.entity.RiderStatus.BOARDED
-            """)
-    List<Long> findBoardedStudentIdsForDelayNotification(@Param("runId") Long runId,
-            @Param("stopIds") Collection<Long> stopIds);
-
-    /**
-     * 그 승하차지를 출발할 때(Ruling 308) 확정 결과를 통지할 학생 명단 — 승차·
-     * 하차·미승차 3종만 대상이다. {@code waiting} 인 채 출발한 학생은 발송 대상이 아니다.
-     * 이 조회가 이미 걸러 낸다. {@code absent} 도 뺀다 — 결석은 운행 중 승하차 처리 결과가
-     * 아니라 사전에 확정된 상태라 이 통지의 대상이 아니다(근접 알림의 {@code excludingAbsent} 와
-     * 같은 근거).
-     *
-     * <p><b>하원은 {@code boarded} 를 뺀다</b> — 하원의 승차 알림은 시작 때 자동 승차분으로 이미 나갔고
-     * (NTF-01 · {@code RunAutoBoardedEvent}), 하차지를 출발할 때까지 하차 처리를 못 받은 학생은 아직 탑승 중이라
-     * 확정된 결과가 없다. 빼지 않으면 하차지에서 "탑승했습니다" 가 나간다.
-     *
-     * <p>{@code runId} 근거는 {@link #findByRunIdAndStudentId} 와 같다 — 호출부(출발 판정, Ruling
-     * 307)가 근접 알림과 같은 스케줄러로 이미 학원과 무관하게 골라낸 회차의 식별자라는 전제다.
-     */
-    @AcademyScopeExempt(reason = "runId 는 출발 판정 스케줄러가 근접 알림과 같은 근거로 RunRepository 로 이미 학원과 "
-            + "무관하게 골라낸 회차의 식별자라는 전제다 — findStudentIdsByRunIdAndStopIdExcludingAbsent 와 같은 근거")
-    @Query("""
-            SELECT rr FROM RunRider rr
-            JOIN Run r ON r.id = rr.runId
-            WHERE rr.runId = :runId
-              AND rr.stopId = :stopId
-              AND rr.status IN (src.backend.boarding.entity.RiderStatus.BOARDED,
-                                 src.backend.boarding.entity.RiderStatus.ALIGHTED,
-                                 src.backend.boarding.entity.RiderStatus.NO_SHOW)
-              AND NOT (r.direction = src.backend.global.common.enums.Direction.FROM_ACADEMY
-                       AND rr.status = src.backend.boarding.entity.RiderStatus.BOARDED)
-            """)
-    List<RunRider> findFinalizedByRunIdAndStopId(@Param("runId") Long runId, @Param("stopId") Long stopId);
 
     /**
      * 그 회차들 중 이 학생이 명단에 있는 회차 — 학생 회차 판정이 회차마다 명단을 따로 묻지 않게 한 번에
