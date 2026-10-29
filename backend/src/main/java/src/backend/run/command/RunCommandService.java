@@ -64,22 +64,19 @@ public class RunCommandService {
     /**
      * 특정일 회차를 임시로 추가한다(SCH-03, §5.10) — 만들어진 회차는 {@code schedule_id} 가 비어 있다.
      *
-     * <p>중복은 여기서 {@code 409 DUPLICATE_RUN} 이다. <b>같은 제약이 배치에서는 오류가 아니다</b>
-     * ({@link #create}) — 관계자가 손으로 같은 회차를 두 번 넣는 것은 알려 줘야 할 실수이고, 배치가
-     * 두 번 도는 것은 정상 동작이다.
+     * <p>중복은 여기서 {@code 409 DUPLICATE_RUN} 이다 — 같은 제약이 배치({@link #create})에서는 오류가 아니다(손으로 같은 회차를 두 번 넣는 것은 알릴 실수이고 배치가 두 번 도는 것은
+     * 정상이다). 운행일이 오늘보다 앞이면 {@code 422 VALIDATION_FAILED} 다.
      */
     public RunResponse add(AuthUser requester, RunCreateRequest request) {
         LocalDate serviceDate = ApiValues.date(request.serviceDate());
         if (serviceDate.isBefore(LocalDate.now(clock))) {
-            // 지난 운행일의 idle 회차는 확정 배치가 집지 않아 영원히 남는다 — 오늘 날짜의 지난 출발 시각은 구간 규칙이 맡는다.
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
         Bus bus = busRepository.findByIdAndAcademyId(request.busId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-        Run run = create(new RunDraft(requester.academyId(), request.busId(), null,
-                serviceDate, ApiValues.direction(request.direction()),
-                ApiValues.time(request.departTime()), request.originName(), request.destinationName(),
-                request.estDurationMin()));
+        Run run = create(new RunDraft(requester.academyId(), request.busId(), null, serviceDate,
+                ApiValues.direction(request.direction()), ApiValues.time(request.departTime()), request.originName(),
+                request.destinationName(), request.estDurationMin()));
         return RunResponse.of(run, bus.getBusNo(), List.of());
     }
 
@@ -91,10 +88,8 @@ public class RunCommandService {
      * 거부한다. 그 거부를 옮기지 않으면 {@code DataIntegrityViolationException} 이 그대로 올라가
      * 배치가 죽는다({@code BusCommandService.enforcingUniqueBusNo} 와 같은 형태).
      *
-     * <p><b>예외로 알리고 삼키지 않는 것</b>이 두 호출부를 함께 만족시키는 유일한 형태다. 제약 위반이
-     * 난 트랜잭션은 되돌려야 하므로(Hibernate 세션이 더 이상 쓸 수 없는 상태다) 여기서 잡아 조용히
-     * 넘어갈 수 없다 — 넘어가면 커밋 시점에 {@code UnexpectedRollbackException} 이 된다. 배치는 이
-     * 예외를 <b>트랜잭션 밖에서</b> 받아 건너뛴다({@code RunGenerationService}).
+     * <p><b>예외로 알리고 삼키지 않는 것</b>이 두 호출부를 함께 만족시키는 유일한 형태다. 제약 위반이 난 트랜잭션은 되돌려야 하므로 여기서 잡아 조용히 넘어갈 수 없다 — 넘어가면
+     * 커밋 시점에 {@code UnexpectedRollbackException} 이 된다. 배치는 이 예외를 <b>트랜잭션 밖에서</b> 받아 건너뛴다({@code RunGenerationService}).
      */
     public Run create(RunDraft draft) {
         OffsetDateTime departAt = departureOf(draft);
@@ -132,8 +127,7 @@ public class RunCommandService {
 
     /**
      * 스케줄이 바뀐 내용을 그 스케줄의 미래 회차 1건에 옮긴다(Ruling 366 ②) — 출발 시각은 {@link #create} 와 같은
-     * 규칙({@code departureOf}, 주입된 {@code Clock} 의 시간대)으로 확정하고 확정 시각을 출발 30분 전으로 다시
-     * 계산한다.
+     * 규칙({@code departureOf}, 주입된 {@code Clock} 의 시간대)으로 확정하고 확정 시각을 출발 30분 전으로 다시 계산한다.
      *
      * <p>회차 행을 잠그고 다시 읽은 뒤 판정한다(BR-204) — 호출부가 고른 시각과 옮기는 시각 사이에 확정·취소가 커밋됐을
      * 수 있고, 낡은 엔티티에 계획을 얹으면 변경 감지가 행 전체를 UPDATE 해 그 확정을 되돌린다. 그 사이 시작 전(idle)이
