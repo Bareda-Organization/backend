@@ -7,8 +7,8 @@
 -- 422 ROUTE_NOT_CONFIGURED_FOR_RUN 으로 막히고, preview_token 발급 단계
 -- (ApprovalPreviewResolver.resolvePreview())에 도달하지 못한다(Ruling 299).
 --
--- V800__seed_data.sql 은 이미 두 DB(schoolbus·schoolbus_load)에 체크섬 고정으로
--- 적용돼 있어 고칠 수 없다 — 그래서 새 버전 파일로 공백을 메운다.
+-- V800__seed_data.sql 을 고치면 그 시드를 이미 적용한 DB 의 체크섬이 달라져 Flyway 검증이 실패한다(지우지 않고 이어 쓰는
+-- schoolbus_load 가 그렇다 — 고친 뒤에는 그 DB 를 다시 만든다, backend/CLAUDE.md). 그래서 이 공백은 V800 을 고치지 않고 이 파일로 메운다.
 -- 기존 to_academy 행은 UPDATE 하지 않는다(다른 검사가 그 값에 기댄다) — 새
 -- from_academy 행만 INSERT 로 더한다. uk_route_bus_weekday_direction 은
 -- (bus_id, weekday, direction) 이 키라 direction 이 다르면 기존 행과 충돌하지 않는다.
