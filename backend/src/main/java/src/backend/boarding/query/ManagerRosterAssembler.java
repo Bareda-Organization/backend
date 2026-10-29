@@ -57,16 +57,16 @@ class ManagerRosterAssembler {
     ManagerRosterResponse assemble(AuthUser requester, Long runId) {
         Run run = requireConfirmedRun(requester, runId);
         String busNo = reader.busNoOf(requester, run);
-        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId());
-        Map<Long, Student> studentsById = reader.studentsOf(run.getAcademyId(), riders);
-        Map<Long, String> maskedPhonesById = reader.maskedPhonesOf(run.getAcademyId(), studentsById.keySet());
+        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), requester.academyId());
+        Map<Long, Student> studentsById = reader.studentsOf(requester.academyId(), riders);
+        Map<Long, String> maskedPhonesById = reader.maskedPhonesOf(requester.academyId(), studentsById.keySet());
         List<RunStop> boardingStops = reader.boardingStopsOf(requester, run);
-        Map<Long, Stop> stopsById = reader.stopsByIdOf(run.getAcademyId(),
+        Map<Long, Stop> stopsById = reader.stopsByIdOf(requester.academyId(),
                 boardingStops.stream().map(RunStop::getStopId).filter(Objects::nonNull).toList());
         Academy academy = academyRepository.findById(run.getAcademyId()).orElse(null);
         Map<Long, List<RunRider>> ridersByStopId = riders.stream().collect(Collectors.groupingBy(RunRider::getStopId));
         StopGroupLookups lookups = new StopGroupLookups(studentsById, maskedPhonesById,
-                reader.countdownsOf(run.getId(), run.getAcademyId()), stopsById, ridersByStopId, academy);
+                reader.countdownsOf(run.getId(), requester.academyId()), stopsById, ridersByStopId, academy);
         List<StopGroup> stops = boardingStops.stream().map(runStop -> groupOf(runStop, lookups)).toList();
         return new ManagerRosterResponse(String.valueOf(run.getId()), busNo, lower(run.getDirection().name()),
                 countsOf(riders), stops);
