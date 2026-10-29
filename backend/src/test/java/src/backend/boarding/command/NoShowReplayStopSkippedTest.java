@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import src.backend.boarding.dto.RiderRevertRequest;
 import src.backend.boarding.dto.RiderStatusUpdateRequest;
 import src.backend.boarding.dto.RiderStatusUpdateResponse;
 import src.backend.global.common.enums.AccountStatus;
@@ -120,5 +121,37 @@ class NoShowReplayStopSkippedTest {
 
         assertThat(first.stopSkipped()).isFalse();
         assertThat(replay.stopSkipped()).isFalse();
+    }
+
+    @Test
+    @DisplayName("같은 정차지의 다른 탑승자가 뒤따라 미승차가 돼 정차지가 건너뜀이 된 뒤에도 먼저 보낸 요청의 재전송은 최초의 false 를 돌려준다")
+    void 뒤따른_미승차가_정차지를_건너뜀으로_바꾼_뒤에도_재전송은_최초_결과다() {
+        Stage stage = stage();
+        long first = fixtures.runRider(stage.runId(), fixtures.student(stage.academyId(), "학생A"), stage.stopId());
+        long second = fixtures.runRider(stage.runId(), fixtures.student(stage.academyId(), "학생B"), stage.stopId());
+        UUID firstKey = UUID.randomUUID();
+
+        RiderStatusUpdateResponse firstAnswer = noShow(stage, first, firstKey);
+        RiderStatusUpdateResponse secondAnswer = noShow(stage, second, UUID.randomUUID());
+        RiderStatusUpdateResponse replay = noShow(stage, first, firstKey);
+
+        assertThat(firstAnswer.stopSkipped()).isFalse();
+        assertThat(secondAnswer.stopSkipped()).as("뒤따른 요청이 잔여 0명을 만들었다").isTrue();
+        assertThat(replay.stopSkipped()).as("재전송은 최초 응답을 돌려준다 — 정차지가 그 사이 건너뜀이 됐어도 false").isFalse();
+    }
+
+    @Test
+    @DisplayName("마지막 탑승자의 미승차를 되돌려 건너뜀 표시가 풀린 뒤에도 먼저 보낸 요청의 재전송은 최초의 true 를 돌려준다")
+    void 되돌려_건너뜀이_풀린_뒤에도_재전송은_최초_결과다() {
+        Stage stage = stage();
+        long riderId = fixtures.runRider(stage.runId(), fixtures.student(stage.academyId(), "혼자학생"), stage.stopId());
+        UUID clientKey = UUID.randomUUID();
+
+        RiderStatusUpdateResponse firstAnswer = noShow(stage, riderId, clientKey);
+        boardingCommandService.revert(stage.escort(), stage.runId(), riderId, new RiderRevertRequest("잘못 눌렀어요"));
+        RiderStatusUpdateResponse replay = noShow(stage, riderId, clientKey);
+
+        assertThat(firstAnswer.stopSkipped()).isTrue();
+        assertThat(replay.stopSkipped()).as("재전송은 최초 응답을 돌려준다 — 되돌려 표시가 풀렸어도 true").isTrue();
     }
 }
