@@ -2,8 +2,6 @@ package src.backend.request.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.Locale;
-import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -11,30 +9,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.boarding.command.RunRiderPersistence;
-import src.backend.boarding.command.StopSkipJudge;
-import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.event.RiderStatusChangedEvent;
-import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.global.error.BusinessException;
-import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.request.dto.BoardingIntentToggleRequest;
 import src.backend.request.dto.BoardingIntentToggleResponse;
 import src.backend.request.entity.BoardingIntent;
-import src.backend.request.entity.ChangeRequest;
-import src.backend.request.entity.ChangeRequestSource;
-import src.backend.request.entity.ChangeRequestType;
-import src.backend.request.event.ApprovalRequestedEvent;
 import src.backend.request.event.IntentChangedEvent;
 import src.backend.request.repository.BoardingIntentRepository;
-import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.run.command.RunRowLock;
 import src.backend.run.entity.Run;
-import src.backend.run.event.RunRouteConfirmedEvent;
 import src.backend.student.access.LinkedChildLookup;
 import src.backend.student.entity.Student;
 
@@ -49,19 +33,10 @@ import src.backend.student.entity.Student;
  * 메서드가 열린 트랜잭션 안에서 호출된다는 전제다 — 그 알림 적재는 {@link IntentChangedEvent}
  * 발행을 구독한 알림 모듈 리스너가 대신하며, 이 클래스는 도메인 이벤트만 던지고 알림 모듈을 직접
  * 부르지 않는다(§7 규칙 17).
- *
- * <p><b>BR-101 — CODE_CONVENTIONS §20.2 클래스 200줄 신호를 넘긴 채 두는 이유</b>: ①·②·③ 세 구간이 서로 배타적인
- * 처리 경로라 이미 {@code applyImmediate}·{@code requestApproval}·{@code applyClosed} 사설
- * 메서드로 나뉘어 있다 — 그 셋을 각각 20줄 안팎으로 유지하는 것이 "탑승 의사 토글" 이라는 한 진입점
- * 아래 있어야 세 구간의 분기 기준(API_SPEC §3.6)을 한눈에 비교할 수 있다. 별도 클래스로 쪼개면 그 비교가
- * 파일을 오가야 하는 일이 된다.
  */
 @Service
 @RequiredArgsConstructor
 public class BoardingIntentCommandService {
-
-    /** ③구간 전원 미등원으로 건너뛴 정차지에 남기는 사유(API_SPEC §3.6 ③ · {@code run_stop.skip_notice}). */
-    private static final String SKIP_NOTICE = "탑승 의사 토글로 전원 미탑승";
 
     private final LinkedChildLookup linkedChildLookup;
 
@@ -69,13 +44,11 @@ public class BoardingIntentCommandService {
 
     private final BoardingIntentRepository boardingIntentRepository;
 
-    private final ChangeRequestRepository changeRequestRepository;
+    private final BoardingIntentStatusReader statusReader;
 
-    private final RunRiderRepository runRiderRepository;
+    private final BoardingIntentApprovalStep approvalStep;
 
-    private final RunRiderPersistence runRiderPersistence;
-
-    private final StopSkipJudge stopSkipJudge;
+    private final BoardingIntentClosedStep closedStep;
 
     /** 구간 판정과 탑승자 · 승하차지 행보다 먼저 쥐는 회차 행 잠금(승하차 기록 · 도착 처리와 같은 잠금 순서, {@link RunRowLock}). */
     private final RunRowLock runRowLock;
@@ -112,8 +85,9 @@ public class BoardingIntentCommandService {
 
         return switch (segment) {
             case IMMEDIATE -> applyImmediate(run, student, intent, request.riding(), requester, now);
-            case APPROVAL_REQUIRED -> requestApproval(run, student, intent, request.riding(), requester, now);
-            case CLOSED -> applyClosed(run, student, intent, request.riding(), requester, now);
+            case APPROVAL_REQUIRED ->
+                    approvalStep.requestApproval(run, student, intent, request.riding(), requester, now);
+            case CLOSED -> closedStep.applyClosed(run, student, intent, request.riding(), requester, now);
         };
     }
 
@@ -127,121 +101,15 @@ public class BoardingIntentCommandService {
             boolean riding, AuthUser requester, OffsetDateTime now) {
         if (riding == intent.isRiding()) {
             // BR-250 — 같은 값의 재전송은 무변경 응답이다. 이벤트를 내면 관계자 푸시가 그 횟수만큼 간다.
-            return BoardingIntentToggleResponse.applied(riding, riderStatusOf(run.getId(), student.getId(), riding),
-                    quotaLeftOf(intent));
+            return BoardingIntentToggleResponse.applied(riding,
+                    statusReader.riderStatusOf(run.getId(), student.getId(), riding),
+                    BoardingIntentStatusReader.quotaLeftOf(intent));
         }
         intent.applyRiding(riding, ChangeWindow.IMMEDIATE, now, requester.accountId());
         eventPublisher.publishEvent(
                 new IntentChangedEvent(run.getId(), run.getAcademyId(), student.getId(), riding, now));
-        String riderStatus = riderStatusOf(run.getId(), student.getId(), riding);
-        return BoardingIntentToggleResponse.applied(riding, riderStatus, quotaLeftOf(intent));
-    }
-
-    /**
-     * ②구간 — 끄기만 승인 대기 큐에 {@link ChangeRequestType#CANCEL} 로 올린다(BR-029). 켜기는
-     * {@code 403 CHANGE_WINDOW_CLOSED} — 30분 안쪽에는 추가 불가, 취소만 승인 경로다(PRD "오늘만 다른
-     * 승하차지"). 현재 의사와 같은 값은 한도·요청 없이 무변경 {@code applied} 로 답한다.
-     *
-     * <p>응답의 {@code riding} 은 <b>바뀌지 않은 기존 값</b>이다(§3.6) — 실제 반영은 승인 이후다.
-     */
-    private BoardingIntentToggleResponse requestApproval(Run run, Student student, BoardingIntent intent,
-            boolean riding, AuthUser requester, OffsetDateTime now) {
-        if (riding == intent.isRiding()) {
-            return BoardingIntentToggleResponse.applied(riding, riderStatusOf(run.getId(), student.getId(), riding),
-                    quotaLeftOf(intent));
-        }
-        if (riding) {
-            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
-        }
-        ChangeRequestStore.consumeChangeQuota(boardingIntentRepository, intent);
-
-        ChangeRequest changeRequest = ChangeRequest.forRequest(run.getAcademyId(), run.getId(), student.getId(),
-                ChangeRequestSource.INTENT, ChangeRequestType.CANCEL, ChangeWindow.APPROVAL_REQUIRED.code(),
-                requester.accountId(), now);
-        changeRequest.assignDeadline(ChangeWindowPolicy.deadlineOf(run));
-        changeRequest = changeRequestRepository.save(changeRequest);
-
-        eventPublisher.publishEvent(new ApprovalRequestedEvent(changeRequest.getId(), run.getAcademyId(),
-                run.getId(), student.getId(), now));
-
-        boolean existingRiding = intent.isRiding();
-        String riderStatus = riderStatusOf(run.getId(), student.getId(), existingRiding);
-        return BoardingIntentToggleResponse.pendingApproval(existingRiding, riderStatus, changeRequest.getId(),
-                quotaLeftOf(intent), ChangeWindowPolicy.deadlineOf(run));
-    }
-
-    /**
-     * ③구간 — 운행 시작 후(또는 출발 시각 + 10분 도달)라 재최적화 없이 미등원만 즉시 수용한다.
-     * {@code riding=true}(되돌리기 시도)와 탑승자가 {@code boarded · alighted · no_show} 인 경우는
-     * {@code 403 CHANGE_WINDOW_CLOSED} 다(§3.6 ③, Ruling 334) — 이미 탄 학생을 {@code absent} 로
-     * 덮으면 종료 판정이 그 아이를 잔류로 세지 않는다. 단 이미 {@code absent} 이고 의사도 꺼진 학생의 {@code riding=false} 재전송은
-     * 무변경 성공이다(Ruling 885②) — 탑승자 행이 아예 없어도 같다. 이미 {@code absent} 인데 의사만 켜져 있으면 의사만 끄고 성공한다
-     * (Ruling 885② 보정 — 재경로·이벤트·이력 없음).
-     *
-     * <p>반영되면 기사·동승자에게 전달한다 — {@link RiderStatusChangedEvent}(WS {@code rider_changed})
-     * 와 {@link RunRouteConfirmedEvent}(기존 {@code route_changed} 알림, 해당 승하차지 미정차).
-     *
-     * <p>{@code run_rider} 행이 없으면(그 학생이 애초에 이 회차 명단에 없을 때 — 이미 ①구간에서
-     * {@code riding=false} 로 확정 배치의 제외 목록에 걸렸던 경우가 대표적이다) 부재 표시·정차지
-     * 재계산·기사 전달을 조용히 건너뛴다 — 이미 명단에 없는 학생을 다시 없앨 대상이 없다.
-     *
-     * <p>③구간은 동승자의 승하차 처리와 겹치는 때라 탑승자 행을 승하차 경로(BR-267)와 같은 행 잠금으로 읽는다(BR-303) —
-     * 승차가 먼저 커밋됐으면 {@code boarded} 를 읽어 403 이다. "잔여 0명이면 정차 건너뜀" 판정은 승하차 경로와 같은
-     * {@link StopSkipJudge} 가 정차 항목을 잠근 뒤 세고 {@code no_show} 도 잔여에서 뺀다(BR-325).
-     */
-    private BoardingIntentToggleResponse applyClosed(Run run, Student student, BoardingIntent intent,
-            boolean riding, AuthUser requester, OffsetDateTime now) {
-        // BR-303 — 탑승자 행을 잠근 채 읽는다: 방금 승차가 커밋됐다면 boarded 를 읽어 아래에서 거절되고, absent 로 덮지 않는다.
-        Optional<RunRider> rider = runRiderRepository.findLockedByRunIdAndStudentId(run.getId(), student.getId());
-        if (!riding && !intent.isRiding() && rider.filter(r -> r.getStatus() != RiderStatus.ABSENT).isEmpty()) {
-            // Ruling 885② — 의사가 이미 꺼진 학생의 재전송은 탑승자 행이 없든 absent 든 ①②구간의 같은 값 재전송처럼 무변경 성공이다(이벤트·이력 부재).
-            return BoardingIntentToggleResponse.appliedNoReroute(false, statusNameOf(RiderStatus.ABSENT),
-                    quotaLeftOf(intent));
-        }
-        if (!riding && rider.filter(r -> r.getStatus() == RiderStatus.ABSENT).isPresent()) {
-            // Ruling 885② 보정 — 탑승자는 이미 absent 이고 의사만 켜져 있으면 의사만 끈다. 재경로·정차 판정·이벤트·이력은 만들지 않는다(§3.6 ③ 403 대상 아님).
-            intent.applyRiding(false, ChangeWindow.CLOSED, now, requester.accountId());
-            return BoardingIntentToggleResponse.appliedNoReroute(false, statusNameOf(RiderStatus.ABSENT),
-                    quotaLeftOf(intent));
-        }
-        if (riding || rider.filter(r -> r.getStatus() != RiderStatus.WAITING).isPresent()) {
-            throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
-        }
-        intent.applyRiding(false, ChangeWindow.CLOSED, now, requester.accountId());
-
-        rider.ifPresent(r -> {
-            runRiderPersistence.markAbsentBySystem(r, now);
-            stopSkipJudge.skipIfNoRidersRemain(run.getId(), r.getStopId(), SKIP_NOTICE);
-            eventPublisher.publishEvent(new RiderStatusChangedEvent(run.getId(), run.getAcademyId(),
-                    student.getId(), r.getId(), statusNameOf(RiderStatus.ABSENT), now, false));
-            eventPublisher.publishEvent(
-                    new RunRouteConfirmedEvent(run.getId(), run.getAcademyId(), run.getBusId(), now));
-        });
-
-        eventPublisher.publishEvent(
-                new IntentChangedEvent(run.getId(), run.getAcademyId(), student.getId(), false, now));
-        String riderStatus = rider.map(r -> statusNameOf(r.getStatus())).orElse(statusNameOf(RiderStatus.ABSENT));
-        return BoardingIntentToggleResponse.appliedNoReroute(false, riderStatus, quotaLeftOf(intent));
-    }
-
-    /**
-     * 응답의 {@code rider_status} — 실제 {@code run_rider} 행이 있으면 그 상태를, 아직 없으면(①구간은
-     * 확정 전이라 항상 이 경우다) {@code riding} 으로부터 합성한다. API_SPEC §3.6 이 명시하는 규칙은
-     * "{@code applied} + {@code riding=false} → {@code absent}" 하나뿐이라, 나머지 조합은 이 합성으로
-     * 일관되게 채운다.
-     */
-    private String riderStatusOf(Long runId, Long studentId, boolean riding) {
-        return runRiderRepository.findByRunIdAndStudentId(runId, studentId)
-                .map(r -> statusNameOf(r.getStatus()))
-                .orElse(riding ? statusNameOf(RiderStatus.WAITING) : statusNameOf(RiderStatus.ABSENT));
-    }
-
-    private static String statusNameOf(RiderStatus status) {
-        return status.name().toLowerCase(Locale.ROOT);
-    }
-
-    /** ②구간 변경 한도 잔여 — {@link BoardingIntent#hasChangeQuota} 를 응답 계약의 정수 형태로 옮긴다. */
-    private static int quotaLeftOf(BoardingIntent intent) {
-        return intent.hasChangeQuota() ? 1 : 0;
+        String riderStatus = statusReader.riderStatusOf(run.getId(), student.getId(), riding);
+        return BoardingIntentToggleResponse.applied(riding, riderStatus,
+                BoardingIntentStatusReader.quotaLeftOf(intent));
     }
 }

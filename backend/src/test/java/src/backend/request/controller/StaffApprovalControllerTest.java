@@ -764,7 +764,7 @@ class StaffApprovalControllerTest {
      * 흩어 만든다. 페이지가 실제로 DB 에서 잘리는지(=회차 일괄 조회가 그 페이지 몫만 도는지)는 회차가
      * 전부 같으면 구분되지 않으므로, 회차를 일부러 겹치지 않게 만든다. 노선·명단(확정 배치)은 이
      * 시험의 관심사가 아니라 만들지 않는다 — {@code toSummary} 는 명단에 없는 학생을 "배정 정보
-     * 없음" 으로 안전하게 반환한다({@link src.backend.request.query.ApprovalQueryService#decidedSubjectStopOf}
+     * 없음" 으로 안전하게 반환한다({@link src.backend.request.query.ApprovalSummaryAssembler#decidedSubjectStopOf}
      * 와 같은 경로).
      */
     private long 학원과_승인_대기_N건을_만든다(int n) throws Exception {

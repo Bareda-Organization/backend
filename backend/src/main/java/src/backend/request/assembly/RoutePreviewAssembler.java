@@ -1,7 +1,6 @@
 package src.backend.request.assembly;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -20,7 +19,6 @@ import src.backend.request.dto.AffectedStudentResponse;
 import src.backend.request.dto.PreviewStopResponse;
 import src.backend.request.dto.StopRefResponse;
 import src.backend.global.location.GeoPoint;
-import src.backend.routing.engine.spec.OrderedStop;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.pipeline.RouteComputation;
@@ -35,12 +33,6 @@ import src.backend.student.repository.StudentRepository;
  * <p>여기 모인 메서드는 재최적화를 <b>실행하지 않는다</b> — 이미 계산된 전/후 값을 견주기만 한다.
  * 호출 수 계약은 {@link ApprovalQueryService#detail} 이 이 클래스를 부르기 전에 이미
  * 지켜졌으므로, 여기서 호출 횟수를 다시 신경 쓸 필요는 없다.
- *
- * <p><b>BR-101 — CODE_CONVENTIONS §20.2 클래스 200줄 신호를 넘긴 채 두는 이유</b>: 메서드 각각(승하차지 병합·순번
- * 비교·영향 학생 산출 등)은 20줄 미만의 순수 조립 함수이고, 전/후 대조라는 <b>한 책임</b>을 여러
- * 작은 함수로 나눈 것이라 더 쪼개면 서로 참조하는 헬퍼가 파일 사이로 흩어져 오히려 "전/후 대조를
- * 어디서 하는가" 를 찾기 어려워진다({@link ApprovalQueryService#detail} 이 이미 이 클래스를 단일
- * 진입점으로 쓴다).
  */
 @Component
 @RequiredArgsConstructor
@@ -88,16 +80,7 @@ public class RoutePreviewAssembler {
      */
     public List<PreviewStopResponse> toPreviewStopsFromRunStops(List<RunStop> runStops, Map<Long, Stop> stopsById,
             Map<Long, String> waypointLabelsById) {
-        // 학원 항목(Ruling 327)은 뺀다 — "후" 쪽(계산 결과)에는 없는 항목이라, 두면 전/후 대조가 어긋난다.
-        return runStops.stream()
-                .filter(rs -> !rs.isDestination())
-                .map(rs -> {
-                    Stop stop = stopsById.get(rs.getStopId());
-                    return new PreviewStopResponse(rs.getSeq(),
-                            nameOf(rs.getStopId(), rs.getWaypointId(), stopsById, waypointLabelsById), rs.getEta(),
-                            stop != null ? stop.getLat() : null, stop != null ? stop.getLng() : null);
-                })
-                .toList();
+        return PreviewStopMapper.fromRunStops(runStops, stopsById, waypointLabelsById);
     }
 
     /**
@@ -112,77 +95,29 @@ public class RoutePreviewAssembler {
     /** 위와 같되 경유 지점 항목의 이름도 {@code waypointLabelsById} 로 채운다. */
     public List<PreviewStopResponse> toPreviewStopsFromComputation(RouteComputation computation,
             Map<Long, Stop> stopsById, Map<Long, String> waypointLabelsById) {
-        List<OrderedStop> ordered = computation.stops();
-        List<OffsetDateTime> etas = computation.etas();
-        List<PreviewStopResponse> stops = new ArrayList<>(ordered.size());
-        for (int i = 0; i < ordered.size(); i++) {
-            OrderedStop orderedStop = ordered.get(i);
-            Stop stop = stopsById.get(orderedStop.stopId());
-            stops.add(new PreviewStopResponse(orderedStop.seq(),
-                    nameOf(orderedStop.stopId(), orderedStop.waypointId(), stopsById, waypointLabelsById), etas.get(i),
-                    stop != null ? stop.getLat() : null, stop != null ? stop.getLng() : null));
-        }
-        return stops;
-    }
-
-    /** {@code stopId} 는 승하차지 명단에서, {@code waypointId} 는 경유 지점 label 맵에서 이름을 찾는다. */
-    private static String nameOf(Long stopId, Long waypointId, Map<Long, Stop> stopsById,
-            Map<Long, String> waypointLabelsById) {
-        if (stopId != null) {
-            Stop stop = stopsById.get(stopId);
-            return stop != null ? stop.getName() : null;
-        }
-        if (waypointId != null) {
-            return waypointLabelsById.get(waypointId);
-        }
-        return null;
+        return PreviewStopMapper.fromComputation(computation, stopsById, waypointLabelsById);
     }
 
     /** 승하차지 id → 확정 배치의 순번. {@link #reorderedOf}·{@link #removedOf} 대조의 "전" 쪽이다. */
     public Map<Long, Integer> seqMapOfRunStops(List<RunStop> runStops) {
-        Map<Long, Integer> map = new LinkedHashMap<>();
-        for (RunStop rs : runStops) {
-            if (rs.getStopId() != null) {
-                map.put(rs.getStopId(), rs.getSeq());
-            }
-        }
-        return map;
+        return StopSequenceDiff.seqMapOfRunStops(runStops);
     }
 
     /** 승하차지 id → 재최적화 결과의 순번. {@link #reorderedOf}·{@link #removedOf} 대조의 "후" 쪽이다. */
     public Map<Long, Integer> seqMapOfComputation(RouteComputation computation) {
-        Map<Long, Integer> map = new LinkedHashMap<>();
-        for (OrderedStop stop : computation.stops()) {
-            if (stop.stopId() != null) {
-                map.put(stop.stopId(), stop.seq());
-            }
-        }
-        return map;
+        return StopSequenceDiff.seqMapOfComputation(computation);
     }
 
     /** 전/후 모두에 있지만 순번이 달라진 승하차지(§5.5 상세 {@code reordered[]}). */
     public List<StopRefResponse> reorderedOf(Map<Long, Integer> beforeSeq, Map<Long, Integer> afterSeq,
             Map<Long, Stop> stopsById) {
-        return afterSeq.entrySet().stream()
-                .filter(entry -> beforeSeq.containsKey(entry.getKey())
-                        && !beforeSeq.get(entry.getKey()).equals(entry.getValue()))
-                .map(entry -> stopRefOf(entry.getKey(), stopsById))
-                .toList();
+        return StopSequenceDiff.reorderedOf(beforeSeq, afterSeq, stopsById);
     }
 
     /** 전에는 있었으나 후에는 없는 승하차지(§5.5 상세 {@code removed[]}) — 잔여 인원이 0이 된 경우다. */
     public List<StopRefResponse> removedOf(Map<Long, Integer> beforeSeq, Map<Long, Integer> afterSeq,
             Map<Long, Stop> stopsById) {
-        return beforeSeq.keySet().stream()
-                .filter(stopId -> !afterSeq.containsKey(stopId))
-                .map(stopId -> stopRefOf(stopId, stopsById))
-                .toList();
-    }
-
-    private static StopRefResponse stopRefOf(Long stopId, Map<Long, Stop> stopsById) {
-        Stop stop = stopsById.get(stopId);
-        return new StopRefResponse(stopId, stop != null ? stop.getName() : null,
-                stop != null ? stop.getLat() : null, stop != null ? stop.getLng() : null);
+        return StopSequenceDiff.removedOf(beforeSeq, afterSeq, stopsById);
     }
 
     /**
@@ -194,7 +129,7 @@ public class RoutePreviewAssembler {
     public List<AffectedStudentResponse> affectedStudentsOf(Long academyId, Long targetStudentId,
             String targetStudentName, List<RunRider> riders, Map<Long, Integer> beforeSeq,
             Map<Long, Integer> afterSeq) {
-        Set<Long> changedStopIds = changedStopIdsOf(beforeSeq, afterSeq);
+        Set<Long> changedStopIds = StopSequenceDiff.changedStopIdsOf(beforeSeq, afterSeq);
         List<Long> affectedIds = riders.stream()
                 .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
                 .filter(rider -> changedStopIds.contains(rider.getStopId()))
@@ -212,17 +147,6 @@ public class RoutePreviewAssembler {
         return byId.entrySet().stream()
                 .map(entry -> new AffectedStudentResponse(entry.getKey(), entry.getValue()))
                 .toList();
-    }
-
-    private static Set<Long> changedStopIdsOf(Map<Long, Integer> beforeSeq, Map<Long, Integer> afterSeq) {
-        Set<Long> changed = new LinkedHashSet<>();
-        afterSeq.forEach((stopId, seq) -> {
-            if (!seq.equals(beforeSeq.get(stopId))) {
-                changed.add(stopId);
-            }
-        });
-        beforeSeq.keySet().stream().filter(stopId -> !afterSeq.containsKey(stopId)).forEach(changed::add);
-        return changed;
     }
 
     /** 정차 목록의 마지막 항목 도착 예정 시각 — 비어 있으면 도착지가 없다는 뜻이라 {@code null}. */

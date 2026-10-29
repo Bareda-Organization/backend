@@ -52,8 +52,8 @@ class ApprovalCrossAcademyLookupTest {
     private final RunRiderRepository runRiderRepository = mock(RunRiderRepository.class);
 
     private final ApprovalQueryService service = new ApprovalQueryService(changeRequestRepository, runRepository,
-            busRepository, studentRepository, null, runRiderRepository, null, null, null, null, null, null, null,
-            null, null, null, null);
+            busRepository, runRiderRepository,
+            new ApprovalSummaryAssembler(busRepository, studentRepository, null, null), null, null, null);
 
     private final AuthUser staff = new AuthUser(99L, ACADEMY_ID, Role.STAFF, AccountStatus.ACTIVE);
 
