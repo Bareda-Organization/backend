@@ -28,13 +28,14 @@ import src.backend.global.security.AuthUser;
 import src.backend.run.command.Phase9RosterFixtures;
 import src.backend.student.dto.WithdrawalPreviewResponse;
 import testsupport.clock.FixedClock20300401Config;
+import testsupport.db.ConnectionCountingConfig;
 
 /**
  * 퇴원 미리보기가 확정된 회차에서 읽는 승차 명단 행 수 — 학원의 학생 수가 아니라 그 학생 몫만큼이다.
  * 회차 명단 전체를 읽어 한 학생을 골라내면 학생이 많은 학원일수록 요청 하나가 읽는 행이 늘어난다.
  */
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
-@Import(FixedClock20300401Config.class)
+@Import({FixedClock20300401Config.class, ConnectionCountingConfig.class})
 class WithdrawalPreviewRiderLoadTest {
 
     private static final LocalDate TOMORROW = LocalDate.parse("2030-04-02");
@@ -84,11 +85,16 @@ class WithdrawalPreviewRiderLoadTest {
         AuthUser staff = new AuthUser(1L, academyId, Role.STAFF, AccountStatus.ACTIVE, false);
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         statistics.clear();
+        ConnectionCountingConfig.reset();
 
         WithdrawalPreviewResponse response = previewService.preview(staff, target);
 
         assertThat(response.tomorrowRuns()).as("확정된 회차에 이 학생이 탄다").hasSize(1);
         assertThat(statistics.getEntityStatistics(RunRider.class.getName()).getLoadCount())
                 .as("명단 25행 중 이 학생의 1행만 읽어야 한다").isLessThanOrEqualTo(1);
+        assertThat(ConnectionCountingConfig.preparedStatements())
+                .filteredOn(sql -> sql.contains("from run_rider"))
+                .as("승차 명단을 읽는 SQL 은 학생으로 좁혀야 한다 — 엔티티로 읽지 않아도 회차 명단 전체를 가져오면 행 수는 같다")
+                .isNotEmpty().allSatisfy(sql -> assertThat(sql).contains("student_id"));
     }
 }
