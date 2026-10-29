@@ -1,10 +1,12 @@
 package src.backend.location.repository;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -58,4 +60,26 @@ public interface RunPositionRepository extends JpaRepository<RunPosition, Long> 
             """, nativeQuery = true)
     List<RunPosition> findLatestMovingByRunIdIn(@Param("runIds") Collection<Long> runIds, @Param("since") OffsetDateTime since,
             @Param("until") OffsetDateTime until);
+
+    /**
+     * 위치 1건을 적재하되, 직전 {@code windowStart} 이후 이미 받은 위치 중 더 새롭거나 같은 {@code recorded_at} 이 있거나 이 위치보다 먼저 받은 것이 있으면
+     * (겹쳐 온 송신이 먼저 커밋된 경우) 적재하지 않는다 — 한 회차의 송신을 줄 세우는 회차 행 잠금을 쥔 채 부른다. 잠금 뒤 새 문장이라 먼저 커밋된 행이 보인다.
+     * {@code recordedFloor} 는 일 파티션 가지치기용 하한이다(기기 시각은 수신 시각과 허용 오차 안으로만 저장된다).
+     *
+     * @return 적재했으면 1, 겹친 송신이 먼저 있어 적재하지 않았으면 0
+     */
+    @AcademyScopeExempt(reason = "호출자가 이미 학원 범위로 잠그고 확인한 회차 id 만 넘긴다 — run_position 에는 academy_id 컬럼이 부재하다")
+    @Modifying
+    @Query(value = """
+            INSERT INTO run_position (run_id, lat, lng, recorded_at, received_at, speed, heading)
+            SELECT :runId, :lat, :lng, :recordedAt, :receivedAt, CAST(:speed AS numeric), CAST(:heading AS numeric)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM run_position
+                WHERE run_id = :runId AND recorded_at >= :recordedFloor AND received_at >= :windowStart
+                  AND (recorded_at >= :recordedAt OR received_at <= :receivedAt))
+            """, nativeQuery = true)
+    int insertUnlessOverlapping(@Param("runId") Long runId, @Param("lat") BigDecimal lat, @Param("lng") BigDecimal lng,
+            @Param("recordedAt") OffsetDateTime recordedAt, @Param("receivedAt") OffsetDateTime receivedAt,
+            @Param("speed") BigDecimal speed, @Param("heading") BigDecimal heading,
+            @Param("windowStart") OffsetDateTime windowStart, @Param("recordedFloor") OffsetDateTime recordedFloor);
 }

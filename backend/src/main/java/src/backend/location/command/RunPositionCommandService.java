@@ -17,7 +17,6 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.location.dto.RunPositionRequest;
-import src.backend.location.entity.RunPosition;
 import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.location.infrastructure.RunBroadcastCache;
 import src.backend.location.repository.RunPositionRepository;
@@ -75,7 +74,8 @@ public class RunPositionCommandService {
      * 회차 존재 · {@code moving} 상태 순으로 거절 조건을 확인한 뒤(API_SPEC §4.12) 중복·과다 수신이면 적재 없이 끝내고, Redis 갱신은
      * 이벤트 구독자가 커밋 후에 한다.
      *
-     * <p>거절 확인과 적재는 트랜잭션이 둘이다 — 중복 판정이 Redis 를 읽는데, 그 읽기를 DB 연결을 쥔 채 하지 않기 위해서다.
+     * <p>거절 확인과 적재는 트랜잭션이 둘이다 — 중복 판정이 Redis 를 읽는데, 그 읽기를 DB 연결을 쥔 채 하지 않기 위해서다. 그 사이 회차가 끝났거나 겹쳐
+     * 온 송신이 먼저 적재됐을 수 있어, 적재 트랜잭션이 회차 행을 잠근 뒤 운행 상태와 겹침을 다시 확인한다.
      */
     public void receive(AuthUser requester, Long runId, RunPositionRequest request) {
         Long academyId = transactionTemplate.execute(status -> assertMoving(requester, runId));
@@ -88,7 +88,9 @@ public class RunPositionCommandService {
         }
         RunPositionReceivedEvent event = transactionTemplate.execute(
                 status -> persist(runId, academyId, request, recordedAt, receivedAt));
-        eventPublisher.publishEvent(event);
+        if (event != null) {
+            eventPublisher.publishEvent(event);
+        }
     }
 
     /** 배치 기사 · 회차 존재 · 운행 중인지 확인하고 회차의 학원 id 를 돌려준다. */
@@ -102,12 +104,23 @@ public class RunPositionCommandService {
         return run.getAcademyId();
     }
 
-    /** 위치를 적재하고 구독자에게 실을 이벤트를 만든다 — 한 트랜잭션 안에서 끝나는 DB 구간이다. */
+    /**
+     * 위치를 적재하고 구독자에게 실을 이벤트를 만든다 — 한 트랜잭션 안에서 끝나는 DB 구간이다. 회차 행을 먼저 잠가 같은 회차의 송신을 줄 세운 뒤
+     * 운행 중인지 다시 본다(그 사이 끝난 회차에는 적재하지 않는다). 겹쳐 먼저 적재된 송신이 있어 적재하지 않으면 {@code null} 이다.
+     */
     private RunPositionReceivedEvent persist(Long runId, Long academyId, RunPositionRequest request,
             OffsetDateTime recordedAt, OffsetDateTime receivedAt) {
-        RunPosition position = RunPosition.onReceive(runId, request.lat(), request.lng(),
-                recordedAt, receivedAt, request.speed(), request.heading());
-        runPositionRepository.save(position);
+        Run run = runRepository.findLockedByIdAndAcademyId(runId, academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.getStatus() != RunStatus.MOVING) {
+            throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
+        }
+        OffsetDateTime windowStart = receivedAt.minus(PositionIntakeGuard.MIN_INTERVAL);
+        if (runPositionRepository.insertUnlessOverlapping(runId, request.lat(), request.lng(), recordedAt, receivedAt,
+                request.speed(), request.heading(), windowStart, windowStart.minus(RECORDED_AT_TOLERANCE)) == 0) {
+            positionIntakeGuard.countOverlapped();
+            return null;
+        }
 
         // 정차 목록은 도착 · 운행 전환 때만 바뀐다 — 그 이벤트가 커밋될 때 캐시를 비우므로 평소 위치 1건은 다시 읽지 않는다(RT-5)
         List<PositionStopView> stops = runBroadcastCache.stops(runId,
