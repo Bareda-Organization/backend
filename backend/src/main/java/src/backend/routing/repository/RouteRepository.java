@@ -4,9 +4,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,6 +34,15 @@ public interface RouteRepository extends JpaRepository<Route, Long> {
      * {@code 404 ROUTE_NOT_FOUND} 로 답한다(Ruling 163: {@code {id}} 지목은 404).
      */
     Optional<Route> findByIdAndAcademyId(Long id, Long academyId);
+
+    /**
+     * {@link #findByIdAndAcademyId} 와 같은 조회에 <b>행 잠금</b>({@code FOR UPDATE})을 건다 — 정차 목록을 갈아 끼우기 전에 호출해,
+     * 같은 노선의 겹친 저장·최적화가 트랜잭션 끝까지 한 줄로 서게 한다. 잠금을 얻은 뒤에 현재 순서를 읽어야 먼저 끝난 요청이 남긴
+     * 순서에서 출발하고, {@code uk_route_stop_route_seq} 위반이나 이미 지워진 행을 다시 지우는 오류가 나지 않는다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Route r WHERE r.id = :id AND r.academyId = :academyId")
+    Optional<Route> findByIdAndAcademyIdForUpdate(@Param("id") Long id, @Param("academyId") Long academyId);
 
     /**
      * 같은 차량·요일·방향 편성이 이미 있는지 본다 — {@code uk_route_bus_weekday_direction} 위반을

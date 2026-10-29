@@ -79,7 +79,7 @@ public class RunStop {
 
     /**
      * 도착 처리 뒤 그 승하차지 100m 안에서 위치를 받은 최초 시각(Ruling 875) — {@code null} 이면 아직 못 본 것이다. 출발 판정은 이 값이
-     * 있을 때만 100m 밖 위치를 출발로 본다. 엔티티에 세터를 두지 않는다 — {@link src.backend.routing.repository.RunStopRepository
+     * 있을 때만 100m 밖 위치를 출발로 본다. 엔티티에 세터를 두지 않는다 — {@link src.backend.routing.repository.RunStopProximityRepository
      * #claimNearObservation} 조건부 UPDATE 만이 채운다({@link #departedAt} 과 같은 근거).
      */
     @Column(name = "near_observed_at")
@@ -91,7 +91,7 @@ public class RunStop {
 
     /**
      * 근접 알림(NTF-04) 최초 1회 발송을 표시하는 시각 — {@code null} 이면 아직 발송하지 않은 것이다.
-     * 엔티티에 세터를 두지 않는다. {@link src.backend.routing.repository.RunStopRepository
+     * 엔티티에 세터를 두지 않는다. {@link src.backend.routing.repository.RunStopProximityRepository
      * #claimProximityNotice} 조건부 UPDATE 만이 이 값을 채운다({@link #markArrived} 와 달리 "먼저 읽고
      * 나중에 쓰면" 두 스케줄러 인스턴스가 같은 정차 항목을 동시에 미도착으로 보고 둘 다 발송한다).
      */

@@ -25,6 +25,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.repository.RunStopProximityRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
@@ -33,7 +34,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@link RunStopRepository#claimProximityNotice} 의 <b>동시성</b>(Ruling 210 조건부 UPDATE
+ * {@link RunStopProximityRepository#claimProximityNotice} 의 <b>동시성</b>(Ruling 210 조건부 UPDATE
  * 선점) — 스케줄러 인스턴스 2개가 같은 정차 항목을 동시에 판정해도 선점은 정확히 한 번만 성공해야
  * 한다.
  *
@@ -55,6 +56,9 @@ class RunStopProximityClaimConcurrencyTest {
 
     @Autowired
     private RunStopRepository runStopRepository;
+
+    @Autowired
+    private RunStopProximityRepository runStopProximityRepository;
 
     @Autowired
     private AcademyRepository academyRepository;
@@ -127,7 +131,7 @@ class RunStopProximityClaimConcurrencyTest {
                     () -> 먼저_선점하고_상대가_막힐_때까지_커밋을_미룬다(runStopId, 먼저_들어갔다));
             Future<Integer> 두번째 = pool.submit(() -> {
                 먼저_들어갔다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-                return runStopRepository.claimProximityNotice(runStopId, OffsetDateTime.now().plusSeconds(1));
+                return runStopProximityRepository.claimProximityNotice(runStopId, OffsetDateTime.now().plusSeconds(1));
             });
 
             두번째_갱신수 = 두번째.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -146,7 +150,7 @@ class RunStopProximityClaimConcurrencyTest {
 
     private int 먼저_선점하고_상대가_막힐_때까지_커밋을_미룬다(long runStopId, CountDownLatch 먼저_들어갔다) {
         return new TransactionTemplate(transactionManager).execute(status -> {
-            int updated = runStopRepository.claimProximityNotice(runStopId, OffsetDateTime.now());
+            int updated = runStopProximityRepository.claimProximityNotice(runStopId, OffsetDateTime.now());
             먼저_들어갔다.countDown();
             상대가_대기할_때까지_커밋을_미룬다();
             return updated;

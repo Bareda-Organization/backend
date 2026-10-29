@@ -2,6 +2,7 @@ package src.backend.routing.query;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,7 @@ import src.backend.routing.dto.RouteStopResponse;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.map.spec.CallerPolicy;
+import src.backend.routing.query.RoutePathCache.CachedRoadRoute;
 import src.backend.routing.map.spec.MapRouteClient;
 import src.backend.routing.map.spec.RoadLeg;
 import src.backend.routing.map.spec.RoadRoute;
@@ -62,6 +64,8 @@ public class RoutePathQueryService {
 
     private final MapRouteClient mapRouteClient;
 
+    private final RoutePathCache routePathCache;
+
     private final Clock clock;
 
     /** 편성 1건의 도로 경로 — 다른 학원의 편성을 지목하면 {@code 404 ROUTE_NOT_FOUND} 다. */
@@ -81,22 +85,40 @@ public class RoutePathQueryService {
             return new RoutePathResponse(List.of(), false, stops, null, null, OffsetDateTime.now(clock));
         }
 
-        RoadRoute roadRoute = mapRouteClient
-                .route(new RoadRouteRequest(points, ROUTE_PATH_MAP_TIMEOUT, CallerPolicy.ON_DEMAND));
-        return pathResponseOf(roadRoute, stops);
+        return pathResponseOf(roadRouteOf(route.getId(), points), stops);
+    }
+
+    /**
+     * 지점열의 도로 경로 — 캐시에 있으면 지도를 부르지 않고, 없으면 지도에서 받아 <b>실제 도로 경로일 때만</b> 캐시에 둔다. 직선 근사나 빈
+     * 경로를 두면 지도가 돌아온 뒤에도 그 근사가 캐시 유효 시간 동안 남는다.
+     */
+    private CachedRoadRoute roadRouteOf(Long routeId, List<GeoPoint> points) {
+        String key = routePathCache.keyOf(routeId, points);
+        return routePathCache.find(key).orElseGet(() -> {
+            RoadRoute road = mapRouteClient
+                    .route(new RoadRouteRequest(points, ROUTE_PATH_MAP_TIMEOUT, CallerPolicy.ON_DEMAND));
+            CachedRoadRoute computed = new CachedRoadRoute(road, clock.millis());
+            if (!road.fallbackUsed() && !road.roadPath().isEmpty()) {
+                routePathCache.put(key, computed);
+            }
+            return computed;
+        });
     }
 
     /**
      * 도로 경로 응답을 만든다 — {@code distance_m}·{@code duration_s} 는 구간 값의 합이고, 직선 근사이거나 도로 좌표가 빈
-     * 배열이면 둘 다 {@code null} 이다(근사 거리를 도로 거리로 보이지 않는다, Ruling 819). {@code computed_at} 은 이 호출이
-     * 경로를 계산한 시각이다 — 저장해 두고 다시 쓰는 경로가 없어 언제나 지금이다.
+     * 배열이면 둘 다 {@code null} 이다(근사 거리를 도로 거리로 보이지 않는다, Ruling 819). {@code computed_at} 은 이 경로를 지도에서 받아 온
+     * 시각이다 — 캐시에서 나온 경로는 처음 계산한 시각이다.
      */
-    private RoutePathResponse pathResponseOf(RoadRoute roadRoute, List<RouteStopResponse> stops) {
+    private RoutePathResponse pathResponseOf(CachedRoadRoute cached, List<RouteStopResponse> stops) {
+        RoadRoute roadRoute = cached.route();
         boolean measured = !roadRoute.fallbackUsed() && !roadRoute.roadPath().isEmpty();
         Integer distanceMeters = measured ? roadRoute.legs().stream().mapToInt(RoadLeg::distanceMeters).sum() : null;
         Integer durationSeconds = measured ? roadRoute.legs().stream().mapToInt(RoadLeg::durationSeconds).sum() : null;
+        OffsetDateTime computedAt = Instant.ofEpochMilli(cached.computedAtEpochMillis()).atZone(clock.getZone())
+                .toOffsetDateTime();
         return new RoutePathResponse(roadRoute.roadPath(), roadRoute.fallbackUsed(), stops, distanceMeters,
-                durationSeconds, OffsetDateTime.now(clock));
+                durationSeconds, computedAt);
     }
 
     /**

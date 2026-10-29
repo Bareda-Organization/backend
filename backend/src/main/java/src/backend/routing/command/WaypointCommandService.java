@@ -1,15 +1,8 @@
 package src.backend.routing.command;
 
-import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
@@ -18,30 +11,19 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
-import src.backend.request.assembly.RoutePreviewAssembler;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.domain.ChangeWindowPolicy;
-import src.backend.request.dto.PreviewStopResponse;
-import src.backend.request.dto.RoutePreviewResponse;
 import src.backend.global.location.GeoPoint;
 import src.backend.routing.dto.WaypointRequest;
 import src.backend.routing.command.WaypointPreviewCache.WaypointPreview;
 import src.backend.routing.dto.WaypointResponse;
 import src.backend.routing.engine.spec.FixedStop;
-import src.backend.routing.entity.RouteVersionSource;
-import src.backend.routing.entity.RunStop;
 import src.backend.routing.entity.Waypoint;
-import src.backend.routing.map.spec.CallerPolicy;
-import src.backend.routing.pipeline.ComputationPolicy;
-import src.backend.routing.pipeline.RouteComputation;
-import src.backend.routing.pipeline.RouteComputationInput;
 import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.WaypointRepository;
-import src.backend.run.domain.RunConfirmationFingerprint;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.service.AddressVerification;
-import src.backend.student.entity.Stop;
 import src.backend.student.geocoding.spec.GeocodedPoint;
 
 /**
@@ -56,26 +38,21 @@ import src.backend.student.geocoding.spec.GeocodedPoint;
  * (즉시·승인 필요)은 전부 허용하고 ③구간(운행 시작 후)만 막는다는 뜻이라, {@code ChangeRequestCommandService}
  * 와 같은 형태로 판정한다({@code ForcedAdditionCommandService} 처럼 ①구간 전용이 아니다).
  *
- * <p>CODE_CONVENTIONS §20.2 크기 신호(BR-101) — 문맥 조립은 {@link RouteContextAssembler} 로 뺐으나(342→312줄) 여전히
- * 200줄을 넘는다. add·remove·preview·deploy·responseOf 가 같은 {@link RouteContext}·{@link RouteComputation}
- * 을 순서대로 주고받는 한 흐름이라 더 가르면 그 상태를 필드로 다시 들고 다녀야 해(협력자 중복) 오히려
- * 추적이 어려워진다고 판단해 여기 남긴다.
+ * <p>CODE_CONVENTIONS §20.2 크기 신호(BR-101) — 문맥 조립은 {@link RouteContextAssembler}, 고정 지점 목록 계산은
+ * {@link WaypointFixedStops}, 재최적화 미리보기·배포는 {@link WaypointPreviewPublisher}, 응답 조립은
+ * {@link WaypointResponseAssembler} 에 맡기고, 여기에는 구간 판정·미리보기 조회·요청 검증과 add·remove 의 흐름만 둔다.
  */
 @Service
 @RequiredArgsConstructor
 public class WaypointCommandService {
 
-    /** 온디맨드(관리자가 화면 앞에서 대기) 지도 API 타임아웃 — {@code ApprovalPreviewResolver} 와 같은 값. */
-    private static final Duration ON_DEMAND_MAP_TIMEOUT = Duration.ofSeconds(5);
-
     private final RunRepository runRepository;
     private final WaypointRepository waypointRepository;
-    private final RoutePreviewAssembler routePreviewAssembler;
-    private final RouteComputationPipeline pipeline;
     private final AddressVerification addressVerification;
     private final WaypointStore waypointStore;
     private final WaypointPreviewCache previewCache;
     private final RouteContextAssembler routeContextAssembler;
+    private final WaypointPreviewPublisher previewPublisher;
     private final Clock clock;
 
     /**
@@ -92,13 +69,7 @@ public class WaypointCommandService {
     public WaypointResponse add(AuthUser requester, Long runId, WaypointRequest request) {
         Run run = loadRunInWindow(requester, runId);
         if (request.apply()) {
-            WaypointPreview preview = previewOf(run, request.previewToken(), false);
-            Waypoint waypoint = waypointRepository.findById(preview.waypointId())
-                    .filter(w -> !w.isApplied() && w.getRunId().equals(run.getId()))
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PREVIEW_STALE));
-            RouteContext ctx = routeContextAssembler.contextOf(run);
-            return deploy(run, waypoint, ctx, addedFixedStops(ctx, waypoint, preview.seq()), preview,
-                    requester.accountId());
+            return deployAdd(run, request, requester.accountId());
         }
         GeoPoint point = resolvePoint(request);
         Waypoint waypoint = waypointStore.saveCandidate(run, Waypoint.forRun(run.getId(), request.label(),
@@ -106,7 +77,8 @@ public class WaypointCommandService {
                 OffsetDateTime.now(clock)));
         RouteContext ctx = routeContextAssembler.contextOf(run);
         int seq = seqOf(request, ctx);
-        return preview(run, waypoint, ctx, addedFixedStops(ctx, waypoint, seq), seq, false);
+        return previewPublisher.preview(new WaypointChange(run, waypoint, ctx,
+                WaypointFixedStops.addedFixedStops(ctx, waypoint, seq)), seq, false);
     }
 
     /**
@@ -121,38 +93,27 @@ public class WaypointCommandService {
                 .findAppliedByIdAndRunIdAndAcademyId(waypointId, run.getId(), run.getAcademyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.WAYPOINT_NOT_FOUND));
         RouteContext ctx = routeContextAssembler.contextOf(run);
-        List<FixedStop> fixedStops = removedFixedStops(ctx, waypoint);
+        List<FixedStop> fixedStops = WaypointFixedStops.removedFixedStops(ctx, waypoint);
+        WaypointChange change = new WaypointChange(run, waypoint, ctx, fixedStops);
         if (!apply) {
-            return preview(run, waypoint, ctx, fixedStops, 0, true);
+            return previewPublisher.preview(change, 0, true);
         }
         WaypointPreview preview = previewOf(run, previewToken, true);
         if (preview.waypointId() != waypoint.getId()) {
             throw new BusinessException(ErrorCode.PREVIEW_STALE);
         }
-        return deploy(run, waypoint, ctx, fixedStops, preview, requester.accountId());
+        return previewPublisher.deploy(change, preview, requester.accountId());
     }
 
-    /** 새 경유 지점을 {@code seq} 에 끼운 고정 지점 목록 — 그 자리부터 뒤 경유 지점은 한 칸 밀린다(BR-020). */
-    private static List<FixedStop> addedFixedStops(RouteContext ctx, Waypoint waypoint, int seq) {
-        List<FixedStop> fixedStops = new ArrayList<>(existingFixedStopsOf(ctx).stream()
-                .map(fs -> fs.seq() >= seq ? shifted(fs, 1) : fs)
-                .toList());
-        fixedStops.add(new FixedStop(waypoint.getId(), new GeoPoint(waypoint.getLat(), waypoint.getLng()), seq));
-        return fixedStops;
-    }
-
-    /** 경유 지점을 뺀 고정 지점 목록 — 그 뒤 경유 지점은 한 칸 당겨진다(BR-020). */
-    private static List<FixedStop> removedFixedStops(RouteContext ctx, Waypoint waypoint) {
-        List<FixedStop> existing = existingFixedStopsOf(ctx);
-        int removedSeq = existing.stream()
-                .filter(fs -> fs.waypointId() == waypoint.getId())
-                .mapToInt(FixedStop::seq)
-                .findFirst()
-                .orElse(Integer.MAX_VALUE);
-        return existing.stream()
-                .filter(fs -> fs.waypointId() != waypoint.getId())
-                .map(fs -> fs.seq() > removedSeq ? shifted(fs, -1) : fs)
-                .toList();
+    /** 추가 배포({@code apply=true}) — 미리보기가 가리키는 미배포 후보 행을 찾아 그 순번 그대로 배포한다. */
+    private WaypointResponse deployAdd(Run run, WaypointRequest request, Long accountId) {
+        WaypointPreview preview = previewOf(run, request.previewToken(), false);
+        Waypoint waypoint = waypointRepository.findById(preview.waypointId())
+                .filter(w -> !w.isApplied() && w.getRunId().equals(run.getId()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.PREVIEW_STALE));
+        RouteContext ctx = routeContextAssembler.contextOf(run);
+        return previewPublisher.deploy(new WaypointChange(run, waypoint, ctx,
+                WaypointFixedStops.addedFixedStops(ctx, waypoint, preview.seq())), preview, accountId);
     }
 
     /** 이 회차의 지금 유효한 미리보기 — 토큰이 없거나 다르거나 흐름(추가·제거)이 다르면 {@code 409 PREVIEW_STALE}. */
@@ -198,16 +159,6 @@ public class WaypointCommandService {
         return request.seq();
     }
 
-    /**
-     * 고정 순번을 {@code delta} 만큼 옮긴다 — 순번은 절대 자리라, 앞에 경유 지점이 하나 끼거나 빠지면 뒤
-     * 경유 지점이 같은 승하차지 사이에 머물려면 순번이 함께 움직여야 한다(BR-020). 옮기지 않으면 제거 뒤
-     * 순번이 자리 수를 넘거나 추가 때 순번이 겹쳐 엔진이 거부하고({@code RouteSlots}, 500), 넘지 않아도
-     * 관계자가 정한 자리가 다른 승하차지 사이로 바뀐다.
-     */
-    private static FixedStop shifted(FixedStop fixedStop, int delta) {
-        return new FixedStop(fixedStop.waypointId(), fixedStop.point(), fixedStop.seq() + delta);
-    }
-
     /** 좌표를 우선하고(재검증 호출을 늘리지 않는다), 없으면 주소를 검증한다. 둘 다 없으면 422. */
     private GeoPoint resolvePoint(WaypointRequest request) {
         if (request.lat() != null && request.lng() != null) {
@@ -218,106 +169,5 @@ public class WaypointCommandService {
         }
         GeocodedPoint geocoded = addressVerification.verifySingle(request.address());
         return new GeoPoint(geocoded.lat(), geocoded.lng());
-    }
-
-    /** 이미 배포된 경유 지점을 지금 노선의 정차 순번 그대로 고정 지점으로 옮긴다 — 위치를 다시 흔들지 않는다. */
-    private static List<FixedStop> existingFixedStopsOf(RouteContext ctx) {
-        Map<Long, Integer> seqByWaypointId = new LinkedHashMap<>();
-        for (RunStop rs : ctx.beforeRunStops()) {
-            if (rs.getWaypointId() != null) {
-                seqByWaypointId.put(rs.getWaypointId(), rs.getSeq());
-            }
-        }
-        List<FixedStop> fixedStops = new ArrayList<>();
-        for (Waypoint w : ctx.appliedWaypoints()) {
-            Integer seq = seqByWaypointId.get(w.getId());
-            if (seq != null) {
-                fixedStops.add(new FixedStop(w.getId(), new GeoPoint(w.getLat(), w.getLng()), seq));
-            }
-        }
-        return fixedStops;
-    }
-
-    /** 재최적화를 계산하고(트랜잭션 밖 — 외부 지도 API) 미리보기로 남긴다. 확정 노선은 그대로다. */
-    private WaypointResponse preview(Run run, Waypoint waypoint, RouteContext ctx, List<FixedStop> fixedStops, int seq,
-            boolean removal) {
-        ComputationPolicy policy = new ComputationPolicy(ON_DEMAND_MAP_TIMEOUT, CallerPolicy.ON_DEMAND,
-                RouteVersionSource.WAYPOINT);
-        RouteComputationInput input = new RouteComputationInput(ctx.roster(), ctx.originDestination().origin(),
-                ctx.originDestination().destination(), fixedStops, run.getDepartTime(), policy);
-        RouteComputation computation = pipeline.compute(input);
-        String token = UUID.randomUUID().toString();
-        previewCache.put(run.getId(), run.getServiceDate(), new WaypointPreview(token, waypoint.getId(), removal, seq,
-                fingerprintOf(run, ctx, fixedStops), ctx.currentVersion().getId(), computation));
-        return responseOf(run, waypoint, ctx, computation, false, token);
-    }
-
-    /**
-     * 미리보기의 계산을 그대로 배포한다 — 그 사이 입력(명단·승하차지·경유 지점)이 바뀌었으면 지문이 어긋나
-     * {@code 409 PREVIEW_STALE} 이다(승인 배포 {@code ChangeRequestDecisionService.assertFingerprintFresh} 와 같은 형태).
-     */
-    private WaypointResponse deploy(Run run, Waypoint waypoint, RouteContext ctx, List<FixedStop> fixedStops,
-            WaypointPreview preview, Long accountId) {
-        if (!fingerprintOf(run, ctx, fixedStops).equals(preview.fingerprint())) {
-            throw new BusinessException(ErrorCode.PREVIEW_STALE);
-        }
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        if (preview.removal()) {
-            waypointStore.deployRemoval(run, waypoint, preview, accountId, now);
-        } else {
-            waypointStore.deployAdd(run, waypoint, preview, accountId, now);
-        }
-        previewCache.evict(run.getId());
-        return responseOf(run, waypoint, ctx, preview.computation(), true, null);
-    }
-
-    private static String fingerprintOf(Run run, RouteContext ctx, List<FixedStop> fixedStops) {
-        return RunConfirmationFingerprint.of(run.getAcademyId(), ctx.weekday(), run.getDirection(),
-                run.getDepartTime(), ctx.originDestination().origin(), ctx.originDestination().destination(),
-                ctx.roster().stopOverrides(), fixedStops);
-    }
-
-    private WaypointResponse responseOf(Run run, Waypoint waypoint, RouteContext ctx, RouteComputation computation,
-            boolean applied, String previewToken) {
-        RoutePreviewResponse routePreview = routePreviewResponseOf(ctx, computation, run.getAcademyId(), waypoint);
-        BigDecimal estDistanceBefore = ctx.currentVersion().getEstDistanceKm();
-        BigDecimal estDistanceAfter = computation.estDistanceKm();
-        return new WaypointResponse(waypoint.getId(), routePreview,
-                routePreviewAssembler.lastEtaOf(routePreview.stopsBefore()),
-                routePreviewAssembler.lastEtaOf(routePreview.stopsAfter()), estDistanceBefore, estDistanceAfter,
-                ctx.currentVersion().getEstDurationMin(), computation.estDurationMin(), applied, previewToken);
-    }
-
-    /**
-     * {@code RoutePreviewAssembler} 를 §5.5 상세와 같은 순서로 불러 전/후 대조를 조립한다.
-     * 경유 지점 항목의 {@code stop_name} 은 {@code stopsById} 로 못 찾으므로(승하차지 명단이 아니다)
-     * {@code waypointLabelsById} 를 별도로 넘겨 채운다 — 지금 이 요청의 대상 {@code waypoint} 는
-     * 신규 추가라면 아직 {@code ctx.appliedWaypoints()} 에 없어 그 목록만으로는 부족하다.
-     */
-    private RoutePreviewResponse routePreviewResponseOf(RouteContext ctx, RouteComputation computation,
-            Long academyId, Waypoint waypoint) {
-        Set<Long> stopIds = routePreviewAssembler.unionOfStopIds(ctx.beforeRunStops(), computation);
-        Map<Long, Stop> stopsById = routePreviewAssembler.stopsByIdOf(stopIds, academyId);
-        Map<Long, String> waypointLabelsById = waypointLabelsOf(ctx, waypoint);
-        List<PreviewStopResponse> stopsBefore = routePreviewAssembler.toPreviewStopsFromRunStops(
-                ctx.beforeRunStops(), stopsById, waypointLabelsById);
-        List<PreviewStopResponse> stopsAfter = routePreviewAssembler.toPreviewStopsFromComputation(computation,
-                stopsById, waypointLabelsById);
-        Map<Long, Integer> beforeSeq = routePreviewAssembler.seqMapOfRunStops(ctx.beforeRunStops());
-        Map<Long, Integer> afterSeq = routePreviewAssembler.seqMapOfComputation(computation);
-        return RoutePreviewResponse.of(stopsBefore, stopsAfter,
-                routePreviewAssembler.reorderedOf(beforeSeq, afterSeq, stopsById),
-                routePreviewAssembler.removedOf(beforeSeq, afterSeq, stopsById),
-                routePreviewAssembler.roadPathOrEmpty(ctx.currentVersion().getRoadPath()), computation.roadPath());
-    }
-
-    /** 이미 배포된 경유 지점 전부 + 지금 이 요청의 대상 경유 지점, 합쳐서 id → label 맵을 만든다. */
-    private static Map<Long, String> waypointLabelsOf(RouteContext ctx, Waypoint waypoint) {
-        Map<Long, String> labels = new LinkedHashMap<>();
-        for (Waypoint w : ctx.appliedWaypoints()) {
-            labels.put(w.getId(), w.getLabel());
-        }
-        labels.put(waypoint.getId(), waypoint.getLabel());
-        return labels;
     }
 }

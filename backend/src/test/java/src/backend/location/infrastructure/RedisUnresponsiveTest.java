@@ -13,9 +13,11 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
@@ -28,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.zaxxer.hikari.HikariDataSource;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.lettuce.core.ClientOptions;
 
 import src.backend.global.common.enums.AccountStatus;
@@ -79,6 +82,22 @@ class RedisUnresponsiveTest {
 
     @Autowired
     private RedisConnectionFactory redisConnectionFactory;
+
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
+    /** Redis 명령 하나가 답을 기다리는 시간 상한(설정값) — 응답 시간 상한을 이 값에서 구한다. */
+    @Value("${spring.data.redis.timeout}")
+    private Duration commandTimeout;
+
+    /**
+     * 시험마다 {@code redis} 서킷을 닫힌 상태로 시작한다 — 앞 시험이 얼린 Redis 에서 낸 실패(위치 수신은 중복 판정 읽기 · 최신 좌표 쓰기 ·
+     * 방송 중계 발행이 각자 센다)가 서킷을 열어 둔 채 남으면, 다음 시험의 명령이 Redis 를 기다리지 않고 곧바로 거절돼 "대기 중" 을 잴 수 없다.
+     */
+    @BeforeEach
+    void 서킷을_닫고_시작한다() {
+        circuitBreakerRegistry.circuitBreaker("redis").reset();
+    }
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -164,14 +183,22 @@ class RedisUnresponsiveTest {
                 {"lat": %s, "lng": 127.444441, "recorded_at": "%s"}
                 """.formatted(MARKER_LAT, OffsetDateTime.now(clock));
         try {
+            long elapsedNanos;
             try (RedisFreeze ignored = RedisFreeze.start()) {
+                long start = System.nanoTime();
                 mockMvc.perform(post("/api/v1/runs/%d/position".formatted(RUN_MOVING_ID))
                                 .header("Authorization", "Bearer " + tokenProvider.createAccessToken(DRIVER_ACCOUNT,
                                         ACADEMY_A, Role.DRIVER, AccountStatus.ACTIVE))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(body))
                         .andExpect(status().isNoContent());
+                elapsedNanos = System.nanoTime() - start;
             }
+
+            // 서킷이 닫힌 채 시작하므로 명령 시간 상한을 다 기다리는 Redis 명령은 셋이다 — 중복 판정 읽기 · 최신 좌표 읽기(비교 쓰기) · 방송 중계 발행.
+            // 거기에 DB 구간 여유 1초를 더한 것이 상한이다. 읽기가 하나 늘 때마다 이 식의 개수를 고쳐야 한다.
+            Duration bound = commandTimeout.multipliedBy(3).plus(Duration.ofSeconds(1));
+            assertThat(Duration.ofNanos(elapsedNanos)).as("얼린 Redis 앞에서 위치 수신 1건의 응답 시간").isLessThan(bound);
 
             Integer saved = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM run_position WHERE run_id = ? AND lat = ?::numeric", Integer.class,

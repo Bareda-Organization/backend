@@ -39,6 +39,9 @@ public class BusQueryService {
 
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "busNo");
 
+    /** 정렬 값이 같은 차량(정원이 같은 차량이 많다)의 순서를 정한다 — 없으면 페이지를 넘길 때 같은 차량이 되풀이되거나 건너뛰어진다. */
+    private static final Sort ID_TIE_BREAKER = Sort.by(Sort.Direction.ASC, "id");
+
     private final BusRepository busRepository;
 
     /** 오늘 날짜를 서비스 시간대로 얻는다(§5.12 {@code today_runs[]}). */
@@ -48,7 +51,7 @@ public class BusQueryService {
     public PageResponse<BusResponse> list(AuthUser requester, PageSortRequest request) {
         Page<Bus> page = busRepository.findAllByAcademyId(requester.academyId(),
                 PageParams.of(request.page(), request.size())
-                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
+                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(ID_TIE_BREAKER)));
         List<Long> busIds = page.getContent().stream().map(Bus::getId).toList();
         Map<Long, Integer> routeCounts = busRepository.countActiveRoutesByBusIds(requester.academyId(), busIds).stream()
                 .collect(Collectors.toMap(BusRepository.BusCount::getBusId, count -> Math.toIntExact(count.getTotal())));

@@ -66,6 +66,10 @@ public class RouteStopArranger {
     /**
      * 편성의 정차 순서를 통째로 그 차례로 갈아 끼운다 — {@code seq} 는 1부터 빈틈 없이 매긴다.
      *
+     * <p><b>부르는 쪽이 그 편성 행의 잠금({@code RouteRepository#findByIdAndAcademyIdForUpdate})을 쥔 채 부른다.</b>
+     * 잠금 없이 지우고 넣으면 겹친 두 요청이 같은 옛 행을 서로 지우려다 오류가 나거나, 늦게 끝난 쪽이 먼저 끝난 쪽이 남긴 순서를
+     * 모르고 덮어쓴다.
+     *
      * <p><b>지운 뒤 밀어내고서야 넣는다.</b> 이 {@code flush} 가 {@code uk_route_stop_route_seq} 를
      * 지키는 유일한 장치다 — Hibernate 는 한 번의 flush 안에서 INSERT 를 DELETE 보다 <b>먼저</b>
      * 실행하고, {@code id} 가 {@code IDENTITY} 라 {@code save} 는 그 자리에서 INSERT 를 내보낸다.
