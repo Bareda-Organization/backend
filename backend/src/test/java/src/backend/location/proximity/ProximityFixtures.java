@@ -214,6 +214,9 @@ public class ProximityFixtures {
 
     /** 도착 처리 뒤 100m 안 관측을 기록한다(Ruling 875) — 출발 판정의 선행 조건을 직접 채워 이후 틱이 바로 출발을 판정하게 한다. */
     public void observeNear(long runStopId, OffsetDateTime observedAt) {
+        if (runStopProximityRepository == null) {
+            throw new IllegalStateException("근접 선점 저장소 없이 만든 픽스처는 observeNear 를 쓸 수 없다 — 저장소를 넘기는 생성자를 쓴다");
+        }
         runStopProximityRepository.claimNearObservation(runStopId, observedAt);
     }
 

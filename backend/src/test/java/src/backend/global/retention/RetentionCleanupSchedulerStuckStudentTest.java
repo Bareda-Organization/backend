@@ -19,12 +19,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import src.backend.account.repository.RefreshTokenRepository;
-import src.backend.account.repository.VerificationCodeRepository;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.notification.repository.NotificationLogRepository;
-import src.backend.observability.metrics.RefreshTokenRowsMetrics;
-import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.student.repository.LinkCodeRepository;
 import src.backend.student.repository.StudentRepository;
 
@@ -87,12 +84,15 @@ class RetentionCleanupSchedulerStuckStudentTest {
         given(refreshTokens.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(linkCodes.findIdsForRetentionCleanup(any(), any())).willReturn(List.of());
         given(auditLogs.findIdsForRetentionCleanup(any(), any(), any())).willReturn(List.of());
-        return new RetentionCleanupScheduler(notificationLogs, mock(RunPositionPartitionManager.class), refreshTokens, linkCodes, mock(VerificationCodeRepository.class), auditLogs, mock(DelayNoticeRepository.class), mock(IdempotencyKeyExpiry.class), new RetentionPolicy(),
+        return RetentionSchedulerFactory.of(notificationLogs,
+                mock(RunPositionPartitionManager.class), refreshTokens, linkCodes, auditLogs,
+                new RetentionPolicy(),
                 new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
                         mock(org.springframework.jdbc.core.JdbcTemplate.class)), registry),
-                new WithdrawnStudentAnonymizer(studentRepository, anonymization, new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
+                new WithdrawnStudentAnonymizer(studentRepository, anonymization,
+                        new RetentionTableCleaner(new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
                         mock(org.springframework.jdbc.core.JdbcTemplate.class)), registry)),
-                Clock.fixed(Instant.parse("2032-06-15T00:00:00Z"), ZoneId.of("Asia/Seoul")), new RefreshTokenRowsMetrics(new SimpleMeterRegistry()));
+                Clock.fixed(Instant.parse("2032-06-15T00:00:00Z"), ZoneId.of("Asia/Seoul")));
     }
 
     private static List<Long> ids(long first, int count) {

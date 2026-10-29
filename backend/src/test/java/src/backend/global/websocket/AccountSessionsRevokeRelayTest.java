@@ -18,10 +18,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import src.backend.global.cache.CacheEvictionRelay;
@@ -80,9 +85,16 @@ class AccountSessionsRevokeRelayTest extends RedisTestContainerBase {
                 new SimpleMeterRegistry(), channelSuffix);
         AccountSessionsRevokeListener listener = new AccountSessionsRevokeListener(openSessions, relay);
 
-        listener.revoke(new AccountSessionsRevokeEvent(Set.of(31L)));
+        ListAppender<ILoggingEvent> logs = 로그를_모은다(CacheEvictionRelay.class);
+        try {
+            listener.revoke(new AccountSessionsRevokeEvent(Set.of(31L)));
+        } finally {
+            로그_수집을_끝낸다(CacheEvictionRelay.class, logs);
+        }
 
         verify(openSessions).revoke(Set.of(31L));
+        assertThat(경고(logs)).as("신호를 못 낸 사실은 WARN 으로 남는다").singleElement()
+                .satisfies(message -> assertThat(message).contains("캐시 비움 신호 발행 실패"));
     }
 
     @Test
@@ -94,10 +106,34 @@ class AccountSessionsRevokeRelayTest extends RedisTestContainerBase {
         CacheEvictionRelay relay = mock(CacheEvictionRelay.class);
         AccountSessionsRevokeListener listener = new AccountSessionsRevokeListener(openSessions, relay);
 
-        org.assertj.core.api.Assertions.assertThatCode(() -> listener.revoke(new AccountSessionsRevokeEvent(Set.of(41L))))
-                .doesNotThrowAnyException();
+        ListAppender<ILoggingEvent> logs = 로그를_모은다(AccountSessionsRevokeListener.class);
+        try {
+            org.assertj.core.api.Assertions.assertThatCode(() -> listener.revoke(new AccountSessionsRevokeEvent(Set.of(41L))))
+                    .doesNotThrowAnyException();
+        } finally {
+            로그_수집을_끝낸다(AccountSessionsRevokeListener.class, logs);
+        }
 
         verify(relay).publish(CacheEvictionRelay.SESSIONS_REVOKE, 41L);
+        assertThat(경고(logs)).as("이 인스턴스의 세션을 닫지 못한 사실은 WARN 으로 남는다").singleElement()
+                .satisfies(message -> assertThat(message).contains("세션을 이 인스턴스에서 닫지 못했다"));
+    }
+
+    private static ListAppender<ILoggingEvent> 로그를_모은다(Class<?> source) {
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        ((Logger) LoggerFactory.getLogger(source)).addAppender(appender);
+        return appender;
+    }
+
+    private static void 로그_수집을_끝낸다(Class<?> source, ListAppender<ILoggingEvent> appender) {
+        ((Logger) LoggerFactory.getLogger(source)).detachAppender(appender);
+        appender.stop();
+    }
+
+    private static List<String> 경고(ListAppender<ILoggingEvent> appender) {
+        return appender.list.stream().filter(event -> event.getLevel() == Level.WARN)
+                .map(ILoggingEvent::getFormattedMessage).toList();
     }
 
     /** 두 인스턴스의 구독이 모두 성립할 때까지 다른 인스턴스 이름의 탐침을 보낸다 — 구독이 성립하기 전의 메시지는 Redis 가 버린다. */
