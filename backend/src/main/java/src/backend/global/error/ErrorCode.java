@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
  * 서비스 전역에서 재사용하는 에러 코드.
  * HTTP 상태와 기본 메시지를 한 곳에 모아 응답 일관성을 유지한다.
  *
+ * <p>CODE_CONVENTIONS §20.2 크기 예외 — 에러 코드 전체를 한 enum 카탈로그로 둔다. {@code ErrorCodeSpecParityTest} 가 이 한 파일을 사양의 에러 사전과 대조하고, 나누면 모든 호출부의
+ * 이름이 바뀐다.
+ *
  * <p>{@code @RequiredArgsConstructor} 는 enum 에 {@code private} 생성자를 만든다 — 상수 선언이
  * 그대로 그 생성자를 부른다. 파라미터 순서는 <b>필드 선언 순서</b>({@code status} → {@code message})라,
  * 두 필드의 타입이 달라 순서가 뒤바뀌면 컴파일이 깨진다.

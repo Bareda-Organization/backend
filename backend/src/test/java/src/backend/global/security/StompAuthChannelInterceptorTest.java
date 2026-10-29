@@ -43,8 +43,9 @@ class StompAuthChannelInterceptorTest {
     @BeforeEach
     void setUp() {
         tokenProvider = spy(new JwtTokenProvider(SECRET, 900, 3600, Clock.systemUTC()));
-        interceptor = new StompAuthChannelInterceptor(tokenProvider, mock(GuardianChildAccess.class),
-                mock(RunAssignmentAccess.class), mock(StudentRepository.class), mock(StompSessionExpiry.class), meters,
+        StompSubscribeAuthorizer authorizer = new StompSubscribeAuthorizer(mock(GuardianChildAccess.class),
+                mock(RunAssignmentAccess.class), mock(StudentRepository.class));
+        interceptor = new StompAuthChannelInterceptor(tokenProvider, authorizer, mock(StompSessionExpiry.class), meters,
                 mock(AccountStanding.class));
     }
 

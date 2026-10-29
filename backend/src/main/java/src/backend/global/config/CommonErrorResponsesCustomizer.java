@@ -110,14 +110,19 @@ public class CommonErrorResponsesCustomizer implements OpenApiCustomizer {
                     .content(errorContent()));
             return;
         }
+        appendDescription(existing, description);
+        if (existing.getContent() == null) {
+            existing.setContent(errorContent());
+        }
+    }
+
+    /** 설명이 비었으면 채우고, 이미 다른 설명이 있으면 같은 문장이 아닐 때만 {@code " · "} 로 잇는다. */
+    private void appendDescription(ApiResponse existing, String description) {
         String current = existing.getDescription();
         if (current == null || current.isBlank()) {
             existing.setDescription(description);
         } else if (!current.contains(description)) {
             existing.setDescription(current + " · " + description);
-        }
-        if (existing.getContent() == null) {
-            existing.setContent(errorContent());
         }
     }
 
