@@ -242,8 +242,9 @@ class ChildLinkConcurrencyTest {
         }
 
         assertThat(연결_결과).contains(ErrorCode.LINK_CODE_INVALID);
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM guardian_student WHERE student_id = ?",
-                Integer.class, STUDENT_A4_ID)).as("퇴원한 학생에게 연결이 남으면 안 된다").isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM guardian_student WHERE student_id = ? AND guardian_id IN (?, ?)", Integer.class,
+                STUDENT_A4_ID, 보호자_식별자(), 다른_보호자_식별자())).as("퇴원한 학생에게 연결이 남으면 안 된다").isZero();
     }
 
     /** 다른 세션이 행 잠금에서 기다리는 것이 보일 때까지 미룬다 — 기다리는 세션이 없으면(잠그지 않는 구현) 연결이 이미 끝났으므로 상한까지만 기다린다. */
@@ -253,8 +254,9 @@ class ChildLinkConcurrencyTest {
             jdbcTemplate.execute("SELECT pg_stat_clear_snapshot()");
             Integer 대기중 = jdbcTemplate.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE datname = "
                     + "current_database() AND wait_event_type = 'Lock'", Integer.class);
-            Integer 연결수 = jdbcTemplate.queryForObject("SELECT count(*) FROM guardian_student WHERE student_id = ?",
-                    Integer.class, STUDENT_A4_ID);
+            Integer 연결수 = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM guardian_student WHERE student_id = ? AND guardian_id IN (?, ?)", Integer.class,
+                    STUDENT_A4_ID, 보호자_식별자(), 다른_보호자_식별자());
             if ((대기중 != null && 대기중 > 0) || (연결수 != null && 연결수 > 0)) {
                 return;
             }
