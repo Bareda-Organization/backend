@@ -362,6 +362,6 @@ if wait_for_backend; then
 fi
 
 echo "배포 실패 — 3분 안에 헬스체크가 UP 이 되지 않았다" >&2
-$COMPOSE logs --tail 120 backend >&2
+$COMPOSE logs --tail 120 backend >&2 || true   # 로그를 못 읽어도 되돌리기는 건너뛰지 않는다
 roll_back_to_previous "스모크 테스트 실패"
 exit 1
