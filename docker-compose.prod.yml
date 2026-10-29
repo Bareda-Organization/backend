@@ -46,7 +46,11 @@ services:
       POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=ko-KR-u-kn"
     # 쿼리별 실행 통계(pg_stat_statements)와 SSD 에 맞춘 임의 읽기 비용(gp3 — 기본값 4 는 HDD 기준이라 플래너가 인덱스 스캔을 덜 고른다).
     # 확장 생성은 초기화 스크립트가 한다(아래 마운트) — 이 옵션과 짝이다. 이미 초기화된 볼륨에는 스크립트가 돌지 않으니 절차서 §11.5 의 한 줄을 손으로 친다.
-    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "random_page_cost=1.1"]
+    # 메모리: 컨테이너 상한 4GB — 16GB 기계(Ruling 922)에서 backend 8GB · 관측 스택 약 0.9GB · redis · proxy · certbot 을 빼고 OS 와 파일 캐시 몫(약 2.5GB)을 남긴 값이다.
+    # shared_buffers 는 그 상한의 25%(1GB), effective_cache_size 는 75%(3GB — 컨테이너 안에서 캐시가 쓸 수 있는 최대치). 기본값(128MB · 4GB)은 8GB 기계를 가정해 이 기계에서는 버퍼가 작고 계획이 캐시 크기를 과대 추정한다.
+    # 상한에 닿으면 OOM 으로 postgres 가 죽고 재시작한다 — 연결 수(max_connections 기본 100 중 앱 풀 20)가 작아 work_mem 기본 4MB × 연결로는 닿지 않는다.
+    mem_limit: 4096m
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "random_page_cost=1.1", "-c", "shared_buffers=1GB", "-c", "effective_cache_size=3GB"]
     volumes:
       # postgres 18 부터 공식 이미지가 데이터를 /var/lib/postgresql/18/docker 에 둔다(VOLUME 도 /var/lib/postgresql). 옛 위치
       # /var/lib/postgresql/data 에 마운트하면 컨테이너가 시작하지 않는다(Ruling 729). 주 버전을 올릴 때는 docs/backend/infra/DEPLOYMENT.md §7.4 절차를 따른다.
@@ -70,6 +74,8 @@ services:
     # 위치 캐시(TTL 9초) 전용이라 영속화가 불필요하다 — 유실돼도 다음 tick 에 복구된다.
     # 대신 메모리 상한을 걸어 Spring 의 몫을 침범하지 않게 한다.
     command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    # maxmemory 128MB 는 데이터만 센다 — 클라이언트 버퍼·프로세스 기본 사용분(약 10MB)이 더 얹히므로 컨테이너 상한은 그 1.5배.
+    mem_limit: 192m
     expose:
       - "6379"
     healthcheck:
@@ -90,6 +96,15 @@ services:
     # 근거(4코어 8스레드 · 8GB 컨테이너 부하 측정, Ruling 927): 힙 사용 최대 2,361MB(힙 상한 4GB 의 약 58%) · 컨테이너 최고 4,036MB(한도의 49%) · 비힙 214MB ·
     # 직접 버퍼 1MB 미만 · 컨테이너 최고 − (힙 확정 + 비힙) = 126MB. 수치는 backend/report 의 R59 부하 측정 보고서 §6 · §9.
     mem_limit: 8192m
+    # 앱은 이미지 안의 비루트 사용자(uid 10001 · backend/Dockerfile)로 돈다. 루트 파일 시스템은 읽기 전용이고 쓰는 곳은 /tmp(tmpfs · Tomcat 작업 폴더 · 업로드 임시 파일)와
+    # photo-data 볼륨(아래)뿐이다. 리눅스 권한(capability)은 전부 버리고 setuid 로 권한이 올라가지 못하게 한다 — 앱이 쓰는 포트는 8080·8081(1024 이상)이라 필요한 권한이 없다.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     # 종료 신호(SIGTERM) 뒤 SIGKILL 까지 기다리는 시간 — Docker 기본은 10초다. 스프링은 종료 신호를 받으면 새 요청을 막고 진행 중인 요청을 최대
     # 30초 기다린다(Boot 4.1.0 설정 메타데이터의 기본값 `server.shutdown=graceful` · `spring.lifecycle.timeout-per-shutdown-phase=30s` — 설정 파일에는 명시가 없다.
     # 2026-10-01 로컬 종료 로그에서도 graceful 종료가 켜져 있음을 확인).
@@ -206,6 +221,8 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+    # nginx 워커 메모리 — 연결당 수 KB 라 동시 연결 4,000(application.yml max-connections)에서도 수십 MB 로 추정한다(측정하지 않았다). 256MB 는 그 몇 배의 여유이고, 이상 증가가 다른 컨테이너 몫을 침범하지 못하게 하는 상한이다.
+    mem_limit: 256m
     # 인증서가 갱신돼도 nginx 는 알아서 다시 읽지 않는다 — 6시간마다 reload 해 새 인증서를 집어든다.
     command: >
       /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
@@ -220,6 +237,8 @@ services:
   certbot:
     image: certbot/certbot:v5.8.0
     restart: unless-stopped
+    # 12시간마다 한 번 도는 갱신 루프(파이썬 프로세스)라 평소 수십 MB 로 추정한다(측정하지 않았다) — 128MB 는 갱신 실행 중 최고치 여유다.
+    mem_limit: 128m
     volumes:
       - certbot-conf:/etc/letsencrypt
       - certbot-www:/var/www/certbot
