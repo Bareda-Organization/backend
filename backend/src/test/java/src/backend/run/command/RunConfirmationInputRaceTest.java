@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -12,7 +13,6 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +59,8 @@ class RunConfirmationInputRaceTest {
 
     @Autowired private ApplicationContext applicationContext;
     @Autowired private Clock clock;
-    @MockitoSpyBean private RunRepository runRepository;
+    @Autowired private RunRepository runRepository;
+    @MockitoSpyBean private RunConfirmationService confirmationService;
     @MockitoSpyBean private ProjectedRosterReader rosterReader;
     @MockitoSpyBean private RunConfirmationMetrics metrics;
     @Autowired private RunConfirmationScheduler scheduler;
@@ -103,7 +104,6 @@ class RunConfirmationInputRaceTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("입력이 바뀌어 확정 저장이 물러나도 실패 횟수 · 재시도 시각 · 실패 지표는 그대로이고 다음 틱이 확정한다")
     void 입력이_바뀌어_물러나도_실패로_세지_않고_다음_틱이_확정한다() {
@@ -117,10 +117,9 @@ class RunConfirmationInputRaceTest {
             fx.verifiedAddress(studentId, stopId, Weekday.MON, Direction.TO_ACADEMY, "37.560000", "126.970000");
             OffsetDateTime confirmAt = OffsetDateTime.parse("2030-04-01T11:59:00+09:00");
             long runId = fx.idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, confirmAt.plusMinutes(30), confirmAt);
-            // 같은 데이터베이스에 다른 시험이 남긴 도래 회차가 이 틱에 섞여 실패 지표를 올리지 않게, 틱이 집는 대상을 이 회차 하나로 좁힌다
-            doAnswer(invocation -> ((List<Run>) invocation.callRealMethod()).stream()
-                    .filter(due -> due.getId().equals(runId)).toList())
-                    .when(runRepository).findDueForConfirmation(any(), any(), any());
+            // 같은 데이터베이스에 다른 시험이 남긴 도래 회차가 이 틱에 섞여 실패 지표를 올리지 않게, 이 회차만 실제로 확정하고 나머지는 건드리지 않는다
+            doAnswer(invocation -> invocation.<Long>getArgument(0).equals(runId) ? invocation.callRealMethod() : null)
+                    .when(confirmationService).confirmOne(anyLong());
             AtomicBoolean toggled = new AtomicBoolean();
             doAnswer(invocation -> {
                 Object roster = invocation.callRealMethod();
