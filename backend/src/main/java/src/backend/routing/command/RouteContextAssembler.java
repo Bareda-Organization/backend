@@ -61,34 +61,12 @@ public class RouteContextAssembler {
         Long academyId = run.getAcademyId();
         Weekday weekday = Weekday.of(run.getServiceDate());
 
-        Academy academy = academyRepository.findById(academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
-        if (!academy.hasCoordinates()) {
-            throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
-        }
-        Route route = routeRepository
-                .findByAcademyIdAndBusIdAndWeekdayAndDirection(academyId, run.getBusId(), weekday, run.getDirection())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN));
-        List<RouteStop> routeStops = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(),
-                academyId);
-        OriginDestination originDestination = previewResolver.originDestinationOf(academy, routeStops,
-                run.getDirection(), academyId);
+        Academy academy = academyWithCoordinates(academyId);
+        OriginDestination originDestination = originDestinationOf(run, weekday, academy);
 
-        // idle 회차(확정 배치가 아직 안 돈 상태)로 호출하면 여기서 걸린다 — ROUTE_NOT_CONFIGURED_FOR_RUN
-        // (위 findByAcademyIdAndBusIdAndWeekdayAndDirection)과 원인이 다르다: 저쪽은 고정 노선 자체가
-        // 없는 것이고 이쪽은 고정 노선은 있는데 그 회차의 확정 노선이 아직 산출되지 않은 것이다.
-        // StaffRunRouteQueryService.route 와 같은 결론(409 RUN_NOT_CONFIRMED)이라 새 코드를 만들지
-        // 않는다 — 두 곳 다 "볼·다룰 확정 노선이 없다"는 같은 사용자 관점의 상태다.
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_CONFIRMED));
-        Long currentVersionId = confirmedRoute.getCurrentVersionId();
-        // 방어적 조회 — currentVersionId 가 가리키는 route_version 행은 배포 절차상 항상 존재해야
-        // 하지만(StaffRunRouteQueryService.route 와 같은 순환 FK 근거), 없으면 결론은 위와 같으므로
-        // 별도 코드를 새로 만들지 않고 같은 409 로 묶는다.
-        RouteVersion currentVersion = routeVersionRepository.findById(currentVersionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_CONFIRMED));
+        RouteVersion currentVersion = currentVersionOf(run);
         List<RunStop> beforeRunStops = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(
-                currentVersionId, academyId);
+                currentVersion.getId(), academyId);
 
         List<RunRider> riders = runRiderRosterAccess.ridersOf(run.getId(), academyId);
         DailyRoster roster = rosterOf(run, weekday, riders);
@@ -98,6 +76,42 @@ public class RouteContextAssembler {
 
         return new RouteContext(weekday, originDestination, currentVersion, beforeRunStops, roster,
                 appliedWaypoints);
+    }
+
+    /** 그 회차의 고정 노선(없으면 {@code ROUTE_NOT_CONFIGURED_FOR_RUN})으로 구한 출발·도착 기준점. */
+    private OriginDestination originDestinationOf(Run run, Weekday weekday, Academy academy) {
+        Long academyId = run.getAcademyId();
+        Route route = routeRepository
+                .findByAcademyIdAndBusIdAndWeekdayAndDirection(academyId, run.getBusId(), weekday, run.getDirection())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN));
+        List<RouteStop> routeStops = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(),
+                academyId);
+        return previewResolver.originDestinationOf(academy, routeStops, run.getDirection(), academyId);
+    }
+
+    private Academy academyWithCoordinates(Long academyId) {
+        Academy academy = academyRepository.findById(academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
+        if (!academy.hasCoordinates()) {
+            throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
+        }
+        return academy;
+    }
+
+    /** 그 회차의 현재 배포 판본 — 확정 노선이 없으면 409 다. */
+    private RouteVersion currentVersionOf(Run run) {
+        // idle 회차(확정 배치가 아직 안 돈 상태)로 호출하면 여기서 걸린다 — ROUTE_NOT_CONFIGURED_FOR_RUN
+        // (위 findByAcademyIdAndBusIdAndWeekdayAndDirection)과 원인이 다르다: 저쪽은 고정 노선 자체가
+        // 없는 것이고 이쪽은 고정 노선은 있는데 그 회차의 확정 노선이 아직 산출되지 않은 것이다.
+        // StaffRunRouteQueryService.route 와 같은 결론(409 RUN_NOT_CONFIRMED)이라 새 코드를 만들지
+        // 않는다 — 두 곳 다 "볼·다룰 확정 노선이 없다"는 같은 사용자 관점의 상태다.
+        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_CONFIRMED));
+        // 방어적 조회 — currentVersionId 가 가리키는 route_version 행은 배포 절차상 항상 존재해야
+        // 하지만(StaffRunRouteQueryService.route 와 같은 순환 FK 근거), 없으면 결론은 위와 같으므로
+        // 별도 코드를 새로 만들지 않고 같은 409 로 묶는다.
+        return routeVersionRepository.findById(confirmedRoute.getCurrentVersionId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_CONFIRMED));
     }
 
     /** 확정 배치가 쌓은 뒤 지금까지 반영된 명단이 기준선이다({@code ApprovalPreviewResolver.candidateRosterOf} 와 같은 근거) — 결석은 뺀다. */

@@ -114,6 +114,13 @@ public class RunPositionPartitionManager {
         // 부모 잠금을 먼저 잡는다 — 진행 중이던 위치 INSERT 가 커밋될 때까지 기다린 뒤 기본 파티션을 읽어야, 그 사이 커밋된
         // 같은 날짜 행이 이전에서 빠져 CREATE 가 "기본 파티션 제약 위반" 으로 실패하지 않는다(BR-340)
         jdbc.execute("LOCK TABLE ONLY " + PARENT + " IN ACCESS EXCLUSIVE MODE");
+        int moved = createAndMoveDefaultRows(day, lower, upper);
+        log.info("위치 이력 파티션 생성 — {}{}", nameOf(day), moved > 0 ? " (기본 파티션 " + moved + "행 이전)" : "");
+        return true;
+    }
+
+    /** 기본 파티션의 그 범위 행을 임시 테이블로 빼고 새 파티션을 만든 뒤 되넣는다 — 옮긴 행 수. */
+    private int createAndMoveDefaultRows(LocalDate day, String lower, String upper) {
         jdbc.execute("""
                 CREATE TEMP TABLE run_position_moved ON COMMIT DROP AS
                 WITH moved AS (
@@ -125,8 +132,7 @@ public class RunPositionPartitionManager {
         int moved = jdbc.update("INSERT INTO " + PARENT + " OVERRIDING SYSTEM VALUE SELECT * FROM run_position_moved");
         // 바깥 트랜잭션 안에서 여러 날을 이어 만들어도 임시 테이블 이름이 겹치지 않게 바로 치운다
         jdbc.execute("DROP TABLE run_position_moved");
-        log.info("위치 이력 파티션 생성 — {}{}", nameOf(day), moved > 0 ? " (기본 파티션 " + moved + "행 이전)" : "");
-        return true;
+        return moved;
     }
 
     private List<String> partitionNames() {

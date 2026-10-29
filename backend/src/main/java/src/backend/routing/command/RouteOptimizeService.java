@@ -83,39 +83,49 @@ public class RouteOptimizeService {
         RouteStopLimit.assertWithin(request.fixedStopIds());
         Route route = routeRepository.findByIdAndAcademyIdForUpdate(routeId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_FOUND));
-        List<Long> currentOrder = routeStopRepository
-                .findAllOrderedByRouteIdAndAcademyId(routeId, requester.academyId()).stream()
-                .map(RouteStop::getStopId)
-                .toList();
+        List<Long> currentOrder = currentOrderOf(routeId, requester.academyId());
         Map<Long, Stop> stops = routeStopArranger.resolve(requester.academyId(), currentOrder);
         boolean requestGivesAnchors = request.givesAnchors();
+        List<Long> fixedIds = fixedIdsWithin(request, currentOrder);
+        if (currentOrder.isEmpty()) {
+            return routeDetailAssembler.assemble(route);
+        }
+        Anchors anchors = requestGivesAnchors ? new Anchors(request.origin().toGeoPoint(),
+                request.destination().toGeoPoint()) : defaultAnchorsOf(route, currentOrder, stops);
+        List<Long> movable = currentOrder.stream().filter(stopId -> !fixedIds.contains(stopId)).toList();
+        RouteOrderInput input = new RouteOrderInput(anchors.origin(), anchors.destination(),
+                orderableStopsOf(movable, stops), fixedStopsOf(fixedIds, currentOrder, stops), route.getDirection());
+        routeStopArranger.replace(routeId, requester.academyId(),
+                routeEngine.order(input).sequence().stream().map(RouteOptimizeService::stopIdOf).toList());
+        return routeDetailAssembler.assemble(route);
+    }
+
+    private List<Long> currentOrderOf(Long routeId, Long academyId) {
+        return routeStopRepository.findAllOrderedByRouteIdAndAcademyId(routeId, academyId).stream()
+                .map(RouteStop::getStopId)
+                .toList();
+    }
+
+    /** 고정할 승하차지 — 지금 노선에 있고 중복이 없어야 한다. */
+    private List<Long> fixedIdsWithin(RouteOptimizeRequest request, List<Long> currentOrder) {
         List<Long> fixedIds = request.fixedStopIdsOrEmpty();
         if (!currentOrder.containsAll(fixedIds) || Set.copyOf(fixedIds).size() != fixedIds.size()) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "고정할 승하차지가 이 노선에 없거나 중복됐다");
         }
-        if (currentOrder.isEmpty()) {
-            return routeDetailAssembler.assemble(route);
-        }
-        GeoPoint origin;
-        GeoPoint destination;
-        if (requestGivesAnchors) {
-            origin = request.origin().toGeoPoint();
-            destination = request.destination().toGeoPoint();
-        } else {
-            // Ruling 190 — 확정 배치와 같은 규칙: 등원은 첫 승차지 → 학원, 하원은 학원 → 마지막 하차지.
-            GeoPoint academy = academyPointOf(route);
-            origin = route.getDirection() == Direction.TO_ACADEMY ? pointOf(stops.get(currentOrder.getFirst()))
-                    : academy;
-            destination = route.getDirection() == Direction.TO_ACADEMY ? academy
-                    : pointOf(stops.get(currentOrder.getLast()));
-        }
+        return fixedIds;
+    }
 
-        List<Long> movable = currentOrder.stream().filter(stopId -> !fixedIds.contains(stopId)).toList();
-        RouteOrderInput input = new RouteOrderInput(origin, destination, orderableStopsOf(movable, stops),
-                fixedStopsOf(fixedIds, currentOrder, stops), route.getDirection());
-        routeStopArranger.replace(routeId, requester.academyId(),
-                routeEngine.order(input).sequence().stream().map(RouteOptimizeService::stopIdOf).toList());
-        return routeDetailAssembler.assemble(route);
+    /** 최적화 경로의 출발·도착 기준점. */
+    private record Anchors(GeoPoint origin, GeoPoint destination) {
+    }
+
+    /** 요청이 기준점을 주지 않았을 때의 기준점 — 확정 배치와 같은 규칙이다(Ruling 190): 등원은 첫 승차지 → 학원, 하원은 학원 → 마지막 하차지. */
+    private Anchors defaultAnchorsOf(Route route, List<Long> currentOrder, Map<Long, Stop> stops) {
+        GeoPoint academy = academyPointOf(route);
+        if (route.getDirection() == Direction.TO_ACADEMY) {
+            return new Anchors(pointOf(stops.get(currentOrder.getFirst())), academy);
+        }
+        return new Anchors(academy, pointOf(stops.get(currentOrder.getLast())));
     }
 
     /** 학원 좌표가 없으면 다른 점으로 대신하지 않는다(Ruling 190) — 관계자가 학원 설정을 채울 자리다. */

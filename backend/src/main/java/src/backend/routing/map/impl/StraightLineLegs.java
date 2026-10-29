@@ -69,14 +69,17 @@ final class StraightLineLegs {
      */
     static List<RoadLeg> distribute(List<GeoPoint> points, int totalMeters, int totalSeconds) {
         double[] straightLine = straightLineDistances(points);
-        double sum = 0;
-        for (double each : straightLine) {
-            sum += each;
-        }
+        double sum = Arrays.stream(straightLine).sum();
         if (sum == 0) {
             sum = straightLine.length;
             Arrays.fill(straightLine, 1d);
         }
+        return legsByCumulativeShare(straightLine, sum, totalMeters, totalSeconds);
+    }
+
+    /** 누적 비율로 반올림한 값의 차이를 구간 값으로 삼는다 — 합이 총합과 정확히 같다. */
+    private static List<RoadLeg> legsByCumulativeShare(double[] straightLine, double sum, int totalMeters,
+            int totalSeconds) {
         List<RoadLeg> legs = new ArrayList<>(straightLine.length);
         double cumulative = 0;
         long assignedMeters = 0;
