@@ -1013,6 +1013,9 @@ CREATE INDEX ix_link_code_retention_expires ON link_code (expires_at);
 -- 파기 배치가 "퇴원했고 아직 익명화 안 된 학생" 만 컷오프 순서로 훑는다.
 CREATE INDEX ix_student_retention_cutoff ON student (deleted_at)
     WHERE deleted_at IS NOT NULL AND anonymized_at IS NULL;
+-- 멱등 키 비우기(IdempotencyKeyExpiry)가 밤마다 "키가 남아 있는 행" 만 id 순으로 찾는다. 두 표는 무기한 보존이라 행이 계속 쌓이고, 키가 남은 행은 회차 종료 24시간 안의 소수다.
+CREATE INDEX ix_rider_status_history_client_key ON rider_status_history (id) WHERE client_key IS NOT NULL;
+CREATE INDEX ix_no_show_contact_client_key ON no_show_contact (id) WHERE client_key IS NOT NULL;
 
 -- 지연 알림 — 같은 회차의 "직전 발신" 을 sent_at 내림차순 1건으로 찾는다(DelayNoticeRepository).
 CREATE INDEX idx_delay_notice_run_sent_at ON delay_notice (run_id, sent_at DESC);

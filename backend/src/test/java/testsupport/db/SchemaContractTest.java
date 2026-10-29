@@ -486,7 +486,9 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             Map.entry("ix_refresh_token_retention_revoked", List.of("(revoked_at)", "revoked_at IS NOT NULL")),
             Map.entry("ix_refresh_token_retention_expires", List.of("(expires_at)", "revoked_at IS NULL")),
             Map.entry("ix_student_retention_cutoff",
-                    List.of("(deleted_at)", "deleted_at IS NOT NULL", "anonymized_at IS NULL")));
+                    List.of("(deleted_at)", "deleted_at IS NOT NULL", "anonymized_at IS NULL")),
+            Map.entry("ix_rider_status_history_client_key", List.of("(id)", "client_key IS NOT NULL")),
+            Map.entry("ix_no_show_contact_client_key", List.of("(id)", "client_key IS NOT NULL")));
 
     @Test
     void 부분_인덱스_전수의_정의가_표와_일치한다() throws SQLException {

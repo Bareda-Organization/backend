@@ -2,7 +2,9 @@ package src.backend.global.retention;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -101,9 +103,12 @@ public class RetentionCleanupScheduler {
      *
      * <p>심야 권장 창(TECH_DECISIONS §12.1)에 맞춰 {@code DailyRunGenerator}(00:05) 직후인 00:15 를
      * 기본값으로 둔다 — 같은 순간에 겹치지 않게 하려는 것뿐이고, 두 배치 사이에 순서 의존은 없다.
+     *
+     * <p>잠금 최대 시간(6시간)은 정리가 끝나기 전에 풀려 두 인스턴스가 같은 정리를 돌지 않도록 첫 대량 정리(몇 달 쌓인 행을 5,000행씩 지우는 회차)를 덮는 값이다. 하루 한 번
+     * 도는 작업이라 잠금을 쥔 인스턴스가 죽어도 다음 실행(24시간 뒤) 전에 풀린다.
      */
     @Scheduled(cron = "${app.retention.cleanup.cron:0 15 0 * * *}", zone = "Asia/Seoul")
-    @SchedulerLock(name = "retention-cleanup", lockAtMostFor = "PT10M")
+    @SchedulerLock(name = "retention-cleanup", lockAtMostFor = "PT6H")
     public void cleanUp() {
         OffsetDateTime now = OffsetDateTime.now(clock);
 
@@ -141,12 +146,18 @@ public class RetentionCleanupScheduler {
             int total = 0;
             int fetched;
             int purged;
+            Set<Long> stuck = new HashSet<>();
             do {
-                List<Long> ids = studentRepository.findIdsForAnonymization(cutoff, Limit.of(ANONYMIZATION_BATCH_SIZE));
-                fetched = ids.size();
+                List<Long> fetchedIds = studentRepository.findIdsForAnonymization(cutoff, Limit.of(ANONYMIZATION_BATCH_SIZE));
+                fetched = fetchedIds.size();
+                // 파기되지 못한 학생은 조회 조건이 그대로라 다음 조회에 다시 잡힌다 — 파기에 빠진 묶음이 있었다면 그 묶음의 학생은 이번 틱에 다시 시도하지도 다시 세지도 않는다
+                List<Long> ids = fetchedIds.stream().filter(id -> !stuck.contains(id)).toList();
                 purged = ids.isEmpty() ? 0 : studentAnonymizationService.anonymize(ids);
                 total += purged;
-                for (int skipped = fetched - purged; skipped > 0; skipped--) {
+                if (purged < ids.size()) {
+                    stuck.addAll(ids);
+                }
+                for (int skipped = ids.size() - purged; skipped > 0; skipped--) {
                     recordItemFailure();
                 }
             } while (fetched == ANONYMIZATION_BATCH_SIZE && purged > 0);
