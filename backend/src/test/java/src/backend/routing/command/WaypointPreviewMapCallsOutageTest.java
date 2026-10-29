@@ -93,8 +93,10 @@ class WaypointPreviewMapCallsOutageTest {
             given(runRepository.findByIdAndAcademyId(RUN_ID, 1L)).willReturn(Optional.of(run));
             RedisWaypointPreviewCache cache = new RedisWaypointPreviewCache(context.getBean(StringRedisTemplate.class),
                     JsonMapper.builder().build(), Clock.systemDefaultZone());
+            WaypointPreviewPublisher publisher = new WaypointPreviewPublisher(pipeline, null, cache, null,
+                    Clock.systemDefaultZone());
             WaypointCommandService service = new WaypointCommandService(runRepository, mock(WaypointRepository.class), null,
-                    pipeline, null, null, cache, null, Clock.systemDefaultZone());
+                    null, cache, null, publisher, Clock.systemDefaultZone());
             AuthUser staff = new AuthUser(2L, 1L, Role.STAFF, AccountStatus.ACTIVE, false);
             outage.begin(redis);
             try {
@@ -147,8 +149,10 @@ class WaypointPreviewMapCallsOutageTest {
             given(store.saveCandidate(any(), any())).willReturn(candidate);
             RedisWaypointPreviewCache cache = new RedisWaypointPreviewCache(context.getBean(StringRedisTemplate.class),
                     JsonMapper.builder().build(), Clock.systemDefaultZone());
+            WaypointPreviewPublisher publisher = new WaypointPreviewPublisher(pipeline, store, cache,
+                    new WaypointResponseAssembler(mock(RoutePreviewAssembler.class)), Clock.systemDefaultZone());
             WaypointCommandService service = new WaypointCommandService(runRepository, mock(WaypointRepository.class),
-                    mock(RoutePreviewAssembler.class), pipeline, null, store, cache, assembler, Clock.systemDefaultZone());
+                    null, store, cache, assembler, publisher, Clock.systemDefaultZone());
             AuthUser staff = new AuthUser(2L, 1L, Role.STAFF, AccountStatus.ACTIVE, false);
             outage.begin(redis);
             try {
