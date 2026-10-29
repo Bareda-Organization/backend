@@ -44,9 +44,10 @@ import src.backend.run.roster.ProjectedRosterReader;
 import testsupport.clock.FixedClock20300401Config;
 
 /**
- * 확정 계산이 끝난 뒤, 확정 저장이 회차 행을 잡은 시점에 입력을 다시 읽어 낡은 명단을 알아챈다 — 명단은 확정 계산 전에 짧은 별도 트랜잭션들로 읽으므로, 그 사이 학부모의 ①구간 탑승 끄기나 승인된
- * 승하차지 이동이 커밋되면 그 변경이 빠진 채 {@code confirmed} 가 된다. 불일치를 잡으면 저장은 던지고(롤백되어 {@code idle} 로 남아 다음 틱이 다시 읽는다) 계산 결과 · 끝점은 쓰이지 않으므로 두 인자에
- * {@code null} 을 넘긴다 — 검사가 없으면 그 {@code null} 을 밟는 {@link NullPointerException} 이 나 이 시험이 실패한다.
+ * 확정 계산이 끝난 뒤, 확정 저장이 회차 행을 잠그고 입력을 다시 읽어 낡은 명단을 알아챈다 — 명단은 확정 계산 전에 짧은 별도 트랜잭션들로 읽으므로, 그 사이 학부모의 ①구간 탑승 끄기나 승인된
+ * 승하차지 이동이 커밋되면 그 변경이 빠진 채 {@code confirmed} 가 된다. 불일치를 잡으면 저장은 아무것도 쓰기 전에 {@link ConfirmationInputsChangedException} 을 던지고(롤백 표시 없이 끝나며
+ * 회차는 {@code idle} 로 남아 다음 틱이 다시 읽는다) 계산 결과 · 끝점은 쓰이지 않으므로 두 인자에 {@code null} 을 넘긴다 — 검사가 없으면 그 {@code null} 을 밟는
+ * {@link NullPointerException} 이 나 이 시험이 실패한다. 스케줄러 수준의 시험은 이 물러남이 실패 횟수 · 재시도 시각 · 실패 지표에 들지 않고 다음 틱이 확정하는지를 본다.
  */
 @SpringBootTest
 @Transactional
