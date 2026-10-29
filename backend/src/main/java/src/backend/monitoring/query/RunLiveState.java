@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
  * @param lng 경도 — {@link #lat} 과 같은 원칙
  * @param recordedAt 위치 발신 장비가 찍은 시각
  * @param receivedAt 서버가 그 값을 수신한 시각 — 유실 판정의 기준(Ruling 208)
- * @param stale {@code receivedAt} 이 없거나 {@code StudentBusPositionQueryService.STALE_THRESHOLD}
+ * @param stale {@code receivedAt} 이 없거나 {@code PolicyConstants.POSITION_STALE_THRESHOLD}
  *              이상 지났으면 참
  * @param currentStopId 도착 처리된 정차 중 {@code seq} 최댓값 — 아직 아무 곳에도 도착하지 않았으면 null
  * @param nextStopId 미도착이고 건너뛰지 않은 정차 중 {@code seq} 최솟값 — 전 구간 도착 완료면 null

@@ -18,6 +18,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.global.error.BusinessException;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.run.entity.Run;
@@ -48,12 +49,9 @@ public class StudentBusPositionQueryService {
     /**
      * Ruling 208 — 마지막 수신(§3.11 {@code received_at}) 후 이 이상 지나면 신호 유실로 본다.
      *
-     * <p>{@code public} 인 이유 — {@code monitoring.query.RunLiveStateResolver}(§5.18·§6.8)가
-     * 같은 유실 판정을 쓴다. 값을 복사하면 이 상수가 바뀔 때 관제 쪽만 조용히 낡은 값으로 남는다
-     * (API_SPEC:644 "관제엔 경고, 학부모 화면은 정상" 구간 경고) — 그래서 리터럴을 새로 두지 않고
-     * 이 필드를 그대로 참조한다.
+     * <p>값은 {@link PolicyConstants#POSITION_STALE_THRESHOLD} 한 곳에 있다 — 관제 판정 · 유실 집계가 같은 값을 쥐어야 한다.
      */
-    public static final Duration STALE_THRESHOLD = Duration.ofMinutes(2);
+    public static final Duration STALE_THRESHOLD = PolicyConstants.POSITION_STALE_THRESHOLD;
 
     private final StudentRunsAccess studentRunsAccess;
 
