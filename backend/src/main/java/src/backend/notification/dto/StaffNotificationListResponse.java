@@ -4,20 +4,21 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
+
+import src.backend.global.response.PageResponse;
+
 /**
- * 알림 로그 전수 조회 응답 봉투(API_SPEC §5.17) — 일반 페이징 봉투({@code PageResponse}, §1.8)에
- * {@code unacked_count}(미확인 배지) 를 더한 형태다. {@code PageResponse} 를 재사용하지 않고 별도
- * 레코드로 둔 이유는 그 타입이 배지 같은 부가 집계 필드를 얹을 자리가 없어서다. {@code group=true}(Ruling 813)이면 항목이
- * {@link StaffNotificationGroupResponse} 로 바뀐다 — 그래서 항목 타입이 {@code List<?>} 다.
+ * 알림 로그 전수 조회 응답 봉투(API_SPEC §5.17) — 일반 페이징 봉투({@link PageResponse}, §1.8)를 {@code @JsonUnwrapped} 로 펼치고
+ * {@code unacked_count}(미확인 배지) 를 더한 형태다. {@code group=true}(Ruling 813)이면 항목이
+ * {@link StaffNotificationGroupResponse} 로 바뀐다 — 그래서 항목 타입이 와일드카드다.
  */
-public record StaffNotificationListResponse(List<?> items, int page, int size, long totalCount, boolean hasNext,
-        long unackedCount) {
+public record StaffNotificationListResponse(@JsonUnwrapped PageResponse<?> page, long unackedCount) {
 
     /** 묶지 않은 목록 — {@code items} 는 {@link StaffNotificationItemResponse}. */
     public static StaffNotificationListResponse of(Page<?> source, List<StaffNotificationItemResponse> items,
             long unackedCount) {
-        return new StaffNotificationListResponse(items, source.getNumber(), source.getSize(),
-                source.getTotalElements(), source.hasNext(), unackedCount);
+        return new StaffNotificationListResponse(PageResponse.of(source, items), unackedCount);
     }
 
     /**
@@ -26,7 +27,7 @@ public record StaffNotificationListResponse(List<?> items, int page, int size, l
      */
     public static StaffNotificationListResponse ofGroups(int page, int size, long totalGroups,
             List<StaffNotificationGroupResponse> items, long unackedCount) {
-        return new StaffNotificationListResponse(items, page, size, totalGroups,
-                (long) (page + 1) * size < totalGroups, unackedCount);
+        return new StaffNotificationListResponse(
+                new PageResponse<>(items, page, size, totalGroups, (long) (page + 1) * size < totalGroups), unackedCount);
     }
 }

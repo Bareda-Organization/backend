@@ -4,12 +4,14 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
@@ -38,6 +40,7 @@ import src.backend.student.repository.StudentRepository;
  * <b>이미 계산해 둔</b> 3집합을 이벤트에서 그대로 받는다({@link DelayRequestedEvent} 자바독 참고) —
  * 같은 조회를 두 번 하지 않기 위한 의도적인 차이다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DelayNotificationListener {
@@ -59,33 +62,65 @@ public class DelayNotificationListener {
     @EventListener
     public void appendDelayNotice(DelayRequestedEvent event) {
         DelaySubject subject = new DelaySubject(event.reason(), event.minutes(), event.message());
-        List<NotificationDraft> drafts = new ArrayList<>();
-        // 관계자 알림에만 호차를 채운다(정본 범위) — 학부모·학생 알림은 자녀 이름이 있다.
-        String busNo = busNoOf(event.runId(), event.academyId());
-        for (DelayNoticeRecipient recipient : event.staffRecipients()) {
-            drafts.add(draft(event, recipient, Role.STAFF, delayComposer.compose(subject), null, busNo));
-        }
-        // 대상 자녀는 id 목록으로 한 번씩 읽는다 — 수신자마다 다시 조회하지 않는다(BR-143).
-        Map<Long, Student> byId = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(),
-                event.guardianRecipients().stream().map(DelayNoticeRecipient::dedupTargetId).toList())
-                .stream().collect(Collectors.toMap(Student::getId, student -> student));
-        for (DelayNoticeRecipient recipient : event.guardianRecipients()) {
-            Student student = byId.get(recipient.dedupTargetId());
-            drafts.add(draft(event, recipient, Role.PARENT, messageFor(subject, student), student, null));
-        }
-        Map<Long, Student> byAccount = studentRepository.findAllByAcademyIdAndAccountIdIn(event.academyId(),
-                event.studentRecipients().stream().map(DelayNoticeRecipient::accountId).toList())
-                .stream().collect(Collectors.toMap(Student::getAccountId, student -> student));
-        for (DelayNoticeRecipient recipient : event.studentRecipients()) {
-            Student student = byAccount.get(recipient.accountId());
-            drafts.add(draft(event, recipient, Role.STUDENT, messageFor(subject, student), student, null));
-        }
+        List<NotificationDraft> drafts = new ArrayList<>(staffDrafts(event, subject));
+        drafts.addAll(guardianDrafts(event, subject));
+        drafts.addAll(studentDrafts(event, subject));
         notificationOutbox.appendAll(drafts);
     }
 
-    /** 학부모·학생 몫 문구 — 자녀 이름을 싣는다(ATT-03, BR-077). 학생 행을 못 찾으면 관계자 문구와 같다. */
+    /** 관계자 몫 — 관계자 알림에만 호차를 채운다(정본 범위). 학부모·학생 알림은 자녀 이름이 있다. */
+    private List<NotificationDraft> staffDrafts(DelayRequestedEvent event, DelaySubject subject) {
+        String busNo = busNoOf(event.runId(), event.academyId());
+        return event.staffRecipients().stream()
+                .map(recipient -> draft(event, recipient, Role.STAFF, delayComposer.compose(subject), null, busNo))
+                .toList();
+    }
+
+    /** 학부모 몫 — 대상 자녀는 id 목록으로 한 번씩 읽는다(수신자마다 다시 조회하지 않는다, BR-143). 학생 행이 없는 수신자는 건너뛴다. */
+    private List<NotificationDraft> guardianDrafts(DelayRequestedEvent event, DelaySubject subject) {
+        Map<Long, Student> byId = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(),
+                event.guardianRecipients().stream().map(DelayNoticeRecipient::dedupTargetId).toList())
+                .stream().collect(Collectors.toMap(Student::getId, student -> student));
+        return event.guardianRecipients().stream()
+                .map(recipient -> recipientDraft(event, subject, recipient, Role.PARENT,
+                        byId.get(recipient.dedupTargetId())))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /** 학생 본인 몫 — 학생 행을 계정으로 한 번에 읽는다. 학생 행이 없는 수신자는 건너뛴다. */
+    private List<NotificationDraft> studentDrafts(DelayRequestedEvent event, DelaySubject subject) {
+        Map<Long, Student> byAccount = studentRepository.findAllByAcademyIdAndAccountIdIn(event.academyId(),
+                event.studentRecipients().stream().map(DelayNoticeRecipient::accountId).toList())
+                .stream().collect(Collectors.toMap(Student::getAccountId, student -> student));
+        return event.studentRecipients().stream()
+                .map(recipient -> recipientDraft(event, subject, recipient, Role.STUDENT,
+                        byAccount.get(recipient.accountId())))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /** 자녀 이름을 실은 초안 하나 — 학생 행을 못 찾았으면 경고를 남기고 {@code null} 이다. */
+    private NotificationDraft recipientDraft(DelayRequestedEvent event, DelaySubject subject,
+            DelayNoticeRecipient recipient, Role role, Student student) {
+        if (student == null) {
+            warnMissingStudent(event, recipient);
+            return null;
+        }
+        return draft(event, recipient, role, messageFor(subject, student), student, null);
+    }
+
+    /** 학부모·학생 몫 문구 — 자녀 이름을 싣는다(ATT-03, BR-077). */
     private NotificationMessage messageFor(DelaySubject subject, Student student) {
-        return delayComposer.compose(student == null ? subject : subject.forStudent(student.getName()));
+        return delayComposer.compose(subject.forStudent(student.getName()));
+    }
+
+    /**
+     * 학생 행을 못 찾은 수신자의 초안은 만들지 않는다 — 자녀 이름 없는 관계자 문구가 학부모·학생에게 가면 어느 아이의 지연인지 알 수 없고, 예외를 던지면 지연 신고
+     * 트랜잭션 전체가 되돌려진다.
+     */
+    private void warnMissingStudent(DelayRequestedEvent event, DelayNoticeRecipient recipient) {
+        log.warn("[delay] 회차 {} 지연 알림 — 수신 계정 {} 의 학생 행을 찾지 못해 초안을 건너뛴다", event.runId(), recipient.accountId());
     }
 
     private NotificationDraft draft(DelayRequestedEvent event, DelayNoticeRecipient recipient, Role role,

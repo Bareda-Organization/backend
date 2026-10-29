@@ -7,8 +7,11 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.LockModeType;
 
 import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.student.entity.Student;
@@ -33,22 +36,39 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Optional<Student> findByIdAndAcademyIdAndDeletedAtIsNull(Long id, Long academyId);
 
     /**
-     * 이 사진 파일이 그 학원의 <b>재학생</b> 것인지(API_SPEC §5.11.1) — 학원과 퇴원 여부가 쿼리에 고정돼 있어
-     * "없음" · "남의 학원" · "퇴원" 이 같은 {@code false} 가 된다(존재 비노출).
-     *
-     * <p>접두사 대신 끝 조각({@code /<파일명>})으로 맞춘다 — {@code photo_url} 의 접두사가 배포마다 달랐던 옛 행도
-     * 같은 파일이면 찾는다.
+     * {@link #findByIdAndAcademyIdAndDeletedAtIsNull} 과 같은 조건으로 꺼내며 행을 쓰기 잠금으로 쥔다(D-E) — 수정 · 사진 삭제 · 퇴원이 같은 학생을
+     * 직렬로 처리해, 퇴원 뒤에 늦게 커밋되는 수정이 {@code deleted_at} 을 되돌리지 못하게 한다.
      */
-    boolean existsByPhotoUrlEndingWithAndAcademyIdAndDeletedAtIsNull(String fileNameTail, Long academyId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Student s WHERE s.id = :id AND s.academyId = :academyId AND s.deletedAt IS NULL")
+    Optional<Student> lockActiveByIdAndAcademyId(@Param("id") Long id, @Param("academyId") Long academyId);
+
+    /**
+     * 이 사진 파일이 그 학원의 <b>재학생</b> 것인지(API_SPEC §5.11.1) — 학원과 퇴원 여부가 쿼리에 고정돼 있어 "없음" · "남의 학원" · "퇴원"이 같은
+     * {@code false} 가 된다(존재 비노출).
+     *
+     * <p>{@code photo_url} 의 마지막 경로 조각(파일 이름)을 같음 비교한다 — {@code ix_student_photo_file} 이 같은 식으로 만든 인덱스라 학생 수와
+     * 무관하게 그 인덱스를 탄다. 접두사가 배포마다 달랐던 옛 행도 같은 파일이면 찾는다.
+     */
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM student
+             WHERE substring(photo_url from '[^/]*$') = :fileName
+               AND academy_id = :academyId AND deleted_at IS NULL)
+            """, nativeQuery = true)
+    boolean existsActivePhotoFile(@Param("fileName") String fileName, @Param("academyId") Long academyId);
 
     /**
      * 이 사진 파일이 <b>어느 학원이든</b> 재학생의 것인지(API_SPEC §5.11.1 · Ruling 786) — 메인 관리자 전용이다. 퇴원 여부는 그대로 쿼리에 고정돼
      * 퇴원생·부재가 같은 {@code false} 다. 호출부({@code StudentPhotoQueryService})는 {@code AcademyScope.resolveListScope} 가 빈 값(전 학원
-     * 범위)일 때만 부른다.
+     * 범위)일 때만 부른다. 인덱스는 {@link #existsActivePhotoFile} 과 같다.
      */
     @AcademyScopeExempt(reason = "§5.11.1 Ruling 786 — 메인 관리자는 학원 무관(O-06 관제 명단의 photo_url). 호출부가 전 학원 범위"
             + "(AcademyScope.resolveListScope 빈 값)일 때만 부르고, 그 밖의 역할은 위 학원 고정 쿼리를 쓴다")
-    boolean existsByPhotoUrlEndingWithAndDeletedAtIsNull(String fileNameTail);
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM student
+             WHERE substring(photo_url from '[^/]*$') = :fileName AND deleted_at IS NULL)
+            """, nativeQuery = true)
+    boolean existsActivePhotoFileInAnyAcademy(@Param("fileName") String fileName);
 
     /**
      * 관계자 웹의 학생 목록·검색(STU-01, API_SPEC §5.11)에 맞는 학생의 id·이름 <b>전건</b> — 학원과 퇴원 여부가 <b>쿼리에 고정</b>돼 호출부가

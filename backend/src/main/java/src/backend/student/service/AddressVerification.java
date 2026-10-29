@@ -1,6 +1,7 @@
 package src.backend.student.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -9,6 +10,7 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
@@ -35,11 +37,16 @@ import src.backend.student.geocoding.spec.GeocodingUnavailableException;
  * 것도 저장하지 않는다 — 부분 저장을 하면 {@code 422} 를 받은 사용자가 "무엇이 저장됐는지" 알 수단이
  * 부재하고, {@code §3.7} 이 그 경우의 응답 형태를 규정하지 않는다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AddressVerification {
 
     private final GeocodingClient geocodingClient;
+
+    /** 이미 저장된 칸의 주소 원문과 그때의 좌표 — 같은 주소를 다시 보내면 공급자를 부르지 않고 이 좌표를 쓴다. */
+    public record KnownAddress(String address, GeocodedPoint point) {
+    }
 
     /**
      * 요청의 모든 칸을 검증한다 — 하나라도 실패하면 {@code 422 ADDRESS_VERIFICATION_FAILED} 다.
@@ -47,18 +54,27 @@ public class AddressVerification {
      * <p>요일 · 방향을 <b>먼저 전부</b> 해석한다. 뒤로 미루면 열 칸을 지오코딩한 뒤 마지막 칸의
      * 오타 하나로 전건이 버려져, 외부 호출 요금과 응답 시간만 쓰고 아무것도 남지 않는다.
      *
+     * <p>공급자 호출은 <b>바뀐 주소 하나당 한 번</b>이다 — 같은 주소가 여러 칸에 있으면(양쪽 방향이 같은 집인 흔한 경우) 첫 결과를 나눠 쓰고, 칸에 이미
+     * 저장된 주소와 같으면({@code known}) 저장된 좌표를 쓴다. 칸마다 따로 물으면 14칸 요청이 공급자 응답 시간의 14배가 된다.
+     *
      * <p>실패한 주소를 {@code details.failed_entries} 에 담는다. 담지 않으면 14칸을 한 번에 보낸
      * 사용자가 <b>어느 주소를 고쳐야 하는지</b> 알 수 없어 전부를 다시 입력하게 된다.
      */
-    public List<VerifiedAddressEntry> verifyAll(List<WeeklyAddressEntryRequest> entries) {
+    public List<VerifiedAddressEntry> verifyAll(List<WeeklyAddressEntryRequest> entries,
+            Map<AddressSlot, KnownAddress> known) {
         List<AddressSlot> slots = entries.stream().map(AddressVerification::slotOf).toList();
+        Map<String, Optional<GeocodedPoint>> resolved = new HashMap<>();
         List<VerifiedAddressEntry> verified = new ArrayList<>();
         List<String> failed = new ArrayList<>();
         for (int i = 0; i < entries.size(); i++) {
             WeeklyAddressEntryRequest entry = entries.get(i);
             AddressSlot slot = slots.get(i);
-            geocode(entry.address()).ifPresentOrElse(
-                    point -> verified.add(new VerifiedAddressEntry(slot, textOf(entry), point)),
+            String address = entry.address().trim();
+            KnownAddress saved = known.get(slot);
+            Optional<GeocodedPoint> point = saved != null && saved.address().equals(address)
+                    ? Optional.of(saved.point())
+                    : resolved.computeIfAbsent(address, this::geocode);
+            point.ifPresentOrElse(found -> verified.add(new VerifiedAddressEntry(slot, textOf(entry), found)),
                     () -> failed.add(entry.address()));
         }
         if (!failed.isEmpty()) {
@@ -87,6 +103,8 @@ public class AddressVerification {
         try {
             return geocodingClient.geocode(address);
         } catch (GeocodingUnavailableException e) {
+            log.warn("지오코딩 공급자 호출 실패 — {}: {} (원인 {})", e.getClass().getSimpleName(), e.getMessage(),
+                    e.getCause() == null ? "없음" : e.getCause().getClass().getSimpleName());
             throw new BusinessException(ErrorCode.ADDRESS_VERIFICATION_UNAVAILABLE);
         }
     }

@@ -1,6 +1,5 @@
 package src.backend.notification.controller;
 
-import java.util.Map;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
@@ -21,6 +21,7 @@ import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 import src.backend.notification.command.NotificationSettingCommandService;
 import src.backend.notification.dto.NotificationSettingResponse;
+import src.backend.notification.dto.NotificationSettingUpdateRequest;
 import src.backend.notification.query.NotificationSettingQueryService;
 
 /**
@@ -29,8 +30,7 @@ import src.backend.notification.query.NotificationSettingQueryService;
  * 대기 중(pending) 계정이 승인 이전에 이 설정을 조작해야 할 이유가 사양 어디에도 없다(Ruling 145
  * 와 같은 축 — 승인된 계정 전용 기능은 기본값대로 게이트에 걸린다).
  *
- * <p>PATCH 요청 바디를 {@code Map<String, Boolean>} 으로 직접 받는 이유는
- * {@link NotificationSettingCommandService} 자바독을 본다.
+ * <p>PATCH 요청 바디는 {@link NotificationSettingUpdateRequest} 로 받아 경계에서 검증한다(대상 밖 키 · boolean 이 아닌 값은 {@code 422}).
  */
 @Tag(name = ApiTags.PARENT_STUDENT)
 @RestController
@@ -55,7 +55,7 @@ public class NotificationSettingController {
     @Operation(summary = "알림 설정 (NTF-07, P-09)")
     @PatchMapping
     public ApiResponse<NotificationSettingResponse> update(@AuthenticationPrincipal AuthUser requester,
-            @RequestBody Map<String, Boolean> request) {
+            @Valid @RequestBody NotificationSettingUpdateRequest request) {
         return ApiResponse.ok(notificationSettingCommandService.update(requester, request));
     }
 }

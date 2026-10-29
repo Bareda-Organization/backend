@@ -40,6 +40,9 @@ class ChildLinkIssueCodeTest {
     private ChildLinkCommandService childLinkCommandService;
 
     @Autowired
+    private LinkCodeGenerator codeGenerator;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
@@ -60,7 +63,7 @@ class ChildLinkIssueCodeTest {
     void 학원_안_다른_학생의_살아_있는_코드와_같은_번호는_피해서_발급한다() {
         jdbcTemplate.update("INSERT INTO link_code (student_id, code, expires_at, created_at) "
                 + "VALUES (?, '123456', now() + interval '10 minutes', now())", OTHER_STUDENT_ID);
-        ChildLinkCommandService target = AopTestUtils.getUltimateTargetObject(childLinkCommandService);
+        LinkCodeGenerator target = AopTestUtils.getUltimateTargetObject(codeGenerator);
         Object original = ReflectionTestUtils.getField(target, "random");
         // 첫 6자리는 남의 코드 123456, 다음 6자리는 654321 을 뽑는다.
         ReflectionTestUtils.setField(target, "random", digits(1, 2, 3, 4, 5, 6, 6, 5, 4, 3, 2, 1));

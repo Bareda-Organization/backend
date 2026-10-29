@@ -37,6 +37,12 @@ public class NotificationRetryPolicy {
      */
     public static final Duration EMERGENCY_RETRY_INTERVAL = Duration.ofSeconds(10);
 
+    /**
+     * 비상 알림을 포기하지 않고 계속 시도하는 창 — 만든 시각부터 이 시간이 지나기 전에는 시도 상한({@link #MAX_ATTEMPTS})에 닿아도 {@code failed} 로
+     * 굳히지 않는다(ARCHITECTURE §11). 상한 3회는 간격이 짧은 비상 알림에서 1분 안에 소진돼, 발송 채널이 잠깐 끊긴 사이에 가장 급한 알림이 영영 못 간다.
+     */
+    public static final Duration EMERGENCY_RETRY_WINDOW = Duration.ofMinutes(10);
+
     /** 워커 후보 조회 조건 — 가장 짧은 간격(비상) 기준으로 넓게 집고, 종류별 간격은 {@link #retryDue} 가 거른다. */
     public OffsetDateTime attemptedBefore(OffsetDateTime now) {
         return now.minus(EMERGENCY_RETRY_INTERVAL);
@@ -47,13 +53,27 @@ public class NotificationRetryPolicy {
         return now.minus(intervalOf(type));
     }
 
+    /** 지수 백오프 — 비상 알림은 시도 횟수에 제한이 없어 간격이 끝없이 늘지 않게 일반 알림의 최소 간격에서 멈춘다. */
+    private static Duration backoffOf(NotificationLog log) {
+        Duration backoff = intervalOf(log.getType()).multipliedBy(1L << Math.min(30, Math.max(0, log.getPushAttempts() - 1)));
+        boolean emergency = NotificationType.EMERGENCY_TYPES.contains(log.getType());
+        return emergency && backoff.compareTo(MIN_RETRY_INTERVAL) > 0 ? MIN_RETRY_INTERVAL : backoff;
+    }
+
     private static Duration intervalOf(NotificationType type) {
         return NotificationType.EMERGENCY_TYPES.contains(type) ? EMERGENCY_RETRY_INTERVAL : MIN_RETRY_INTERVAL;
     }
 
-    /** 시도 횟수가 상한에 닿았는가 — 닿았으면 다음 상태는 {@code pending} 이 아니라 {@code failed} 다. */
-    public boolean exhausted(int attempts) {
-        return attempts >= MAX_ATTEMPTS;
+    /**
+     * 더 시도하지 않고 포기할 때인가 — 닿았으면 다음 상태는 {@code pending} 이 아니라 {@code failed} 다. 비상 알림은 상한에 닿았어도 만든 지
+     * {@link #EMERGENCY_RETRY_WINDOW} 가 지나기 전에는 포기하지 않는다.
+     */
+    public boolean exhausted(NotificationLog log, int attempts, OffsetDateTime now) {
+        if (attempts < MAX_ATTEMPTS) {
+            return false;
+        }
+        return !NotificationType.EMERGENCY_TYPES.contains(log.getType())
+                || !now.isBefore(log.getCreatedAt().plus(EMERGENCY_RETRY_WINDOW));
     }
 
     /**
@@ -65,7 +85,7 @@ public class NotificationRetryPolicy {
         if (log.getLastAttemptAt() == null) {
             return true;
         }
-        Duration backoff = intervalOf(log.getType()).multipliedBy(1L << Math.max(0, log.getPushAttempts() - 1));
+        Duration backoff = backoffOf(log);
         return !now.isBefore(log.getLastAttemptAt().plus(backoff));
     }
 }

@@ -61,8 +61,8 @@ public interface StopRepository extends JpaRepository<Stop, Long>, StopMergeLook
     List<Stop> findAllByIdInAndAcademyId(Collection<Long> ids, Long academyId);
 
     /**
-     * 좌표 부근의 승하차지를 <b>잠그지 않고</b> 읽는다 — 화면에 "이 자리에 이미 있다" 를 알리는
-     * 조회 전용 경로다.
+     * 위·경도 직사각형 안의 승하차지를 <b>잠그지 않고</b> 읽는다 — 화면에 "이 자리에 이미 있다" 를 알리는 조회 전용 경로다. 호출부가 후보 여럿의 임계
+     * 상자를 한 직사각형으로 합쳐 한 번에 묻고, 후보별 거리 판정은 읽은 뒤에 한다.
      *
      * <p>{@link StopMergeLookup#lockAcademyAndFindNearby} 와 가르는 이유는 <b>잠금이 쓰기의 것</b>이기
      * 때문이다. 검색은 아무것도 만들지 않으므로 임계 구역이 필요 없고, 학원 잠금을 걸면 그동안 그
@@ -71,11 +71,11 @@ public interface StopRepository extends JpaRepository<Stop, Long>, StopMergeLook
     @Query("""
             SELECT s FROM Stop s
              WHERE s.academyId = :academyId
-               AND s.lat BETWEEN :lat - :box AND :lat + :box
-               AND s.lng BETWEEN :lng - :box AND :lng + :box
+               AND s.lat BETWEEN :minLat AND :maxLat
+               AND s.lng BETWEEN :minLng AND :maxLng
             """)
-    List<Stop> findNearby(@Param("academyId") Long academyId, @Param("lat") BigDecimal lat,
-            @Param("lng") BigDecimal lng, @Param("box") BigDecimal box);
+    List<Stop> findNearby(@Param("academyId") Long academyId, @Param("minLat") BigDecimal minLat,
+            @Param("maxLat") BigDecimal maxLat, @Param("minLng") BigDecimal minLng, @Param("maxLng") BigDecimal maxLng);
 
     /** 승하차지 1건을 학원 안에서 읽는다 — 없는 번호와 남의 학원 번호가 같은 빈 결과로 돌아온다(존재 비노출, Ruling 849). */
     Optional<Stop> findByIdAndAcademyId(Long id, Long academyId);

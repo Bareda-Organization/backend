@@ -10,6 +10,11 @@ package src.backend.student.geocoding.spec;
  */
 public class GeocodingUnavailableException extends RuntimeException {
 
+    /** 원인 예외를 잇지 않는다 — 원인의 메시지에는 요청 URL(주소·검색어)이 실려 있어, 사슬을 따라 로그로 나가면 개인정보가 샌다. */
+    public GeocodingUnavailableException(String message) {
+        super(message);
+    }
+
     public GeocodingUnavailableException(String message, Throwable cause) {
         super(message, cause);
     }

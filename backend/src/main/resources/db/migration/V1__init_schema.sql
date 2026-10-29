@@ -810,15 +810,15 @@ CREATE TABLE notification_log (
     CONSTRAINT uk_notification_log_dedup_key UNIQUE (dedup_key),
     -- 수신 역할은 계정 역할 6종 전부다 — 메인 관리자도 비상 알림을 받는다(R46 A-5).
     CONSTRAINT ck_notification_log_recipient_role CHECK (recipient_role IN ('parent', 'student', 'driver', 'escort', 'staff', 'system_admin')),
-    -- 마지막 3종 — 예외 보고 접수 통지(EXC-02·03, API_SPEC §4.13) · 승하차 되돌리기 정정 알림(BRD-05, Ruling 219: 나간 알림은 고치지
-    -- 않고 정정 알림을 새로 적재, 승차 취소·하차 취소 문구가 달라 2종). ⚠ 값 목록 안에 주석을 넣지 않는다 — EnumCheckConstraintParityTest 가
+    -- 마지막 2종 — 예외 보고 접수 통지(EXC-02·03, API_SPEC §4.13) · 확정된 회차의 취소 통지. 승하차 알림은 출발 시점에 확정 결과로
+    -- 한 번만 나가므로 되돌리기 정정 알림 종류는 없다(Ruling 308). ⚠ 값 목록 안에 주석을 넣지 않는다 — EnumCheckConstraintParityTest 가
     -- 괄호 기준 정규식으로 목록을 읽는다.
     CONSTRAINT ck_notification_log_type CHECK (type IN (
         'boarding', 'alighting', 'no_show', 'absent', 'arrive', 'delay',
         'run_started', 'run_ended', 'signup_decided', 'change_decided',
         'approval_requested', 'intent_changed', 'route_changed',
         'assignment_changed', 'no_show_escalated', 'emergency', 'emergency_canceled',
-        'exception_reported', 'boarding_canceled', 'alighting_canceled', 'run_canceled')),
+        'exception_reported', 'run_canceled')),
     CONSTRAINT ck_notification_log_push_state CHECK (push_state IN ('pending', 'sent', 'failed', 'skipped'))
 );
 
@@ -959,6 +959,8 @@ CREATE INDEX ix_run_position_run_recorded ON run_position (run_id, recorded_at D
 CREATE INDEX ix_assignment_manager_run ON assignment (manager_id, run_id);
 
 CREATE INDEX ix_student_academy_name ON student (academy_id, name) WHERE deleted_at IS NULL;
+-- 사진 파일 이름(photo_url 의 마지막 경로 조각)으로 학생을 찾는 같음 비교 — 사진 서빙의 존재 확인이 학생 수와 무관하게 이 인덱스를 탄다.
+CREATE INDEX ix_student_photo_file ON student ((substring(photo_url from '[^/]*$')));
 -- 주소 검증 후 승하차지 매칭 — 좌표 근접 탐색.
 CREATE INDEX ix_stop_academy_coord ON stop (academy_id, lat, lng);
 

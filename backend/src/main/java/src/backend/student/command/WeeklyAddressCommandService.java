@@ -1,6 +1,8 @@
 package src.backend.student.command;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
@@ -10,10 +12,15 @@ import src.backend.global.security.AuthUser;
 import src.backend.student.access.GuardianChildAccess;
 import src.backend.student.access.LinkedChildLookup;
 import src.backend.student.domain.VerifiedAddressEntry;
+import src.backend.student.domain.VerifiedAddressEntry.AddressSlot;
 import src.backend.student.dto.WeeklyAddressResponse;
 import src.backend.student.dto.WeeklyAddressUpdateRequest;
 import src.backend.student.entity.Student;
+import src.backend.student.entity.WeeklyAddress;
+import src.backend.student.geocoding.spec.GeocodedPoint;
+import src.backend.student.repository.WeeklyAddressRepository;
 import src.backend.student.service.AddressVerification;
+import src.backend.student.service.AddressVerification.KnownAddress;
 
 /**
  * 학부모의 요일별 주소 설정(P-05 · STU-05·06, API_SPEC §3.7 {@code PATCH}).
@@ -35,6 +42,8 @@ public class WeeklyAddressCommandService {
 
     private final WeeklyAddressStore weeklyAddressStore;
 
+    private final WeeklyAddressRepository weeklyAddressRepository;
+
     /**
      * 요일 × 방향 칸들의 주소를 검증하고 저장한다 — 검증에 실패하면 아무 행도 남지 않는다.
      *
@@ -44,8 +53,22 @@ public class WeeklyAddressCommandService {
      */
     public WeeklyAddressResponse replace(AuthUser requester, Long studentId, WeeklyAddressUpdateRequest request) {
         Student student = linkedChildLookup.linkedChild(requester, studentId);
-        List<VerifiedAddressEntry> verified = addressVerification.verifyAll(request.entries());
+        List<VerifiedAddressEntry> verified = addressVerification.verifyAll(request.entries(),
+                knownAddresses(student));
         return WeeklyAddressResponse.from(
                 weeklyAddressStore.apply(student.getId(), student.getAcademyId(), verified));
+    }
+
+    /** 이미 검증돼 좌표가 저장된 칸 — 같은 주소를 다시 보낸 칸은 공급자를 다시 부르지 않는다. */
+    private Map<AddressSlot, KnownAddress> knownAddresses(Student student) {
+        Map<AddressSlot, KnownAddress> known = new HashMap<>();
+        for (WeeklyAddress saved : weeklyAddressRepository.findAllByStudentIdAndAcademyId(student.getId(),
+                student.getAcademyId())) {
+            if (saved.isVerified() && saved.getLat() != null && saved.getLng() != null) {
+                known.put(new AddressSlot(saved.getWeekday(), saved.getDirection()),
+                        new KnownAddress(saved.getAddress(), new GeocodedPoint(saved.getLat(), saved.getLng(), saved.getAddress())));
+            }
+        }
+        return known;
     }
 }

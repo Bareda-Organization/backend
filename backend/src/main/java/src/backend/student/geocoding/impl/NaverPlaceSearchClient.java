@@ -76,21 +76,7 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
     @CircuitBreaker(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
     @Bulkhead(name = RESILIENCE_INSTANCE)
     public List<FoundPlace> search(String query) {
-        LocalResponse response;
-        try {
-            response = webClient.get()
-                    .uri(localUri(query))
-                    .header("x-ncp-apigw-api-key-id", keyId)
-                    .header("x-ncp-apigw-api-key", key)
-                    // 공급자가 JSON 을 text/plain 으로 보낸다(실측) — 그대로 두면 JSON 해석기가 받지 않는다.
-                    .exchangeToMono(answer -> answer.statusCode().is2xxSuccessful()
-                            ? answer.mutate().headers(headers -> headers.setContentType(MediaType.APPLICATION_JSON))
-                                    .build().bodyToMono(LocalResponse.class)
-                            : answer.createError())
-                    .block(TIMEOUT);
-        } catch (RuntimeException e) {
-            throw new GeocodingUnavailableException("장소 검색 호출 실패: " + query, e);
-        }
+        LocalResponse response = fetch(query);
         if (response == null || response.items() == null) {
             return List.of();
         }
@@ -101,6 +87,24 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
                 .toList();
     }
 
+    /** 공급자를 부르고 실패는 포트 예외 하나로 모은다 — 응답 바디(주소·검색어 포함)는 예외 메시지에 싣지 않는다. */
+    private LocalResponse fetch(String query) {
+        try {
+            return webClient.get()
+                    .uri(localUri(query))
+                    .header("x-ncp-apigw-api-key-id", keyId)
+                    .header("x-ncp-apigw-api-key", key)
+                    // 공급자가 JSON 을 text/plain 으로 보낸다(실측) — 그대로 두면 JSON 해석기가 받지 않는다.
+                    .exchangeToMono(answer -> answer.statusCode().is2xxSuccessful()
+                            ? answer.mutate().headers(headers -> headers.setContentType(MediaType.APPLICATION_JSON))
+                                    .build().bodyToMono(LocalResponse.class)
+                            : answer.createError())
+                    .block(TIMEOUT);
+        } catch (RuntimeException e) {
+            throw new GeocodingUnavailableException("장소 검색 호출 실패: " + ProviderFailure.describe(e));
+        }
+    }
+
     /**
      * 서킷이 열려 막힌 호출도 호출자가 이미 처리하는 포트 예외 하나로 모은다. {@code private} 이 아닌 것은
      * Resilience4j 가 리플렉션으로 찾기 때문이다.
@@ -109,7 +113,7 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
         if (cause instanceof GeocodingUnavailableException unavailable) {
             throw unavailable;
         }
-        throw new GeocodingUnavailableException("장소 검색 호출 실패: " + query, cause);
+        throw new GeocodingUnavailableException("장소 검색 호출 실패: " + ProviderFailure.describe(cause));
     }
 
     private URI localUri(String query) {

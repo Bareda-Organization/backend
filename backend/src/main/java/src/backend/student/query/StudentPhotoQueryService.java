@@ -36,11 +36,9 @@ public class StudentPhotoQueryService {
      * 관제 명단이 {@code photo_url} 을 싣는다). 학원을 특정하지 못하는 범위(빈 값)는 메인 관리자 하나뿐이라 그때만 전 학원에서 찾는다.
      */
     public PhotoFile read(AuthUser requester, String fileName) {
-        String fileNameTail = "/" + fileName;
         boolean visible = AcademyScope.resolveListScope(requester, null)
-                .map(academyId -> studentRepository
-                        .existsByPhotoUrlEndingWithAndAcademyIdAndDeletedAtIsNull(fileNameTail, academyId))
-                .orElseGet(() -> studentRepository.existsByPhotoUrlEndingWithAndDeletedAtIsNull(fileNameTail));
+                .map(academyId -> studentRepository.existsActivePhotoFile(fileName, academyId))
+                .orElseGet(() -> studentRepository.existsActivePhotoFileInAnyAcademy(fileName));
         if (!visible) {
             throw new BusinessException(ErrorCode.STUDENT_NOT_FOUND);
         }

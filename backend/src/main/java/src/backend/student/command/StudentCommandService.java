@@ -3,12 +3,9 @@ package src.backend.student.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -24,21 +21,16 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ClientIp;
-import src.backend.global.request.Patch;
 import src.backend.global.security.AuthUser;
 import src.backend.global.security.access.AcademyScope;
 import src.backend.global.websocket.AccountSessionsRevokeEvent;
 import src.backend.student.dto.StudentRegisterRequest;
 import src.backend.student.dto.StudentUpdateRequest;
 import src.backend.student.dto.StudentWithdrawalResponse;
-import src.backend.student.entity.Gender;
-import src.backend.student.entity.Guardian;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
 import src.backend.student.photo.StudentPhotoWriter;
 import src.backend.student.photo.spec.StudentPhoto;
-import src.backend.student.repository.GuardianAccountRecipient;
-import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
@@ -59,9 +51,12 @@ import src.backend.student.repository.StudentRepository;
 @Transactional
 public class StudentCommandService {
 
+    /** {@code student.name} 의 컬럼 길이 — 요청 DTO 를 거치지 않는 최소 등록이 스스로 지킨다. */
+    private static final int NAME_MAX_LENGTH = 50;
+
     private final StudentRepository studentRepository;
 
-    private final GuardianStudentRepository guardianStudentRepository;
+    private final StudentGuardianLinks guardianLinks;
 
     private final StudentPhotoWriter studentPhotoWriter;
 
@@ -80,10 +75,7 @@ public class StudentCommandService {
      * @return 등록된 학생의 식별자 — 응답 조립은 조회 쪽이 맡는다(§1.9 "변경 후 자원 상태를 반환")
      */
     public Long register(AuthUser requester, StudentRegisterRequest request, StudentPhoto photo) {
-        StudentProfile profile = new StudentProfile(request.name(), request.studentPhone(),
-                studentPhotoWriter.store(photo), parseGender(request.gender()), request.birthDate(),
-                request.grade(),
-                request.className(), request.note(), request.canGoAlone());
+        StudentProfile profile = StudentProfiles.forRegistration(request, () -> studentPhotoWriter.store(photo));
         return studentRepository.save(Student.register(academyOf(requester), profile)).getId();
     }
 
@@ -96,6 +88,9 @@ public class StudentCommandService {
      * 유일한 쓰기 지점이라는 원칙만 지키면 된다.
      */
     public Long registerMinimal(Long academyId, String name) {
+        if (name == null || name.isBlank() || name.length() > NAME_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
         StudentProfile profile = new StudentProfile(name, null, null, null, null, null, null, null, null);
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
@@ -109,16 +104,10 @@ public class StudentCommandService {
     public Long update(AuthUser requester, Long studentId, StudentUpdateRequest request,
             StudentPhoto photo) {
         Student student = find(requester, studentId);
-        student.update(new StudentProfile(Patch.required(request.name(), student.getName()),
-                Patch.optional(request.studentPhone(), student.getStudentPhone()),
-                studentPhotoWriter.replace(student.getPhotoUrl(), photo), genderOf(request, student),
-                Patch.optional(request.birthDate(), student.getBirthDate()),
-                Patch.optional(request.grade(), student.getGrade()),
-                Patch.optional(request.className(), student.getClassName()),
-                Patch.optional(request.note(), student.getNote()),
-                Patch.required(request.canGoAlone(), student.isCanGoAlone())));
+        student.update(StudentProfiles.forUpdate(request, student,
+                () -> studentPhotoWriter.replace(student.getPhotoUrl(), photo)));
         if (request.guardians() != null) {
-            changeGuardianPhones(student, request.guardians());
+            guardianLinks.changePhones(student, request.guardians());
         }
         List<String> l3Fields = new ArrayList<>();
         if (photo != null) {
@@ -151,20 +140,6 @@ public class StudentCommandService {
     }
 
     /**
-     * 보호자 연락처를 고친다(Ruling 326) — <b>고치기 전에 전부 확인한다.</b> 이 학생과 연결되지 않은 보호자가 하나라도
-     * 섞이면 아무것도 바꾸지 않은 채 {@code 422} 다. 확인하지 않으면 학생 id 하나로 학원의 아무 보호자 번호나 바꾼다.
-     */
-    private void changeGuardianPhones(Student student, List<StudentUpdateRequest.GuardianPhoneChange> changes) {
-        Map<String, Guardian> linked = guardianStudentRepository
-                .findLinkedGuardians(student.getAcademyId(), student.getId()).stream()
-                .collect(Collectors.toMap(guardian -> String.valueOf(guardian.getId()), guardian -> guardian));
-        if (!changes.stream().allMatch(change -> linked.containsKey(change.guardianId()))) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "이 학생과 연결되지 않은 보호자다");
-        }
-        changes.forEach(change -> linked.get(change.guardianId()).changePhone(change.phone()));
-    }
-
-    /**
      * 퇴원 처리한다(STU-04) — 학생에 {@code deleted_at} 을 채우는 soft delete 이고, <b>보호자 연결도
      * 함께 해제</b>한다(ERD §7.1 · UF-P-01 · Ruling 172).
      *
@@ -180,8 +155,8 @@ public class StudentCommandService {
         Student student = find(requester, studentId);
         OffsetDateTime at = OffsetDateTime.now(clock);
         student.withdraw(at);
-        Set<Long> affectedAccounts = openChannelAccountsOf(student); // 연결을 끊기 전에 모은다 — 끊은 뒤에는 보호자를 찾을 수 없다
-        unlinkGuardians(student, at);
+        Set<Long> affectedAccounts = guardianLinks.openChannelAccountsOf(student); // 연결을 끊기 전에 모은다 — 끊은 뒤에는 보호자를 찾을 수 없다
+        guardianLinks.unlinkAll(student, at);
         eventPublisher.publishEvent(new AccountSessionsRevokeEvent(affectedAccounts)); // 커밋 직후 그 계정들의 열린 세션을 닫는다
         recordChange(requester, student, AuditAction.DELETE, Map.of());
         return StudentWithdrawalResponse.from(student);
@@ -198,31 +173,9 @@ public class StudentCommandService {
                 OffsetDateTime.now(clock)));
     }
 
-    /**
-     * 그 학생의 살아 있는 보호자 연결을 전부 해제한다 — <b>행은 지우지 않는다</b>(과거 이력 보존).
-     *
-     * <p>대상을 학생으로 좁히는 것이 요점이다. 보호자로 좁히면 형제 중 하나가 퇴원할 때 <b>나머지
-     * 자녀까지</b> 앱에서 사라진다.
-     */
-    private void unlinkGuardians(Student student, OffsetDateTime at) {
-        guardianStudentRepository.findActiveLinksOfStudent(student.getId(), student.getAcademyId())
-                .forEach(link -> link.unlink(at));
-    }
-
-    /** 이 학생의 채널을 구독할 수 있던 계정 — 살아 있는 보호자 연결의 계정과 학생 본인 계정. */
-    private Set<Long> openChannelAccountsOf(Student student) {
-        Set<Long> accounts = guardianStudentRepository
-                .findActiveGuardianAccountsByStudentIds(student.getAcademyId(), List.of(student.getId())).stream()
-                .map(GuardianAccountRecipient::getAccountId)
-                .collect(Collectors.toCollection(HashSet::new));
-        if (student.getAccountId() != null) {
-            accounts.add(student.getAccountId());
-        }
-        return accounts;
-    }
-
+    /** 행 잠금으로 꺼낸다 — 수정과 퇴원이 같은 행을 읽고 쓰는 사이에 끼면 나중에 커밋한 쪽이 앞선 변경(퇴원 시각 포함)을 덮어쓴다. */
     private Student find(AuthUser requester, Long studentId) {
-        return studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(studentId, academyOf(requester))
+        return studentRepository.lockActiveByIdAndAcademyId(studentId, academyOf(requester))
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
     }
 
@@ -237,23 +190,4 @@ public class StudentCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
     }
 
-    /** 성별은 문자열로 받아 {@link Gender} 로 옮기므로 {@link Patch#optional} 을 못 쓴다 — 키 없음·지움·값을 여기서 가른다. */
-    private Gender genderOf(StudentUpdateRequest request, Student student) {
-        if (request.gender() == null) {
-            return student.getGender();
-        }
-        return parseGender(request.gender().value());
-    }
-
-    /** 값을 주지 않으면 {@code null}(= 바꾸지 않음)이고, 사양에 없는 값은 조용히 무시하지 않고 422 로 거부한다. */
-    private Gender parseGender(String gender) {
-        if (gender == null || gender.isBlank()) {
-            return null;
-        }
-        try {
-            return Gender.valueOf(gender.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
-        }
-    }
 }

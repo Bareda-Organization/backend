@@ -11,6 +11,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -50,6 +51,7 @@ import src.backend.student.repository.StudentRepository;
  * ({@link src.backend.run.command.StopDepartureService} 참고). {@code dedup_key} 는
  * {@link NotificationOutbox} 의 통상적인 2차 방어선일 뿐이다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class BoardingNotificationListener {
@@ -57,6 +59,12 @@ public class BoardingNotificationListener {
     private static final String STOP_DEPARTED_DEDUP_KEY_FORMAT = "stop_departed:%d:%d:%s";
     private static final String RECORDED_AFTER_DEPARTURE_DEDUP_KEY_FORMAT = "recorded_after_departure:%d:%d:%s";
     private static final String NO_SHOW_STAFF_DEDUP_KEY_FORMAT = "no_show_staff:%d:%d:%s";
+
+    /** 학부모에게 알리는 확정 상태와 그 알림 종류 — 이 밖의 상태(대기 · 결석)는 알림 대상이 아니다. */
+    private static final Map<RiderStatus, NotificationType> PARENT_NOTICE_TYPES = Map.of(
+            RiderStatus.BOARDED, NotificationType.BOARDING,
+            RiderStatus.ALIGHTED, NotificationType.ALIGHTING,
+            RiderStatus.NO_SHOW, NotificationType.NO_SHOW);
 
     private final GuardianStudentRepository guardianStudentRepository;
     private final AcademyStaffRepository academyStaffRepository;
@@ -75,7 +83,7 @@ public class BoardingNotificationListener {
      * 상태를 걸러 조회한다.
      *
      * <p>보호자 조회는 학생마다 따로 묻지 않고 <b>학생 id 전부를 한 번에</b> 묻는다(BR-134) —
-     * {@link GuardianStudentRepository#findActiveGuardianAccountsByStudentIds} 결과를 학생별로
+     * {@link GuardianStudentRepository#findGuardianAccountsByAcademyId} 결과를 학생별로
      * 묶어 두고 그 그룹으로 순회한다. 적재도 학생별로 하지 않고 정차지 전체의 초안을 모아 <b>한 번에</b> 한다
      * ({@link NotificationOutbox#appendAll}, BR-374 — 문장 수가 탑승자·보호자 수에 비례하지 않게).
      */
@@ -89,7 +97,7 @@ public class BoardingNotificationListener {
                 .getDirection();
         List<Long> studentIds = finalized.stream().map(RunRider::getStudentId).distinct().toList();
         Map<Long, List<GuardianAccountRecipient>> guardiansByStudentId = guardianStudentRepository
-                .findActiveGuardianAccountsByStudentIds(event.academyId(), studentIds).stream()
+                .findGuardianAccountsByAcademyId(event.academyId(), studentIds).stream()
                 .collect(Collectors.groupingBy(GuardianAccountRecipient::getStudentId));
         List<NotificationDraft> drafts = new ArrayList<>();
         for (RunRider rider : finalized) {
@@ -110,7 +118,7 @@ public class BoardingNotificationListener {
     @EventListener
     public void appendRecordedAfterDeparture(RiderRecordedAfterDepartureEvent event) {
         List<GuardianAccountRecipient> guardians = guardianStudentRepository
-                .findActiveGuardianAccountsByStudentIds(event.academyId(), List.of(event.studentId()));
+                .findGuardianAccountsByAcademyId(event.academyId(), List.of(event.studentId()));
         notificationOutbox.appendAll(parentDrafts(event.academyId(),
                 new ConfirmedResult(event.runRiderId(), event.studentId(), event.status(), event.direction(),
                         event.changedAt()),
@@ -128,9 +136,14 @@ public class BoardingNotificationListener {
         if (guardians.isEmpty()) {
             return List.of();
         }
+        NotificationType type = PARENT_NOTICE_TYPES.get(result.status());
+        if (type == null) {
+            // 조회가 걸러내야 할 상태가 섞여 왔다 — 예외를 던지면 같은 트랜잭션의 출발 처리 전체가 되돌려지므로 그 학생의 초안만 건너뛴다.
+            log.warn("[boarding] 알림 대상이 아닌 탑승 상태 {} — 학생 {} 의 알림 초안을 건너뛴다", result.status(), result.studentId());
+            return List.of();
+        }
         NotificationMessage message = composeFor(result.status(), result.direction(),
                 guardians.get(0).getStudentName());
-        NotificationType type = typeOf(result.status());
         return guardians.stream()
                 .map(guardian -> new NotificationDraft(academyId, guardian.getAccountId(), guardian.getName(),
                         Role.PARENT, type, message.title(), message.body(),
@@ -145,16 +158,6 @@ public class BoardingNotificationListener {
             return noShowParentComposer.compose(new NoShowParentSubject(studentName, direction));
         }
         return riderStatusChangedComposer.compose(new RiderStatusChangedSubject(statusName(status), studentName));
-    }
-
-    private NotificationType typeOf(RiderStatus status) {
-        return switch (status) {
-            case BOARDED -> NotificationType.BOARDING;
-            case ALIGHTED -> NotificationType.ALIGHTING;
-            case NO_SHOW -> NotificationType.NO_SHOW;
-            default -> throw new IllegalStateException(
-                    "findFinalizedByRunIdAndStopId 가 걸러내지 않은 상태: " + status);
-        };
     }
 
     private static String statusName(RiderStatus status) {

@@ -5,9 +5,6 @@ import org.springframework.context.annotation.Configuration;
 
 import src.backend.account.event.SignupDecidedEvent;
 import src.backend.boarding.event.RiderMarkedNoShowEvent;
-import src.backend.exception.entity.EmergencyType;
-import src.backend.exception.event.EmergencyCanceledEvent;
-import src.backend.exception.event.EmergencyRaisedEvent;
 import src.backend.exception.event.ExceptionReportedEvent;
 import src.backend.exception.event.NoShowEscalatedEvent;
 import src.backend.manager.event.AssignmentChangedEvent;
@@ -138,30 +135,6 @@ public class NotificationTexts {
             case "alighted" -> "%s 학생이 버스에서 하차했습니다.".formatted(subject.studentName());
             default -> throw new IllegalStateException("알 수 없는 승하차 상태: " + subject.status());
         });
-    }
-
-    // ── 비상 ──
-
-    /** 비상 신고 접수 — 수신자 관계자·메인관리자 공통. 상황 유형을 한글로 싣는다(차량 번호만으로는 심각도를 가늠할 수 없다). */
-    @Bean
-    public NotificationComposer<EmergencyRaisedEvent> emergencyRaisedComposer() {
-        return event -> new NotificationMessage("비상 상황 발생",
-                "%s 차량에서 %s 상황이 발생했습니다. 즉시 확인해 주세요.".formatted(event.busNo(), label(event.type())));
-    }
-
-    /** 비상 신고 취소. */
-    @Bean
-    public NotificationComposer<EmergencyCanceledEvent> emergencyCanceledComposer() {
-        return event -> new NotificationMessage("비상 신고 취소", "%s 차량의 비상 신고가 취소되었습니다.".formatted(event.busNo()));
-    }
-
-    private static String label(EmergencyType type) {
-        return switch (type) {
-            case ACCIDENT -> "사고";
-            case VEHICLE_FAULT -> "차량 고장";
-            case STUDENT_EMERGENCY -> "학생 응급";
-            case ETC -> "기타 비상";
-        };
     }
 
     // ── 학부모·학생 몫: 자녀 이름 한 칸 ──

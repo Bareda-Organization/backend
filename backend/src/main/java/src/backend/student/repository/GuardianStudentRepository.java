@@ -76,7 +76,8 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             @Param("academyId") Long academyId);
 
     /**
-     * 한 보호자의 자녀 목록(ATT-03, §3.1) — 해지되지 않은 연결만이다.
+     * 한 보호자의 자녀 목록(ATT-03, §3.1) — 해지되지 않은 연결의 재원 학생만이다. 퇴원 처리와 연결 해제는 같은 트랜잭션에서 움직이지만,
+     * 연결 완료가 퇴원과 겹친 경우에도 퇴원한 자녀는 이 목록에 남지 않는다.
      *
      * <p>{@link LinkedChild} 로 <b>다섯 값만</b> 꺼낸다. {@code Student} 를 통째로 꺼내면 사진·특이사항이
      * 함께 손에 들어오고, 그러면 응답 조립이 그것을 빼는 데 성공해야만 §1.12 가 지켜진다.
@@ -92,6 +93,7 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
             WHERE gs.guardianId = :guardianId
               AND gs.unlinkedAt IS NULL
               AND s.academyId = :academyId
+              AND s.deletedAt IS NULL
             ORDER BY gs.linkedAt ASC, gs.studentId ASC
             """)
     List<LinkedChild> findLinkedChildren(@Param("guardianId") Long guardianId,
@@ -134,57 +136,27 @@ public interface GuardianStudentRepository extends JpaRepository<GuardianStudent
     List<Guardian> findLinkedGuardians(@Param("academyId") Long academyId, @Param("studentId") Long studentId);
 
     /**
-     * 학생들의 보호자 계정(알림 수신자)을 한 번에 모은다(RUN-05·06, API_SPEC §9.7
-     * {@code run_started}·{@code alighting}).
+     * 학생들의 보호자 계정(알림 수신자)을 한 번에 모은다 — 운행 시작 · 곧 도착 · 자동 승하차 · 승하차 · 지연 알림과 퇴원 시 세션 정리가 쓰는 <b>유일한</b>
+     * 보호자 수신자 조회다(API_SPEC §9.7). 알림 종류마다 수신자 이름의 출처가 갈리면 같은 보호자가 알림 기록에 서로 다른 이름으로 남아, 조회가 하나뿐이다.
      *
-     * <p>{@link #findGuardianPhonesByAcademyId} 와 조인 구조는 같지만 {@code phone} 대신
-     * {@code account.id}·{@code name} 을 읽는다 — 알림 적재({@code notification_log})가 필요로
-     * 하는 것이 연락처 문자열이 아니라 수신자 계정이기 때문이다.
+     * <p>이름은 학원이 관리하는 {@code guardian.name} 이다(Ruling 326) — 계정 이름({@code account.name})은 보호자가 가입 때 적은 값이라 관계자가 고칠 수
+     * 없다. 학생 1명에 보호자가 여럿이면 알림은 <b>보호자 전원</b>에게 가고(BR-073), 호출부가 이 목록을 그대로 순회해 보호자마다 1건씩 적재한다. 정렬로
+     * 적재 순서를 조회마다 같게 만든다.
      *
-     * <p>학생 1명에 보호자가 여럿이면 알림은 <b>보호자 전원</b>에게 간다 — 호출부
-     * ({@code RunStartedNotificationListener} · {@code RunAutoAlightedNotificationListener})가 이 목록을
-     * 그대로 순회해 보호자마다 1건씩 적재한다. 정렬 기준은 {@link #findGuardianPhonesByAcademyId} 와 같다
-     * (적재 순서를 조회마다 같게 만든다).
-     */
-    @Query("""
-            SELECT gs.studentId AS studentId, a.id AS accountId, a.name AS name, s.name AS studentName
-            FROM GuardianStudent gs
-            JOIN Guardian g ON g.id = gs.guardianId
-            JOIN Account a ON a.id = g.accountId
-            JOIN Student s ON s.id = gs.studentId
-            WHERE g.academyId = :academyId
-              AND gs.studentId IN :studentIds
-              AND gs.unlinkedAt IS NULL
-            ORDER BY gs.studentId ASC, gs.linkedAt ASC, gs.id ASC
-            """)
-    List<GuardianAccountRecipient> findGuardianAccountsByAcademyId(@Param("academyId") Long academyId,
-            @Param("studentIds") List<Long> studentIds);
-
-    /**
-     * 승하차 알림(API_SPEC §4.6 {@code boarded}·{@code alighted}·{@code no_show}, BR-134)의 학부모
-     * 수신자를 <b>여러 학생에 대해 한 번에</b> 모은다 — 학생 1명에 보호자가 여럿일 수 있어 학생별로
-     * 여러 행이 돌아온다. 승하차지에 있는 학생 수만큼 반복 호출하던 것을 학생 id 목록 하나로 묶는다.
-     *
-     * <p>{@code guardian.name} 을 읽는다 — {@link #findGuardianPhonesByAcademyId} 가 전화번호를 읽는
-     * {@code guardian} 과 같은 테이블이라 별도 조인이 필요 없다(둘 다 Ruling 326 이후 {@code guardian}
-     * 이 원본, {@code account} 는 더 이상 관련 없다). {@link #findGuardianAccountsByAcademyId} 를
-     * 그대로 쓰지 못하는 이유는 그쪽이 {@code account.name} 을 읽기 때문이다 — 바꾸면 이 알림 기록의
-     * {@code recipient_name} 이 달라진다.
-     *
-     * <p>{@code unlinked_at} 이 채워진 연결은 뺀다 — 퇴원·연결 해제된 보호자에게는 보내지 않는다.
-     * 학원 조건은 {@code student} 부모를 조인해 건다(ERD §6.1 부모 경유).
+     * <p>{@code unlinked_at} 이 채워진 연결은 뺀다 — 퇴원·연결 해제된 보호자에게는 보내지 않는다. 학원 조건은 보호자와 학생 양쪽에 건다(ERD §6.1).
      */
     @Query("""
             SELECT gs.studentId AS studentId, g.accountId AS accountId, g.name AS name, s.name AS studentName
             FROM GuardianStudent gs
             JOIN Guardian g ON g.id = gs.guardianId
             JOIN Student s ON s.id = gs.studentId
-            WHERE gs.studentId IN :studentIds
-              AND gs.unlinkedAt IS NULL
+            WHERE g.academyId = :academyId
               AND s.academyId = :academyId
+              AND gs.studentId IN :studentIds
+              AND gs.unlinkedAt IS NULL
             ORDER BY gs.studentId ASC, gs.linkedAt ASC, gs.id ASC
             """)
-    List<GuardianAccountRecipient> findActiveGuardianAccountsByStudentIds(@Param("academyId") Long academyId,
+    List<GuardianAccountRecipient> findGuardianAccountsByAcademyId(@Param("academyId") Long academyId,
             @Param("studentIds") List<Long> studentIds);
 
     /**
