@@ -1,6 +1,7 @@
 package src.backend.request.command;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.concurrent.Executor;
 
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -56,13 +57,13 @@ public class ApprovalRequestedBroadcastListener {
     }
 
     private void deliverApprovalRequestedEvent(ApprovalRequestedEvent event) {
-        String studentName = studentRepository.findById(event.studentId())
-                .map(student -> student.getName())
-                .orElse(null);
+        String studentName = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(), List.of(event.studentId()))
+                .stream().findFirst().map(student -> student.getName()).orElse(null);
         String stopName = runRiderRepository.findByRunIdAndStudentId(event.runId(), event.studentId())
-                .map(rider -> stopRepository.findById(rider.getStopId()).map(stop -> stop.getName()).orElse(null))
+                .map(rider -> stopRepository.findByIdAndAcademyId(rider.getStopId(), event.academyId())
+                        .map(stop -> stop.getName()).orElse(null))
                 .orElse(null);
-        OffsetDateTime deadlineAt = changeRequestRepository.findById(event.changeRequestId())
+        OffsetDateTime deadlineAt = changeRequestRepository.findByIdAndAcademyId(event.changeRequestId(), event.academyId())
                 .map(changeRequest -> changeRequest.getDeadlineAt())
                 .orElse(null);
 

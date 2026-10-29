@@ -89,13 +89,14 @@ public class EmergencyCommandService {
     }
 
     /** 같은 키 재전송 — 같은 회차 · 같은 종류일 때만 최초 접수 결과를 돌려주고, 아니면 422 로 거절한다(BR-078). */
-    private EmergencyRaiseResponse replayResponse(EmergencyAlert existing, Long runId, EmergencyRaiseRequest request) {
+    private EmergencyRaiseResponse replayResponse(EmergencyAlert existing, Long academyId, Long runId,
+            EmergencyRaiseRequest request) {
         if (!existing.getRunId().equals(runId)
                 || existing.getType() != EmergencyRequestRules.parseType(request.type())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
         return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
-                existing.cancelableUntil(), raiseAssembler.notifiedCount(existing.getAcademyId()), true);
+                existing.cancelableUntil(), raiseAssembler.notifiedCount(academyId), true);
     }
 
     /** 접수의 DB 구간 — 배치·회차 확인 · 재전송 재생 · 신고 저장 · 이벤트 발행이 한 트랜잭션이다. */
@@ -104,7 +105,7 @@ public class EmergencyCommandService {
         Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = findConfirmedRun(requester.academyId(), runId);
         Optional<EmergencyRaiseResponse> replayed = clientKeyReplay.replay(request.clientKey(),
-                emergencyAlertRepository::findByClientKey, existing -> replayResponse(existing, runId, request));
+                emergencyAlertRepository::findByClientKey, existing -> replayResponse(existing, requester.academyId(), runId, request));
         if (replayed.isPresent()) {
             return replayed.get();
         }
