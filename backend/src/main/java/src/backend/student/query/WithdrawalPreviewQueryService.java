@@ -81,18 +81,26 @@ public class WithdrawalPreviewQueryService {
         if (riding.isEmpty()) {
             return List.of();
         }
-        Map<Long, String> busNos = busRepository
-                .findAllByAcademyIdAndIdIn(academyId, riding.stream().map(Run::getBusId).distinct().toList()).stream()
-                .collect(Collectors.toMap(Bus::getId, Bus::getBusNo));
-        Map<Long, String> stopNames = stopRepository
-                .findAllByAcademyIdAndIdIn(academyId,
-                        stopIdsByRunId.values().stream().filter(id -> id != null).distinct().toList())
-                .stream().collect(Collectors.toMap(Stop::getId, Stop::getName));
+        Map<Long, String> busNos = busNosOf(academyId, riding);
+        Map<Long, String> stopNames = stopNamesOf(academyId, stopIdsByRunId);
         return riding.stream()
                 .map(run -> new RunItem(run.getId(), busNos.get(run.getBusId()), lower(run.getDirection().name()),
                         run.getDepartTime(), lower(run.getStatus().name()),
                         stopNames.get(stopIdsByRunId.get(run.getId()))))
                 .toList();
+    }
+
+    private Map<Long, String> busNosOf(Long academyId, List<Run> riding) {
+        return busRepository
+                .findAllByAcademyIdAndIdIn(academyId, riding.stream().map(Run::getBusId).distinct().toList()).stream()
+                .collect(Collectors.toMap(Bus::getId, Bus::getBusNo));
+    }
+
+    private Map<Long, String> stopNamesOf(Long academyId, Map<Long, Long> stopIdsByRunId) {
+        return stopRepository
+                .findAllByAcademyIdAndIdIn(academyId,
+                        stopIdsByRunId.values().stream().filter(id -> id != null).distinct().toList())
+                .stream().collect(Collectors.toMap(Stop::getId, Stop::getName));
     }
 
     /** 회차 id → 이 학생의 승하차지 id(승하차지를 모르면 값이 {@code null}) — 이 학생이 타지 않는 회차는 키가 없다. */

@@ -1,16 +1,11 @@
 package src.backend.student.query;
 
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -34,9 +29,6 @@ import src.backend.student.dto.WeeklyAddressResponse;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.StudentRepository.NameRow;
-import src.backend.student.repository.StudentRepository.StudentCounts;
-import src.backend.student.query.WeeklyAddressStatus.WeeklySlot;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
@@ -86,6 +78,8 @@ public class StudentQueryService {
 
     private final AuditRecorder auditRecorder;
 
+    private final StudentListReader listReader;
+
     /**
      * 학생 목록·검색(STU-01) — 소속 학원의 재학생만 나온다.
      *
@@ -95,10 +89,10 @@ public class StudentQueryService {
      */
     public StudentListResponse list(AuthUser requester, StudentListRequest request) {
         Long academyId = academyOf(requester);
-        Page<Student> page = searchInNaturalOrder(academyId, keyword(request.q()), classNameOf(request.className()),
+        Page<Student> page = listReader.searchInNaturalOrder(academyId, keyword(request.q()), classNameOf(request.className()),
                 filterOf(request.filter()), pageable(request));
-        GuardianLinks links = guardianLinksOf(academyId, page.getContent());
-        Map<Long, WeeklyAddressStatus> addressStatuses = addressStatusesOf(academyId, page.getContent());
+        StudentListReader.GuardianLinks links = listReader.guardianLinksOf(academyId, page.getContent());
+        Map<Long, WeeklyAddressStatus> addressStatuses = listReader.addressStatusesOf(academyId, page.getContent());
 
         List<StudentSummaryResponse> items = page.getContent().stream()
                 .map(student -> StudentSummaryResponse.of(student, links.phones().get(student.getId()),
@@ -111,7 +105,7 @@ public class StudentQueryService {
                 .forEach(item -> audited.put(Long.valueOf(item.studentId()),
                         Map.of("student_ids", List.of(item.studentId()), "fields", List.of("guardian_phone"))));
         auditRecorder.recordDataAccessReads(academyId, requester.accountId(), "student", audited);
-        return StudentListResponse.of(PageResponse.of(page, items), summaryOf(academyId));
+        return StudentListResponse.of(PageResponse.of(page, items), listReader.summaryOf(academyId));
     }
 
     /**
@@ -153,56 +147,6 @@ public class StudentQueryService {
         return response;
     }
 
-    /**
-     * 한 페이지분 보호자 연락처·연결 수를 한 번에 모은다 — 학생마다 질의를 붙이면 100건짜리 페이지가
-     * 질의 100건이 된다(횡단 규칙 4). {@code guardian_count}(§5.11) 도 <b>같은 조회 결과에서</b> 센다 —
-     * 별도 COUNT 질의를 하나 더 붙이면 이 메서드가 막으려던 질의 수 문제가 그대로 재발한다.
-     *
-     * <p>학생 1명에 보호자가 여럿이면 대표 연락처는 <b>먼저 연결된 쪽</b>이 남는다 — 쿼리의 정렬과
-     * {@code putIfAbsent} 가 함께 그 순서를 정한다. 사양의 {@code items[].guardian_phone} 이 단수라
-     * 어느 하나를 골라야 하고, 고르는 규칙이 없으면 같은 화면이 새로고침마다 다른 번호를 보인다.
-     */
-    private GuardianLinks guardianLinksOf(Long academyId, List<Student> students) {
-        if (students.isEmpty()) {
-            return new GuardianLinks(Map.of(), Map.of());
-        }
-        Map<Long, String> phones = new LinkedHashMap<>();
-        Map<Long, Integer> counts = new LinkedHashMap<>();
-        guardianStudentRepository
-                .findGuardianPhonesByAcademyId(academyId, students.stream().map(Student::getId).toList())
-                .forEach(row -> {
-                    phones.putIfAbsent(row.getStudentId(), row.getPhone());
-                    counts.merge(row.getStudentId(), 1, Integer::sum);
-                });
-        return new GuardianLinks(phones, counts);
-    }
-
-    /** {@link #guardianLinksOf} 결과 — 대표 연락처(단수)와 연결 수(§5.11 {@code guardian_count})를 함께 담는다. */
-    private record GuardianLinks(Map<Long, String> phones, Map<Long, Integer> counts) {}
-
-    /**
-     * 이름 자연 정렬 — DB 정렬은 문자열 순이라 "학생10" 이 "학생2" 앞에 온다. 조건에 맞는 학생의 id·이름만 읽어 자연
-     * 순서로 줄 세우고, 요청한 쪽의 id 만 본 행으로 읽는다(보호자 연락처를 싣는 본 행은 한 쪽 분량만).
-     *
-     * <p>ponytail: 요청마다 그 학원의 일치 학생 전건(id·이름)을 읽는다 — 학원 하나가 수천 명이어도 ms 단위다. 수만 명을
-     * 넘기면 ICU 숫자 정렬 collation + 표현식 인덱스로 DB 에 맡긴다.
-     */
-    private Page<Student> searchInNaturalOrder(Long academyId, String q, String className, String filter,
-            Pageable pageable) {
-        Comparator<NameRow> byName = Comparator.comparing(NameRow::getName, NaturalNameOrder.INSTANCE);
-        boolean descending = pageable.getSort().getOrderFor("name").isDescending();
-        List<NameRow> rows = studentRepository.findNamesByAcademyId(academyId, q, className, filter).stream()
-                .sorted((descending ? byName.reversed() : byName).thenComparing(NameRow::getId))
-                .toList();
-        int from = (int) Math.min(pageable.getOffset(), rows.size());
-        int to = Math.min(from + pageable.getPageSize(), rows.size());
-        List<Long> pageIds = rows.subList(from, to).stream().map(NameRow::getId).toList();
-        Map<Long, Student> byId = studentRepository.findAllByAcademyIdAndIdIn(academyId, pageIds).stream()
-                .collect(Collectors.toMap(Student::getId, Function.identity()));
-        List<Student> content = pageIds.stream().map(byId::get).filter(Objects::nonNull).toList();
-        return new PageImpl<>(content, pageable, rows.size());
-    }
-
     private Pageable pageable(StudentListRequest request) {
         return PageParams.of(request.page(), request.size())
                 .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER));
@@ -222,33 +166,6 @@ public class StudentQueryService {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "filter 값이 올바르지 않습니다: " + filter);
         }
         return filter;
-    }
-
-    /** 이 쪽 학생들의 요일별 주소 등록 상태 — 칸(요일·방향)만 한 번에 읽어 학생 수에 비례해 질의가 늘지 않는다. */
-    private Map<Long, WeeklyAddressStatus> addressStatusesOf(Long academyId, List<Student> students) {
-        if (students.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, List<WeeklySlot>> slotsByStudent = weeklyAddressRepository
-                .findSlotsByStudentIds(academyId, students.stream().map(Student::getId).toList()).stream()
-                .collect(Collectors.groupingBy(slot -> slot.getStudentId(),
-                        Collectors.mapping(slot -> new WeeklySlot(slot.getWeekday(), slot.getDirection()),
-                                Collectors.toList())));
-        Map<Long, WeeklyAddressStatus> statuses = new LinkedHashMap<>();
-        slotsByStudent.forEach((studentId, slots) -> statuses.put(studentId, WeeklyAddressStatus.of(slots)));
-        return statuses;
-    }
-
-    /** 학원 전체 지표(§5.11 {@code summary}) — 쿼리·쪽과 무관하다. */
-    private StudentListResponse.Summary summaryOf(Long academyId) {
-        StudentCounts counts = studentRepository.summarizeByAcademyId(academyId);
-        List<String> classNames = studentRepository.findDistinctClassNamesByAcademyId(academyId).stream()
-                .filter(name -> !name.isBlank())
-                .distinct()
-                .sorted(NaturalNameOrder.INSTANCE)
-                .toList();
-        return new StudentListResponse.Summary(counts.getTotal(), counts.getClassCount(),
-                counts.getGuardianUnlinked(), counts.getAddressMissing(), counts.getCanGoAlone(), classNames);
     }
 
     private String keyword(String q) {

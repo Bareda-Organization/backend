@@ -16,34 +16,39 @@ final class NaturalNameOrder {
     }
 
     private static int compare(String left, String right) {
-        int i = 0;
-        int j = 0;
-        while (i < left.length() && j < right.length()) {
-            if (isDigit(left.charAt(i)) && isDigit(right.charAt(j))) {
-                int start = i;
-                int otherStart = j;
-                while (i < left.length() && isDigit(left.charAt(i))) {
-                    i++;
-                }
-                while (j < right.length() && isDigit(right.charAt(j))) {
-                    j++;
-                }
-                int byNumber = compareNumbers(left.substring(start, i), right.substring(otherStart, j));
-                if (byNumber != 0) {
-                    return byNumber;
-                }
-            } else {
-                int byChar = Character.compare(Character.toLowerCase(left.charAt(i)),
-                        Character.toLowerCase(right.charAt(j)));
-                if (byChar != 0) {
-                    return byChar;
-                }
-                i++;
-                j++;
+        int[] position = {0, 0};
+        while (position[0] < left.length() && position[1] < right.length()) {
+            int result = compareAt(left, right, position);
+            if (result != 0) {
+                return result;
             }
         }
-        int byRemaining = Integer.compare(left.length() - i, right.length() - j);
+        int byRemaining = Integer.compare(left.length() - position[0], right.length() - position[1]);
         return byRemaining != 0 ? byRemaining : left.compareTo(right);
+    }
+
+    /** 두 위치의 한 덩어리를 견주고 위치를 그 뒤로 옮긴다 — 숫자 덩어리는 크기로, 그 밖은 글자 하나씩 대소문자 없이. 같으면 0. */
+    private static int compareAt(String left, String right, int[] position) {
+        if (isDigit(left.charAt(position[0])) && isDigit(right.charAt(position[1]))) {
+            int start = position[0];
+            int otherStart = position[1];
+            position[0] = endOfDigits(left, start);
+            position[1] = endOfDigits(right, otherStart);
+            return compareNumbers(left.substring(start, position[0]), right.substring(otherStart, position[1]));
+        }
+        int byChar = Character.compare(Character.toLowerCase(left.charAt(position[0])),
+                Character.toLowerCase(right.charAt(position[1])));
+        position[0]++;
+        position[1]++;
+        return byChar;
+    }
+
+    private static int endOfDigits(String text, int from) {
+        int end = from;
+        while (end < text.length() && isDigit(text.charAt(end))) {
+            end++;
+        }
+        return end;
     }
 
     private static int compareNumbers(String left, String right) {

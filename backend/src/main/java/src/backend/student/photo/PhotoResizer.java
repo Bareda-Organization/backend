@@ -1,21 +1,15 @@
 package src.backend.student.photo;
 
-import java.awt.RenderingHints;
-import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
-import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
@@ -69,8 +63,6 @@ public final class PhotoResizer {
 
     /** 줄이는 중인 사진 수를 세는 자리 — 선착순(공정)으로 내준다. 시험이 자리를 모두 쥐어 대기·한도 초과 경로를 만든다. */
     static final Semaphore RESIZE_SLOTS = new Semaphore(MAX_CONCURRENT_RESIZES, true);
-
-    private static final int EXIF_ORIENTATION_TAG = 0x0112;
 
     private PhotoResizer() {
     }
@@ -154,156 +146,29 @@ public final class PhotoResizer {
             ImageReader reader = readers.next();
             try {
                 reader.setInput(input);
-                int width = reader.getWidth(0);
-                int height = reader.getHeight(0);
-                if (Math.max(width, height) <= MAX_EDGE || (long) width * height > MAX_DECODE_PIXELS) {
-                    return Optional.empty();
-                }
-                BufferedImage reduced = reduce(orient(reader.read(0, subsamplingFor(reader, width, height)), orientation));
-                String extension = storedExtension(photo.extension(), reduced);
-                return encode(reduced, extension).map(bytes -> new StudentPhoto(extension, bytes));
+                return reduceWith(reader, photo, orientation);
             } finally {
                 reader.dispose();
             }
         }
     }
 
-    /**
-     * 긴 변이 {@code 2 × MAX_EDGE} 이상 남는 가장 큰 정수 배로 건너뛰며 읽게 한다(BR-302) — 원본 해상도 래스터를 만들지 않으니 줄이기 한 건의
-     * 메모리가 원본 크기가 아니라 약 1,024 ~ 2,048px 에 묶인다. 2배 이상의 표본을 남겨야 {@link #reduce} 의 마지막 맞춤이 평균을 내 계단이 눈에 띄지 않는다.
-     */
-    private static ImageReadParam subsamplingFor(ImageReader reader, int width, int height) {
-        int step = Math.max(1, Math.max(width, height) / (2 * MAX_EDGE));
-        ImageReadParam param = reader.getDefaultReadParam();
-        param.setSourceSubsampling(step, step, 0, 0);
-        return param;
-    }
-
-    /** 긴 변이 상한의 2배 아래가 될 때까지 절반으로 줄이고 마지막에 맞춘다 — 한 번에 크게 줄이면 계단·물결무늬가 생긴다. */
-    private static BufferedImage reduce(BufferedImage source) {
-        BufferedImage image = source;
-        while (Math.max(image.getWidth(), image.getHeight()) >= 2 * MAX_EDGE) {
-            image = scale(image, image.getWidth() / 2, image.getHeight() / 2);
+    /** 리더로 읽어 줄인다 — 이미 작거나 디코딩 상한을 넘는 사진은 줄이지 않는다(빈 값). */
+    private static Optional<StudentPhoto> reduceWith(ImageReader reader, StudentPhoto photo, int orientation)
+            throws IOException {
+        int width = reader.getWidth(0);
+        int height = reader.getHeight(0);
+        if (Math.max(width, height) <= MAX_EDGE || (long) width * height > MAX_DECODE_PIXELS) {
+            return Optional.empty();
         }
-        double ratio = (double) MAX_EDGE / Math.max(image.getWidth(), image.getHeight());
-        return scale(image, Math.max(1, (int) Math.round(image.getWidth() * ratio)),
-                Math.max(1, (int) Math.round(image.getHeight() * ratio)));
+        BufferedImage reduced = PhotoRaster.reduce(PhotoRaster.orient(
+                reader.read(0, PhotoRaster.subsamplingFor(reader, width, height)), orientation));
+        String extension = PhotoRaster.storedExtension(photo.extension(), reduced);
+        return PhotoRaster.encode(reduced, extension).map(bytes -> new StudentPhoto(extension, bytes));
     }
 
-    private static BufferedImage scale(BufferedImage source, int width, int height) {
-        BufferedImage target = new BufferedImage(width, height, typeOf(source));
-        var graphics = target.createGraphics();
-        try {
-            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            graphics.drawImage(source, 0, 0, width, height, null);
-        } finally {
-            graphics.dispose();
-        }
-        return target;
-    }
-
-    /** EXIF 회전값 3(180도) · 6(시계 90도) · 8(반시계 90도)만 돌린다. 그 밖의 값은 그대로다. */
-    private static BufferedImage orient(BufferedImage source, int orientation) {
-        int width = source.getWidth();
-        int height = source.getHeight();
-        AffineTransform transform = switch (orientation) {
-            case 3 -> new AffineTransform(-1, 0, 0, -1, width, height);
-            case 6 -> new AffineTransform(0, 1, -1, 0, height, 0);
-            case 8 -> new AffineTransform(0, -1, 1, 0, 0, width);
-            default -> null;
-        };
-        if (transform == null) {
-            return source;
-        }
-        boolean quarterTurn = orientation != 3;
-        BufferedImage target = new BufferedImage(quarterTurn ? height : width, quarterTurn ? width : height,
-                typeOf(source));
-        var graphics = target.createGraphics();
-        try {
-            graphics.drawImage(source, transform, null);
-        } finally {
-            graphics.dispose();
-        }
-        return target;
-    }
-
-    private static int typeOf(BufferedImage source) {
-        return source.getColorModel().hasAlpha() ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
-    }
-
-    /**
-     * 줄인 사진을 저장할 형식 — 대개 받은 형식 그대로다. WebP 는 JDK 에 쓰기가 없어(읽기만 플러그인이 한다) JPEG 로, 투명 배경이 있으면 알파를
-     * 지키려 PNG 로 저장한다. 확장자가 바뀌면 응답 Content-Type 도 그 확장자를 따른다({@link StudentPhoto#contentTypeOf}).
-     */
-    private static String storedExtension(String received, BufferedImage reduced) {
-        if (!"webp".equals(received)) {
-            return received;
-        }
-        return reduced.getColorModel().hasAlpha() ? "png" : "jpg";
-    }
-
-    private static Optional<byte[]> encode(BufferedImage image, String extension) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        boolean written = ImageIO.write(image, "png".equals(extension) ? "png" : "jpg", out);
-        return written ? Optional.of(out.toByteArray()) : Optional.empty();
-    }
-
-    /** JPEG 의 EXIF 회전값(1~8) — EXIF 가 없거나 이 태그가 없으면 1(돌리지 않음). 깨진 구조는 예외를 던져 호출부가 원본을 둔다. */
+    /** JPEG 의 EXIF 회전값(1~8) — 읽는 방법은 {@link ExifOrientation}. 깨진 구조는 예외를 던져 호출부가 원본을 둔다. */
     static int exifOrientation(byte[] jpeg) {
-        int position = 2; // SOI(FFD8) 다음부터 마커 구간을 훑는다
-        while (position + 4 <= jpeg.length && (jpeg[position] & 0xFF) == 0xFF) {
-            int marker = jpeg[position + 1] & 0xFF;
-            int length = unsigned16(jpeg, position + 2, false);
-            if (marker == 0xDA) {
-                break; // 이미지 데이터 시작 — 메타데이터는 이 앞에만 있다
-            }
-            if (marker == 0xE1 && startsWithExif(jpeg, position + 4)) {
-                return tiffOrientation(jpeg, position + 10, Math.min(position + 2 + length, jpeg.length));
-            }
-            position += 2 + length;
-        }
-        return 1;
-    }
-
-    private static boolean startsWithExif(byte[] bytes, int offset) {
-        byte[] exif = "Exif\0\0".getBytes(StandardCharsets.US_ASCII);
-        return offset + exif.length <= bytes.length
-                && Arrays.equals(bytes, offset, offset + exif.length, exif, 0, exif.length);
-    }
-
-    private static int tiffOrientation(byte[] bytes, int tiff, int end) {
-        if (tiff + 8 > end) {
-            return 1;
-        }
-        boolean little = bytes[tiff] == 'I';
-        int directory = tiff + unsigned32(bytes, tiff + 4, little);
-        if (directory + 2 > end) {
-            return 1;
-        }
-        int entries = unsigned16(bytes, directory, little);
-        for (int i = 0; i < entries; i++) {
-            int entry = directory + 2 + i * 12;
-            if (entry + 12 > end) {
-                return 1;
-            }
-            if (unsigned16(bytes, entry, little) == EXIF_ORIENTATION_TAG) {
-                return unsigned16(bytes, entry + 8, little);
-            }
-        }
-        return 1;
-    }
-
-    /** 4바이트 오프셋 — 사진 파일 안의 위치라 int 범위를 넘지 않는다(넘으면 음수가 되어 호출부의 범위 검사에서 걸린다). */
-    private static int unsigned32(byte[] bytes, int offset, boolean little) {
-        int low = unsigned16(bytes, little ? offset : offset + 2, little);
-        int high = unsigned16(bytes, little ? offset + 2 : offset, little);
-        return (high << 16) | low;
-    }
-
-    private static int unsigned16(byte[] bytes, int offset, boolean little) {
-        int first = bytes[offset] & 0xFF;
-        int second = bytes[offset + 1] & 0xFF;
-        return little ? (second << 8) | first : (first << 8) | second;
+        return ExifOrientation.of(jpeg);
     }
 }

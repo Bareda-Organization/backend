@@ -76,9 +76,21 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
     @CircuitBreaker(name = RESILIENCE_INSTANCE, fallbackMethod = "unavailable")
     @Bulkhead(name = RESILIENCE_INSTANCE)
     public List<FoundPlace> search(String query) {
-        LocalResponse response;
+        LocalResponse response = fetch(query);
+        if (response == null || response.items() == null) {
+            return List.of();
+        }
+        return response.items().stream()
+                .filter(item -> item.mapx() != null && item.mapy() != null)
+                .map(item -> new FoundPlace(withoutTags(item.title()),
+                        new GeocodedPoint(degrees(item.mapy()), degrees(item.mapx()), item.addressOrJibun())))
+                .toList();
+    }
+
+    /** 공급자를 부르고 실패는 포트 예외 하나로 모은다 — 응답 바디(주소·검색어 포함)는 예외 메시지에 싣지 않는다. */
+    private LocalResponse fetch(String query) {
         try {
-            response = webClient.get()
+            return webClient.get()
                     .uri(localUri(query))
                     .header("x-ncp-apigw-api-key-id", keyId)
                     .header("x-ncp-apigw-api-key", key)
@@ -91,14 +103,6 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
         } catch (RuntimeException e) {
             throw new GeocodingUnavailableException("장소 검색 호출 실패: " + ProviderFailure.describe(e));
         }
-        if (response == null || response.items() == null) {
-            return List.of();
-        }
-        return response.items().stream()
-                .filter(item -> item.mapx() != null && item.mapy() != null)
-                .map(item -> new FoundPlace(withoutTags(item.title()),
-                        new GeocodedPoint(degrees(item.mapy()), degrees(item.mapx()), item.addressOrJibun())))
-                .toList();
     }
 
     /**

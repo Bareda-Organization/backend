@@ -76,35 +76,47 @@ public class StudentBusPositionQueryService {
         Student student = studentRunsAccess.resolve(requester, studentId);
         Run run = studentRunResolver.resolveForToday(student.getAcademyId(), student.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        String busNo = busRepository.findByIdAndAcademyId(run.getBusId(), student.getAcademyId())
-                .map(Bus::getBusNo)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        String runStatus = run.getStatus().name().toLowerCase(Locale.ROOT);
-
+        String busNo = busNoOf(run, student);
         // 당일 미등원이면 그 버스의 지연 안내도 의미가 없다 — 위치와 함께 비운다(§3.11 "오늘은 버스를 이용하지 않습니다")
         boolean absentToday = isAbsentToday(run, student.getId());
         StudentBusPositionResponse.Delay delay = absentToday ? null : lastDelayOf(run);
         if (run.getStatus() != RunStatus.MOVING || absentToday) {
-            return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus, run.getStartedAt(),
-                    run.getFinishedAt(), delay);
+            return withoutPosition(run, busNo, delay);
         }
-
         // Redis 가 죽으면 run_position 최신 행으로 대체된다(BR-167) — current_stop_name 은 정차 항목에서 같은 규칙으로 채워진다.
         Optional<RunPositionRedisValue> snapshot = runPositionStore.find(run.getId());
-        if (snapshot.isEmpty()) {
-            return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, runStatus, run.getStartedAt(),
-                    run.getFinishedAt(), delay);
-        }
-        RunPositionRedisValue position = snapshot.get();
+        return snapshot.isEmpty() ? withoutPosition(run, busNo, delay)
+                : withPosition(run, busNo, delay, snapshot.get());
+    }
+
+    private String busNoOf(Run run, Student student) {
+        return busRepository.findByIdAndAcademyId(run.getBusId(), student.getAcademyId())
+                .map(Bus::getBusNo)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+    }
+
+    private static StudentBusPositionResponse withoutPosition(Run run, String busNo,
+            StudentBusPositionResponse.Delay delay) {
+        return StudentBusPositionResponse.withoutPosition(run.getId(), busNo, statusOf(run), run.getStartedAt(),
+                run.getFinishedAt(), delay);
+    }
+
+    /** 좌표를 싣는다 — 마지막 수신이 {@link #STALE_THRESHOLD} 를 넘었으면 좌표 대신 마지막 수신 시각만 싣는다(신호 유실). */
+    private StudentBusPositionResponse withPosition(Run run, String busNo, StudentBusPositionResponse.Delay delay,
+            RunPositionRedisValue position) {
         OffsetDateTime stopArrivedAt = lastArrivedAtOf(run);
         if (isStale(position.receivedAt())) {
-            return new StudentBusPositionResponse(run.getId(), busNo, runStatus, null, null, null,
+            return new StudentBusPositionResponse(run.getId(), busNo, statusOf(run), null, null, null,
                     position.receivedAt(), position.currentStopName(), stopArrivedAt, run.getStartedAt(),
                     run.getFinishedAt(), delay);
         }
-        return new StudentBusPositionResponse(run.getId(), busNo, runStatus, position.lat(), position.lng(),
+        return new StudentBusPositionResponse(run.getId(), busNo, statusOf(run), position.lat(), position.lng(),
                 position.receivedAt(), null, position.currentStopName(), stopArrivedAt, run.getStartedAt(),
                 run.getFinishedAt(), delay);
+    }
+
+    private static String statusOf(Run run) {
+        return run.getStatus().name().toLowerCase(Locale.ROOT);
     }
 
     /** 끝나지 않은 회차의 마지막 지연 알림(§4.9) — 없거나 회차가 끝났으면 {@code null}(지연 안내 띠를 걷는다). */
