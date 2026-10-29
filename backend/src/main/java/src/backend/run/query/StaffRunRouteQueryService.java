@@ -1,19 +1,12 @@
 package src.backend.run.query;
 
-import java.time.Clock;
-import java.time.Duration;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.entity.Academy;
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.global.common.enums.ManagerRole;
-import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
@@ -22,31 +15,14 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.dto.StaffAssignmentAckView;
 import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteVersion;
-import src.backend.routing.map.spec.CallerPolicy;
-import src.backend.routing.pipeline.ComputationPolicy;
-import src.backend.routing.pipeline.DailyRoster;
-import src.backend.routing.pipeline.RouteComputation;
-import src.backend.routing.engine.spec.OrderedStop;
-import src.backend.routing.entity.RouteVersionSource;
-import src.backend.routing.pipeline.RouteComputationInput;
-import src.backend.routing.pipeline.RouteComputationPipeline;
 import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
-import src.backend.run.domain.RunRouteEndpoints;
 import src.backend.run.dto.RunRouteResponse;
-import src.backend.run.dto.RunRouteResponse.RouteStop;
 import src.backend.run.dto.StaffRunRouteResponse;
 import src.backend.run.dto.StaffRunRouteResponse.Ack;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.entity.Stop;
-import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentDailyStop;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 관계자용 확정 노선 조회(API_SPEC §5.19 {@code GET /staff/runs/{runId}/route}, RTE-02).
@@ -68,9 +44,6 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @RequiredArgsConstructor
 public class StaffRunRouteQueryService {
 
-    /** 예정 경로 계산 — 관계자가 화면에서 대기 중이므로 서킷 개방 시 즉시 오류로 끝낸다(ON_DEMAND). */
-    private static final Duration PLANNED_ROUTE_MAP_TIMEOUT = Duration.ofSeconds(5);
-
     private final RunRepository runRepository;
 
     private final ConfirmedRouteRepository confirmedRouteRepository;
@@ -81,21 +54,9 @@ public class StaffRunRouteQueryService {
 
     private final RunRouteQueryService runRouteQueryService;
 
-    private final AcademyRepository academyRepository;
+    private final StaffPlannedRouteAssembler plannedRouteAssembler;
 
-    private final RouteRepository routeRepository;
-
-    private final RouteStopRepository routeStopRepository;
-
-    private final StopRepository stopRepository;
-
-    private final WeeklyAddressRepository weeklyAddressRepository;
-
-    private final RouteComputationPipeline routeComputationPipeline;
-
-    private final Clock clock;
-
-    /** 확정 노선이 있으면 그대로, 없으면 예정 경로({@link #plannedRouteOf})로 폴백해 조회한다(§5.19). */
+    /** 확정 노선이 있으면 그대로, 없으면 예정 경로({@link StaffPlannedRouteAssembler#plannedRouteOf})로 폴백해 조회한다(§5.19). */
     public StaffRunRouteResponse route(AuthUser requester, Long runId) {
         Run run = runRepository.findById(runId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
@@ -105,9 +66,14 @@ public class StaffRunRouteQueryService {
                 .map(ConfirmedRoute::getCurrentVersionId)
                 .orElse(null);
         if (currentVersionId == null) {
-            return plannedRouteOf(requester, run)
+            return plannedRouteAssembler.plannedRouteOf(run)
                     .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_CONFIRMED));
         }
+        return confirmedRouteOf(run, currentVersionId);
+    }
+
+    /** 배포된 확정 버전의 노선에 버전 번호·배포 시각·확인 현황을 더해 조립한다. */
+    private StaffRunRouteResponse confirmedRouteOf(Run run, Long currentVersionId) {
         // 방어적 조회 — currentVersionId 가 가리키는 route_version 행은 배포 절차상 항상 존재해야
         // 하지만(순환 FK 쌍이라 DB 제약으로는 못 막는다), 없으면 "볼 확정 노선이 없다"는 결론은
         // 같으므로 별도 오류 코드를 새로 만들지 않고 같은 409 로 묶는다.
@@ -115,98 +81,11 @@ public class StaffRunRouteQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_CONFIRMED));
 
         RunRouteResponse base = runRouteQueryService.buildFromVersion(run, currentVersionId);
-        Ack ack = ackOf(run.getAcademyId(), runId);
+        Ack ack = ackOf(run.getAcademyId(), run.getId());
         List<GeoPoint> roadPath = version.getRoadPath() == null ? List.of() : version.getRoadPath();
 
         return new StaffRunRouteResponse(base.stops(), base.currentStop(), base.nextStop(), base.skippedNotice(),
                 version.getVersionNo(), version.getPublishedAt(), ack, roadPath, version.isFallbackUsed(), true);
-    }
-
-    /**
-     * 확정 전(idle) 회차의 <b>예정 경로</b>(Ruling 321) — 고정 노선(§7 규칙 12 교체 축과
-     * 무관하게 {@code route}·{@code route_stop} 이 이미 갖고 있는 데이터)과 오늘 자 요일별 주소만으로
-     * 계산한다. 강제 추가·버스 간 이동·승인된 경유지 재배치 같은 당일 변경(RTE-06·07, P-06)은 반영하지
-     * 않는다 — 확정 배치가 그 순간의 명단으로 다시 계산하므로 이 값은 처음부터 "예정"일 뿐이고, 그
-     * 근사를 위해 {@code confirmOne} 의 roster 조립 전부를 그대로 옮겨 오는 비용을 지지 않는다(과업
-     * 지시서 판단 근거 — 예정 노선은 확정본과 다를 수 있음을 이미 계약으로 명시했다).
-     *
-     * <p>캐시하지 않는다 — 관리자만 쓰고 조회가 잦지 않다(사용자 확정, Ruling 321 정정).
-     *
-     * <p>CODE_CONVENTIONS §20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. {@code confirmOne(RunConfirmationService)} 과
-     * 같은 "학원 → 노선 → 정차지 → 좌표" 조회 순서를 읽기 전용으로 따라가는 한 흐름이고, 실패마다
-     * 즉시 {@code Optional.empty()} 로 빠지는 이른 반환이 이미 중첩을 얕게 유지한다.
-     *
-     * @return 고정 노선을 못 찾거나 학원에 좌표가 없으면 {@code Optional.empty()} — 호출부가 이 경우도
-     *         {@code RUN_NOT_CONFIRMED} 로 묶어 "조용한 빈 값" 대신 명시적 오류로 알린다
-     */
-    private java.util.Optional<StaffRunRouteResponse> plannedRouteOf(AuthUser requester, Run run) {
-        Academy academy = academyRepository.findById(run.getAcademyId()).orElse(null);
-        if (academy == null || !academy.hasCoordinates()) {
-            return java.util.Optional.empty();
-        }
-
-        Weekday weekday = Weekday.of(run.getServiceDate());
-        Route route = routeRepository
-                .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
-                        run.getDirection())
-                .orElse(null);
-        if (route == null) {
-            return java.util.Optional.empty();
-        }
-
-        List<src.backend.routing.entity.RouteStop> routeStops = routeStopRepository
-                .findAllOrderedByRouteIdAndAcademyId(route.getId(), run.getAcademyId());
-        if (routeStops.isEmpty()) {
-            return java.util.Optional.empty();
-        }
-
-        List<Long> stopIds = routeStops.stream().map(src.backend.routing.entity.RouteStop::getStopId).toList();
-        Map<Long, Stop> stopsById = stopRepository.findAllByIdInAndAcademyId(stopIds, run.getAcademyId()).stream()
-                .collect(Collectors.toMap(Stop::getId, stop -> stop));
-        Stop firstStop = stopsById.get(routeStops.get(0).getStopId());
-        Stop lastStop = stopsById.get(routeStops.get(routeStops.size() - 1).getStopId());
-        if (firstStop == null || lastStop == null) {
-            return java.util.Optional.empty();
-        }
-
-        GeoPoint academyPoint = new GeoPoint(academy.getLat(), academy.getLng());
-        // Ruling 190(confirmOne 과 같은 규칙) — RunRouteEndpoints 로 통합(BR-101).
-        RunRouteEndpoints.Endpoints endpoints = RunRouteEndpoints.of(run.getDirection(), academyPoint,
-                new GeoPoint(firstStop.getLat(), firstStop.getLng()), new GeoPoint(lastStop.getLat(), lastStop.getLng()));
-        GeoPoint origin = endpoints.origin();
-        GeoPoint destination = endpoints.destination();
-
-        List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
-                stopIds, weekday, run.getDirection(), run.getServiceDate().atStartOfDay(clock.getZone()).toOffsetDateTime());
-        List<Long> studentIds = dailyStops.stream().map(StudentDailyStop::getStudentId).distinct().toList();
-        Map<Long, Long> studentStops = dailyStops.stream()
-                .collect(Collectors.toMap(StudentDailyStop::getStudentId, StudentDailyStop::getStopId,
-                        (first, duplicate) -> first));
-
-        DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), studentIds, Map.of());
-        ComputationPolicy policy = new ComputationPolicy(PLANNED_ROUTE_MAP_TIMEOUT, CallerPolicy.ON_DEMAND,
-                RouteVersionSource.APPROVAL, false);
-        RouteComputationInput input = new RouteComputationInput(roster, origin, destination, List.of(),
-                run.getDepartTime(), policy);
-        RouteComputation computation = routeComputationPipeline.compute(input);
-
-        Map<Long, Long> studentCountsByStopId = studentStops.values().stream()
-                .collect(Collectors.groupingBy(stopId -> stopId, Collectors.counting()));
-        List<RouteStop> stops = computation.stops().stream()
-                .map(stop -> toRouteStop(stop, stopsById.get(stop.stopId()), studentCountsByStopId))
-                .toList();
-
-        return java.util.Optional.of(new StaffRunRouteResponse(stops, null, null, null, 0, null,
-                new Ack(false, false), computation.roadPath(), computation.snapshot().fallbackUsed(), false));
-    }
-
-    private RouteStop toRouteStop(OrderedStop stop, Stop stopEntity, Map<Long, Long> studentCounts) {
-        if (stopEntity == null) {
-            return new RouteStop(null, stop.seq(), null, null, null, null, null, 0L, false, false, null);
-        }
-        long studentCount = studentCounts.getOrDefault(stopEntity.getId(), 0L);
-        return new RouteStop(stopEntity.getId(), stop.seq(), stopEntity.getName(), stopEntity.getAddress(),
-                stopEntity.getLat(), stopEntity.getLng(), null, studentCount, false, false, null);
     }
 
     /**
