@@ -2,7 +2,7 @@ package src.backend.run.repository;
 
 import java.time.LocalDate;
 
-/** 학원·운행일별 회차 집계 한 행 — {@link RunRepository#aggregateDaily} 가 돌려준다(§6.18). */
+/** 학원·운행일별 회차 집계 한 행 — {@link RunDashboardRepository#aggregateDaily} 가 돌려준다(§6.18). */
 public interface RunDailyAggregate {
 
     LocalDate getServiceDate();

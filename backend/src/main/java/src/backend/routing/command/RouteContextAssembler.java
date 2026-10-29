@@ -101,7 +101,7 @@ public class RouteContextAssembler {
     /** 그 회차의 현재 배포 판본 — 확정 노선이 없으면 409 다. */
     private RouteVersion currentVersionOf(Run run) {
         // idle 회차(확정 배치가 아직 안 돈 상태)로 호출하면 여기서 걸린다 — ROUTE_NOT_CONFIGURED_FOR_RUN
-        // ({@code originDestinationOf} 의 고정 노선 조회)과 원인이 다르다: 저쪽은 고정 노선 자체가
+        // (originDestinationOf 의 고정 노선 조회)과 원인이 다르다: 저쪽은 고정 노선 자체가
         // 없는 것이고 이쪽은 고정 노선은 있는데 그 회차의 확정 노선이 아직 산출되지 않은 것이다.
         // StaffRunRouteQueryService.route 와 같은 결론(409 RUN_NOT_CONFIRMED)이라 새 코드를 만들지
         // 않는다 — 두 곳 다 "볼·다룰 확정 노선이 없다"는 같은 사용자 관점의 상태다.

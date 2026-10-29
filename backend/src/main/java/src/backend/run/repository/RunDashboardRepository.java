@@ -25,7 +25,7 @@ public interface RunDashboardRepository extends Repository<Run, Long> {
      * 한 학원에서 그 상태인 미취소 회차가 있는 <b>차량의 호차 이름</b>(학원 상세 {@code stats.moving_bus_nos[]}, §6.3 · Ruling 806) — 운행일이
      * {@code since} 이후인 회차만 센다. {@code since} 는 {@code MovingRunWindowPolicy#earliestServiceDate} 라
      * 근접 판정·유실 집계·노선 잠금과 같은 범위다(Ruling 701) — 그보다 이른 {@code moving} 회차는 끝나지 않은 회차로
-     * {@link #countStaleMoving} 이 센다. 차량이 같으면 한 번만 나온다(회차 수가 아니다, BR-057). 호차 이름은 학원 안에서 유일하다
+     * {@link MovingRunQueries#countStaleMoving} 이 센다. 차량이 같으면 한 번만 나온다(회차 수가 아니다, BR-057). 호차 이름은 학원 안에서 유일하다
      * ({@code uk_bus_academy_bus_no}) — 그래서 이 목록의 크기가 곧 {@code moving_bus_count} 이고, 두 값이 같은 범위일 수밖에 없다.
      */
     @Query("SELECT DISTINCT b.busNo FROM Run r JOIN Bus b ON b.id = r.busId AND b.academyId = r.academyId "
@@ -53,7 +53,7 @@ public interface RunDashboardRepository extends Repository<Run, Long> {
      * 5분 넘긴(경고 여유) idle 회차 수. {@code threshold} 에 {@code now - 5분} 을 넘겨받는다 — 알럿
      * 조건과 확정 배치 조회의 문턱이 다르므로({@code +5분} 여유) 이 메서드를 따로 둔다.
      *
-     * <p>{@link #findDueForConfirmation} 과 같은 두 조건을 건다. ① {@code canceled_at IS NULL} — 취소된 회차는 애초에
+     * <p>{@link RunRepository#findDueForConfirmation} 과 같은 두 조건을 건다. ① {@code canceled_at IS NULL} — 취소된 회차는 애초에
      * 확정 대상이 아니라 "노선을 못 받은" 위험이 없다. ② {@code service_date >= today}(BR-231) — 지난 날짜 idle 회차는
      * 확정 배치가 집지 않아 영구히 idle 이고, 세면 "0 이 아니면 곧 운행 사고" 경보가 다시 꺼지지 않는다.
      */
@@ -140,7 +140,7 @@ public interface RunDashboardRepository extends Repository<Run, Long> {
             + "AND EXISTS (SELECT 1 FROM DelayNotice d WHERE d.runId = r.id) ORDER BY r.departTime ASC, r.id ASC")
     List<Run> findDelayedToday(@Param("academyIds") Collection<Long> academyIds, @Param("today") LocalDate today);
 
-    /** 학원 선택에 따라 좁힌 끝나지 않은 이동 중 회차 수(§6.18 {@code attention.stale_runs}) — {@link MovingRunQueries#STALE_MOVING} 조건을 {@link #countStaleMoving} 과 같이 쓴다. */
+    /** 학원 선택에 따라 좁힌 끝나지 않은 이동 중 회차 수(§6.18 {@code attention.stale_runs}) — {@link MovingRunQueries#STALE_MOVING} 조건을 {@link MovingRunQueries#countStaleMoving} 과 같이 쓴다. */
     @Query("SELECT COUNT(r) FROM Run r WHERE r.academyId IN :academyIds AND " + MovingRunQueries.STALE_MOVING)
     long countStaleMovingByAcademyIds(@Param("academyIds") Collection<Long> academyIds,
             @Param("before") LocalDate before);
