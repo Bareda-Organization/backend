@@ -10,19 +10,22 @@ import static org.mockito.Mockito.verify;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.mockito.Mockito;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.global.websocket.WebSocketBroadcastGateway;
@@ -53,6 +56,9 @@ class RunPositionLateCommitTest {
 
     @MockitoSpyBean
     private StringRedisTemplate redis;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     @BeforeEach
     @AfterEach
@@ -128,6 +134,36 @@ class RunPositionLateCommitTest {
         assertThat(runPositionStore.find(runId).orElseThrow().lat())
                 .as("읽은 값이 바뀌었으면 쓰지 않고 다시 읽어 판단한다 — 끼어든 더 새로운 값(37.59)이 남아야 한다")
                 .isEqualByComparingTo("37.590000");
+    }
+
+    @Test
+    void 비교_쓰기가_계속_밀려_쓰지_못하면_false_를_돌려주고_이유를_세어_둔다() throws Exception {
+        long runId = RUN_IDS.incrementAndGet();
+        String key = "run:" + runId + ":position";
+        runPositionStore.save(runId, 값("37.500000", T0.plusSeconds(1)));
+        ValueOperations<String, String> real = redis.opsForValue();
+        ValueOperations<String, String> afterRead = Mockito.spy(real);
+        AtomicInteger interlopers = new AtomicInteger();
+        // 읽을 때마다 직후에 (우리 위치보다는 옛) 다른 값이 끼어들어 비교 쓰기가 매번 밀린다
+        Mockito.doAnswer(invocation -> {
+            Object read = invocation.callRealMethod();
+            real.set(key, JsonMapper.builder().build().writeValueAsString(
+                    값("37.500000", T0.plusSeconds(2 + interlopers.getAndIncrement()))));
+            return read;
+        }).when(afterRead).get(key);
+        Mockito.doReturn(afterRead).when(redis).opsForValue();
+        double before = 버린_횟수("write_contended");
+
+        boolean stored = runPositionStore.save(runId, 값("37.510000", T0.plusSeconds(50)));
+
+        assertThat(stored).as("끼어드는 값 때문에 끝내 쓰지 못했다").isFalse();
+        assertThat(interlopers).as("정해진 횟수만 다시 시도하고 멈춘다").hasValue(5);
+        assertThat(버린_횟수("write_contended") - before).as("쓰지 못한 위치는 이유와 함께 세어야 한다").isEqualTo(1.0);
+    }
+
+    private double 버린_횟수(String reason) {
+        Counter counter = meterRegistry.find("schoolbus.location.position.dropped").tag("reason", reason).counter();
+        return counter == null ? 0.0 : counter.count();
     }
 
     private static RunPositionReceivedEvent 이벤트(long runId, String lat, OffsetDateTime recordedAt) {

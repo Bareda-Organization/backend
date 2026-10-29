@@ -20,14 +20,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.servlet.MockMvc;
-
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import jakarta.persistence.EntityManagerFactory;
@@ -43,8 +42,8 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
-import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.security.AuthUser;
+import src.backend.global.security.JwtTokenProvider;
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.global.websocket.WebSocketDestinations;
 import src.backend.location.dto.RunPositionRequest;
@@ -55,14 +54,14 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
-import testsupport.clock.AdvanceableClock;
-import testsupport.clock.AdvanceableClockConfig;
 import src.backend.run.event.StopArrivedEvent;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
+import testsupport.clock.AdvanceableClock;
+import testsupport.clock.AdvanceableClockConfig;
 
 /**
  * BR-100 — 위치 1건(2초마다)이 커밋된 뒤 리스너 둘(Redis 최신 좌표 · WebSocket 방송)이 같은 정차 목록을 각자
@@ -182,6 +181,8 @@ class RunPositionQueryCountTest {
         long warm = 직접_보내고_SQL_수를_센다(seeded);
 
         assertThat(warm).isLessThanOrEqualTo(3);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_position WHERE run_id = ?", Integer.class,
+                seeded.runId())).as("버려진 요청은 SQL 이 더 적으므로 두 요청이 모두 적재됐는지 행 수로 본다").isEqualTo(2);
     }
 
     /**
@@ -197,6 +198,10 @@ class RunPositionQueryCountTest {
         for (int i = 1; i <= 3; i++) {
             assertThat(위치를_보내고_SQL_수를_센다(seeded)).as("데워진 %d번째 요청", i).isLessThanOrEqualTo(3);
         }
+
+        // 버려진 요청은 SQL 이 2건이라 위 상한만으로는 통과한다 — 네 요청이 모두 이력으로 적재됐는지 행 수로 본다
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_position WHERE run_id = ?", Integer.class,
+                seeded.runId())).as("데워진 요청까지 4건이 모두 적재돼야 한다").isEqualTo(4);
     }
 
     @Test

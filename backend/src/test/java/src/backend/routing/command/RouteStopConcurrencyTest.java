@@ -1,6 +1,7 @@
 package src.backend.routing.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -49,7 +50,11 @@ class RouteStopConcurrencyTest {
 
     private static final long STAFF_A_ACCOUNT_ID = 2L;
 
-    private static final long TIMEOUT_SECONDS = 30;
+    /** 스레드 하나가 끝나길 기다리는 상한 — 정상 흐름에서는 소진되지 않으며, 걸리면 실패로 드러난다. */
+    private static final long TIMEOUT_SECONDS = 15;
+
+    /** 상대 요청이 DB 잠금을 기다리는 상태가 되길 기다리는 상한. */
+    private static final long LOCK_WAIT_SECONDS = 8;
 
     @Autowired
     private RouteCommandService routeCommandService;
@@ -187,25 +192,16 @@ class RouteStopConcurrencyTest {
     }
 
     /**
-     * 상대 세션이 DB 잠금을 기다리는 상태가 될 때까지 커밋을 미룬다 — 상한에 걸리면 그대로 커밋하고 뒤의 단언이 실패로
-     * 드러낸다. 통계 스냅숏은 트랜잭션 안에서 캐시되므로 조회마다 비운다.
+     * 상대 세션이 DB 잠금을 기다리는 상태가 될 때까지 커밋을 미룬다 — 상한에 걸리면 시간 초과 예외가 이 트랜잭션을 되돌리고 시험이 실패한다.
+     * 통계 스냅숏은 트랜잭션 안에서 캐시되므로 조회마다 비운다.
      */
     private void 상대가_잠금을_기다릴_때까지_커밋을_미룬다() {
-        long 마감 = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS - 10);
-        while (System.nanoTime() < 마감) {
+        await().atMost(LOCK_WAIT_SECONDS, TimeUnit.SECONDS).pollInterval(50, TimeUnit.MILLISECONDS).until(() -> {
             jdbcTemplate.execute("SELECT pg_stat_clear_snapshot()");
             Integer 대기중 = jdbcTemplate.queryForObject("SELECT count(*) FROM pg_stat_activity "
                     + "WHERE datname = current_database() AND wait_event_type = 'Lock'", Integer.class);
-            if (대기중 != null && 대기중 > 0) {
-                return;
-            }
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-        }
+            return 대기중 != null && 대기중 > 0;
+        });
     }
 
     private AuthUser 관계자A() {
