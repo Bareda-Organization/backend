@@ -3,7 +3,6 @@ package src.backend.location.infrastructure;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -11,27 +10,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
-import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.location.dto.RunPositionRedisValue;
-import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
-import src.backend.routing.dto.RunStopNameView;
-import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.routing.repository.RunStopRepository;
 
 /**
@@ -50,70 +39,28 @@ import src.backend.routing.repository.RunStopRepository;
  * (ARCHITECTURE §9.5) 바꿀 구현 후보가 없다. 교체 축이 없는 곳에 포트를 씌우지 않는다(ARCHITECTURE §3.2.1).
  * 호출자는 Redis 를 모르고 이 클래스만 안다(CODE_CONVENTIONS 의 Service·Infrastructure 규칙).
  *
- * <p>⚠ 값 형식은 평문 camelCase JSON — 전역 {@code ObjectMapper}(SNAKE_CASE)를 쓰지 않고 이 클래스 전용
- * {@link JsonMapper} 로 읽고 쓴다. 다형 직렬화기({@code RedisTemplate<String,Object>})로 되돌리지 마라.
+ * <p>⚠ 값 형식은 평문 camelCase JSON — 전역 {@code ObjectMapper}(SNAKE_CASE)를 쓰지 않고 {@code RunPositionRedisCodec} 의
+ * 전용 {@code JsonMapper} 로 읽고 쓴다. 다형 직렬화기({@code RedisTemplate<String,Object>})로 되돌리지 마라.
  */
-@Slf4j
 @Component
-@RequiredArgsConstructor
 public class RunPositionStore {
 
-    private static final String KEY_FORMAT = "run:%d:position";
-
-    /** {@link #KEY_FORMAT} 전체 — 개발용 초기화만 쓴다. */
+    /** {@code run:{runId}:position} 전체 — 개발용 초기화만 쓴다. */
     private static final String KEY_PATTERN = "run:*:position";
 
-    /** 운행 종료 후 자연 소멸 — 이력은 {@code run_position} 이 따로 갖는다. */
-    private static final Duration TTL = Duration.ofMinutes(30);
-
-    /** Redis 장애로 최신 좌표를 {@code run_position} 최신 행으로 대체 조회한 횟수를 세는 지표 이름. */
-    private static final String FALLBACK_METRIC = "schoolbus.position.fallback";
-
-    /** Redis 대체 조회가 거슬러 올라가는 한계 — 이보다 오래된 위치는 운행 중 회차의 "최신" 이 아니고, 구간이 있어야 읽는 일 파티션이 2개로 묶인다(DA-2). */
-    private static final Duration FALLBACK_LOOKBACK = Duration.ofHours(24);
-
     /** Redis 키가 없을 때 DB 를 읽는 범위 — 위치가 낡았다고 보는 기준과 같다({@code StudentBusPositionQueryService.STALE_THRESHOLD}, 같은 값임을 시험이 본다). 이보다 오래된 행은 어차피 낡은 위치다. */
-    static final Duration MISS_LOOKBACK = Duration.ofMinutes(2);
-
-    /** Redis 는 살아 있는데 운행 중 회차의 키가 비어 DB 최신 행으로 채운 읽기 횟수를 세는 지표 이름. */
-    private static final String MISS_FALLBACK_METRIC = "schoolbus.position.miss.fallback";
-
-    /** 단말 시계 오차 허용(5분, BR-243)을 덮는 상한 여유 — 이보다 미래의 기록 시각은 수신 시각으로 바뀌어 저장된다. */
-    private static final Duration FALLBACK_LOOKAHEAD = Duration.ofMinutes(10);
+    static final Duration MISS_LOOKBACK = RunPositionHistoryFallback.MISS_LOOKBACK;
 
     /** 받아들이지 못한 위치를 이유별로 세는 지표 이름 — 중복·과다 수신 차단({@code PositionIntakeGuard})도 같은 이름에 다른 이유로 센다. */
     public static final String DROPPED_METRIC = "schoolbus.location.position.dropped";
 
-    /** 비교 쓰기가 상한만큼 밀려 쓰지 못한 위치의 {@code reason} 값. */
-    private static final String WRITE_CONTENDED = "write_contended";
-
-    /** 쓰기 경합으로 비교 쓰기가 밀릴 때 읽기부터 다시 하는 상한 — 이 안에서 못 쓰면 더 새로운 값이 계속 들어오는 것이라 쓰지 않는다. */
-    private static final int WRITE_ATTEMPTS = 5;
-
-    /** 읽어 둔 값 그대로일 때만 덮어쓴다 — 읽기와 쓰기 사이에 다른 송신이 쓴 값을 지우지 않는다. 1 이면 썼다. */
-    private static final DefaultRedisScript<Long> REPLACE_IF_UNCHANGED = new DefaultRedisScript<>(
-            "local current = redis.call('GET', KEYS[1]) "
-                    + "if current == false then current = '' end "
-                    + "if current ~= ARGV[1] then return 0 end "
-                    + "redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) "
-                    + "return 1",
-            Long.class);
-
-    private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
-
     private final StringRedisTemplate stringRedisTemplate;
-
-    private final RunPositionRepository runPositionRepository;
-
-    private final RunStopRepository runStopRepository;
-
-    private final MeterRegistry meterRegistry;
 
     private final Clock clock;
 
-    /** 경합이 이어지면 송신마다 같은 일이 난다 — 분당 한 번만 남긴다. */
-    private final RateLimitedWarn writeContention = RateLimitedWarn.perMinute(
-            org.slf4j.LoggerFactory.getLogger(RunPositionStore.class));
+    private final RunPositionRedisWriter redisWriter;
+
+    private final RunPositionHistoryFallback historyFallback;
 
     /** Redis 가 죽으면 폴링마다 같은 실패가 난다 — 분당 한 번만 스택과 함께 남긴다. */
     private final RateLimitedWarn redisReadFailure = RateLimitedWarn.perMinute(
@@ -125,13 +72,23 @@ public class RunPositionStore {
      */
     private volatile Instant lastRedisFailureAt = Instant.MIN;
 
+    /** 스프링과 시험이 쓰는 생성자 — Redis 쓰기와 이력 대체는 같은 인자로 만든 보조 객체가 맡는다. */
+    public RunPositionStore(StringRedisTemplate stringRedisTemplate, RunPositionRepository runPositionRepository,
+            RunStopRepository runStopRepository, MeterRegistry meterRegistry, Clock clock) {
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.clock = clock;
+        this.redisWriter = new RunPositionRedisWriter(stringRedisTemplate, meterRegistry);
+        this.historyFallback = new RunPositionHistoryFallback(runPositionRepository, runStopRepository,
+                meterRegistry, clock);
+    }
+
     /**
      * 최신 좌표를 쓴다 — 이미 있는 값의 {@code recorded_at} 이 더 새로우면 쓰지 않고 {@code false} 다(늦게 커밋된 옛 위치가 버스를 되돌리지
      * 않게). 실패는 호출자에게 던진다(위치 수신 리스너가 삼키고 다음 송신에 맡긴다).
      */
     public boolean save(Long runId, RunPositionRedisValue value) {
         try {
-            return writeIfNewest(runId, value);
+            return redisWriter.writeIfNewest(runId, value);
         } catch (DataAccessException e) {
             lastRedisFailureAt = clock.instant();
             throw e;
@@ -144,36 +101,12 @@ public class RunPositionStore {
      */
     public Optional<RunPositionRedisValue> findAcceptedInRedis(Long runId) {
         try {
-            return parse(runId, stringRedisTemplate.opsForValue().get(keyOf(runId)));
+            return RunPositionRedisCodec.parse(runId, stringRedisTemplate.opsForValue().get(RunPositionRedisCodec.keyOf(runId)));
         } catch (DataAccessException e) {
             lastRedisFailureAt = clock.instant();
             redisReadFailure.warn(e, "[location] Redis 최신 좌표 읽기 실패 — 중복 판정 없이 받아들인다. runId={}", runId);
             return Optional.empty();
         }
-    }
-
-    private boolean writeIfNewest(Long runId, RunPositionRedisValue value) {
-        String key = keyOf(runId);
-        String json = JSON_MAPPER.writeValueAsString(value);
-        for (int attempt = 0; attempt < WRITE_ATTEMPTS; attempt++) {
-            String current = stringRedisTemplate.opsForValue().get(key);
-            if (isNewerThan(parse(runId, current), value)) {
-                return false;
-            }
-            Long replaced = stringRedisTemplate.execute(REPLACE_IF_UNCHANGED, List.of(key),
-                    current == null ? "" : current, json, String.valueOf(TTL.toSeconds()));
-            if (Long.valueOf(1).equals(replaced)) {
-                return true;
-            }
-        }
-        meterRegistry.counter(DROPPED_METRIC, "reason", WRITE_CONTENDED).increment();
-        writeContention.warn(null, "[location] Redis 최신 좌표 비교 쓰기가 {}번 밀려 이 위치를 쓰지 않는다(방송도 건너뛴다). runId={}",
-                WRITE_ATTEMPTS, runId);
-        return false;
-    }
-
-    private static boolean isNewerThan(Optional<RunPositionRedisValue> current, RunPositionRedisValue value) {
-        return current.isPresent() && current.get().recordedAt().toInstant().isAfter(value.recordedAt().toInstant());
     }
 
     /** 회차 1건의 최신 좌표 — 아직 없으면 빈 값. Redis 가 실패하면 DB 최신 행이다. */
@@ -192,33 +125,42 @@ public class RunPositionStore {
         List<Long> ids = List.copyOf(runIds);
         List<String> raws;
         try {
-            raws = stringRedisTemplate.opsForValue().multiGet(ids.stream().map(this::keyOf).toList());
+            raws = stringRedisTemplate.opsForValue().multiGet(ids.stream().map(RunPositionRedisCodec::keyOf).toList());
         } catch (DataAccessException e) {
             lastRedisFailureAt = clock.instant();
             redisReadFailure.warn(e, "[location] Redis 최신 좌표 읽기 실패 — run_position 최신 행으로 대체한다. runIds={}", ids);
-            return fromHistory(ids);
+            return historyFallback.fromHistory(ids);
         }
-        Map<Long, RunPositionRedisValue> positions = new HashMap<>();
-        List<Long> possiblyStale = new ArrayList<>();
-        List<Long> missing = new ArrayList<>();
+        return mergeWithHistory(classify(ids, raws));
+    }
+
+    /** Redis 에서 읽은 값을 그대로 쓸 것 · 낡았을 수 있어 이력으로 바꿀 것 · 키가 없는 것으로 가른다. */
+    private ReadResult classify(List<Long> ids, List<String> raws) {
+        ReadResult result = new ReadResult(new HashMap<>(), new ArrayList<>(), new ArrayList<>());
         for (int i = 0; i < ids.size(); i++) {
             Long runId = ids.get(i);
             if (raws.get(i) == null) {
-                missing.add(runId);
+                result.missing().add(runId);
             }
-            parse(runId, raws.get(i)).ifPresent(position -> {
+            RunPositionRedisCodec.parse(runId, raws.get(i)).ifPresent(position -> {
                 if (position.receivedAt().toInstant().isBefore(lastRedisFailureAt)) {
-                    possiblyStale.add(runId);
+                    result.possiblyStale().add(runId);
                 } else {
-                    positions.put(runId, position);
+                    result.positions().put(runId, position);
                 }
             });
         }
-        if (!possiblyStale.isEmpty()) {
-            positions.putAll(fromHistory(possiblyStale));
+        return result;
+    }
+
+    /** 낡았을 수 있는 회차와 키가 없는 회차를 이력 최신 행으로 채워 합친다. */
+    private Map<Long, RunPositionRedisValue> mergeWithHistory(ReadResult result) {
+        Map<Long, RunPositionRedisValue> positions = result.positions();
+        if (!result.possiblyStale().isEmpty()) {
+            positions.putAll(historyFallback.fromHistory(result.possiblyStale()));
         }
-        if (!missing.isEmpty()) {
-            positions.putAll(fromHistoryForMissing(missing));
+        if (!result.missing().isEmpty()) {
+            positions.putAll(historyFallback.fromHistoryForMissing(result.missing()));
         }
         return positions;
     }
@@ -233,71 +175,14 @@ public class RunPositionStore {
         return keys.size();
     }
 
-    /**
-     * Redis 는 살아 있는데 키가 없다 — 저장하지 않는 Redis 가 다시 시작하면 다음 송신이 키를 다시 쓸 때까지 운행 중 회차의 최신 좌표가 없다. 운행 중 회차의 최신 행을
-     * 위치가 낡았다고 보는 기준({@link #MISS_LOOKBACK}) 안에서만 DB 에서 읽는다. 키가 없는 회차가 있을 때만 한 번(회차 수와 무관) 불리고, 행이 없으면 빈 값 그대로다.
-     */
-    private Map<Long, RunPositionRedisValue> fromHistoryForMissing(List<Long> runIds) {
-        meterRegistry.counter(MISS_FALLBACK_METRIC).increment();
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        return withCurrentStopNames(runPositionRepository.findLatestMovingByRunIdIn(runIds, now.minus(MISS_LOOKBACK),
-                now.plus(FALLBACK_LOOKAHEAD)));
-    }
-
-    private Map<Long, RunPositionRedisValue> fromHistory(List<Long> runIds) {
-        meterRegistry.counter(FALLBACK_METRIC).increment();
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        return withCurrentStopNames(runPositionRepository.findLatestByRunIdIn(runIds, now.minus(FALLBACK_LOOKBACK),
-                now.plus(FALLBACK_LOOKAHEAD)));
-    }
-
-    /**
-     * 이력 행을 Redis 값과 같은 형태로 바꾼다. 현재 정차지 이름은 이력 행에 없어 정차 항목에서 구한다 — 위치 송신이 Redis 값을 쓸 때와
-     * 같은 규칙({@link CurrentRunStopResolver})이고, 회차 수와 무관하게 조회 한 번이다. 행이 없으면 읽지 않는다.
-     */
-    private Map<Long, RunPositionRedisValue> withCurrentStopNames(List<RunPosition> rows) {
-        if (rows.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, List<RunStopNameView>> stopsByRunId = runStopRepository
-                .findStopNamesByRunIdIn(rows.stream().map(RunPosition::getRunId).toList()).stream()
-                .collect(Collectors.groupingBy(RunStopNameView::runId));
-        Map<Long, RunPositionRedisValue> positions = new HashMap<>();
-        for (RunPosition row : rows) {
-            String currentStopName = CurrentRunStopResolver.resolve(
-                            stopsByRunId.getOrDefault(row.getRunId(), List.of()), RunStopNameView::seq, RunStopNameView::arrivedAt)
-                    .map(RunStopNameView::name).orElse(null);
-            positions.put(row.getRunId(), new RunPositionRedisValue(row.getLat(), row.getLng(), row.getRecordedAt(),
-                    row.getReceivedAt(), currentStopName));
-        }
-        return positions;
-    }
-
-    /** 형식이 틀린 값은 없는 것으로 본다 — 다음 송신이 덮어쓴다. */
-    private Optional<RunPositionRedisValue> parse(Long runId, String raw) {
-        if (raw == null || raw.isBlank()) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(JSON_MAPPER.readValue(raw, RunPositionRedisValue.class));
-        } catch (RuntimeException e) {
-            log.warn("[location] 회차 {} 최신 좌표 값 파싱 실패 — 없는 것으로 본다", runId, e);
-            return Optional.empty();
-        }
-    }
-
-    private String keyOf(Long runId) {
-        return KEY_FORMAT.formatted(runId);
-    }
-
-    /** 대체가 한 번도 없는 기동 직후에도 이름이 0 으로 노출되도록 미리 등록한다(BR-167, TECH_DECISIONS §14.2). */
+    /** 지표 이름을 기동 직후에도 0 으로 노출되도록 미리 등록한다(BR-167, TECH_DECISIONS §14.2). */
     @PostConstruct
     void registerMetrics() {
-        Counter.builder(FALLBACK_METRIC).description("Redis 장애로 최신 좌표를 DB 이력 최신 행으로 대체 조회한 횟수")
-                .register(meterRegistry);
-        Counter.builder(DROPPED_METRIC).tag("reason", WRITE_CONTENDED)
-                .description("받아들이지 못한 위치 수 — 이유별(중복·과다 수신, 비교 쓰기 경합)").register(meterRegistry);
-        Counter.builder(MISS_FALLBACK_METRIC).description("Redis 는 살아 있는데 운행 중 회차의 키가 비어 DB 최신 행으로 채운 읽기 횟수")
-                .register(meterRegistry);
+        historyFallback.registerMetrics();
+        redisWriter.registerMetrics();
+    }
+
+    /** {@link #classify} 결과 — 읽은 값 그대로 쓸 위치 · 낡았을 수 있는 회차 · 키가 없는 회차. */
+    private record ReadResult(Map<Long, RunPositionRedisValue> positions, List<Long> possiblyStale, List<Long> missing) {
     }
 }
