@@ -24,11 +24,11 @@ import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.student.access.RouteStopSource;
-import src.backend.student.access.StudentDailyStop;
 import src.backend.student.access.StudentRunResolver;
 import src.backend.student.access.StudentRunsAccess;
 import src.backend.student.dto.StudentRouteResponse;
 import src.backend.student.entity.Student;
+import src.backend.student.projection.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**

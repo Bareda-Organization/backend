@@ -34,8 +34,8 @@ import src.backend.run.dto.StaffRunRouteResponse.Ack;
 import src.backend.run.entity.Run;
 import src.backend.student.access.DailyStopLookup;
 import src.backend.student.entity.Stop;
+import src.backend.student.projection.StudentDailyStop;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.access.StudentDailyStop;
 
 /**
  * 확정 전(idle) 회차의 예정 경로를 고정 노선에서 계산해 §5.19 응답으로 조립한다.

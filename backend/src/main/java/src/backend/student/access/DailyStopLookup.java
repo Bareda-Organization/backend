@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
+import src.backend.student.projection.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 import src.backend.student.repository.WeeklyAddressRepository.StopRiderCount;
 

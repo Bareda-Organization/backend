@@ -32,7 +32,7 @@ import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunTransferRepository;
 import src.backend.student.access.DailyStopLookup;
-import src.backend.student.access.StudentDailyStop;
+import src.backend.student.projection.StudentDailyStop;
 
 /**
  * 같은 학원 회차 묶음의 예정 명단 재료({@link RosterSources})를 <b>회차 수와 무관한 조회 횟수</b>로 읽는다(DA-7) — 노선 · 노선 정차지 · 요일별 주소(방향별) · 탑승 의사 · 승인된 변경 · 강제 추가 · 이동을

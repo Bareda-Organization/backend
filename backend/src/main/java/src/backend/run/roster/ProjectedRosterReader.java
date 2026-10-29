@@ -23,7 +23,7 @@ import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunTransferRepository;
 import src.backend.student.access.DailyStopLookup;
-import src.backend.student.access.StudentDailyStop;
+import src.backend.student.projection.StudentDailyStop;
 
 /**
  * 확정 전(idle) 회차의 예정 명단 — 확정 배치(RTE-08)가 그 회차 {@code run_rider} 에 싣는 규칙 한 벌.
