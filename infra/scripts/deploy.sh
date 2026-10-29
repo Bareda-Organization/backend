@@ -35,6 +35,13 @@ use_image_tag() {
     mv "$ENV_FILE.tmp" "$ENV_FILE"
 }
 
+restore_previous_tag() {
+    # 컨테이너를 건드리기 전에 멈춘 배포가 .env 를 새(받지 않은) 태그로 남기지 않게 직전 태그로 되돌린다 — 백업 크론 등 .env 를 읽는 쪽이 없는 이미지를 가리키지 않게 한다.
+    if [[ -n "$PREVIOUS_TAG" ]]; then
+        use_image_tag "$PREVIOUS_TAG"
+    fi
+}
+
 get_param() {
     # 조회 실패(비영 종료코드) 또는 빈 값/"None" 이면 어떤 파라미터인지 stderr 에
     # 찍고 실패로 리턴한다. 호출부가 반드시 단독 대입문(`X="$(get_param ...)"`)으로
@@ -286,18 +293,27 @@ fi
 
 echo "== 1-2. 배포 게이트 — 운행 중(moving) 회차 확인 =="
 # 이미지를 받기 전에 막는다 — pull 뒤에 걸면 새 이미지만 낭비되고 판단은 똑같이 늦다.
-# set -e 라 게이트가 exit 1 이면 여기서 스크립트가 즉시 죽는다(§14.3, moving 회차 강제 종료 금지).
-"$SCRIPT_DIR/deploy-gate.sh" "$APP_DIR/docker-compose.prod.yml" "$ENV_FILE"
+# 게이트가 막으면(운행 중 회차가 있거나 세지 못했다) 종료 코드를 그대로 돌려주되, 받지도 않은 새 태그를 .env 에 남기지 않는다(§14.3, moving 회차 강제 종료 금지).
+gate_status=0
+"$SCRIPT_DIR/deploy-gate.sh" "$APP_DIR/docker-compose.prod.yml" "$ENV_FILE" || gate_status=$?
+if (( gate_status != 0 )); then
+    echo "배포 중단 — 배포 게이트가 멈췄다. 컨테이너는 건드리지 않았고 .env 는 직전 태그로 되돌린다." >&2
+    restore_previous_tag
+    exit "$gate_status"
+fi
 
 echo "== 2. ECR 로그인 후 새 이미지 수신 =="
-ECR_REGISTRY="$(get_param ECR_REGISTRY)"
-aws ecr get-login-password --region "$AWS_REGION" \
-    | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+if ! { ECR_REGISTRY="$(get_param ECR_REGISTRY)" && aws ecr get-login-password --region "$AWS_REGION" \
+        | docker login --username AWS --password-stdin "$ECR_REGISTRY"; }; then
+    echo "배포 실패 — 레지스트리 로그인에 실패했다. 컨테이너는 건드리지 않았다." >&2
+    restore_previous_tag
+    exit 1
+fi
 
 if ! $COMPOSE pull backend; then
-    # 컨테이너는 아직 건드리지 않았다 — .env 의 태그만 받지 못한 새 태그에서 직전 태그로 되돌린다(백업 크론 등 .env 를 읽는 쪽이 없는 이미지를 가리키지 않게).
+    # 컨테이너는 아직 건드리지 않았다 — .env 의 태그만 받지 못한 새 태그에서 직전 태그로 되돌린다.
     echo "배포 실패 — 새 이미지($IMAGE_TAG)를 받지 못했다. 컨테이너는 건드리지 않았다." >&2
-    [[ -n "$PREVIOUS_TAG" ]] && use_image_tag "$PREVIOUS_TAG"
+    restore_previous_tag
     exit 1
 fi
 
@@ -305,7 +321,7 @@ fi
 # 매 배포 멱등하게 소유자를 맞춘다. 컨테이너는 권한(capability)을 전부 버리고 도므로 chown 에 필요한 CHOWN 만 이 일회용 실행에 더한다.
 if ! $COMPOSE run --rm --no-deps -T --user root --cap-add CHOWN --entrypoint chown backend -R 10001:10001 /app/var/photos; then
     echo "배포 실패 — 사진 폴더의 소유자를 맞추지 못했다. 컨테이너는 건드리지 않았다." >&2
-    [[ -n "$PREVIOUS_TAG" ]] && use_image_tag "$PREVIOUS_TAG"
+    restore_previous_tag
     exit 1
 fi
 

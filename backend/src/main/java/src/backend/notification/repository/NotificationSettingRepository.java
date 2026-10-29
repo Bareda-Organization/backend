@@ -1,8 +1,12 @@
 package src.backend.notification.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
+
+import jakarta.persistence.LockModeType;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,4 +37,14 @@ public interface NotificationSettingRepository extends JpaRepository<Notificatio
             ON CONFLICT (account_id) DO NOTHING
             """, nativeQuery = true)
     int createIfAbsent(@Param("accountId") Long accountId, @Param("now") OffsetDateTime now);
+
+    /**
+     * 설정 행을 <b>행 잠금</b>으로 읽는다 — 부분 변경은 읽은 행에 보낸 토글만 얹어 쓰는데, 변경 감지는 세 토글 열을 모두 쓰므로 같은 계정의 서로 다른 토글 변경 두 건이 잠금 없이 겹치면
+     * 한쪽이 다른 쪽의 옛 값을 되써 변경이 사라진다. 잠그면 뒤 요청이 앞 요청의 커밋을 본 뒤 읽는다.
+     */
+    @AcademyScopeExempt(reason = "§3.14 본인 설정 — notification_setting 은 account 부모 경유라 계정이 곧 학원 범위이고, 호출부가 토큰의 "
+            + "accountId 만 넘긴다는 전제 — 요청 파라미터의 accountId 를 넘기면 이 예외가 우회로가 된다")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM NotificationSetting s WHERE s.accountId = :accountId")
+    Optional<NotificationSetting> findLockedById(@Param("accountId") Long accountId);
 }

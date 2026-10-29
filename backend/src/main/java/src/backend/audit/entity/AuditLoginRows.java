@@ -3,6 +3,8 @@ package src.backend.audit.entity;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
+import src.backend.account.entity.LoginIdFormat;
+
 /**
  * 로그인 · 계정 관리 감사 행의 팩토리(SYS-02 · AUTH-06 · API_SPEC §5.22) — {@link AuditLog} 의 같은 이름 팩토리가 이 클래스로 위임한다. 행은
  * 행위자 스냅샷(학원 · 계정 · 로그인 아이디 · IP)과 시각을 값으로 받는 불변 기록이다.
@@ -77,26 +79,15 @@ final class AuditLoginRows {
         return log;
     }
 
-    /** {@code actor_login_id} 컬럼 길이 — {@code account.login_id} 와 같다. */
-    private static final int ACTOR_LOGIN_ID_MAX_LENGTH = 50;
-
-    /** 앞 {@code max} 글자 — 컬럼은 문자 수로 세므로 서로게이트 쌍을 가르지 않게 코드포인트 단위로 자른다. */
-    private static String firstCodePoints(String value, int max) {
-        if (value == null || value.codePointCount(0, value.length()) <= max) {
-            return value;
-        }
-        return value.substring(0, value.offsetByCodePoints(0, max));
-    }
-
     /**
      * 로그인 실패(SYS-02 · API_SPEC §2.5) — 비밀번호 불일치와 <b>존재하지 않는 로그인 아이디</b> 둘 다
      * 이 팩토리를 쓴다. ERD §3.4 이 {@code actor_account_id} 설명에 "로그인 실패는 계정 미확정
      * 가능성 존재" 라고 명시해, 계정을 특정하지 못한 실패도 기록 대상임을 전제한다 — 그 경우
      * {@code actorAccountId} 는 {@code null}, {@code targetId} 도 {@code null} 이고
      * {@code actorLoginId} 에는 시도된 문자열이 남는다(계정이 없어도 "누가 무엇으로
-     * 시도했는지"는 감사 대상이다. 단 등록되지 않은 아이디는 호출부가 가입 아이디 형식에 맞는 입력만 넘기고 그 밖은 {@code null} 을 넘긴다 —
-     * 아이디 칸에 잘못 넣은 비밀번호가 2년 보존되지 않게 한다, Ruling 937) — 컬럼이 {@code varchar(50)} 이라 <b>앞 50자까지만</b> 남긴다. 등록될 수 없는
-     * 긴 아이디를 그대로 넣으면 저장이 실패해 로그인 응답이 {@code 500} 이 된다(BR-216).
+     * 시도했는지"는 감사 대상이다. 단 등록되지 않은 아이디({@code actorAccountId} 가 {@code null})는 가입 아이디 형식({@link LoginIdFormat})에 맞을 때만 남기고 그 밖은
+     * {@code null} 로 바꾼다 — 아이디 칸에 잘못 넣은 비밀번호가 2년 보존되지 않게 한다, Ruling 937. 형식이 최대 50자라 {@code varchar(50)} 컬럼을 넘기지 않아
+     * 저장이 실패해 로그인 응답이 {@code 500} 이 되는 일(BR-216)도 같은 규칙이 막는다).
      *
      * <p><b>차단된 계정의 대조 전 거부는 이 팩토리를 부르지 않는다</b>(Ruling 242 — 카운터도 안
      * 오르는 시도이므로 감사 이력에도 남기지 않는다. 심을 변형 4가 바로 이 경계를 시험한다).
@@ -106,7 +97,7 @@ final class AuditLoginRows {
         AuditLog log = new AuditLog(AuditCategory.LOGIN, AuditAction.LOGIN_FAIL, occurredAt);
         log.academyId = academyId;
         log.actorAccountId = actorAccountId;
-        log.actorLoginId = firstCodePoints(actorLoginId, ACTOR_LOGIN_ID_MAX_LENGTH);
+        log.actorLoginId = actorAccountId == null && !LoginIdFormat.matches(actorLoginId) ? null : actorLoginId;
         log.targetType = TARGET_TYPE_ACCOUNT;
         log.targetId = actorAccountId;
         log.ip = ip;

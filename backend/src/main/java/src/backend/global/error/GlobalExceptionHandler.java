@@ -8,12 +8,12 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
-
 
 import src.backend.global.response.ErrorResponse;
 import src.backend.routing.map.spec.MapRouteUnavailableException;
@@ -117,8 +117,10 @@ public class GlobalExceptionHandler extends RequestExceptionHandlers {
             return handleUnexpected(e);
         }
         log.warn("[request] {} {}", e.getClass().getSimpleName(), e.getMessage());
+        // 필수 헤더가 빠졌으면 어느 헤더인지 알린다 — 누락된 요청 파라미터가 이름을 알리는 것과 같다
+        String message = e instanceof MissingRequestHeaderException header ? header.getHeaderName() + " 헤더가 필요합니다" : code.getMessage();
         return ResponseEntity.status(code.getStatus()).headers(carrier.getHeaders()).contentType(MediaType.APPLICATION_JSON)
-                .body(ErrorResponse.of(code.name(), code.getMessage()));
+                .body(ErrorResponse.of(code.name(), message));
     }
 
     /** 클라이언트에겐 상세를 감추되, 서버 로그엔 스택트레이스를 남겨야 원인 추적이 가능하다. */

@@ -181,15 +181,16 @@ public abstract class AccountState extends BaseTimeEntity {
     }
 
     /**
-     * 퇴원 보존 익명화가 계정을 {@code blocked} 로 옮긴다 — 차단 직전 상태를 남겨 {@code ck_account_status_before_block_pair} 를 지키고,
-     * 이미 차단된 계정은 상태 · 직전 상태 · 차단 사유를 그대로 둔다.
+     * 퇴원 보존 익명화가 계정을 {@code blocked} 로 옮긴다 — 차단 직전 상태를 남겨 {@code ck_account_status_before_block_pair} 를 지킨다. 차단 사유는 언제나
+     * 보존 파기 사유로 쓴다: 사유가 차단 목록 · 건수에서 익명화 계정을 빼고 해제를 막는 유일한 표지라, 로그인 실패로 먼저 차단된 계정도 사유를 덮어야 목록에 남지 않는다.
+     * 이미 차단된 계정의 상태 · 직전 상태 · 차단 시각은 그대로 둔다.
      */
     void blockForRetention(OffsetDateTime at) {
         if (status != AccountStatus.BLOCKED) {
             this.statusBeforeBlock = status;
             this.status = AccountStatus.BLOCKED;
             this.blockedAt = at;
-            this.blockReason = RETENTION_BLOCK_REASON;
         }
+        this.blockReason = RETENTION_BLOCK_REASON;
     }
 }

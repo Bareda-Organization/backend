@@ -969,8 +969,9 @@ CREATE INDEX ix_stop_academy_coord ON stop (academy_id, lat, lng);
 CREATE INDEX ix_guardian_student_student ON guardian_student (student_id);
 
 -- 인증 없이 부르는 계정 복구(§2.9)의 번호 조회 — 인덱스가 없던 때는 요청 하나가 두 표를 4번 순차 스캔했다(R46 I-01).
+-- 조회는 저장된 표기와 무관하게 하이픈을 뺀 숫자로 비교하므로(replace(phone, '-', '')) 칸 그대로의 인덱스로는 받지 못한다 — 같은 식의 표현식 인덱스다.
 -- phone 은 거의 바뀌지 않아 account 갱신의 HOT 비율을 깨지 않는다.
-CREATE INDEX ix_account_phone ON account (phone);
+CREATE INDEX ix_account_phone ON account ((replace(phone, '-', '')));
 CREATE INDEX ix_verification_code_phone_created ON verification_code (phone, created_at DESC);
 
 -- 조회 조건 컬럼 인덱스(BR-258) — 없으면 전 테이블 순차 스캔이다.
