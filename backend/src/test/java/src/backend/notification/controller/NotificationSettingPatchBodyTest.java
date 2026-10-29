@@ -1,10 +1,13 @@
 package src.backend.notification.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static testsupport.auth.TestTokens.토큰;
+
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,6 +71,17 @@ class NotificationSettingPatchBodyTest {
     @Test
     void 빈_본문은_바꿀_것이_없어_200_이다() throws Exception {
         변경("{}").andExpect(status().isOk());
+    }
+
+    @Test
+    void API_문서의_요청_스키마에는_세_항목만_나온다() throws Exception {
+        String docs = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+
+        Map<String, Object> properties = JsonPath.read(docs,
+                "$.components.schemas.NotificationSettingUpdateRequest.properties");
+        assertThat(properties.keySet()).as("요청 본문 키 — 대상 밖 키를 모으는 내부 칸이 문서에 나오면 안 된다")
+                .containsExactlyInAnyOrder("arrive", "boarding", "no_show");
     }
 
     private ResultActions 변경(String body) throws Exception {

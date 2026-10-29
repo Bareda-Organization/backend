@@ -1,7 +1,6 @@
 package src.backend.student.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -9,9 +8,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
@@ -34,16 +36,35 @@ class StopSearchQueryServiceTest {
         GeocodingClient geocodingClient = mock(GeocodingClient.class);
         PlaceSearchClient placeSearchClient = mock(PlaceSearchClient.class);
         StopRepository stopRepository = mock(StopRepository.class);
-        given(placeSearchClient.search("테헤란")).willReturn(IntStream.range(0, 5)
-                .mapToObj(i -> new PlaceSearchClient.FoundPlace("장소" + i, point(i))).toList());
-        given(geocodingClient.candidates("테헤란")).willReturn(IntStream.range(0, 10).mapToObj(i -> point(10 + i))
-                .toList());
+        List<PlaceSearchClient.FoundPlace> places = IntStream.range(0, 5)
+                .mapToObj(i -> new PlaceSearchClient.FoundPlace("장소" + i, point(i))).toList();
+        List<GeocodedPoint> candidates = IntStream.range(0, 10).mapToObj(i -> point(10 + i)).toList();
+        given(placeSearchClient.search("테헤란")).willReturn(places);
+        given(geocodingClient.candidates("테헤란")).willReturn(candidates);
         StopSearchQueryService service = new StopSearchQueryService(stopRepository, geocodingClient,
                 placeSearchClient);
 
         assertThat(service.suggest(new AuthUser(2L, 1L, Role.STAFF, AccountStatus.ACTIVE), "테헤란").items())
                 .hasSize(10);
-        verify(stopRepository, times(1)).findNearby(anyLong(), any(), any(), any(), any());
+        ArgumentCaptor<BigDecimal> minLat = ArgumentCaptor.forClass(BigDecimal.class);
+        ArgumentCaptor<BigDecimal> maxLat = ArgumentCaptor.forClass(BigDecimal.class);
+        ArgumentCaptor<BigDecimal> minLng = ArgumentCaptor.forClass(BigDecimal.class);
+        ArgumentCaptor<BigDecimal> maxLng = ArgumentCaptor.forClass(BigDecimal.class);
+        verify(stopRepository, times(1)).findNearby(anyLong(), minLat.capture(), maxLat.capture(), minLng.capture(),
+                maxLng.capture());
+        List<GeocodedPoint> shown = Stream.concat(places.stream().map(PlaceSearchClient.FoundPlace::point),
+                candidates.stream().limit(5)).toList();
+        List<GeocodedPoint> cutOff = candidates.subList(5, candidates.size());
+        assertThat(shown).as("보여 줄 후보는 모두 질의 범위 안이다").allSatisfy(point -> assertThat(inRange(point, minLat, maxLat,
+                minLng, maxLng)).isTrue());
+        assertThat(cutOff).as("상한에서 잘린 후보는 질의 범위 밖이다").allSatisfy(point -> assertThat(inRange(point, minLat,
+                maxLat, minLng, maxLng)).isFalse());
+    }
+
+    private static boolean inRange(GeocodedPoint point, ArgumentCaptor<BigDecimal> minLat,
+            ArgumentCaptor<BigDecimal> maxLat, ArgumentCaptor<BigDecimal> minLng, ArgumentCaptor<BigDecimal> maxLng) {
+        return point.lat().compareTo(minLat.getValue()) >= 0 && point.lat().compareTo(maxLat.getValue()) <= 0
+                && point.lng().compareTo(minLng.getValue()) >= 0 && point.lng().compareTo(maxLng.getValue()) <= 0;
     }
 
     private static GeocodedPoint point(int i) {
