@@ -32,10 +32,8 @@ import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.command.NoShowCaseAccess;
 import src.backend.exception.dto.NoShowCaseView;
 import src.backend.global.common.enums.Direction;
-import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.security.AuthUser;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -114,8 +112,8 @@ public class BoardingCommandService {
     /** 회차 행 잠금 — 모든 쓰기 경로가 탑승자 · 승하차지 행보다 먼저 쥐는 잠금 순서의 진입점이다({@link RunRowLock}). */
     private final RunRowLock runRowLock;
 
-    /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
-    private final ClientKeyLock clientKeyLock;
+    /** 같은 {@code client_key} 재전송의 키 잠금 · 이전 처리 조회 절차(BR-226). */
+    private final ClientKeyReplay clientKeyReplay;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -130,15 +128,16 @@ public class BoardingCommandService {
     @Transactional
     public RiderStatusUpdateResponse updateStatus(AuthUser requester, Long runId, Long riderId,
             RiderStatusUpdateRequest request) {
-        requireEscort(requester);
+        EscortGuard.require(requester);
         runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
 
-        clientKeyLock.acquire(request.clientKey());
-        Optional<RiderStatusHistory> replay = riderStatusHistoryRepository.findByClientKey(request.clientKey());
-        if (replay.isPresent()) {
-            return replayResponse(assertSameRequest(replay.get(), runId, riderId, request.status()));
+        Optional<RiderStatusUpdateResponse> replayed = clientKeyReplay.replay(request.clientKey(),
+                riderStatusHistoryRepository::findByClientKey,
+                history -> replayResponse(history, runId, riderId, request.status()));
+        if (replayed.isPresent()) {
+            return replayed.get();
         }
 
         runRowLock.acquire(run);
@@ -197,7 +196,7 @@ public class BoardingCommandService {
      */
     @Transactional
     public RiderRevertResponse revert(AuthUser requester, Long runId, Long riderId, RiderRevertRequest request) {
-        requireEscort(requester);
+        EscortGuard.require(requester);
         runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
@@ -229,13 +228,6 @@ public class BoardingCommandService {
                 rider.getStudentId(), rider.getId(), statusName(targetStatus), now, true));
 
         return new RiderRevertResponse(statusName(targetStatus), now);
-    }
-
-    /** C-06 — 동승자가 아니면 회차·탑승자 조회보다 먼저 걸린다(다른 학원 자원 존재 여부를 흘리지 않기 위해서도 그렇다). */
-    private void requireEscort(AuthUser requester) {
-        if (requester.role() != Role.ESCORT) {
-            throw new BusinessException(ErrorCode.ESCORT_ONLY);
-        }
     }
 
     /**
@@ -372,35 +364,35 @@ public class BoardingCommandService {
      * 대조 책임이 서비스에 있다({@code RiderStatusHistoryRepository} 예외 사유). 같은 회차의 같은 탑승자·같은
      * 상태가 아니면 키가 다른 처리에 재사용된 것이라, 남의 결과를 돌려주고 새 처리를 버리는 대신 422 로 거절한다.
      */
-    private RiderStatusHistory assertSameRequest(RiderStatusHistory history, Long runId, Long riderId,
-            String status) {
+    private RunRider assertSameRequest(RiderStatusHistory history, Long runId, Long riderId, String status) {
+        Optional<RunRider> rider = runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT);
         boolean sameRequest = history.getRunRiderId().equals(riderId)
-                && history.getToStatus() == parseTargetStatus(status)
-                && runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT).isPresent();
+                && history.getToStatus() == parseTargetStatus(status) && rider.isPresent();
         if (!sameRequest) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
-        return history;
+        return rider.get();
     }
 
     /**
      * 재전송 응답 재구성 — 새로 아무것도 만들지 않고 최초 처리 결과를 그대로 옮긴다.
-     * {@code no_show_case} 는 최초 처리 때 만들어진 케이스를 다시 찾아 싣는다.
+     * {@code no_show_case} 는 최초 처리 때 만들어진 케이스를 다시 찾아 싣고, {@code stop_skipped} 는 그 승하차지의 건너뜀 표시를 다시 읽어 싣는다.
      */
-    private RiderStatusUpdateResponse replayResponse(RiderStatusHistory history) {
+    private RiderStatusUpdateResponse replayResponse(RiderStatusHistory history, Long runId, Long riderId,
+            String status) {
+        RunRider rider = assertSameRequest(history, runId, riderId, status);
         RiderStatus toStatus = history.getToStatus();
         if (toStatus != RiderStatus.NO_SHOW) {
-            return RiderStatusUpdateResponse.of(history.getRunRiderId(), statusName(toStatus),
-                    history.getChangedAt(), false);
+            return RiderStatusUpdateResponse.of(rider.getId(), statusName(toStatus), history.getChangedAt(), false);
         }
-        return noShowCaseAccess.find(history.getRunRiderId())
-                .map(noShowCase -> RiderStatusUpdateResponse.withNoShowCase(history.getRunRiderId(),
-                        history.getChangedAt(),
-                        new RiderStatusUpdateResponse.NoShowCaseSummary(noShowCase.caseId(),
-                                noShowCase.startedAt(), noShowCase.expiresAt(), noShowCase.contacts()),
-                        false))
-                .orElseGet(() -> RiderStatusUpdateResponse.of(history.getRunRiderId(), statusName(toStatus),
-                        history.getChangedAt(), false));
+        boolean stopSkipped = stopSkipJudge.isSkipped(runId, rider.getStopId());
+        return noShowCaseAccess.find(rider.getId())
+                .map(noShowCase -> RiderStatusUpdateResponse.withNoShowCase(rider.getId(), history.getChangedAt(),
+                        new RiderStatusUpdateResponse.NoShowCaseSummary(noShowCase.caseId(), noShowCase.startedAt(),
+                                noShowCase.expiresAt(), noShowCase.contacts()),
+                        stopSkipped))
+                .orElseGet(() -> RiderStatusUpdateResponse.of(rider.getId(), statusName(toStatus),
+                        history.getChangedAt(), stopSkipped));
     }
 
     /** {@code boarded} · {@code no_show} · {@code alighted} 셋만 허용한다(API_SPEC §4.6 요청 표) — 그 외는 422. */

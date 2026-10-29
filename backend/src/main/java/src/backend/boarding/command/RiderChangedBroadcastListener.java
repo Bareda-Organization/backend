@@ -57,9 +57,8 @@ public class RiderChangedBroadcastListener {
     }
 
     private void deliverRiderStatusChangedEvent(RiderStatusChangedEvent event) {
-        String studentName = studentRepository.findById(event.studentId())
-                .map(student -> student.getName())
-                .orElse(null);
+        String studentName = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(), List.of(event.studentId())).stream()
+                .findFirst().map(student -> student.getName()).orElse(null);
         Long stopId = runRiderRepository.findByRunIdAndStudentId(event.runId(), event.studentId())
                 .map(rider -> rider.getStopId())
                 .orElse(null);
@@ -84,9 +83,8 @@ public class RiderChangedBroadcastListener {
     }
 
     private void deliverRiderMarkedNoShowEvent(RiderMarkedNoShowEvent event) {
-        String studentName = studentRepository.findById(event.studentId())
-                .map(student -> student.getName())
-                .orElse(null);
+        String studentName = studentRepository.findAllByAcademyIdAndIdIn(event.academyId(), List.of(event.studentId())).stream()
+                .findFirst().map(student -> student.getName()).orElse(null);
         Counts counts = countsOf(event.runId());
 
         Payload payload = new Payload(event.runRiderId(), event.studentId(), studentName, "no_show", event.stopId(),

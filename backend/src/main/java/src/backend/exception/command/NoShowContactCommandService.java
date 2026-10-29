@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.boarding.command.ClientKeyReplay;
+import src.backend.boarding.command.EscortGuard;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
@@ -22,10 +24,8 @@ import src.backend.exception.entity.NoShowContact;
 import src.backend.exception.entity.NoShowDecision;
 import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.exception.repository.NoShowContactRepository;
-import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.security.AuthUser;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
@@ -59,8 +59,8 @@ public class NoShowContactCommandService {
 
     private final Clock clock;
 
-    /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
-    private final ClientKeyLock clientKeyLock;
+    /** 같은 {@code client_key} 재전송의 키 잠금 · 이전 처리 조회 절차(BR-226). */
+    private final ClientKeyReplay clientKeyReplay;
 
     /**
      * 연락 시도 1회를 기록한다 — {@code result=answered} 면 카운트다운을 멈추고({@code resolveByAnswer}),
@@ -71,16 +71,15 @@ public class NoShowContactCommandService {
     @Transactional
     public NoShowContactResponse recordAttempt(AuthUser requester, Long runId, Long riderId,
             NoShowContactRequest request) {
-        requireEscort(requester);
+        EscortGuard.require(requester);
         runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        if (request.clientKey() != null) {
-            clientKeyLock.acquire(request.clientKey());
-            Optional<NoShowContact> replay = noShowContactRepository.findByClientKey(request.clientKey());
-            if (replay.isPresent()) {
-                return replayResponse(replay.get(), runId, riderId, request);
-            }
+        Optional<NoShowContactResponse> replayed = clientKeyReplay.replay(request.clientKey(),
+                noShowContactRepository::findByClientKey,
+                existing -> replayResponse(existing, runId, riderId, request));
+        if (replayed.isPresent()) {
+            return replayed.get();
         }
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
@@ -91,7 +90,7 @@ public class NoShowContactCommandService {
         if (rider.getStatus() != RiderStatus.NO_SHOW) {
             throw new BusinessException(ErrorCode.NO_SHOW_CASE_NOT_FOUND);
         }
-        NoShowCase noShowCase = noShowCaseRepository.findByRunRiderId(rider.getId())
+        NoShowCase noShowCase = noShowCaseRepository.findLockedByRunRiderId(rider.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NO_SHOW_CASE_NOT_FOUND));
 
         ContactAttemptType attemptType = parseAttemptType(request.attemptType());
@@ -132,13 +131,6 @@ public class NoShowContactCommandService {
         return new NoShowContactResponse(noShowCase.getId(), lower(existing.getAttemptType()),
                 lower(existing.getResult()), existing.getDecision() == null ? null : lower(existing.getDecision()),
                 existing.getAttemptedAt(), noShowCase.getResolvedAt(), true);
-    }
-
-    /** C-06 과 같은 근거 — 동승자가 아니면 회차·탑승자 조회보다 먼저 걸린다. */
-    private void requireEscort(AuthUser requester) {
-        if (requester.role() != Role.ESCORT) {
-            throw new BusinessException(ErrorCode.ESCORT_ONLY);
-        }
     }
 
     /** §4.8 표가 허용하는 값은 {@code call} · {@code message} 뿐 — 그 외는 422. */

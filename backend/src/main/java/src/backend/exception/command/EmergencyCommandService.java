@@ -23,6 +23,7 @@ import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
+import src.backend.boarding.command.ClientKeyReplay;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.dto.EmergencyAckResponse;
 import src.backend.exception.dto.EmergencyCancelResponse;
@@ -38,7 +39,6 @@ import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.global.persistence.ClientKeyLock;
 import src.backend.global.security.AuthUser;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
@@ -78,8 +78,8 @@ public class EmergencyCommandService {
 
     private final RunAssignmentAccess runAssignmentAccess;
 
-    /** 같은 {@code client_key} 의 동시 재전송을 직렬화한다(BR-226). */
-    private final ClientKeyLock clientKeyLock;
+    /** 같은 {@code client_key} 재전송의 키 잠금 · 이전 처리 조회 절차(BR-226). */
+    private final ClientKeyReplay clientKeyReplay;
 
     private final ManagerRepository managerRepository;
 
@@ -109,6 +109,15 @@ public class EmergencyCommandService {
         return transactionTemplate.execute(status -> persistRaise(requester, runId, request, cachedPosition));
     }
 
+    /** 같은 키 재전송 — 같은 회차 · 같은 종류일 때만 최초 접수 결과를 돌려주고, 아니면 422 로 거절한다(BR-078). */
+    private EmergencyRaiseResponse replayResponse(EmergencyAlert existing, Long runId, EmergencyRaiseRequest request) {
+        if (!existing.getRunId().equals(runId) || existing.getType() != parseType(request.type())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
+        return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
+                existing.cancelableUntil(), notifiedCount(existing.getAcademyId()), true);
+    }
+
     /** 접수의 DB 구간 — 배치·회차 확인 · 재전송 재생 · 신고 저장 · 이벤트 발행이 한 트랜잭션이다. */
     private EmergencyRaiseResponse persistRaise(AuthUser requester, Long runId, EmergencyRaiseRequest request,
             Optional<RunPositionRedisValue> cachedPosition) {
@@ -119,15 +128,10 @@ public class EmergencyCommandService {
             throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
         }
 
-        clientKeyLock.acquire(request.clientKey());
-        Optional<EmergencyAlert> replay = emergencyAlertRepository.findByClientKey(request.clientKey());
-        if (replay.isPresent()) {
-            EmergencyAlert existing = replay.get();
-            if (!existing.getRunId().equals(runId) || existing.getType() != parseType(request.type())) {
-                throw new BusinessException(ErrorCode.VALIDATION_FAILED);
-            }
-            return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
-                    existing.cancelableUntil(), notifiedCount(existing.getAcademyId()), true);
+        Optional<EmergencyRaiseResponse> replayed = clientKeyReplay.replay(request.clientKey(),
+                emergencyAlertRepository::findByClientKey, existing -> replayResponse(existing, runId, request));
+        if (replayed.isPresent()) {
+            return replayed.get();
         }
 
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), requester.academyId())
@@ -140,7 +144,7 @@ public class EmergencyCommandService {
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         OffsetDateTime occurredAt = request.occurredAt() == null ? now : request.occurredAt();
-        int riderCount = runRiderRepository.findAllByRunId(run.getId()).size();
+        int riderCount = Math.toIntExact(runRiderRepository.countByRunId(run.getId()));
 
         EmergencyAlert alert = EmergencyAlert.onRaise(requester.academyId(), runId, bus.getBusNo(),
                 assignment.getManagerId(), assignment.getRole(), type, riderCount, occurredAt, now,

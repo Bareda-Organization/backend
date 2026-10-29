@@ -46,9 +46,8 @@ public class GuardianPhoneQueryService {
 
     public GuardianPhoneResponse guardianPhone(AuthUser requester, Long runId, Long riderId) {
         managerRunAccess.requireAssignedRun(requester, runId);
-        RunRider rider = runRiderRepository.findAllByRunIdAndAcademyId(runId, requester.academyId()).stream()
-                .filter(candidate -> candidate.getId().equals(riderId) && candidate.getStatus() != RiderStatus.ABSENT)
-                .findFirst()
+        RunRider rider = runRiderRepository
+                .findByIdAndRunIdAndAcademyIdAndStatusNot(riderId, runId, requester.academyId(), RiderStatus.ABSENT)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RIDER_NOT_FOUND));
         String phone = guardianStudentRepository
                 .findGuardianPhonesByAcademyId(requester.academyId(), List.of(rider.getStudentId())).stream()

@@ -211,7 +211,7 @@ public class ApprovalQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.APPROVAL_NOT_FOUND));
         Long academyId = cr.getAcademyId();
 
-        Run run = runRepository.findById(cr.getRunId())
+        Run run = runRepository.findByIdAndAcademyId(cr.getRunId(), academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         Weekday weekday = Weekday.of(run.getServiceDate());
         List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), academyId);
@@ -332,13 +332,12 @@ public class ApprovalQueryService {
                 List.of(), capacity, null, false, decision);
     }
 
-    /** 요약 1건 — 목록(§5.5 목록)이 회차·명단을 매번 새로 읽어야 할 때 쓰는 얕은 진입점. */
     /** 상세(§5.5 상세)용 요약 — 한 건이라 버스·학생·승하차지를 그 자리에서 읽는다. */
     private ApprovalSummaryResponse toSummary(ChangeRequest cr, Run run, List<RunRider> riders, Long academyId) {
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-        Student student = studentRepository.findById(cr.getStudentId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
+        Student student = studentRepository.findAllByAcademyIdAndIdIn(academyId, List.of(cr.getStudentId())).stream()
+                .findFirst().orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
         return toSummary(cr, run, riders, bus.getBusNo(), student.getName(),
                 stopsOf(List.of(cr), List.of(riders), academyId), academyId);
     }

@@ -132,8 +132,11 @@ public class ExceptionReportQueryService {
                 .findAllByAcademyIdAndIdIn(academyId, reports.stream().map(ExceptionReport::getHandledBy)
                         .filter(Objects::nonNull).distinct().toList())
                 .stream().collect(Collectors.toMap(Account::getId, account -> account));
-        Map<Long, RunRider> ridersById = runRiderRepository.findAllByRunIdInAndAcademyId(runIds, academyId).stream()
-                .collect(Collectors.toMap(RunRider::getId, rider -> rider));
+        List<Long> reportedRiderIds = reports.stream().map(ExceptionReport::getRunRiderId).filter(Objects::nonNull)
+                .distinct().toList();
+        Map<Long, RunRider> ridersById = reportedRiderIds.isEmpty() ? Map.of()
+                : runRiderRepository.findAllByIdInAndAcademyId(reportedRiderIds, academyId).stream()
+                        .collect(Collectors.toMap(RunRider::getId, rider -> rider));
         Map<Long, Student> studentsById = studentRepository
                 .findAllByAcademyIdAndIdIn(academyId,
                         ridersById.values().stream().map(RunRider::getStudentId).distinct().toList())

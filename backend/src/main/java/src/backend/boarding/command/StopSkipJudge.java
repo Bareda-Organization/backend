@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
+import src.backend.global.common.enums.ChangeType;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
@@ -78,6 +79,19 @@ public class StopSkipJudge {
     @Transactional(propagation = Propagation.MANDATORY)
     public void clearSkipped(Long runId, Long stopId) {
         currentRunStop(runId, stopId).ifPresent(RunStop::clearSkipped);
+    }
+
+    /**
+     * 그 승하차지가 지금 건너뜀({@code skipped}) 표시인지 잠금 없이 읽는다 — 미승차 재전송 응답의 {@code stop_skipped} 를 다시 만들 때 쓴다.
+     * 확정 노선이 아직 없으면 {@code false} 다.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean isSkipped(Long runId, Long stopId) {
+        return confirmedRouteRepository.findById(runId)
+                .map(ConfirmedRoute::getCurrentVersionId)
+                .flatMap(versionId -> runStopRepository.findByRouteVersionIdAndStopId(versionId, stopId))
+                .map(runStop -> runStop.getChange() == ChangeType.SKIPPED)
+                .orElse(false);
     }
 
     /** 확정 노선 현재 버전에서 그 승하차지의 정차 항목을 행 잠금으로 읽는다 — 확정 노선이 아직 없으면 비어 있다. */

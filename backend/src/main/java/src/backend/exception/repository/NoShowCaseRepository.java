@@ -5,8 +5,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import jakarta.persistence.LockModeType;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,6 +36,17 @@ public interface NoShowCaseRepository extends JpaRepository<NoShowCase, Long> {
     @AcademyScopeExempt(reason = "runRiderId 는 호출부가 RunRiderRepository.findByIdAndRunIdAndStatusNot 으로 "
             + "이미 학원 범위로 확인한 탑승자의 식별자라는 전제다")
     Optional<NoShowCase> findByRunRiderId(Long runRiderId);
+
+    /**
+     * {@link #findByRunRiderId} 를 <b>행 잠금</b>({@code PESSIMISTIC_WRITE})으로 읽는다 — 케이스를 읽고 고쳐 쓰는 연락 시도 · 되돌리기가 읽은 뒤에
+     * 에스컬레이션 갱신({@link #escalateIfDue})이 끼어들어 {@code escalated_at} 을 되돌려 쓰지 못하게 한다. 갱신은 이 잠금이 풀린 뒤의 해소 여부를
+     * 다시 본다. 트랜잭션 안에서만 부른다.
+     */
+    @AcademyScopeExempt(reason = "runRiderId 는 호출부가 RunRiderRepository.findByIdAndRunIdAndStatusNot 으로 "
+            + "이미 학원 범위로 확인한 탑승자의 식별자라는 전제다")
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM NoShowCase c WHERE c.runRiderId = :runRiderId")
+    Optional<NoShowCase> findLockedByRunRiderId(@Param("runRiderId") Long runRiderId);
 
     /**
      * 에스컬레이션 폴링 대상(API_SPEC §4.8) — 대기 만료({@code expires_at <= now})

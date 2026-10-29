@@ -40,6 +40,37 @@ public interface RunRiderRepository extends JpaRepository<RunRider, Long> {
     List<RunRider> findAllByRunIdAndAcademyId(@Param("runId") Long runId, @Param("academyId") Long academyId);
 
     /**
+     * 탑승자 id 목록을 학원으로 좁혀 읽는다 — 목록 조립이 명단 전체 대신 화면에 나온 탑승자만 읽게 한다. 학원 조건은 부모(Run) 조인이다.
+     */
+    @Query("""
+            SELECT rr FROM RunRider rr
+            JOIN Run r ON r.id = rr.runId
+            WHERE rr.id IN :ids
+              AND r.academyId = :academyId
+            """)
+    List<RunRider> findAllByIdInAndAcademyId(@Param("ids") java.util.Collection<Long> ids,
+            @Param("academyId") Long academyId);
+
+    /**
+     * 그 회차의 탑승자 1명을 잠금 없이 읽는다(읽기 전용 조회용) — {@code excludedStatus} 인 행은 없는 것으로 본다. 학원 조건은 부모(Run) 조인이다.
+     */
+    @Query("""
+            SELECT rr FROM RunRider rr
+            JOIN Run r ON r.id = rr.runId
+            WHERE rr.id = :id
+              AND rr.runId = :runId
+              AND r.academyId = :academyId
+              AND rr.status <> :excludedStatus
+            """)
+    Optional<RunRider> findByIdAndRunIdAndAcademyIdAndStatusNot(@Param("id") Long id, @Param("runId") Long runId,
+            @Param("academyId") Long academyId, @Param("excludedStatus") RiderStatus excludedStatus);
+
+    /** 회차의 탑승자 수(상태 무관)를 센다 — 호출부가 이미 학원 범위에 좁힌 회차의 식별자를 넘긴다는 전제다({@link #findAllByRunId} 와 같은 근거). */
+    @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
+            + "회차의 식별자라는 전제다(findAllByRunId 와 같은 근거)")
+    long countByRunId(Long runId);
+
+    /**
      * 회차 여러 개의 명단을 한 번에(BR-252) — {@link #findAllByRunIdAndAcademyId} 를 회차마다 부르던 목록 조회가
      * 페이지 크기만큼 질의를 내지 않게 한다. 학원 조건은 같은 부모(Run) 조인이다.
      */

@@ -77,7 +77,7 @@ public class BoardingIntentCommandService {
 
     private final StopSkipJudge stopSkipJudge;
 
-    /** ③구간이 탑승자 · 승하차지 행을 쥐기 전에 먼저 쥐는 회차 행 잠금(승하차 기록 · 도착 처리와 같은 잠금 순서, {@link RunRowLock}). */
+    /** 구간 판정과 탑승자 · 승하차지 행보다 먼저 쥐는 회차 행 잠금(승하차 기록 · 도착 처리와 같은 잠금 순서, {@link RunRowLock}). */
     private final RunRowLock runRowLock;
 
     private final ApplicationEventPublisher eventPublisher;
@@ -99,12 +99,11 @@ public class BoardingIntentCommandService {
         Student student = linkedChildLookup.linkedChild(requester, studentId);
         Run run = targetRunLookup.targetRun(student, runId);
 
+        // 구간을 판정하기 전에 회차 행을 쥐고 상태를 다시 읽는다 — 운행 시작과 겹쳐도 시작이 먼저면 마감 구간으로 판정되고, 요청이 먼저면
+        // 시작이 그 대기 요청을 종결한다. 순서는 회차 → 의사 → 탑승자 → 승하차지다.
+        runRowLock.acquire(run);
         OffsetDateTime now = OffsetDateTime.now(clock);
         ChangeWindow segment = ChangeWindowPolicy.segmentOf(run, now);
-        if (segment == ChangeWindow.CLOSED) {
-            // ③구간은 탑승자 · 승하차지 행을 쥐므로 의사 행보다도 먼저 회차 행을 쥔다(회차 → 의사 → 탑승자 → 승하차지).
-            runRowLock.acquire(run.getId(), run.getAcademyId());
-        }
 
         boardingIntentRepository.insertIfAbsent(run.getId(), student.getId(), now);
         // BR-361 — 행 잠금으로 읽는다: 더블탭의 두 번째 요청은 첫 요청이 커밋한 값을 읽어 "같은 값" 으로 판정된다
