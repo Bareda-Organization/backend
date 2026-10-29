@@ -2,7 +2,6 @@ package src.backend.run.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.Locale;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -11,18 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.dto.AcademyStaffAccountView;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.boarding.repository.RunRiderRepository;
-import src.backend.global.common.enums.Direction;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.policy.PolicyConstants;
 import src.backend.global.security.AuthUser;
-import src.backend.routing.entity.ConfirmedRoute;
-import src.backend.routing.entity.RunStop;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.dto.DelayRequest;
 import src.backend.run.dto.DelayResponse;
@@ -30,13 +21,9 @@ import src.backend.run.entity.DelayNotice;
 import src.backend.run.entity.DelayReason;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
-import src.backend.run.dto.DelayNoticeRecipient;
 import src.backend.run.event.DelayRequestedEvent;
 import src.backend.run.repository.DelayNoticeRepository;
 import src.backend.run.repository.RunRepository;
-import src.backend.student.entity.Student;
-import src.backend.student.repository.GuardianStudentRepository;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * 지연 알림 신고(NTF-06, M-05, API_SPEC §4.9).
@@ -48,7 +35,7 @@ import src.backend.student.repository.StudentRepository;
  * <p>응답의 세 불리언({@code notifiedGuardians} 등)은 <b>리스너 실행 결과에 기대지 않는다</b> — 이
  * 서비스가 이벤트에 실어 보내는 수신자 3집합을 그대로 계산해 그 집합의 비어 있음 여부로 채운다(이벤트
  * 발행은 리스너가 실제로 몇 건을 적재했는지 동기적으로 돌려주지 않는다). 그래서 관계자·학부모·학생
- * 조회 로직은 여전히 이 서비스가 갖고, 리스너는 그 결과를 그대로 받아 적재만 한다.
+ * 조회({@link DelayRecipientResolver})는 이 모듈이 맡고, 리스너는 그 결과를 그대로 받아 적재만 한다.
  *
  * <p>{@code minutes}·{@code reason} 을 여기서 검증하는 이유는 {@link DelayRequest} 자바독과 같다 —
  * 값 도메인 위반(5의 배수가 아님·정의되지 않은 사유 문자열)은 400 이 아니라 422 여야 한다.
@@ -60,19 +47,9 @@ public class DelayNotificationCommandService {
 
     private final RunRepository runRepository;
 
-    private final RunStopRepository runStopRepository;
-
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RunRiderRepository runRiderRepository;
-
-    private final AcademyStaffRepository academyStaffRepository;
-
-    private final GuardianStudentRepository guardianStudentRepository;
-
-    private final StudentRepository studentRepository;
-
     private final DelayNoticeRepository delayNoticeRepository;
+
+    private final DelayRecipientResolver recipientResolver;
 
     private final RunAssignmentAccess runAssignmentAccess;
 
@@ -85,46 +62,43 @@ public class DelayNotificationCommandService {
     /**
      * 매니저가 배치된 회차인지 확인하고 {@code minutes}·{@code reason} 값 도메인을 검증한 뒤 지연을
      * 기록한다(§4.6, NTF-06).
-     *
-     * <p>CODE_CONVENTIONS §20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "배치 확인 → 값 도메인 검증 → 대상 정차지 결정 →
-     * 저장 → 이벤트 발행" 은 한 번의 지연 신고가 거치는 단일 순서다.
      */
     public DelayResponse notifyDelay(AuthUser requester, Long runId, DelayRequest request) {
         runAssignmentAccess.assertAssignedEscort(requester, runId);
-        Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+        Run run = lockedMovingRun(runId, requester.academyId());
+        int minutes = validateMinutes(request.minutes());
+        DelayReason reason = parseReason(request.reason());
+        String message = request.message();
+        rejectDuplicate(runId, minutes, reason, message);
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        DelayRecipientResolver.Recipients recipients = recipientResolver.resolve(run);
+        eventPublisher.publishEvent(new DelayRequestedEvent(runId, run.getAcademyId(), minutes, reason, message, now,
+                recipients.staff(), recipients.guardians(), recipients.students()));
+        delayNoticeRepository.save(DelayNotice.onSend(runId, requester.accountId(), minutes, reason, message, now));
+        return new DelayResponse(!recipients.guardians().isEmpty(), !recipients.students().isEmpty(),
+                !recipients.staff().isEmpty());
+    }
+
+    /**
+     * 회차를 읽어 행 잠금을 걸고 상태를 다시 읽은 뒤 운행 중인지 판정한다 — 같은 내용의 동시 신고가 둘 다 중복 검사를 지나거나 운행이 막 끝난 회차에 신고가 통과하지 않게 한다.
+     */
+    private Run lockedMovingRun(Long runId, Long academyId) {
+        Run run = runRepository.findByIdAndAcademyId(runId, academyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        // 회차 행을 잠그고 상태를 다시 읽은 뒤 판정한다 — 같은 내용의 동시 신고가 둘 다 중복 검사를 지나거나 운행이 막 끝난 회차에 신고가 통과하지 않게 한다.
         runRowLock.acquire(run);
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
+        return run;
+    }
 
-        int minutes = validateMinutes(request.minutes());
-        DelayReason reason = parseReason(request.reason());
-        String message = request.message();
-
+    /** 직전 발신과 분 · 사유 · 메시지가 전부 같으면 중복이다. */
+    private void rejectDuplicate(Long runId, int minutes, DelayReason reason, String message) {
         delayNoticeRepository.findFirstByRunIdOrderBySentAtDesc(runId)
                 .filter(previous -> previous.isSameContent(minutes, reason, message))
                 .ifPresent(previous -> {
                     throw new BusinessException(ErrorCode.DELAY_DUPLICATE);
                 });
-
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        List<DelayNoticeRecipient> staffRecipients = staffRecipientsOf(run);
-        List<Long> studentIds = pendingStudentIdsOf(run);
-        List<DelayNoticeRecipient> guardianRecipients = List.of();
-        List<DelayNoticeRecipient> studentRecipients = List.of();
-        if (!studentIds.isEmpty()) {
-            guardianRecipients = guardianRecipientsOf(run, studentIds);
-            studentRecipients = studentRecipientsOf(run, studentIds);
-        }
-
-        eventPublisher.publishEvent(new DelayRequestedEvent(runId, run.getAcademyId(), minutes, reason, message, now,
-                staffRecipients, guardianRecipients, studentRecipients));
-
-        delayNoticeRepository.save(DelayNotice.onSend(runId, requester.accountId(), minutes, reason, message, now));
-
-        return new DelayResponse(!guardianRecipients.isEmpty(), !studentRecipients.isEmpty(), !staffRecipients.isEmpty());
     }
 
     private int validateMinutes(Integer minutes) {
@@ -145,53 +119,5 @@ public class DelayNotificationCommandService {
             case "prev_stop_wait" -> DelayReason.PREV_STOP_WAIT;
             default -> throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         };
-    }
-
-    /** 관계자 — 그 학원 재직 전원(리스너와 같은 대상 규칙). */
-    private List<DelayNoticeRecipient> staffRecipientsOf(Run run) {
-        List<AcademyStaffAccountView> staff = academyStaffRepository.findActiveAccountsByAcademyId(run.getAcademyId());
-        return staff.stream()
-                .map(recipient -> new DelayNoticeRecipient(recipient.accountId(), recipient.name(), recipient.accountId()))
-                .toList();
-    }
-
-    /**
-     * 아직 지나지 않은 승하차지({@code arrivedAt IS NULL} 이고 {@code departedAt IS NULL} — 도착 없이 강제 출발된 곳도 지난 곳이다)의 탑승자 중 수신 학생 id(API_SPEC §4.9 수신 범위 · C-02) —
-     * 등원은 아직 탑승하지 않은 학생({@link RunRiderRepository#findStudentIdsForDelayNotification}), 하원은 아직 하차하지
-     * 않은 탑승 중 학생({@link RunRiderRepository#findBoardedStudentIdsForDelayNotification}).
-     */
-    private List<Long> pendingStudentIdsOf(Run run) {
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(run.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        List<RunStop> ordered = runStopRepository
-                .findAllByRouteVersionIdAndAcademyIdOrderBySeq(confirmedRoute.getCurrentVersionId(), run.getAcademyId());
-        List<Long> pendingStopIds = ordered.stream()
-                .filter(stop -> stop.getArrivedAt() == null && stop.getDepartedAt() == null && stop.getStopId() != null)
-                .map(RunStop::getStopId)
-                .toList();
-        if (pendingStopIds.isEmpty()) {
-            return List.of();
-        }
-        // 하원은 시작 때 전원이 탑승 상태라 "아직 탑승하지 않은 학생" 이 0명이다 — 아직 내리지 않은 학생이 받는다.
-        return run.getDirection() == Direction.FROM_ACADEMY
-                ? runRiderRepository.findBoardedStudentIdsForDelayNotification(run.getId(), pendingStopIds)
-                : runRiderRepository.findStudentIdsForDelayNotification(run.getId(), pendingStopIds);
-    }
-
-    /** 학부모 — 학생의 보호자 전원(다른 승하차 알림과 같은 규칙). 수신자 식별은 (보호자 계정, 학생) 짝이다. */
-    private List<DelayNoticeRecipient> guardianRecipientsOf(Run run, List<Long> studentIds) {
-        return guardianStudentRepository.findGuardianAccountsByAcademyId(run.getAcademyId(), studentIds).stream()
-                .map(guardian -> new DelayNoticeRecipient(guardian.getAccountId(), guardian.getName(),
-                        guardian.getStudentId()))
-                .toList();
-    }
-
-    /** 학생 — 계정이 연결된 학생만. */
-    private List<DelayNoticeRecipient> studentRecipientsOf(Run run, List<Long> studentIds) {
-        List<Student> students = studentRepository
-                .findAllByIdInAndAcademyIdAndAccountIdIsNotNull(studentIds, run.getAcademyId());
-        return students.stream()
-                .map(student -> new DelayNoticeRecipient(student.getAccountId(), student.getName(), student.getAccountId()))
-                .toList();
     }
 }
