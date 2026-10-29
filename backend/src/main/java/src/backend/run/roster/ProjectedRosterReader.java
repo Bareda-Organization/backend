@@ -277,16 +277,9 @@ public class ProjectedRosterReader {
     }
 
     /**
-     * 그 회차의 강제 추가·이동 행 id — 확정 저장이 트랜잭션 안에서 다시 읽어 {@link ProjectedRoster#stagedRows()}
-     * 와 다르면 계산 도중 행이 들어오거나 취소된 것이다(BR-044). 이동 대기는 취소로 지워지므로(§5.8.1) 수만
-     * 비교하면 취소 1 + 새 등록 1 을 놓친다.
+     * 읽은 강제 추가·이동 행의 id — 확정 저장이 다시 읽은 명단의 id 집합({@link ProjectedRoster#sameInputs})과 다르면 계산 도중 행이 들어오거나 취소된 것이다(BR-044).
+     * 이동 대기는 취소로 지워지므로(§5.8.1) 수만 비교하면 취소 1 + 새 등록 1 을 놓친다.
      */
-    public StagedRows stagedRows(Run run) {
-        return stagedRowsOf(runForcedAdditionRepository.findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId()),
-                runTransferRepository.findAllByFromRunIdAndAcademyId(run.getId(), run.getAcademyId()),
-                runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(), run.getAcademyId()));
-    }
-
     private static StagedRows stagedRowsOf(List<RunForcedAddition> forcedAdditions, List<RunTransfer> outgoing,
             List<RunTransfer> incoming) {
         Set<Long> transferIds = new HashSet<>();

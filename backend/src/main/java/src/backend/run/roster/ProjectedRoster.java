@@ -44,6 +44,15 @@ public record ProjectedRoster(List<Long> studentIds, Map<Long, Long> stopOverrid
         }
     }
 
+    /**
+     * 두 명단이 같은 입력에서 나왔는가 — 명단에 오른 학생 집합 · 승하차지 · 결석 · 이동 · 읽은 강제 추가/이동 행이 모두 같다. 학생 순서는 조회 순서일 뿐이라 비교하지 않는다.
+     */
+    public boolean sameInputs(ProjectedRoster other) {
+        return Set.copyOf(studentIds).equals(Set.copyOf(other.studentIds)) && studentStops.equals(other.studentStops)
+                && stopOverrides.equals(other.stopOverrides) && absentStops.equals(other.absentStops)
+                && removedStops.equals(other.removedStops) && stagedRows.equals(other.stagedRows);
+    }
+
     /** 정원 판정의 현재 인원. */
     public int size() {
         return studentIds.size();

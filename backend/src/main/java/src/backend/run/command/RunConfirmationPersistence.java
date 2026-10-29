@@ -85,11 +85,11 @@ public class RunConfirmationPersistence {
         if (updated == 0) {
             return false;
         }
-        // confirmIfIdle 이 잡은 행 잠금 뒤라 이후 강제 추가·이동 저장은 confirmed 를 보고 막힌다(StagingRunGuard).
-        // 그 전에 들어오거나 취소된 행은 여기서 id 로 대조해 이번 확정을 무른다 — 롤백되면 idle 로 남아 다음 틱이 다시 읽는다.
-        if (!rosterReader.stagedRows(run).equals(roster.stagedRows())) {
-            throw new IllegalStateException("확정 계산 중 강제 추가·이동이 바뀌었다 — 다음 틱에 다시 읽는다: runId="
-                    + run.getId());
+        // confirmIfIdle 이 잡은 행 잠금 뒤라 이후 강제 추가·이동 저장은 confirmed 를 보고 막힌다(StagingRunGuard). 명단은 확정 계산 전에 짧은 별도 트랜잭션들로 읽었으므로
+        // 그 사이 들어오거나 취소된 강제 추가·이동, 학부모의 ①구간 탑승 끄기, 승인된 승하차지 이동이 빠졌을 수 있다 — 여기서 같은 규칙으로 다시 읽어 대조하고,
+        // 다르면 이번 확정을 무른다. 롤백되면 idle 로 남아 다음 틱이 다시 읽는다.
+        if (!roster.sameInputs(rosterReader.read(run))) {
+            throw new IllegalStateException("확정 계산 중 명단 입력이 바뀌었다 — 다음 틱에 다시 읽는다: runId=" + run.getId());
         }
 
         String fingerprint = RunConfirmationFingerprint.of(run.getAcademyId(), weekday, run.getDirection(),
