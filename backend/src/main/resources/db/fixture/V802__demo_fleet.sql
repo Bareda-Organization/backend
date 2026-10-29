@@ -8,7 +8,7 @@
 -- 회차는 `idle` 로 두고 `confirm_at` 을 과거로 둔다 — 그러면 30초 폴링(RunConfirmationScheduler)이
 -- 기동 직후 확정 배치를 돌려 **네이버에서 실제 도로 경로를 받아** route_version.road_path 를 채운다.
 -- 경로 좌표를 시드에 손으로 박지 않는 이유가 이것이다(10곳을 지나는 실제 경로는 손으로 못 만든다).
--- 그다음 운행 시작과 위치 송신은 `DemoRunSimulator`(local 프로파일 전용)가 맡는다.
+-- 그다음 운행 시작과 위치 송신은 `DemoRunSimulator`(`app.demo.enabled=true` 일 때만 돈다)가 맡는다.
 --
 -- ⚠ 좌표는 **전부 한강 남쪽**으로 잡았다. 회랑이 강을 가로지르면 네이버가 다리로 우회시켜
 -- 데모 경로가 실제 통학 노선처럼 안 보인다.

@@ -398,6 +398,7 @@ app:
   demo:
     # 운행 시뮬레이터(DemoRunSimulator) 대상 — 학원 A 는 운행 중 회차에 위치만 올리고(출발은 매니저 앱 QA),
     # 학원 B 는 확정 회차를 자동 출발시켜 노선을 돈다(관제 화면용). bus-ids 0 은 없는 차량 — A 차량 자동 출발 없음.
+    enabled: true
     academy-id: 1
     academy-ids: 2
     bus-ids: 0
@@ -598,7 +599,7 @@ jwt:
 app:
   # 테스트 데이터 초기화(POST /dev/reset · 웹 머리말 버튼 · 백엔드 재시작)가 실제로 DB 를 비우게 한다(Ruling 364).
   # LocalFlywayCleanStrategy 는 localhost 만 clean() 을 허용하는데 compose 안의 DB 는 컨테이너 이름 `postgres` 로
-  # 불린다 — 그 이름 하나만 더 연다. 부를 수 있는 것은 승인된(active) 계정뿐이다(대기 계정은 상태 게이트가 403).
+  # 불린다 — 그 이름 하나만 더 연다. staging 에서는 STAFF · SYSTEM_ADMIN 만 부른다(그 밖의 역할은 403 — 대기 계정은 상태 게이트가 먼저 403).
   flyway-clean:
     extra-allowed-hosts: postgres
   cors:
@@ -622,6 +623,7 @@ app:
       on-startup: true   # 시험 시드는 기동 때 정기 회차를 보충받는 전제로 짜였다 — 분리 전 local 동작 그대로
   demo:
     # 분리 전 local 값 — 시험 시드의 데모 선단(V13: 10·11·12번 차량)만 자동 출발. 계약 시험이 붙드는 1·2번 차량은 건드리지 않는다
+    enabled: true
     academy-id: 1
     academy-ids: 0
     bus-ids: 10,11,12
