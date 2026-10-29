@@ -175,6 +175,33 @@ class JwtAuthenticationFilterTest {
                 new CannotAcquireLockException("could not obtain lock", new SQLException("deadlock detected", "40P01")));
     }
 
+    /** 서명이 없는 토큰({@code alg: none}) — 클레임이 정상이어도 인증이 서지 않고 401 이다. */
+    @Test
+    void 서명_없는_토큰은_401_UNAUTHORIZED_다() throws Exception {
+        String unsigned = Jwts.builder().subject("7").claim("academyId", 1L).claim("role", Role.PARENT.name())
+                .claim("status", AccountStatus.ACTIVE.name()).claim("type", "access").compact();
+
+        mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + unsigned))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+    }
+
+    /** 다른 HMAC 키로 서명한 토큰과 비대칭 알고리즘(RS256)으로 서명한 토큰 — 서버 키로 검증되지 않으면 401 이다. */
+    @Test
+    void 다른_키_다른_알고리즘으로_서명한_토큰은_401_UNAUTHORIZED_다() throws Exception {
+        String otherKey = new JwtTokenProvider("forged-secret-forged-secret-forged-secret-0123", 900, 60, Clock.systemUTC())
+                .createAccessToken(7L, 1L, Role.PARENT, AccountStatus.ACTIVE);
+        String rsa = Jwts.builder().subject("7").claim("academyId", 1L).claim("role", Role.PARENT.name())
+                .claim("status", AccountStatus.ACTIVE.name()).claim("type", "access")
+                .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate()).compact();
+
+        for (String forged : new String[] {otherKey, rsa}) {
+            mockMvc.perform(get("/api/v1/jwt-filter-test/protected").header("Authorization", "Bearer " + forged))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+        }
+    }
+
     /** {@code missingClaim} 하나만 빼고 나머지는 정상 발급 형태로 채워 직접 서명한다. */
     private String signedTokenMissing(String missingClaim) {
         SecretKey key = (SecretKey) ReflectionTestUtils.getField(tokenProvider, "key");

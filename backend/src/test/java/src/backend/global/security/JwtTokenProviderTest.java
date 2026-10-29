@@ -15,6 +15,8 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 
 /**
  * JWT 발급 → 검증 왕복 단위 테스트(스프링 컨텍스트 없이).
@@ -164,5 +166,30 @@ class JwtTokenProviderTest {
 
         assertThatThrownBy(() -> providerAfterExpiry.parse(token))
                 .isInstanceOf(ExpiredJwtException.class);
+    }
+
+    /** 서명이 없는 토큰({@code alg: none}) — 클레임이 정상이어도 검증이 실패한다. */
+    @Test
+    void 서명_없는_토큰은_검증이_실패한다() {
+        String unsigned = Jwts.builder().subject("7").claim("type", "access").compact();
+
+        assertThatThrownBy(() -> provider.parse(unsigned)).isInstanceOf(JwtException.class);
+        assertThatThrownBy(() -> provider.authenticateAccess(unsigned)).isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+    }
+
+    /** 다른 HMAC 키 · 비대칭 알고리즘(RS256)으로 서명한 토큰은 서버 키로 검증되지 않는다. */
+    @Test
+    void 다른_키_다른_알고리즘으로_서명한_토큰은_검증이_실패한다() {
+        String otherKey = new JwtTokenProvider("forged-secret-forged-secret-forged-secret-0123", 900, 60, Clock.systemUTC())
+                .createAccessToken(7L, 1L, Role.DRIVER, AccountStatus.ACTIVE);
+        String rsa = Jwts.builder().subject("7").claim("type", "access")
+                .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate()).compact();
+
+        for (String forged : new String[] {otherKey, rsa}) {
+            assertThatThrownBy(() -> provider.parse(forged)).isInstanceOf(JwtException.class);
+            assertThatThrownBy(() -> provider.authenticateAccess(forged)).isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+        }
     }
 }
