@@ -57,8 +57,12 @@ public class RunPositionLostGaugeScheduler {
     @SchedulerLock(name = "run-position-lost-gauge", lockAtMostFor = "PT2M")
     public void refresh() {
         OffsetDateTime startedBefore = OffsetDateTime.now(clock).minus(StudentBusPositionQueryService.STALE_THRESHOLD);
-        // 운행 중 회차를 id 순으로 끝까지 이어 읽는다 — 첫 묶음만 세면 그 뒤 회차의 유실이 지표에 안 잡힌다
-        // (근접 판정 BR-011 과 같은 형태).
+        metrics.update(countLost(startedBefore));
+    }
+
+    /** 운행 중 회차를 id 순으로 끝까지 이어 읽으며 위치가 끊긴 회차를 센다. */
+    private long countLost(OffsetDateTime startedBefore) {
+        // 첫 묶음만 세면 그 뒤 회차의 유실이 지표에 안 잡힌다 (근접 판정 BR-011 과 같은 형태).
         LocalDate since = movingRunWindowPolicy.earliestServiceDate();
         long lost = 0;
         long afterId = 0L;
@@ -72,10 +76,9 @@ public class RunPositionLostGaugeScheduler {
                     .filter(run -> runLiveStateResolver.resolve(List.of(), positions.get(run.getId())).stale())
                     .count();
             if (moving.size() < BATCH_SIZE) {
-                break;
+                return lost;
             }
             afterId = moving.get(moving.size() - 1).getId();
         }
-        metrics.update(lost);
     }
 }
