@@ -67,7 +67,7 @@ services:
       - "8080"
     # 컨테이너 헬스체크 — local 프로파일은 관리 포트를 따로 열지 않아 앱 포트(8080)의 /actuator/health 다(운영 계열은 8081 — docker-compose.prod.yml).
     # 이미지에 curl 이 있다(backend/Dockerfile). proxy 가 이 값을 기다려, backend 가 안 뜨면 `up` 단계에서 unhealthy 로 드러난다.
-    # Flyway 와 QA 시드를 깔며 기동에 1분쯤 걸려 start_period 를 넉넉히 둔다. OpsSettingsGuardTest 가 포트·proxy 조건을 지킨다.
+    # Flyway 와 QA 시드를 깔며 기동에 1분쯤 걸려 start_period 를 넉넉히 둔다. 포트·proxy 의 healthy 조건을 지키는 시험은 없다 — 사람이 함께 맞춘다.
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
       interval: 15s
@@ -132,8 +132,8 @@ services:
       - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infra/observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
     ports:
-      # 대시보드는 Grafana 로 보지만, 지표 이름·라벨을 직접 확인할 때 필요하다.
-      - "9090:9090"
+      # 대시보드는 Grafana 로 보지만, 지표 이름·라벨을 직접 확인할 때 필요하다. 127.0.0.1 — 인증이 없는 화면이라 같은 망의 다른 기기에서 닿지 않게 한다.
+      - "127.0.0.1:9090:9090"
     depends_on:
       - backend
 
@@ -196,7 +196,7 @@ services:
       - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      # ⚠ 호스트 3001 로 비켜 준다 — 3000 은 프록시(관계자 웹)가 쓴다. 위 proxy 주석 참고.
-      - "3001:3000"
+      # ⚠ 호스트 3001 로 비켜 준다 — 3000 은 프록시(관계자 웹)가 쓴다. 위 proxy 주석 참고. 127.0.0.1 — 기본 계정(admin/admin)이라 같은 망의 다른 기기에서 닿지 않게 한다.
+      - "127.0.0.1:3001:3000"
     depends_on:
       - prometheus
