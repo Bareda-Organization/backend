@@ -28,9 +28,10 @@ import org.springframework.mock.env.MockEnvironment;
 /**
  * Flyway {@code clean} 안전장치 겹①②③(`docs/IMPLEMENTATION_PLAN.md §3.2`)을 검증한다. 이 클래스 자신이 겹⑤다.
  *
- * <p>이 클래스는 {@link ApplicationContextRunner}(빈 등록·컨텍스트 기동 여부)와 Mockito({@link Flyway} 목)로 전략 빈의 동작을 본다.
- * DB·Docker 없이 실행된다. {@code application.yml} 의 {@code clean-disabled} 값(공통 true · local 만 false)은 이 클래스가 읽지 않는다 —
- * 겹④(`docs/IMPLEMENTATION_PLAN.md §3.2`)로 사람이 맞춘다.
+ * <p>{@code application.yml} 을 텍스트로만 읽는 시험은 두지 않는다(clean-disabled 값은 겹④로 사람이 맞춘다) — 그런
+ * 순수 파싱 테스트라 인프라가 이질적이다 — 이 클래스는 {@link ApplicationContextRunner}(빈 등록·
+ * 컨텍스트 기동 여부)와 Mockito({@link Flyway} 목)를 쓰므로 별도 클래스로 분리했다
+ * (`docs/IMPLEMENTATION_PLAN.md §3.2` 판단 채택). DB·Docker 없이 실행된다.
  */
 class FlywayCleanStrategyGuardTest {
 
