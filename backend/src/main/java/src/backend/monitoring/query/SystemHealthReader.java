@@ -23,7 +23,7 @@ import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
-import src.backend.run.scheduler.RunConfirmationScheduler;
+import src.backend.run.scheduler.ConfirmationBatchHeartbeat;
 import src.backend.student.query.StudentBusPositionQueryService;
 
 /**
@@ -33,7 +33,7 @@ import src.backend.student.query.StudentBusPositionQueryService;
  * <ul>
  *   <li>{@code api} — DB · Redis 연결(Spring 이 이미 가진 헬스 지표). 하나라도 끊기면 {@code down}</li>
  *   <li>{@code position} — 오늘 {@code moving} 회차 중 마지막 수신이 2분을 넘은 것(시작 뒤 한 번도 안 보낸 것 포함, 시작 2분 안은 제외)이 있으면 {@code warn}</li>
- *   <li>{@code confirm_batch} — 확정 배치의 마지막 성공이 2분(30초 폴링 4회분)을 넘으면 {@code down}. 서버 기동 뒤 첫 실행 전에는 기동 시점부터 잰다</li>
+ *   <li>{@code confirm_batch} — 확정 배치의 마지막 성공(인스턴스가 여러 대여도 락을 쥔 쪽이 남긴 공유 시각)이 2분(30초 폴링 4회분)을 넘으면 {@code down}. 서버 기동 뒤 첫 실행 전에는 기동 시점부터 잰다</li>
  *   <li>{@code notification} — 적재 뒤 5분 넘게 발송되지 않은 알림이 있으면 {@code warn}</li>
  * </ul>
  */
@@ -73,7 +73,7 @@ class SystemHealthReader {
 
     private final RunLiveStateResolver runLiveStateResolver;
 
-    private final RunConfirmationScheduler runConfirmationScheduler;
+    private final ConfirmationBatchHeartbeat confirmationBatchHeartbeat;
 
     private final NotificationBacklogReader notificationBacklogReader;
 
@@ -119,7 +119,7 @@ class SystemHealthReader {
     }
 
     private HealthCell confirmBatch() {
-        Duration age = runConfirmationScheduler.sinceLastSuccess();
+        Duration age = Duration.between(confirmationBatchHeartbeat.lastSuccessAt(), clock.instant());
         return age.compareTo(CONFIRM_BATCH_LIMIT) <= 0 ? new HealthCell(CONFIRM_BATCH, OK, null)
                 : new HealthCell(CONFIRM_BATCH, DOWN, "확정 배치 마지막 실행 " + age.toMinutes() + "분 전");
     }

@@ -307,6 +307,8 @@ public interface RunRepository extends JpaRepository<Run, Long> {
      * 트랜잭션이 이미 롤백되어 DB 의 상태는 갱신 전 {@code idle} 그대로다. 이 메서드가 하는 일은
      * "실패했다는 사실" 만 별도로 남기는 것이다.
      *
+     * <p>{@code idle} 인 회차에만 남긴다 — 회차를 집은 뒤 다른 인스턴스가 먼저 확정했으면 갱신 행 수가 0 이고, 확정된 회차에 실패 횟수와 재시도 시각이 붙지 않는다.
+     *
      * <p><b>{@code REQUIRES_NEW} 가 필요하다</b> — 이 메서드는 확정이 실패해 앞 트랜잭션이 이미
      * 롤백·종료된 <b>뒤</b>, 오케스트레이터(트랜잭션 밖)가 호출한다. 실패 기록 자체가 그 롤백에
      * 휩쓸리면 안 되므로 독립 트랜잭션을 새로 연다({@code NotificationLogRepository} 와 같은 근거).
@@ -316,7 +318,7 @@ public interface RunRepository extends JpaRepository<Run, Long> {
     @AcademyScopeExempt(reason = "확정 배치가 이미 학원과 무관하게 골라낸 run.id 하나의 실패 카운터만 올리는 단건 "
             + "갱신이다 — confirmIfIdle 과 같은 근거")
     @Query("UPDATE Run r SET r.consecutiveFailures = r.consecutiveFailures + 1, r.confirmRetryAt = :retryAt "
-            + "WHERE r.id = :id")
+            + "WHERE r.id = :id AND r.status = src.backend.run.entity.RunStatus.IDLE")
     int recordFailure(@Param("id") Long id, @Param("retryAt") OffsetDateTime retryAt);
 
     /**
