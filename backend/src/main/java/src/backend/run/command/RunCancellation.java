@@ -75,8 +75,21 @@ public class RunCancellation {
             return;
         }
         RunStatus status = run.getStatus();
-        if (source == RunCancelSource.SCHEDULE && status != RunStatus.IDLE) {
+        if (!cancelable(run, status, source)) {
             return;
+        }
+        OffsetDateTime canceledAt = OffsetDateTime.now(clock);
+        run.cancel(canceledAt, source);
+        if (status == RunStatus.CONFIRMED) {
+            eventPublisher.publishEvent(new RunCanceledEvent(run.getId(), run.getAcademyId(), canceledAt));
+        }
+        removeIncomingStaged(requester, run);
+    }
+
+    /** 취소해도 되는가 — 스케줄 경로가 건너뛰는 경우는 {@code false}, 관계자에게 거절할 경우는 예외를 던진다. */
+    private boolean cancelable(Run run, RunStatus status, RunCancelSource source) {
+        if (source == RunCancelSource.SCHEDULE && status != RunStatus.IDLE) {
+            return false;
         }
         if (status == RunStatus.MOVING || status == RunStatus.FINISHED) {
             throw new BusinessException(ErrorCode.RUN_ALREADY_STARTED);
@@ -84,15 +97,15 @@ public class RunCancellation {
         if (runTransferRepository.existsStagedFromConfirmedRun(run.getId(), run.getAcademyId(),
                 RunTransferStatus.STAGED, RunStatus.IDLE)) {
             if (source == RunCancelSource.SCHEDULE) {
-                return;
+                return false;
             }
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
-        OffsetDateTime canceledAt = OffsetDateTime.now(clock);
-        run.cancel(canceledAt, source);
-        if (status == RunStatus.CONFIRMED) {
-            eventPublisher.publishEvent(new RunCanceledEvent(run.getId(), run.getAcademyId(), canceledAt));
-        }
+        return true;
+    }
+
+    /** 이 회차로 들어오는 {@code staged} 이동을 지운다. */
+    private void removeIncomingStaged(AuthUser requester, Run run) {
         runTransferRepository.findAllByToRunIdAndAcademyId(run.getId(), run.getAcademyId()).stream()
                 .filter(transfer -> transfer.getStatus() == RunTransferStatus.STAGED)
                 .map(RunTransfer::getId)

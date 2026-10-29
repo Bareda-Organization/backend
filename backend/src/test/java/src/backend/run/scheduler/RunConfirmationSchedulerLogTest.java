@@ -68,7 +68,7 @@ class RunConfirmationSchedulerLogTest {
     void 설정_오류_실패는_스택_없이_한_줄이고_예기치_못한_예외만_스택을_남긴다() {
         RunConfirmationScheduler scheduler = new RunConfirmationScheduler(runRepository, confirmationService,
                 executor, Clock.fixed(Instant.parse("2030-04-01T00:00:00Z"), ZoneOffset.UTC),
-                mock(RunConfirmationMetrics.class));
+                mock(RunConfirmationMetrics.class), mock(ConfirmationBatchHeartbeat.class));
         doThrow(new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN)).when(confirmationService)
                 .confirmOne(anyLong());
 

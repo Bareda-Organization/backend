@@ -1,11 +1,16 @@
 package src.backend.run.command;
 
+import java.time.Clock;
+import java.time.OffsetDateTime;
+
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.request.domain.ChangeWindow;
+import src.backend.request.domain.ChangeWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
@@ -21,12 +26,16 @@ class StagingRunGuard {
 
     private final RunRepository runRepository;
 
+    private final Clock clock;
+
     void lockIdle(Run run) {
         Run locked = lock(run.getId(), run.getAcademyId());
         if (locked.isCanceled()) {
             throw new BusinessException(ErrorCode.RUN_CANCELED);
         }
-        if (locked.getStatus() != RunStatus.IDLE) {
+        if (locked.getStatus() != RunStatus.IDLE
+                || ChangeWindowPolicy.segmentOf(locked, OffsetDateTime.now(clock)) != ChangeWindow.IMMEDIATE) {
+            // 구간 판정과 이 잠금 사이에 확정 시각이 지났을 수 있어 잠근 시각으로 다시 판정한다.
             throw new BusinessException(ErrorCode.CHANGE_WINDOW_CLOSED);
         }
     }

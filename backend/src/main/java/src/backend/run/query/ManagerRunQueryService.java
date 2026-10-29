@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.routing.entity.ConfirmedRoute;
+import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.domain.RunStartWindowPolicy;
@@ -66,10 +68,8 @@ public class ManagerRunQueryService {
     /**
      * 요청 주체가 배치된 그 날짜의 회차 카드 전부 — 날짜를 주지 않으면 오늘이다.
      *
-     * <p>회차 하나마다 명단·확정 노선을 되읽는다({@link #addedRemovedOf}·{@link #ackRequiredOf}) —
-     * 매니저 한 명의 하루 담당 회차는 차량 1대 기준 왕복 2건 안팎이라, 이 규모에서는 회차별 조회를
-     * 미리 묶어 두는 것보다 그대로 도는 편이 코드를 단순하게 유지한다(§5.10 {@code RunQueryService}
-     * 의 N+1 회피와 다른 판단 — 그쪽은 학원 전체 회차라 규모가 다르다).
+     * <p>명단 · 확정 노선 · 정차 순서는 회차 묶음으로 한 번씩 읽는다 — 회차마다 읽으면 출근 시간에 매니저 수 × 회차 수만큼 쿼리가 쌓인다. 차량 행을 찾지 못한 회차는 차량 번호 ·
+     * 차량 표시를 비워 돌려준다.
      */
     public List<ManagerRunResponse> list(AuthUser requester, String requestedDate) {
         Manager manager = managerRunAccess.requireManager(requester);
@@ -83,21 +83,38 @@ public class ManagerRunQueryService {
         List<Run> runs = runRepository.findAllByIdInAndAcademyId(runIds, requester.academyId());
         Map<Long, Run> runsById = runs.stream().collect(Collectors.toMap(Run::getId, run -> run));
         Map<Long, Bus> buses = busesOf(requester, runs);
+        Materials materials = materialsOf(requester, runs);
         return assignments.stream()
                 .map(assignment -> runsById.get(assignment.getRunId()) == null ? null
                         : toResponse(requester, runsById.get(assignment.getRunId()),
-                                buses.get(runsById.get(assignment.getRunId()).getBusId()), assignment))
+                                buses.get(runsById.get(assignment.getRunId()).getBusId()), assignment, materials))
                 .filter(response -> response != null)
                 .toList();
     }
 
-    private ManagerRunResponse toResponse(AuthUser requester, Run run, Bus bus, Assignment assignment) {
-        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), requester.academyId());
+    private ManagerRunResponse toResponse(AuthUser requester, Run run, Bus bus, Assignment assignment,
+            Materials materials) {
+        List<RunRider> riders = materials.riders().getOrDefault(run.getId(), List.of());
         long added = riders.stream().filter(rider -> rider.getChange() == ChangeType.ADDED).count();
         long removed = riders.stream().filter(rider -> rider.getChange() == ChangeType.REMOVED).count();
-        boolean ackRequired = ackRequiredOf(requester, run, assignment);
-        return ManagerRunResponse.of(run, bus.getBusNo(), bus.getPlateNo(), assignment, added, removed, ackRequired,
-                headcountOf(requester, run, riders), runStartWindowPolicy);
+        boolean ackRequired = ackRequiredOf(run, assignment, materials);
+        return ManagerRunResponse.of(run, bus == null ? null : bus.getBusNo(), bus == null ? null : bus.getPlateNo(),
+                assignment, added, removed, ackRequired, headcountOf(run, riders, materials), runStartWindowPolicy);
+    }
+
+    /** 회차 묶음의 명단 · 확정 노선 현재 버전 · 정차 순서 — 회차 수와 무관하게 쿼리 세 번으로 읽는다. */
+    private Materials materialsOf(AuthUser requester, List<Run> runs) {
+        List<Long> runIds = runs.stream().map(Run::getId).toList();
+        Map<Long, List<RunRider>> riders = runRiderRepository.findAllByRunIdInAndAcademyId(runIds, requester.academyId())
+                .stream().collect(Collectors.groupingBy(RunRider::getRunId));
+        Map<Long, Long> versionByRun = confirmedRouteRepository
+                .findAllByRunIdInAndAcademyId(runIds, requester.academyId()).stream()
+                .filter(route -> route.getCurrentVersionId() != null)
+                .collect(Collectors.toMap(ConfirmedRoute::getRunId, ConfirmedRoute::getCurrentVersionId));
+        Map<Long, List<RunStop>> stopsByVersion = versionByRun.isEmpty() ? Map.of()
+                : runStopRepository.findAllByRouteVersionIdInAndAcademyId(Set.copyOf(versionByRun.values()),
+                        requester.academyId()).stream().collect(Collectors.groupingBy(RunStop::getRouteVersionId));
+        return new Materials(riders, versionByRun, stopsByVersion);
     }
 
     /**
@@ -105,7 +122,7 @@ public class ManagerRunQueryService {
      * 탑승 예정은 {@code absent} 를 뺀 명단 수, 미등원은 §4.2 {@code counts.absent_n} 과 같은 정의(버스 간 이동으로 빠진 학생은 미등원이 아니다),
      * 승하차지는 §4.2 {@code stops[]} 에서 도착지·강제 경유 지점을 뺀 수(승하차지 마스터를 가리키는 정차 항목)다.
      */
-    private ManagerRunResponse.Headcount headcountOf(AuthUser requester, Run run, List<RunRider> riders) {
+    private ManagerRunResponse.Headcount headcountOf(Run run, List<RunRider> riders, Materials materials) {
         if (run.getStatus() == RunStatus.IDLE) {
             return null;
         }
@@ -113,28 +130,27 @@ public class ManagerRunQueryService {
         int absentCount = (int) riders.stream()
                 .filter(rider -> rider.getStatus() == RiderStatus.ABSENT && rider.getChange() != ChangeType.REMOVED)
                 .count();
-        int stopCount = confirmedRouteRepository.findById(run.getId()).map(ConfirmedRoute::getCurrentVersionId)
-                .map(versionId -> runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(versionId,
-                        requester.academyId()))
-                .map(stops -> (int) stops.stream().filter(stop -> stop.getStopId() != null).count())
-                .orElse(0);
+        Long versionId = materials.versionByRun().get(run.getId());
+        int stopCount = versionId == null ? 0
+                : (int) materials.stopsByVersion().getOrDefault(versionId, List.of()).stream()
+                        .filter(stop -> stop.getStopId() != null).count();
         return new ManagerRunResponse.Headcount(riderCount, absentCount, stopCount);
     }
 
     /** 확정 노선의 현재 버전과 이 배치가 마지막으로 확인한 버전이 다르면 확인 응답이 미완료다(RUN-07). */
-    private boolean ackRequiredOf(AuthUser requester, Run run, Assignment assignment) {
-        Long currentVersionId = confirmedRouteRepository.findById(run.getId())
-                .map(ConfirmedRoute::getCurrentVersionId)
-                .orElse(null);
-        if (currentVersionId == null) {
-            return false;
-        }
-        return !currentVersionId.equals(assignment.getAckedRouteVersionId());
+    private boolean ackRequiredOf(Run run, Assignment assignment, Materials materials) {
+        Long currentVersionId = materials.versionByRun().get(run.getId());
+        return currentVersionId != null && !currentVersionId.equals(assignment.getAckedRouteVersionId());
     }
 
     private Map<Long, Bus> busesOf(AuthUser requester, List<Run> runs) {
         List<Long> busIds = runs.stream().map(Run::getBusId).distinct().toList();
         return busRepository.findAllByAcademyIdAndIdIn(requester.academyId(), busIds).stream()
                 .collect(Collectors.toMap(Bus::getId, bus -> bus));
+    }
+
+    /** 목록 한 번이 읽는 회차 묶음의 재료 — 회차 id 와 확정 노선 버전 id 로 찾는다. */
+    private record Materials(Map<Long, List<RunRider>> riders, Map<Long, Long> versionByRun,
+            Map<Long, List<RunStop>> stopsByVersion) {
     }
 }

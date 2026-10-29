@@ -2,19 +2,12 @@ package src.backend.run.query;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.entity.Academy;
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.common.enums.ChangeType;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -24,18 +17,14 @@ import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.entity.Waypoint;
 import src.backend.routing.query.CurrentRunStopResolver;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
-import src.backend.routing.repository.WaypointRepository;
 import src.backend.run.dto.RunRouteResponse;
 import src.backend.run.dto.RunRouteResponse.RouteStop;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
-import src.backend.student.entity.Stop;
-import src.backend.student.repository.StopRepository;
 
 /**
  * 매니저 앱의 실시간 노선 조회(API_SPEC §4.3, RUN-03·M-08·M-09, Ruling 205).
@@ -55,13 +44,7 @@ public class RunRouteQueryService {
 
     private final RunStopRepository runStopRepository;
 
-    private final RunRiderRepository runRiderRepository;
-
-    private final StopRepository stopRepository;
-
-    private final WaypointRepository waypointRepository;
-
-    private final AcademyRepository academyRepository;
+    private final RunRouteStopLookupLoader lookupLoader;
 
     private final RouteVersionRepository routeVersionRepository;
 
@@ -91,49 +74,20 @@ public class RunRouteQueryService {
      * <p>학원 조건은 요청자가 아니라 <b>회차의 학원</b>으로 건다(BR-014) — 메인 관리자는 {@code academyId}
      * 가 {@code null} 이라 요청자 기준이면 네 조회가 전부 0행이 된다. 두 호출자 모두 여기 오기 전에 접근
      * 판정(배치 확인 · {@code AcademyScope#assertAccessible})을 끝냈다.
-     *
-     * <p>CODE_CONVENTIONS §20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. 두 호출자가 공유하는 "버전 조회 → 정차지 조립 →
-     * 응답 조립" 이 한 조립 단위라, 쪼개면 이 메서드가 존재하는 이유(중복 조립 회피)가 도로 두 곳으로
-     * 흩어진다.
      */
     RunRouteResponse buildFromVersion(Run run, Long currentVersionId) {
-        Long academyId = run.getAcademyId();
         List<RunStop> runStops = runStopRepository.findAllByRouteVersionIdAndAcademyIdOrderBySeq(currentVersionId,
-                academyId);
-        Map<Long, Stop> stopsById = stopRepository
-                .findAllByAcademyIdAndIdIn(academyId,
-                        runStops.stream().map(RunStop::getStopId).filter(id -> id != null).toList())
-                .stream()
-                .collect(Collectors.toMap(Stop::getId, stop -> stop));
-        Map<Long, Waypoint> waypointsById = waypointRepository.findAllAppliedByRunIdAndAcademyId(run.getId(),
-                academyId).stream().collect(Collectors.toMap(Waypoint::getId, waypoint -> waypoint));
-        Map<Long, Long> studentCountsByStopId = studentCountsByStopId(run);
-        Academy academy = academyRepository.findById(academyId).orElse(null);
-
-        List<RouteStop> stops = runStops.stream()
-                .map(runStop -> toRouteStop(runStop, stopsById, waypointsById, academy, studentCountsByStopId))
-                .toList();
+                run.getAcademyId());
+        RunRouteStopLookup lookup = lookupLoader.load(run, runStops);
+        List<RouteStop> stops = runStops.stream().map(lookup::toRouteStop).toList();
 
         RunStop currentRunStop = CurrentRunStopResolver.resolve(runStops).orElse(null);
         int afterSeq = currentRunStop == null ? -1 : currentRunStop.getSeq();
-        // 다음은 "마지막 도착 뒤" 에서만 고른다(BR-015) — 경유 지점은 도착 처리 대상이 아니라, 그 뒤
-        // 승하차지에 도착한 뒤에도 "미도착" 으로 남는다. 미도착 전체의 최소 순번을 고르면 지난 경유
-        // 지점이 next_stop 에 고정된다.
-        RunStop nextRunStop = runStops.stream()
-                .filter(stop -> stop.getSeq() > afterSeq && stop.getChange() != ChangeType.SKIPPED)
-                .filter(stop -> hasResolvedTarget(stop, stopsById, waypointsById, academy))
-                .min(Comparator.comparingInt(RunStop::getSeq))
-                .orElse(null);
-        String skippedNotice = runStops.stream()
-                .filter(stop -> stop.getChange() == ChangeType.SKIPPED && stop.getSeq() > afterSeq)
-                .min(Comparator.comparingInt(RunStop::getSeq))
-                .map(RunStop::getSkipNotice)
-                .orElse(null);
+        RunStop nextRunStop = nextRunStopAfter(runStops, afterSeq, lookup);
+        String skippedNotice = skippedNoticeAfter(runStops, afterSeq);
 
-        RouteStop currentStop = currentRunStop == null ? null
-                : toRouteStop(currentRunStop, stopsById, waypointsById, academy, studentCountsByStopId);
-        RouteStop nextStop = nextRunStop == null ? null
-                : toRouteStop(nextRunStop, stopsById, waypointsById, academy, studentCountsByStopId);
+        RouteStop currentStop = currentRunStop == null ? null : lookup.toRouteStop(currentRunStop);
+        RouteStop nextStop = nextRunStop == null ? null : lookup.toRouteStop(nextRunStop);
 
         // 도로 경로는 버전에 딸린 값이다(Ruling 365) — 버전 행이 없는 이례적 상태면 지도가 핀만 그리도록 빈 목록.
         RouteVersion version = routeVersionRepository.findById(currentVersionId).orElse(null);
@@ -144,51 +98,24 @@ public class RunRouteQueryService {
     }
 
     /**
-     * {@code next_stop} 후보가 실제 좌표를 낼 수 있는가(API_SPEC §1.13, §4.3 목표) —
-     * {@link Stop}·{@link Waypoint} 어느 쪽으로도 안 풀리면(배포 후 제거된 경유 지점이 대표 사례,
-     * {@link WaypointRepository#findAllAppliedByRunIdAndAcademyId} 가 제거분을 map 에서 뺀다) 그 행은
-     * {@link #toRouteStop} 에서 좌표가 전부 {@code null} 인 항목이 된다. {@code next_stop} 은 "외부
-     * 내비게이션 앱 콜백용"이라 좌표 없는 항목을 내보내면 그 용도 자체가 깨지므로, 이미 지나친
-     * ({@code SKIPPED}) 항목과 같은 방식으로 건너뛰어 진짜 다음 정차지(좌표 있는 항목)를 고른다.
-     * {@code stops[]} 배열 자체(전체 목록)는 그대로 좌표 없는 항목을 보존한다 — 그쪽은 상위 항목에만
-     * {@code ●} 가 있고 내부 필드는 별도 등급(API_SPEC §1.13)이라 이 필터를 적용할 근거가 없다.
+     * 마지막 도착 뒤의 첫 미도착 정차 — 다음은 "마지막 도착 뒤" 에서만 고른다(BR-015). 경유 지점은 도착
+     * 처리 대상이 아니라, 그 뒤 승하차지에 도착한 뒤에도 "미도착" 으로 남는다. 미도착 전체의 최소 순번을
+     * 고르면 지난 경유 지점이 next_stop 에 고정된다.
      */
-    private boolean hasResolvedTarget(RunStop runStop, Map<Long, Stop> stopsById, Map<Long, Waypoint> waypointsById,
-            Academy academy) {
-        if (runStop.isDestination()) {
-            return academy != null && academy.hasCoordinates();
-        }
-        return stopsById.get(runStop.getStopId()) != null || waypointsById.get(runStop.getWaypointId()) != null;
+    private RunStop nextRunStopAfter(List<RunStop> runStops, int afterSeq, RunRouteStopLookup lookup) {
+        return runStops.stream()
+                .filter(stop -> stop.getSeq() > afterSeq && stop.getChange() != ChangeType.SKIPPED)
+                .filter(lookup::hasResolvedTarget)
+                .min(Comparator.comparingInt(RunStop::getSeq))
+                .orElse(null);
     }
 
-    /** 승하차지별 예상 탑승 인원 — {@code absent} 는 오늘 자체가 등원 대상이 아니라 뺀다(로스터와 같은 근거). */
-    private Map<Long, Long> studentCountsByStopId(Run run) {
-        List<RunRider> riders = runRiderRepository.findAllByRunIdAndAcademyId(run.getId(), run.getAcademyId());
-        return riders.stream()
-                .filter(rider -> rider.getStatus() != RiderStatus.ABSENT)
-                .collect(Collectors.groupingBy(RunRider::getStopId, Collectors.counting()));
-    }
-
-    /** 학원 항목은 이름·주소·좌표를 학원에서 싣는다(Ruling 327) — 탑승 인원은 늘 0 이다. */
-    private RouteStop toRouteStop(RunStop runStop, Map<Long, Stop> stopsById, Map<Long, Waypoint> waypointsById,
-            Academy academy, Map<Long, Long> studentCounts) {
-        String change = runStop.getChange() == null ? null : runStop.getChange().name().toLowerCase(java.util.Locale.ROOT);
-        Stop stop = stopsById.get(runStop.getStopId());
-        if (stop != null) {
-            long studentCount = studentCounts.getOrDefault(stop.getId(), 0L);
-            return new RouteStop(runStop.getId(), runStop.getSeq(), stop.getName(), stop.getAddress(), stop.getLat(),
-                    stop.getLng(), change, studentCount, false, false, null);
-        }
-        Waypoint waypoint = waypointsById.get(runStop.getWaypointId());
-        if (waypoint != null) {
-            return new RouteStop(runStop.getId(), runStop.getSeq(), waypoint.getLabel(), waypoint.getAddress(),
-                    waypoint.getLat(), waypoint.getLng(), change, 0L, false, true, waypoint.getId());
-        }
-        if (runStop.isDestination() && academy != null) {
-            return new RouteStop(runStop.getId(), runStop.getSeq(), academy.getName(), academy.getAddress(),
-                    academy.getLat(), academy.getLng(), change, 0L, true, false, null);
-        }
-        return new RouteStop(runStop.getId(), runStop.getSeq(), null, null, null, null, change, 0L,
-                runStop.isDestination(), runStop.getWaypointId() != null, runStop.getWaypointId());
+    /** 마지막 도착 뒤에 건너뛰는 첫 정차의 안내 문구. */
+    private String skippedNoticeAfter(List<RunStop> runStops, int afterSeq) {
+        return runStops.stream()
+                .filter(stop -> stop.getChange() == ChangeType.SKIPPED && stop.getSeq() > afterSeq)
+                .min(Comparator.comparingInt(RunStop::getSeq))
+                .map(RunStop::getSkipNotice)
+                .orElse(null);
     }
 }

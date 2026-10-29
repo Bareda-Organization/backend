@@ -99,6 +99,12 @@ public class Schedule extends BaseTimeEntity {
      * 그러면 이미 만들어진 회차의 {@code schedule_id} 가 함께 끊긴다.
      */
     public void update(SchedulePlan plan) {
+        updateSlot(plan);
+        updateDetails(plan);
+    }
+
+    /** 유일성 조합 넷(차량·요일·방향·출발 시각) 중 값이 있는 항목만 고친다. */
+    private void updateSlot(SchedulePlan plan) {
         if (plan.busId() != null) {
             this.busId = plan.busId();
         }
@@ -111,6 +117,10 @@ public class Schedule extends BaseTimeEntity {
         if (plan.departTime() != null) {
             this.departTime = plan.departTime();
         }
+    }
+
+    /** 유일성 조합 밖 항목(출발지·도착지·소요 시간·활성) 중 값이 있는 항목만 고친다. */
+    private void updateDetails(SchedulePlan plan) {
         if (plan.originName() != null) {
             this.originName = plan.originName();
         }

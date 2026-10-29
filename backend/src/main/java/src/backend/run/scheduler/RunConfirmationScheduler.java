@@ -2,7 +2,6 @@ package src.backend.run.scheduler;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -20,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.global.error.BusinessException;
 import src.backend.observability.metrics.RunConfirmationMetrics;
+import src.backend.run.command.ConfirmationInputsChangedException;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.domain.RunConfirmationPolicy;
 import src.backend.run.entity.Run;
@@ -63,13 +63,8 @@ public class RunConfirmationScheduler {
     /** 예기치 못한 예외(버그·인프라 장애)의 스택은 분당 한 번만 남긴다 — 설정 오류는 스택 없이 한 줄이라 이 제한을 받지 않는다. */
     private final RateLimitedWarn unexpectedFailure = RateLimitedWarn.perMinute(log);
 
-    /** 마지막으로 틱이 정상 반환한 시각 — 한 번도 안 돌았으면 기동 시점부터 잰다(관리자 대시보드 {@code confirm_batch} 칸). */
-    private volatile Instant lastSuccessAt = Instant.now();
-
-    /** 마지막 정상 반환 뒤 흐른 시간. */
-    public Duration sinceLastSuccess() {
-        return Duration.between(lastSuccessAt, Instant.now());
-    }
+    /** 틱이 정상 반환한 시각을 남긴다 — 관리자 대시보드 {@code confirm_batch} 칸이 인스턴스와 무관하게 읽는다. */
+    private final ConfirmationBatchHeartbeat heartbeat;
 
     /**
      * 판정 시각이 지난 idle 회차를 확정한다.
@@ -100,7 +95,7 @@ public class RunConfirmationScheduler {
                         () -> confirmSafely(run.getId(), run.getConsecutiveFailures()), runConfirmationExecutor))
                 .toList();
         CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
-        lastSuccessAt = Instant.now();
+        heartbeat.markSuccess();
     }
 
     /**
@@ -119,11 +114,15 @@ public class RunConfirmationScheduler {
     private void confirmSafely(Long runId, int failuresSoFar) {
         try {
             confirmationService.confirmOne(runId);
+        } catch (ConfirmationInputsChangedException e) {
+            // 학부모의 탑승 끄기·승인된 이동이 계산 사이에 커밋됐다 — 확정 실패가 아니라 정상 경합이라 횟수 · 재시도 시각 · 지표를 건드리지 않고 다음 틱이 다시 읽는다.
+            log.info("회차 {} 명단 입력이 확정 계산 중 바뀌어 다음 틱에 다시 읽는다", runId);
         } catch (Exception e) {
             Duration delay = RunConfirmationPolicy.retryDelayAfter(failuresSoFar + 1);
             logFailure(runId, e, delay);
-            runRepository.recordFailure(runId, OffsetDateTime.now(clock).plus(delay));
-            metrics.recordRetryFailure();
+            if (runRepository.recordFailure(runId, OffsetDateTime.now(clock).plus(delay)) > 0) {
+                metrics.recordRetryFailure();
+            }
         }
     }
 

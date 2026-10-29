@@ -4,21 +4,15 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.entity.Academy;
-import src.backend.academy.repository.AcademyRepository;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
-import src.backend.global.error.ErrorCode;
 import src.backend.observability.metrics.RunConfirmationMetrics;
-import src.backend.global.location.GeoPoint;
-import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.map.spec.CallerPolicy;
@@ -27,15 +21,11 @@ import src.backend.routing.pipeline.DailyRoster;
 import src.backend.routing.pipeline.RouteComputation;
 import src.backend.routing.pipeline.RouteComputationInput;
 import src.backend.routing.pipeline.RouteComputationPipeline;
-import src.backend.routing.repository.RouteRepository;
-import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.domain.RunRouteEndpoints;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.roster.ProjectedRoster;
 import src.backend.run.roster.ProjectedRosterReader;
-import src.backend.student.entity.Stop;
-import src.backend.student.repository.StopRepository;
 
 /**
  * 확정 배치의 오케스트레이터(RTE-08) —회차 1건을 idle → confirmed 로 전이시키는 전체
@@ -69,13 +59,7 @@ public class RunConfirmationService {
 
     private final RunRepository runRepository;
 
-    private final AcademyRepository academyRepository;
-
-    private final RouteRepository routeRepository;
-
-    private final RouteStopRepository routeStopRepository;
-
-    private final StopRepository stopRepository;
+    private final RunConfirmationInputReader inputReader;
 
     private final ProjectedRosterReader rosterReader;
 
@@ -105,11 +89,6 @@ public class RunConfirmationService {
      * (읽기 → 계산 → {@link RunConfirmationPersistence#persist} → 지표)은 배치 경로와 완전히 같다 —
      * {@link #confirmOne(Long)} 은 {@code forceFallback=false} 로 이 메서드를 그대로 통과한다.
      *
-     * <p>CODE_CONVENTIONS §20.2 — 본문이 기준(20줄)을 넘긴 채 둔다. "읽기 → 좌표 결정 → 계산 → 저장 → 계측" 은 한
-     * 회차를 확정하는 단일 순서고, 각 단계가 다음 단계 입력을 바로 쓴다 — private 메서드로 쪼개면
-     * 그 순서를 파일 안 여러 자리로 흩어 놓을 뿐 책임은 늘지 않는다(중복이었던 요일·좌표 규칙은
-     * {@code Weekday.of}·RunRouteEndpoints 로 이미 뺐다, BR-101·BR-099).
-     *
      * @return {@link RunConfirmationPersistence#persist} 가 실제로 확정을 저장했으면 {@code true},
      *         진 경쟁이거나 회차가 이미 취소·삭제됐으면 {@code false} — 관리자 강제 확정 컨트롤러는
      *         이 값이 {@code false} 면 {@code RUN_NOT_IDLE} 로 답한다(호출 전에 idle 을 이미 확인했는데도
@@ -122,70 +101,46 @@ public class RunConfirmationService {
         if (run == null || run.isCanceled()) {
             return false;
         }
-
-        Academy academy = academyRepository.findById(run.getAcademyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
-        if (!academy.hasCoordinates()) {
-            // Ruling 190: 좌표 미등록 학원을 다른 기준점으로 대체하지 않는다 — 이 회차만 실패시킨다.
-            throw new BusinessException(ErrorCode.ACADEMY_COORDINATES_MISSING);
-        }
-
+        Academy academy = inputReader.academyWithCoordinates(run);
         Weekday weekday = Weekday.of(run.getServiceDate());
-        Route route = routeRepository
-                .findByAcademyIdAndBusIdAndWeekdayAndDirection(run.getAcademyId(), run.getBusId(), weekday,
-                        run.getDirection())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN));
-
-        List<RouteStop> routeStops = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(),
-                run.getAcademyId());
-        if (routeStops.isEmpty()) {
-            throw new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN);
-        }
-
+        List<RouteStop> routeStops = inputReader.routeStopsOf(run, weekday);
         List<Long> stopIds = routeStops.stream().map(RouteStop::getStopId).toList();
-        Map<Long, Stop> stopsById = stopRepository.findAllByIdInAndAcademyId(stopIds, run.getAcademyId()).stream()
-                .collect(Collectors.toMap(Stop::getId, stop -> stop));
-
-        Stop firstStop = stopsById.get(routeStops.get(0).getStopId());
-        Stop lastStop = stopsById.get(routeStops.get(routeStops.size() - 1).getStopId());
-        if (firstStop == null || lastStop == null) {
-            // 정차 순서가 가리키는 승하차지가 학원 밖(또는 삭제됨) — findAllByIdInAndAcademyId 가
-            // 빠뜨린 것과 같은 신호라 노선 미편성과 같은 오류로 답한다.
-            throw new BusinessException(ErrorCode.ROUTE_NOT_CONFIGURED_FOR_RUN);
-        }
-
-        GeoPoint academyPoint = new GeoPoint(academy.getLat(), academy.getLng());
-        RunRouteEndpoints.Endpoints endpoints = RunRouteEndpoints.of(run.getDirection(), academyPoint,
-                new GeoPoint(firstStop.getLat(), firstStop.getLng()), new GeoPoint(lastStop.getLat(), lastStop.getLng()));
-        GeoPoint origin = endpoints.origin();
-        GeoPoint destination = endpoints.destination();
+        RunRouteEndpoints.Endpoints endpoints = inputReader.endpointsOf(run, academy, routeStops);
 
         // 명단 규칙은 정원 판정 경로와 한 벌이다(ProjectedRosterReader 자바독, BR-043).
         ProjectedRoster projected = rosterReader.read(run, weekday, stopIds);
-
-        DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(),
-                projected.studentIds(), projected.stopOverrides());
-        ComputationPolicy policy = new ComputationPolicy(MAP_TIMEOUT, CallerPolicy.BATCH,
-                RouteVersionSource.CONFIRM_BATCH, forceFallback);
-        RouteComputationInput input = new RouteComputationInput(roster, origin, destination, List.of(),
-                run.getDepartTime(), policy);
+        RouteComputationInput input = inputOf(run, weekday, projected, endpoints, forceFallback);
 
         // 외부 지도 API 를 부르는 계산은 트랜잭션 밖에서 돈다(클래스 javadoc) — 여기까지는 읽기뿐이다.
         RouteComputation computation = pipeline.compute(input);
-
-        // run.getConfirmAt()(판정 시각)과 이 confirmedAt(완료 시각)이 동시에 확보되는 유일한
-        // 자리라 배치 지연 지표를 여기서 계측한다.
         OffsetDateTime confirmedAt = OffsetDateTime.now(clock);
-
         boolean persisted = persistence.persist(run, computation, endpoints, weekday, projected, confirmedAt);
-        // persisted == false 는 동시 확정 경합에서 진 시도다(persist() javadoc) — 이 시도는 기록하지
-        // 않는다. 승패 신호 없이 무조건 기록하면 표본 수가 확정 사건 수보다 부풀어, 이 지표가 가장
-        // 필요한 순간(인스턴스 증설로 경합이 잦아질 때) 가장 부정확해진다. 실패해 위에서 예외로 빠진
-        // 시도는 이 줄에 닿지 않아 기록되지 않고, 다음 틱 재시도가 성공할 때 run.getConfirmAt() 은
-        // 그대로라 실패 구간까지 포함한 누적 지연으로 잡힌다.
+        recordLagIfPersisted(run, persisted, confirmedAt);
+        return persisted;
+    }
+
+    /** 노선 계산 입력 — 정책의 {@code forceFallback} 이 참이면 지도 API 를 건너뛰고 직선거리 근사를 강제한다. */
+    private RouteComputationInput inputOf(Run run, Weekday weekday, ProjectedRoster projected,
+            RunRouteEndpoints.Endpoints endpoints, boolean forceFallback) {
+        ComputationPolicy policy = new ComputationPolicy(MAP_TIMEOUT, CallerPolicy.BATCH,
+                RouteVersionSource.CONFIRM_BATCH, forceFallback);
+        DailyRoster roster = new DailyRoster(run.getAcademyId(), weekday, run.getDirection(), projected.studentIds(),
+                projected.stopOverrides());
+        return new RouteComputationInput(roster, endpoints.origin(), endpoints.destination(), List.of(),
+                run.getDepartTime(), policy);
+    }
+
+    /**
+     * 배치 지연 지표를 기록한다 — run.getConfirmAt()(판정 시각)과 confirmedAt(완료 시각)이 동시에 확보되는 유일한 자리다.
+     * persisted == false 는 동시 확정 경합에서 진 시도다(persist() javadoc) — 이 시도는 기록하지
+     * 않는다. 승패 신호 없이 무조건 기록하면 표본 수가 확정 사건 수보다 부풀어, 이 지표가 가장
+     * 필요한 순간(인스턴스 증설로 경합이 잦아질 때) 가장 부정확해진다. 실패해 예외로 빠진
+     * 시도는 이 줄에 닿지 않아 기록되지 않고, 다음 틱 재시도가 성공할 때 run.getConfirmAt() 은
+     * 그대로라 실패 구간까지 포함한 누적 지연으로 잡힌다.
+     */
+    private void recordLagIfPersisted(Run run, boolean persisted, OffsetDateTime confirmedAt) {
         if (persisted) {
             metrics.recordLag(Duration.between(run.getConfirmAt(), confirmedAt));
         }
-        return persisted;
     }
 }
