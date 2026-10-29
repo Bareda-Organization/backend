@@ -76,6 +76,8 @@ public class DelayNotificationCommandService {
 
     private final RunAssignmentAccess runAssignmentAccess;
 
+    private final RunRowLock runRowLock;
+
     private final ApplicationEventPublisher eventPublisher;
 
     private final Clock clock;
@@ -91,6 +93,8 @@ public class DelayNotificationCommandService {
         runAssignmentAccess.assertAssignedEscort(requester, runId);
         Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        // 회차 행을 잠그고 상태를 다시 읽은 뒤 판정한다 — 같은 내용의 동시 신고가 둘 다 중복 검사를 지나거나 운행이 막 끝난 회차에 신고가 통과하지 않게 한다.
+        runRowLock.acquire(run);
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
