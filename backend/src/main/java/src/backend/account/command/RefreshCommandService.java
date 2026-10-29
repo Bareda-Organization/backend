@@ -44,18 +44,15 @@ public class RefreshCommandService {
      * 알려주면 공격자가 "이 토큰은 서명이 깨졌다"와 "이 토큰은 로그아웃으로 무효화됐다"를 구별할
      * 단서를 얻는다.
      *
-     * <p>{@code Account.assertNotBlocked()} 는 의도적으로 호출하지 않는다 — 계정이 차단되면
-     * 로그인 시점에 이미 그 계정의 refresh 토큰 전량을 무효화하므로(§ {@link LoginCommandService}),
-     * 차단된 계정의 토큰은 이 메서드의 "이미 무효화됨" 분기에서 자연히 걸러진다. 여기서 별도로
-     * {@code AUTH_ACCOUNT_BLOCKED}(403)를 던지면 API_SPEC §2.6 에 없는 에러 코드를 이 경로에
-     * 새로 만드는 셈이라 하지 않았다.
+     * <p>권한을 잃은 계정(차단 · 퇴사 · 삭제된 매니저)은 {@code accountStanding.isLost} 가 막는다(Ruling 880) — {@code
+     * Account.assertNotBlocked()} 의 403({@code AUTH_ACCOUNT_BLOCKED})을 던지면 API_SPEC §2.6 에 없는 에러 코드를 이 경로에 새로 만드는
+     * 셈이라 응답은 {@code TOKEN_EXPIRED} 하나다.
      *
-     * <p><b>그 근거는 차단 하나가 아니라 "접근을 끊는 모든 경로가 무효화한다" 는 전제 위에 선다.</b>
-     * 지금 그 경로는 셋이다 — 로그인 실패 누적 차단({@code LoginCommandService}) · 비밀번호 변경·복구
-     * (§2.8·§2.9) · 관계자 퇴사와 비밀번호 초기화({@code StaffAccountCommandService}, §6.7). 넷째
-     * 경로를 만드는 Phase 는 {@code RefreshTokenRepository#revokeAllValidByAccountId} 를 함께 불러야
-     * 한다. 빠뜨리면 이 메서드가 그 계정을 걸러낼 수단이 사라지는데, <b>응답은 200 이라 어떤 단언도
-     * 그 사실을 알려주지 않는다.</b>
+     * <p>접근을 끊는 경로는 그 계정의 refresh 토큰도 함께 전량 무효화하므로 대개 아래 "이미 무효화됨" 분기에서 먼저 걸린다 — 로그인 실패
+     * 누적 차단({@code LoginCommandService}) · 비밀번호 변경·복구(§2.8·§2.9) · 관계자 퇴사와 비밀번호 초기화({@code
+     * StaffAccountCommandService}, §6.7) · 매니저 삭제({@code ManagerDeletedSessionListener}). 다섯째 경로를 만드는 쪽이 {@code
+     * RefreshTokenRepository#revokeAllValidByAccountId} 를 빠뜨려도 {@code isLost} 확인이 재발급을 막지만, 상태 보관 항목의 지연만큼은
+     * 열려 있다.
      *
      * <p>{@code Account} 를 매번 다시 조회하는 이유는 JWT 클레임을 신뢰하지 않기 위해서다 —
      * 로그인 이후 role·status 가 바뀌었다면(예: 승인) 새로 발급하는 access 토큰에 최신 값을
@@ -66,27 +63,45 @@ public class RefreshCommandService {
         Claims claims = parseRefreshClaims(rawRefreshToken);
         Long accountId = Long.valueOf(claims.getSubject());
 
-        String tokenHash = RefreshTokenHasher.sha256Hex(rawRefreshToken);
-        RefreshToken stored = refreshTokenRepository.findByTokenHash(tokenHash)
-                .filter(t -> t.getRevokedAt() == null)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
+        RefreshToken stored = findValidStoredToken(rawRefreshToken);
 
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
 
+        assertStandingKept(accountId);
+
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        revokeStored(stored, now);
+        return issueRotated(account, now);
+    }
+
+    /** 원문 해시로 저장된 토큰을 찾는다 — 없거나 이미 무효화됐으면 {@code TOKEN_EXPIRED}. */
+    private RefreshToken findValidStoredToken(String rawRefreshToken) {
+        String tokenHash = RefreshTokenHasher.sha256Hex(rawRefreshToken);
+        return refreshTokenRepository.findByTokenHash(tokenHash)
+                .filter(t -> t.getRevokedAt() == null)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
+    }
+
+    private void assertStandingKept(Long accountId) {
         // 권한을 잃은 계정(차단 · 퇴사 · 삭제된 매니저)은 재발급하지 않는다(Ruling 880) — access 가 401 TOKEN_EXPIRED 로 막히는데 재발급이
-        // 200 이면 클라이언트가 로그인으로 가지 못하고 재발급 → 401 을 되풀이한다. 삭제된 매니저는 refresh 가 무효화되지 않으므로 여기가 유일한 차단이다
+        // 200 이면 클라이언트가 로그인으로 가지 못하고 재발급 → 401 을 되풀이한다. 위 무효화 분기와 겹치는 확인이지만, 무효화가 아직
+        // 닿지 않은 틈(경합 · 보관 항목)에도 재발급이 나가지 않게 둔다
         if (accountStanding.isLost(accountId)) {
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         }
+    }
 
-        OffsetDateTime now = OffsetDateTime.now(clock);
+    private void revokeStored(RefreshToken stored, OffsetDateTime now) {
         // 조건부 무효화의 결과로 선점을 판정한다(BR-061) — 동시 요청이 둘 다 "미해지" 를 읽어도 무효화에 성공한
         // 한 건만 새 토큰을 받는다. 결과를 버리면 세션 사슬이 두 갈래로 갈린다.
         if (refreshTokenRepository.revokeByTokenHash(stored.getTokenHash(), now) != 1) {
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         }
+    }
 
+    /** 최신 계정 상태로 access · refresh 토큰을 새로 만들고 refresh 해시를 저장한다. */
+    private RefreshResult issueRotated(Account account, OffsetDateTime now) {
         String newAccessToken = jwtTokenProvider.createAccessToken(account.getId(), account.getAcademyId(),
                 account.getRole(), account.getStatus(), account.isMustChangePassword());
         String newRefreshToken = jwtTokenProvider.createRefreshToken(account.getId(), account.getAcademyId(),

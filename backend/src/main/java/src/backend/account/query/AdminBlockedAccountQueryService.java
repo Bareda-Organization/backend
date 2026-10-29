@@ -16,7 +16,6 @@ import src.backend.academy.repository.AcademyRepository;
 import src.backend.account.dto.BlockedAccountResponse;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
-import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.request.PageParams;
 import src.backend.global.request.PageSortRequest;
 import src.backend.global.request.SortParam;
@@ -63,7 +62,7 @@ public class AdminBlockedAccountQueryService {
     public PageResponse<BlockedAccountResponse> list(PageSortRequest request) {
         PageParams pageParams = PageParams.of(request.page(), request.size());
         Sort sort = SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER);
-        Page<Account> page = accountRepository.findAllByStatus(AccountStatus.BLOCKED, pageParams.toPageable(sort));
+        Page<Account> page = accountRepository.findAllLoginBlocked(pageParams.toPageable(sort));
 
         Map<Long, String> academyNames = academyNamesOf(page.getContent());
         return PageResponse.of(page, page.getContent().stream()

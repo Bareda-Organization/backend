@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,25 +54,38 @@ class AdminDashboardTodayRuns {
             return new Board(List.of(), List.of());
         }
         List<Long> runIds = runs.stream().map(Run::getId).toList();
-        Map<Long, Bus> buses = busRepository.findAllByAcademyIdInAndIdIn(scope.academyIds(), runs.stream().map(Run::getBusId).distinct().toList()).stream()
-                .collect(Collectors.toMap(Bus::getId, bus -> bus));
+        Map<Long, Bus> buses = busesOf(scope, runs);
         Map<Long, List<RunStop>> stopsByRun = stopsOf(runs);
         Map<Long, Long> pendingByRun = changeRequestRepository.countPendingByRun(scope.academyIds(), runIds).stream()
                 .collect(Collectors.toMap(RunPendingCount::getRunId, RunPendingCount::getTotal));
         Set<Long> driverAssigned = new HashSet<>(assignmentRepository.findDriverAssignedRunIds(scope.academyIds(), runIds));
-        Set<Long> delayedIds = runRepository.findDelayedToday(scope.academyIds(), today).stream().map(Run::getId)
-                .collect(Collectors.toSet());
+        Set<Long> delayedIds = delayedIdsOf(scope, today);
 
         List<AdminDashboardResponse.TodayRun> todayRuns = runs.stream()
                 .map(run -> todayRunOf(run, scope, buses.get(run.getBusId()), stopsByRun.getOrDefault(run.getId(), List.of()),
                         pendingByRun.getOrDefault(run.getId(), 0L), driverAssigned.contains(run.getId())))
                 .toList();
-        List<AdminDashboardResponse.DelayedRun> delayedRuns = runs.stream().filter(run -> delayedIds.contains(run.getId()))
+        return new Board(todayRuns, delayedRunsOf(runs, delayedIds, scope, buses, stopsByRun));
+    }
+
+    private Map<Long, Bus> busesOf(DashboardScope scope, List<Run> runs) {
+        return busRepository.findAllByAcademyIdInAndIdIn(scope.academyIds(), runs.stream().map(Run::getBusId).distinct().toList()).stream()
+                .collect(Collectors.toMap(Bus::getId, bus -> bus));
+    }
+
+    private Set<Long> delayedIdsOf(DashboardScope scope, LocalDate today) {
+        return runRepository.findDelayedToday(scope.academyIds(), today).stream().map(Run::getId)
+                .collect(Collectors.toSet());
+    }
+
+    /** 오늘 회차 중 지연 알림이 나간 회차 — 출발 순을 유지한다. */
+    private List<AdminDashboardResponse.DelayedRun> delayedRunsOf(List<Run> runs, Set<Long> delayedIds,
+            DashboardScope scope, Map<Long, Bus> buses, Map<Long, List<RunStop>> stopsByRun) {
+        return runs.stream().filter(run -> delayedIds.contains(run.getId()))
                 .map(run -> new AdminDashboardResponse.DelayedRun(run.getId(), scope.academyNames().get(run.getAcademyId()),
-                        buses.get(run.getBusId()).getBusNo(), lower(run.getDirection().name()),
+                        buses.get(run.getBusId()).getBusNo(), QueryLabels.lower(run.getDirection().name()),
                         RunDelayCalculator.minutesOf(run, stopsByRun.getOrDefault(run.getId(), List.of()))))
                 .toList();
-        return new Board(todayRuns, delayedRuns);
     }
 
     /** 정차 항목은 확정 뒤 회차만 있고, 학원마다 한 번씩(쿼리 2건) 읽는다 — 로더가 학원 단위로 좁혀 읽는다. */
@@ -91,16 +103,12 @@ class AdminDashboardTodayRuns {
         List<RunStop> boardingStops = stops.stream()
                 .filter(stop -> stop.getStopId() != null && stop.getChange() != ChangeType.SKIPPED).toList();
         return new AdminDashboardResponse.TodayRun(run.getId(), run.getAcademyId(),
-                scope.academyNames().get(run.getAcademyId()), bus.getBusNo(), lower(run.getDirection().name()),
+                scope.academyNames().get(run.getAcademyId()), bus.getBusNo(), QueryLabels.lower(run.getDirection().name()),
                 run.getDepartTime(), run.getEstDurationMin() == null ? null
                         : run.getDepartTime().plusMinutes(run.getEstDurationMin()),
-                lower(run.getStatus().name()), run.getStartedAt(), run.getFinishedAt(),
+                QueryLabels.lower(run.getStatus().name()), run.getStartedAt(), run.getFinishedAt(),
                 run.getStatus() == RunStatus.MOVING ? RunDelayCalculator.minutesOf(run, stops) : null,
                 confirmed ? (Integer) (int) boardingStops.stream().filter(stop -> stop.getArrivedAt() != null).count() : null,
                 confirmed ? (Integer) boardingStops.size() : null, pendingChangeCount, driverAssigned);
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

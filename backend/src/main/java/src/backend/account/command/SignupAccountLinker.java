@@ -3,8 +3,11 @@ package src.backend.account.command;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
@@ -97,13 +100,16 @@ public class SignupAccountLinker {
         return resolveStudentIds(account, studentIds);
     }
 
+    /** 지정한 학생을 학원 범위로 한 번에 읽는다(퇴원한 학생은 뺀다) — 요청 순서를 지키고, 하나라도 없으면 {@code 404 STUDENT_NOT_FOUND} 다. */
     private List<Student> resolveStudentIds(Account account, List<Long> studentIds) {
         if (studentIds.size() != Set.copyOf(studentIds).size()) {
             throw new BusinessException(ErrorCode.ALREADY_LINKED);
         }
+        Map<Long, Student> found = studentRepository.findAllByAcademyIdAndIdIn(account.getAcademyId(), studentIds)
+                .stream().filter(student -> student.getDeletedAt() == null)
+                .collect(Collectors.toMap(Student::getId, Function.identity()));
         return studentIds.stream()
-                .map(studentId -> studentRepository
-                        .findByIdAndAcademyIdAndDeletedAtIsNull(studentId, account.getAcademyId())
+                .map(studentId -> Optional.ofNullable(found.get(studentId))
                         .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND)))
                 .toList();
     }

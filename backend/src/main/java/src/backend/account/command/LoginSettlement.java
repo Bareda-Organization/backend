@@ -91,23 +91,32 @@ public class LoginSettlement {
                 : passwordEncoder.matches(rawPassword, account.getPasswordHash());
 
         if (!verified) {
-            int remaining = account.recordLoginFailure(now);
-            auditLogRepository.save(
-                    AuditLog.forLoginFail(account.getAcademyId(), account.getId(), loginId, ip, now));
-            if (account.getStatus() == AccountStatus.BLOCKED) {
-                refreshTokenRepository.revokeAllValidByAccountId(account.getId(), now);
-                auditLogRepository.save(
-                        AuditLog.forLoginBlock(account.getAcademyId(), account.getId(), loginId, ip, now));
-                eventPublisher.publishEvent(new AccountStandingChangedEvent(account.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다
-                throw new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
-            }
-            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, new LoginFailureDetail(remaining));
+            throw recordFailure(account, loginId, ip, now);
         }
         assertStandingKept(account);
         account.recordLoginSuccess(now);
         auditLogRepository.save(
                 AuditLog.forLoginSuccess(account.getAcademyId(), account.getId(), loginId, ip, now));
+        return issueTokens(account, now);
+    }
 
+    /** 실패를 누적하고 감사 행을 남긴다 — 상한에 닿아 차단되면 refresh 토큰 무효화·차단 감사·상태 변경 이벤트까지 하고 던질 예외를 돌려준다. */
+    private BusinessException recordFailure(Account account, String loginId, String ip, OffsetDateTime now) {
+        int remaining = account.recordLoginFailure(now);
+        auditLogRepository.save(
+                AuditLog.forLoginFail(account.getAcademyId(), account.getId(), loginId, ip, now));
+        if (account.getStatus() == AccountStatus.BLOCKED) {
+            refreshTokenRepository.revokeAllValidByAccountId(account.getId(), now);
+            auditLogRepository.save(
+                    AuditLog.forLoginBlock(account.getAcademyId(), account.getId(), loginId, ip, now));
+            eventPublisher.publishEvent(new AccountStandingChangedEvent(account.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다
+            return new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);
+        }
+        return new BusinessException(ErrorCode.INVALID_CREDENTIALS, new LoginFailureDetail(remaining));
+    }
+
+    /** access · refresh 토큰을 만들고 refresh 해시를 저장한 뒤 로그인 결과(소속 학원 포함)를 조립한다. */
+    private LoginResult issueTokens(Account account, OffsetDateTime now) {
         String accessToken = jwtTokenProvider.createAccessToken(account.getId(), account.getAcademyId(),
                 account.getRole(), account.getStatus(), account.isMustChangePassword());
         String refreshToken = jwtTokenProvider.createRefreshToken(account.getId(), account.getAcademyId(),

@@ -2,12 +2,10 @@ package src.backend.monitoring.query;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -36,13 +34,6 @@ import src.backend.student.repository.StudentRepository;
  * 메인 관리자 콘솔의 회차별 승하차지·학생 명단 조회(API_SPEC §6.9, O-06).
  *
  * <p>L3 조회다 — 사진·연락처를 원문으로 담는다(SYS-01 감사 대상).
- *
- * <p><b>행위자를 {@link SecurityContextHolder} 로 얻는다</b> — 이 저장소의 다른 모든 서비스는
- * {@link AuthUser} 를 메서드 인자로 받는데({@code @AuthenticationPrincipal} 이 컨트롤러에서 주입),
- * {@link src.backend.monitoring.controller.AdminRunRosterController#roster} 는 그 주입이 없다. 컨트롤러는
- * 인자를 늘리려면 컨트롤러도 고쳐야 하고, 그러면 감사 요건 하나가 컨트롤러 변경까지 요구한다 —
- * 대신 이 서비스 안에서 인증 컨텍스트를 직접 읽어 그 경계를 지킨다. 이 저장소에 없던 접근 방식이라
- * 여기 근거를 남긴다.
  *
  * <p>{@code RosterQueryService#phonesOf} 와 판정 방식은 같지만(학생당 첫 보호자 연락처) 그 메서드가
  * {@code private} 이라 직접 재사용할 수 없어 같은 {@link
@@ -73,8 +64,12 @@ public class AdminRunRosterQueryService {
 
     private final AuditRecorder auditRecorder;
 
-    /** 그 회차의 승하차지별 학생 명단(사진·연락처 원문, API_SPEC §6.9) — 조회마다 감사 로그를 남긴다. */
-    public AdminRunRosterResponse roster(Long runId) {
+    /**
+     * 그 회차의 승하차지별 학생 명단(사진·연락처 원문, API_SPEC §6.9) — 조회마다 감사 로그를 남긴다.
+     *
+     * @param requester 감사 행의 행위자 — 컨트롤러가 {@code @AuthenticationPrincipal} 로 넘긴다
+     */
+    public AdminRunRosterResponse roster(Long runId, AuthUser requester) {
         Run run = runRepository.findById(runId).orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         Long academyId = run.getAcademyId();
 
@@ -90,7 +85,7 @@ public class AdminRunRosterQueryService {
                 .map(runStop -> toStopGroup(runStop, stopsById.get(runStop.getStopId()),
                         ridersByStopId.getOrDefault(runStop.getStopId(), List.of()), studentsById, guardianPhonesById))
                 .toList();
-        recordAudit(academyId, run.getId(), stops);
+        recordAudit(academyId, requester, run.getId(), stops);
         return new AdminRunRosterResponse(stops);
     }
 
@@ -99,7 +94,8 @@ public class AdminRunRosterQueryService {
      * ({@link #toStudent}). {@code student_phone}(학생 본인 번호)은 L3 가 아니다(FEATURE_SPEC §6.3 —
      * 그 항목이 열거한 것은 "보호자 연락처 원본" 이지 학생 본인 번호가 아니다).
      */
-    private void recordAudit(Long academyId, Long runId, List<AdminRunRosterResponse.StopGroup> stops) {
+    private void recordAudit(Long academyId, AuthUser requester, Long runId,
+            List<AdminRunRosterResponse.StopGroup> stops) {
         List<String> studentIds = stops.stream()
                 .flatMap(stopGroup -> stopGroup.students().stream())
                 .map(AdminRunRosterResponse.Student::studentId)
@@ -109,7 +105,6 @@ public class AdminRunRosterQueryService {
         if (studentIds.isEmpty()) {
             return;
         }
-        AuthUser requester = (AuthUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         auditRecorder.recordDataAccessRead(academyId, requester.accountId(), "run_roster", runId,
                 Map.of("student_ids", studentIds, "fields", List.of("photo_url", "guardian_phone")));
     }
@@ -131,7 +126,7 @@ public class AdminRunRosterQueryService {
 
     private AdminRunRosterResponse.Student toStudent(RunRider rider, Student student, String guardianPhone) {
         return new AdminRunRosterResponse.Student(rider.getStudentId(), student.getName(), student.getPhotoUrl(),
-                student.getStudentPhone(), guardianPhone, lower(rider.getStatus().name()));
+                student.getStudentPhone(), guardianPhone, QueryLabels.lower(rider.getStatus().name()));
     }
 
     /**
@@ -171,9 +166,5 @@ public class AdminRunRosterQueryService {
             result.putIfAbsent(phone.getStudentId(), phone.getPhone());
         }
         return result;
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

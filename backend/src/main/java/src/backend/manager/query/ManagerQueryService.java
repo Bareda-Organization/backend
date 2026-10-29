@@ -43,6 +43,12 @@ public class ManagerQueryService {
 
     private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "name");
 
+    /**
+     * 어떤 정렬에도 마지막으로 붙는 결정적 순서 — {@code role} 은 값이 둘뿐이고 이름도 겹칠 수 있어, 동점 행의 순서를 DB 에 맡기면
+     * 페이지를 넘길 때 같은 매니저가 두 번 나오거나 한 번도 안 나온다.
+     */
+    private static final Sort TIE_BREAKER = Sort.by(Sort.Direction.ASC, "id");
+
     private final ManagerRepository managerRepository;
 
     private final AssignmentRepository assignmentRepository;
@@ -60,21 +66,10 @@ public class ManagerQueryService {
      */
     public ManagerListResponse list(AuthUser requester, ManagerListRequest request) {
         LocalDate today = LocalDate.now(clock);
-        Page<Manager> page = managerRepository.searchByAcademyId(requester.academyId(), namePattern(request.q()),
-                ApiValues.managerRole(request.role()), ApiValues.linkedFilter(request.linked()),
-                ApiValues.assignedTodayFilter(request.assignedToday()), today,
-                PageParams.of(request.page(), request.size())
-                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT)));
+        Page<Manager> page = searchPage(requester, request, today);
         List<Long> managerIds = page.getContent().stream().map(Manager::getId).toList();
-        // 삭제 차단(ManagerCommandService)과 같은 판정 조각을 쓰는 한 번의 집계 — 매니저마다 묻지 않는다(Ruling 817).
-        Map<Long, Integer> runCounts = assignmentRepository
-                .countUnfinishedByManagerIds(managerIds, today, RunStatus.FINISHED, RunStatus.MOVING).stream()
-                .collect(Collectors.toMap(AssignmentRepository.ManagerRunCount::getManagerId,
-                        count -> Math.toIntExact(count.getTotal())));
-        Map<Long, List<ManagerResponse.RunItem>> assignments = assignmentRepository
-                .findAssignmentsBetween(requester.academyId(), managerIds, today, today.plusDays(1)).stream()
-                .collect(Collectors.groupingBy(ManagerRunAssignment::managerId,
-                        Collectors.mapping(ManagerRunAssignment::toResponse, Collectors.toList())));
+        Map<Long, Integer> runCounts = unfinishedRunCounts(managerIds, today);
+        Map<Long, List<ManagerResponse.RunItem>> assignments = assignmentsByManager(requester, managerIds, today);
         List<ManagerResponse> items = page.getContent().stream()
                 .map(manager -> ManagerResponse.listItem(manager, runCounts.getOrDefault(manager.getId(), 0),
                         assignments.getOrDefault(manager.getId(), List.of())))
@@ -83,6 +78,32 @@ public class ManagerQueryService {
         long total = managerRepository.countByAcademyIdAndDeletedAtIsNull(requester.academyId());
         return ManagerListResponse.of(PageResponse.of(page, items),
                 new ManagerListResponse.Counts(assignedToday, total - assignedToday));
+    }
+
+    /** 요청의 검색·필터·정렬·페이지 조건으로 소속 학원 매니저 한 페이지를 읽는다. */
+    private Page<Manager> searchPage(AuthUser requester, ManagerListRequest request, LocalDate today) {
+        return managerRepository.searchByAcademyId(requester.academyId(), namePattern(request.q()),
+                ApiValues.managerRole(request.role()), ApiValues.linkedFilter(request.linked()),
+                ApiValues.assignedTodayFilter(request.assignedToday()), today,
+                PageParams.of(request.page(), request.size())
+                        .toPageable(SortParam.parse(request.sort(), SORTABLE_FIELDS, DEFAULT_SORT).and(TIE_BREAKER)));
+    }
+
+    /** 삭제 차단(ManagerCommandService)과 같은 판정 조각을 쓰는 한 번의 집계 — 매니저마다 묻지 않는다(Ruling 817). */
+    private Map<Long, Integer> unfinishedRunCounts(List<Long> managerIds, LocalDate today) {
+        return assignmentRepository
+                .countUnfinishedByManagerIds(managerIds, today, RunStatus.FINISHED, RunStatus.MOVING).stream()
+                .collect(Collectors.toMap(AssignmentRepository.ManagerRunCount::getManagerId,
+                        count -> Math.toIntExact(count.getTotal())));
+    }
+
+    /** 오늘~내일 회차 배치를 매니저별로 묶는다 — 한 번의 조회로 페이지 전체를 채운다. */
+    private Map<Long, List<ManagerResponse.RunItem>> assignmentsByManager(AuthUser requester, List<Long> managerIds,
+            LocalDate today) {
+        return assignmentRepository
+                .findAssignmentsBetween(requester.academyId(), managerIds, today, today.plusDays(1)).stream()
+                .collect(Collectors.groupingBy(ManagerRunAssignment::managerId,
+                        Collectors.mapping(ManagerRunAssignment::toResponse, Collectors.toList())));
     }
 
     /**

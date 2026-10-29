@@ -1,5 +1,6 @@
 package src.backend.monitoring.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,7 +18,14 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Direction;
+import src.backend.global.common.enums.Role;
+import src.backend.global.security.AuthUser;
+import src.backend.monitoring.query.AdminRunRosterQueryService;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.run.command.Phase9RosterFixtures;
@@ -43,6 +51,12 @@ class AdminRunRosterControllerTest {
 
     @Autowired
     private JwtTokenProvider tokenProvider;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private AdminRunRosterQueryService adminRunRosterQueryService;
 
 
 
@@ -72,5 +86,54 @@ class AdminRunRosterControllerTest {
         mockMvc.perform(get("/api/v1/admin/runs/" + runId + "/roster").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stops[0].students[0].guardian_phone").value(nullValue()));
+    }
+
+    /**
+     * 학생이 실린 조회는 요청자(메인 관리자)를 행위자로 한 L3 조회 감사 행을 남긴다(SYS-01) — 행위자 계정 id 와 그 시점 로그인 아이디가
+     * 요청 토큰의 계정과 같아야 한다.
+     */
+    @Test
+    void 학생이_실린_조회는_요청자를_행위자로_감사_행을_남긴다() throws Exception {
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.MON, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "학생1");
+        fx.verifiedAddress(studentId, stopId, Weekday.MON, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = SERVICE_DATE.atTime(8, 0).atOffset(java.time.ZoneOffset.of("+09:00"));
+        long runId = fx.confirmedRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+
+        mockMvc.perform(get("/api/v1/admin/runs/" + runId + "/roster").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
+                .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForList("SELECT actor_account_id FROM audit_log "
+                + "WHERE target_type = 'run_roster' AND target_id = ? AND action = 'read'", Long.class, runId))
+                .containsExactly(1L);
+        assertThat(jdbcTemplate.queryForObject("SELECT actor_login_id FROM audit_log "
+                + "WHERE target_type = 'run_roster' AND target_id = ?", String.class, runId))
+                .isEqualTo(jdbcTemplate.queryForObject("SELECT login_id FROM account WHERE id = 1", String.class));
+    }
+
+    /** 서비스는 요청자를 인자로 받는다 — 인증 컨텍스트가 비어 있어도 그 인자가 감사 행의 행위자가 된다. */
+    @Test
+    void 요청자는_인증_컨텍스트가_아니라_인자로_받아_감사_행위자가_된다() {
+        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        long academyId = fx.academyWithCoordinates();
+        long busId = fx.bus(academyId);
+        long stopId = fx.stop(academyId, "37.500000", "127.000000");
+        fx.route(academyId, busId, Weekday.MON, Direction.TO_ACADEMY, stopId);
+        long studentId = fx.student(academyId, "학생1");
+        fx.verifiedAddress(studentId, stopId, Weekday.MON, Direction.TO_ACADEMY, "37.500000", "127.000000");
+        OffsetDateTime departTime = SERVICE_DATE.atTime(8, 0).atOffset(java.time.ZoneOffset.of("+09:00"));
+        long runId = fx.confirmedRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30));
+        SecurityContextHolder.clearContext();
+
+        adminRunRosterQueryService.roster(runId, new AuthUser(1L, null, Role.SYSTEM_ADMIN, AccountStatus.ACTIVE));
+
+        assertThat(jdbcTemplate.queryForList("SELECT actor_account_id FROM audit_log "
+                + "WHERE target_type = 'run_roster' AND target_id = ?", Long.class, runId)).containsExactly(1L);
     }
 }

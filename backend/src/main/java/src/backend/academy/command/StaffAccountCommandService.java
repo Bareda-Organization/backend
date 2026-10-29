@@ -20,6 +20,7 @@ import src.backend.academy.event.StaffResignedEvent;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
+import src.backend.account.entity.PhoneNumber;
 import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.global.error.BusinessException;
@@ -105,23 +106,29 @@ public class StaffAccountCommandService {
         AcademyStaff staff = academyStaffRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
-        account.changeProfile(request.name(), request.phone(), request.email());
+        String phone = request.phone() == null ? null : PhoneNumber.normalize(request.phone());
+        account.changeProfile(request.name(), phone, request.email());
         String temporaryPassword = applyTemporaryPassword(account, temporary);
         boolean employmentRevoked = applyEmploymentStatus(staff, request.status());
 
-        if (employmentRevoked) {
-            // 푸시 단말 정리(Ruling 894 ②) — 토큰 무효화가 영속성 컨텍스트를 비우기 전에 알린다.
-            eventPublisher.publishEvent(new StaffResignedEvent(accountId, OffsetDateTime.now(clock)));
-        }
-        if (!employmentRevoked && request.status() != null) {
-            // 재직 복귀도 계정 상태 보관 항목을 비운다 — 퇴사 때 보관된 "권한 잃음" 이 5초 남지 않게
-            eventPublisher.publishEvent(new AccountStandingChangedEvent(accountId));
-        }
+        publishStandingEvents(accountId, request.status(), employmentRevoked);
         if (temporaryPassword != null || employmentRevoked) {
             refreshTokenRepository.revokeAllValidByAccountId(accountId, OffsetDateTime.now(clock));
         }
         return StaffAccountDetailResponse.from(account, academyName(staff.getAcademyId()), staff.getStatus(),
                 temporaryPassword);
+    }
+
+    /** 퇴사면 푸시 단말 정리 이벤트를, 재직 복귀면 계정 상태 보관 항목 정리 이벤트를 알린다 — 둘 다 아니면 알리지 않는다. */
+    private void publishStandingEvents(Long accountId, String requestedStatus, boolean employmentRevoked) {
+        if (employmentRevoked) {
+            // 푸시 단말 정리(Ruling 894 ②) — 토큰 무효화가 영속성 컨텍스트를 비우기 전에 알린다.
+            eventPublisher.publishEvent(new StaffResignedEvent(accountId, OffsetDateTime.now(clock)));
+        }
+        if (!employmentRevoked && requestedStatus != null) {
+            // 재직 복귀도 계정 상태 보관 항목을 비운다 — 퇴사 때 보관된 "권한 잃음" 이 5초 남지 않게
+            eventPublisher.publishEvent(new AccountStandingChangedEvent(accountId));
+        }
     }
 
     /** 초기화를 요청했으면 해시만 저장하고 원문을 돌려준다 — 아니면 {@code null}. */

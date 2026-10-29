@@ -10,6 +10,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,6 +23,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.persistence.AcademyCount;
 import src.backend.monitoring.dto.AdminDashboardResponse;
+import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
 import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.request.repository.ChangeRequestStatusCount;
@@ -30,8 +34,9 @@ import src.backend.run.repository.RunRepository;
  * 메인 관리자 대시보드 집계(API_SPEC §6.18 {@code GET /admin/dashboard}, Ruling 801) — 기간·학원 범위를 정하고 지표별 읽기 구성 요소를 모아 응답
  * 하나로 조립한다. 로그인 · 시스템 상태 · 차단 계정은 학원 필터를 걸지 않는다(계정·서버 단위 값).
  *
- * <p>클래스에 {@code @Transactional} 을 두지 않는다 — 시스템 상태가 Redis 를 읽는데({@code AdminAcademyLiveQueryService} 와 같은 이유) 그동안 DB
- * 연결을 쥐지 않는다. 저장소 호출마다 짧은 읽기 트랜잭션이 돈다.
+ * <p>DB 읽기는 읽기 전용 반복 읽기(REPEATABLE READ) 트랜잭션 하나 안에서 돈다 — 지표마다 따로 읽으면 같은 응답 안에서 오늘 회차 수와
+ * 지표의 회차 수처럼 합계가 서로 맞지 않을 수 있다. 시스템 상태는 Redis 를 읽으므로({@code AdminAcademyLiveQueryService} 와 같은 이유)
+ * 트랜잭션을 열기 전에 읽어 그동안 DB 연결을 쥐지 않는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -60,6 +65,8 @@ public class AdminDashboardQueryService {
 
     private final SystemHealthReader healthReader;
 
+    private final PlatformTransactionManager transactionManager;
+
     private final Clock clock;
 
     /**
@@ -71,10 +78,17 @@ public class AdminDashboardQueryService {
         if (!ALLOWED_DAYS.contains(days)) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
+        List<HealthCell> health = healthReader.read();
+        TransactionTemplate snapshot = new TransactionTemplate(transactionManager);
+        snapshot.setReadOnly(true);
+        snapshot.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        return snapshot.execute(status -> assemble(days, academyId, health));
+    }
+
+    /** 한 스냅숏 안에서 DB 지표를 모아 응답을 조립한다 — {@code health} 는 트랜잭션 밖에서 미리 읽은 값이다. */
+    private AdminDashboardResponse assemble(int days, Long academyId, List<HealthCell> health) {
         List<Academy> academies = academiesOf(academyId);
-        DashboardScope scope = new DashboardScope(academies.stream().map(Academy::getId).toList(),
-                academies.stream().collect(Collectors.toMap(Academy::getId, Academy::getName, (a, b) -> a,
-                        LinkedHashMap::new)));
+        DashboardScope scope = scopeOf(academies);
         OffsetDateTime now = OffsetDateTime.now(clock);
         DashboardPeriod period = new DashboardPeriod(LocalDate.now(clock), days, clock.getZone());
 
@@ -91,7 +105,13 @@ public class AdminDashboardQueryService {
                 AdminDashboardRunMetrics.academyRows(aggregates, academies, period, emergencyCountsOf(scope, period),
                         changeRequestCountsOf(scope, period)),
                 attentionReader.read(scope, period.today(), now, board.delayedRuns()), board.todayRuns(),
-                healthReader.read(), eventReader.read(scope, period.today(), now));
+                health, eventReader.read(scope, period.today(), now));
+    }
+
+    private DashboardScope scopeOf(List<Academy> academies) {
+        return new DashboardScope(academies.stream().map(Academy::getId).toList(),
+                academies.stream().collect(Collectors.toMap(Academy::getId, Academy::getName, (a, b) -> a,
+                        LinkedHashMap::new)));
     }
 
     private List<Academy> academiesOf(Long academyId) {

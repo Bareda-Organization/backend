@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -81,27 +80,28 @@ public class AdminAcademyLiveQueryService {
      * ({@link RunOrderedStopsLoader} 가 확정 노선 부재 시 {@code List.of()}), 시작 전이라
      * {@code est_depart_time}({@code run.startedAt})과 {@code position} 이 {@code null} 이다.
      * <b>키는 존재하고 값만 빈다.</b>
-     *
-     * <p>CODE_CONVENTIONS §20.2 크기 신호 — 나누지 않는다. 오늘 회차·버스·매니저 연락처·정차지를 각각 한 번에 읽어
-     * ID 로 묶는 배치 로딩(BR-065, N+1 방지)이 순서대로 이어지는 서술이라, 단계를 private 메서드로
-     * 쪼개면 맵 4개를 그만큼 파라미터로 주고받아야 해 오히려 시그니처가 늘어난다.
      */
     public AdminAcademyLiveResponse live(Long academyId) {
         if (!academyRepository.existsById(academyId)) {
             throw new BusinessException(ErrorCode.ACADEMY_NOT_FOUND);
         }
 
-        // 임시 취소된 회차는 뺀다(Ruling 375) — 취소 표시 필드 없이 idle·confirmed 로 섞이지 않게.
-        List<Run> todayRuns = runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId,
-                LocalDate.now(clock)).stream().filter(run -> !run.isCanceled()).toList();
+        List<Run> todayRuns = todayRunsOf(academyId);
         if (todayRuns.isEmpty()) {
             return new AdminAcademyLiveResponse(List.of());
         }
+        return new AdminAcademyLiveResponse(runsOf(academyId, todayRuns));
+    }
 
-        Map<Long, String> busNoByBusId = busRepository
-                .findAllByAcademyIdAndIdIn(academyId, todayRuns.stream().map(Run::getBusId).distinct().toList())
-                .stream()
-                .collect(Collectors.toMap(Bus::getId, Bus::getBusNo));
+    /** 오늘 회차 — 임시 취소된 회차는 뺀다(Ruling 375): 취소 표시 필드 없이 idle·confirmed 로 섞이지 않게. */
+    private List<Run> todayRunsOf(Long academyId) {
+        return runRepository.findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc(academyId,
+                LocalDate.now(clock)).stream().filter(run -> !run.isCanceled()).toList();
+    }
+
+    /** 버스·매니저 연락처·정차지·좌표를 각각 한 번에 읽어(BR-065, N+1 방지) 회차별 응답으로 묶는다. */
+    private List<AdminAcademyLiveResponse.Run> runsOf(Long academyId, List<Run> todayRuns) {
+        Map<Long, String> busNoByBusId = busNoByBusIdOf(academyId, todayRuns);
 
         List<Long> runIds = todayRuns.stream().map(Run::getId).toList();
         Map<Long, List<AssignedManagerContactView>> contactsByRunId = assignmentRepository
@@ -110,21 +110,31 @@ public class AdminAcademyLiveQueryService {
 
         // 확정 노선·정차 순서도 회차 수와 무관한 2쿼리로 읽는다(BR-247)
         Map<Long, List<RunStop>> orderedStopsByRunId = runOrderedStopsLoader.load(academyId, todayRuns);
-        // 정차지 이름·좌표는 오늘 회차 전부의 것을 한 번에 읽는다(BR-065) — 정차마다 읽으면 호출 한 번이 수백 쿼리다.
-        Map<Long, Stop> stopsById = stopRepository.findAllByAcademyIdAndIdIn(academyId,
-                        orderedStopsByRunId.values().stream().flatMap(List::stream).map(RunStop::getStopId)
-                                .filter(Objects::nonNull).distinct().toList())
-                .stream()
-                .collect(Collectors.toMap(Stop::getId, stop -> stop));
+        Map<Long, Stop> stopsById = stopsByIdOf(academyId, orderedStopsByRunId);
         // 좌표도 한 번에 읽는다 — 회차마다 읽으면 Redis 대기·대체 조회가 회차 수만큼 곱해진다(BR-166·BR-167).
         Map<Long, RunPositionRedisValue> positions = runPositionStore.findAll(runIds);
 
-        List<AdminAcademyLiveResponse.Run> runs = todayRuns.stream()
+        return todayRuns.stream()
                 .map(run -> toRun(run, orderedStopsByRunId.get(run.getId()), stopsById,
                         busNoByBusId.get(run.getBusId()), contactsByRunId.getOrDefault(run.getId(), List.of()),
                         positions.get(run.getId())))
                 .toList();
-        return new AdminAcademyLiveResponse(runs);
+    }
+
+    private Map<Long, String> busNoByBusIdOf(Long academyId, List<Run> todayRuns) {
+        return busRepository
+                .findAllByAcademyIdAndIdIn(academyId, todayRuns.stream().map(Run::getBusId).distinct().toList())
+                .stream()
+                .collect(Collectors.toMap(Bus::getId, Bus::getBusNo));
+    }
+
+    /** 정차지 이름·좌표는 오늘 회차 전부의 것을 한 번에 읽는다(BR-065) — 정차마다 읽으면 호출 한 번이 수백 쿼리다. */
+    private Map<Long, Stop> stopsByIdOf(Long academyId, Map<Long, List<RunStop>> orderedStopsByRunId) {
+        return stopRepository.findAllByAcademyIdAndIdIn(academyId,
+                        orderedStopsByRunId.values().stream().flatMap(List::stream).map(RunStop::getStopId)
+                                .filter(Objects::nonNull).distinct().toList())
+                .stream()
+                .collect(Collectors.toMap(Stop::getId, stop -> stop));
     }
 
     private AdminAcademyLiveResponse.Run toRun(Run run, List<RunStop> ordered, Map<Long, Stop> stopsById, String busNo,
@@ -143,8 +153,8 @@ public class AdminAcademyLiveQueryService {
                 : null;
         OffsetDateTime lastSeenAt = position == null ? liveState.receivedAt() : null;
 
-        return new AdminAcademyLiveResponse.Run(run.getId(), busNo, lower(run.getDirection().name()),
-                lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getConfirmAt(), run.getStartedAt(), stops,
+        return new AdminAcademyLiveResponse.Run(run.getId(), busNo, QueryLabels.lower(run.getDirection().name()),
+                QueryLabels.lower(run.getStatus().name()), position, lastSeenAt, run.getDepartTime(), run.getConfirmAt(), run.getStartedAt(), stops,
                 destinationEtaOf(run), contactOf(contacts, ManagerRole.DRIVER), contactOf(contacts,
                         ManagerRole.ESCORT), run.getConsecutiveFailures(),
                 run.getStatus() == RunStatus.MOVING ? RunDelayCalculator.minutesOf(run, ordered) : null,
@@ -180,11 +190,7 @@ public class AdminAcademyLiveQueryService {
         OffsetDateTime eta = runStop.getArrivedAt() != null ? null : runStop.getEta();
         return new AdminAcademyLiveResponse.Stop(runStop.getStopId(), runStop.getSeq(),
                 stop == null ? null : stop.getName(), stop == null ? null : stop.getLat(),
-                stop == null ? null : stop.getLng(), runStop.getChange() == null ? null : lower(runStop.getChange()
+                stop == null ? null : stop.getLng(), runStop.getChange() == null ? null : QueryLabels.lower(runStop.getChange()
                         .name()), runStop.getArrivedAt(), eta);
-    }
-
-    private static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

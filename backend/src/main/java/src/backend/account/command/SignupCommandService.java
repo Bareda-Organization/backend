@@ -20,6 +20,7 @@ import src.backend.account.dto.ReapplyResponse;
 import src.backend.account.dto.SignupRequestPayload;
 import src.backend.account.dto.SignupResponse;
 import src.backend.account.entity.Account;
+import src.backend.account.entity.PhoneNumber;
 import src.backend.account.entity.ApproverType;
 import src.backend.account.entity.SignupRequest;
 import src.backend.account.repository.AccountRepository;
@@ -74,7 +75,7 @@ public class SignupCommandService {
     /** 계정과 승인 요청을 한 트랜잭션에 쌓는다 — {@code login_id} 충돌은 409 로 옮긴다({@link #signup} 의 TOCTOU 설명). */
     private SignupResponse register(Academy academy, Role role, SignupRequestPayload payload, String passwordHash) {
         Account account = Account.forSignup(academy.getId(), payload.loginId(), passwordHash, payload.name(),
-                payload.phone(), null, role);
+                PhoneNumber.normalize(payload.phone()), null, role);
         try {
             accountRepository.saveAndFlush(account);
         } catch (DataIntegrityViolationException e) {

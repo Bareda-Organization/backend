@@ -15,13 +15,16 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.entity.AuditLog;
 import src.backend.audit.repository.AuditLogRepository;
-import src.backend.global.redis.LocalFallbackMemory;
+import src.backend.audit.service.AuditDedupWindow.ViewedStudent;
 import src.backend.global.request.ClientIp;
 
 /**
@@ -62,20 +65,6 @@ public class AuditRecorder {
     /** 같은 행위자·학생의 반복 조회를 묶는 시간 — 이 안에 다시 조회하면 새 행을 쓰지 않는다(Ruling 445). */
     public static final Duration DATA_ACCESS_DEDUP_WINDOW = Duration.ofMinutes(10);
 
-    /** {@code detail} 에서 응답에 실린 학생 id 를 담는 키 — 묶기 키(행위자·학생)의 학생 쪽이다. */
-    private static final String STUDENT_IDS_KEY = "student_ids";
-
-    /** {@code detail} 에서 응답에 실린 L3 필드명 목록을 담는 키 — 묶기 키의 필드 쪽이다. */
-    private static final String FIELDS_KEY = "fields";
-
-    private static final String DEDUP_KEY_PREFIX = "schoolbus:audit-dedup:";
-
-    private static final int DEDUP_FALLBACK_MAX_ENTRIES = 10_000;
-
-    /** 묶기 키 — 행위자·학생·<b>조회한 필드 묶음</b>. 필드가 다르면 다른 접근이라(명단의 사진·특이사항 vs 보호자 원번호) 서로를 가리지 않는다(Ruling 521). */
-    private record ViewedStudent(Long actorAccountId, String studentId, String fields) {
-    }
-
     private final AuditLogRepository auditLogRepository;
 
     private final AccountRepository accountRepository;
@@ -84,19 +73,20 @@ public class AuditRecorder {
 
     private final TransactionTemplate requiresNew;
 
-    /** 묶기 기록 저장소 — 인스턴스가 여러 대여도 같은 창을 쓰도록 Redis 에 둔다(Ruling 900 E). 값은 행을 쓴 시각(epoch ms)이다. */
-    private final StringRedisTemplate redis;
+    /** 반복 조회 묶기 판정·반환 — 인스턴스가 여러 대여도 같은 창을 쓰도록 Redis 에 두고, Redis 를 못 쓰는 동안은 인스턴스 안의 기억으로 대신한다. */
+    private final AuditDedupWindow dedup;
 
-    /** Redis 를 못 쓰는 동안의 묶기 기록 — 반복 조회가 조회마다 감사 행(새 트랜잭션 · 새 커넥션)을 쓰지 않게 한다. 인스턴스 1대 기준의 같은 창이다(Ruling 919 B ⑤). */
-    private final LocalFallbackMemory<Boolean> whileRedisIsDown;
+    /** L3 조회 감사 행을 못 쓴 횟수 — 응답은 그대로 나가므로(위 클래스 자바독) 이 지표의 경보가 감사 누락을 알리는 유일한 신호다. */
+    private final Counter readRecordFailures;
 
     public AuditRecorder(AuditLogRepository auditLogRepository, AccountRepository accountRepository, Clock clock,
-            PlatformTransactionManager transactionManager, StringRedisTemplate redis) {
+            PlatformTransactionManager transactionManager, StringRedisTemplate redis, MeterRegistry meterRegistry) {
         this.auditLogRepository = auditLogRepository;
         this.accountRepository = accountRepository;
         this.clock = clock;
-        this.redis = redis;
-        this.whileRedisIsDown = new LocalFallbackMemory<>(clock, DEDUP_FALLBACK_MAX_ENTRIES);
+        this.dedup = new AuditDedupWindow(clock, redis);
+        this.readRecordFailures = Counter.builder("schoolbus.audit.read.record.failures")
+                .description("L3 조회 감사 행 적재 실패 수").register(meterRegistry);
         this.requiresNew = new TransactionTemplate(transactionManager);
         this.requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -124,112 +114,53 @@ public class AuditRecorder {
      * 이다(BR-213). 자원마다 {@link #recordDataAccessRead} 를 부르면 페이지 100건이 트랜잭션 100개·계정 SELECT 100회가
      * 되고, 그동안 바깥 읽기 트랜잭션이 커넥션을 쥔 채 두 번째 커넥션을 기다린다.
      *
-     * <p>본문이 20줄을 넘는다(CODE_CONVENTIONS §20.2) — 묶기 판정 → 한 트랜잭션 적재 → 실패 때 묶기 기록 반환이 한 호출 안에서 같은 {@code claimed} 목록을
-     * 공유해, 나누면 그 목록을 세 곳이 넘겨받는다. 판정(claimNewStudents)과 만료 정리(pruneExpired)는 이미 따로 뺐다.
-     *
      * @param detailByTargetId 자원 id → 그 행의 {@code detail}. 삽입 순서대로 적재한다. 비어 있으면 아무것도 하지 않는다
      */
     public void recordDataAccessReads(Long academyId, Long actorAccountId, String targetType,
             Map<Long, Map<String, Object>> detailByTargetId) {
-        Instant now = clock.instant();
         List<ViewedStudent> claimed = new ArrayList<>();
-        Map<Long, Map<String, Object>> toWrite = new LinkedHashMap<>();
-        detailByTargetId.forEach((targetId, detail) -> {
-            Map<String, Object> fresh = claimNewStudents(actorAccountId, detail, now, claimed);
-            if (fresh != null) {
-                toWrite.put(targetId, fresh);
-            }
-        });
+        Map<Long, Map<String, Object>> toWrite =
+                claimFresh(actorAccountId, detailByTargetId, clock.instant(), claimed);
         if (toWrite.isEmpty()) {
             return;
         }
         String ip = ClientIp.ofCurrentRequest();
         try {
-            requiresNew.executeWithoutResult(status -> {
-                String actorLoginId =
-                        accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
-                OffsetDateTime occurredAt = OffsetDateTime.now(clock);
-                List<AuditLog> rows = toWrite.entrySet().stream()
-                        .map(target -> AuditLog.forDataAccessRead(academyId, actorAccountId, actorLoginId,
-                                targetType, target.getKey(), target.getValue(), ip, occurredAt))
-                        .toList();
-                auditLogRepository.saveAll(rows);
-            });
+            writeRows(academyId, actorAccountId, targetType, toWrite, ip);
         } catch (RuntimeException e) {
             // 못 쓴 행의 묶기 기록은 물린다 — 남겨 두면 다음 조회가 "이미 기록함" 으로 건너뛰어 기록이 영영 빠진다
-            claimed.forEach(this::releaseClaim);
+            claimed.forEach(dedup::releaseClaim);
+            readRecordFailures.increment();
             log.error("감사 로그 적재 실패 — 조회 자체는 정상 처리됨. targetType={}, targetIds={}, actorAccountId={}",
                     targetType, detailByTargetId.keySet(), actorAccountId, e);
         }
     }
 
-    /**
-     * {@code detail} 에 실린 학생 중 창 안에 이미 기록한 학생을 뺀다 — 새로 기록할 학생이 하나도 없으면 {@code null}.
-     * 새로 기록하기로 한 학생은 그 자리에서 {@code claimed} 에 담고 시각을 남긴다(동시에 들어온 같은 조회가 둘 다
-     * "새 학생" 으로 판정하지 않게 원자적으로). 학생 목록이 없는 {@code detail} 은 묶지 않고 그대로 쓴다.
-     */
-    private Map<String, Object> claimNewStudents(Long actorAccountId, Map<String, Object> detail, Instant now,
-            List<ViewedStudent> claimed) {
-        if (!(detail.get(STUDENT_IDS_KEY) instanceof List<?> studentIds) || studentIds.isEmpty()) {
-            return detail;
-        }
-        List<String> fresh = new ArrayList<>();
-        for (Object studentId : studentIds) {
-            ViewedStudent viewed = new ViewedStudent(actorAccountId, String.valueOf(studentId),
-                    String.valueOf(detail.get(FIELDS_KEY)));
-            boolean isNew = claim(viewed, now);
-            if (isNew) {
-                fresh.add(viewed.studentId());
-                claimed.add(viewed);
+    /** 자원마다 묶기 판정을 거쳐 새로 적재할 자원만 {@code detail} 과 함께 모으고, 맡은 항목은 {@code claimed} 에 담는다. */
+    private Map<Long, Map<String, Object>> claimFresh(Long actorAccountId,
+            Map<Long, Map<String, Object>> detailByTargetId, Instant now, List<ViewedStudent> claimed) {
+        Map<Long, Map<String, Object>> toWrite = new LinkedHashMap<>();
+        detailByTargetId.forEach((targetId, detail) -> {
+            Map<String, Object> fresh = dedup.claimNewStudents(actorAccountId, detail, now, claimed);
+            if (fresh != null) {
+                toWrite.put(targetId, fresh);
             }
-        }
-        if (fresh.isEmpty()) {
-            return null;
-        }
-        if (fresh.size() == studentIds.size()) {
-            return detail;
-        }
-        Map<String, Object> narrowed = new LinkedHashMap<>(detail);
-        narrowed.put(STUDENT_IDS_KEY, fresh);
-        return narrowed;
+        });
+        return toWrite;
     }
 
-    /**
-     * 이 행위자·학생·필드 묶음을 창 안에 처음 보는 조회인지 Redis 로 판정해 맡는다 — {@code SET NX EX} 한 번이라 인스턴스가 여럿이고 호출이 동시여도 정확히 하나만 참을 받는다.
-     * 키가 남아 있어도 값의 시각이 창을 넘었으면(Redis 만료와 앱 시계가 어긋날 때) 새 조회로 보고 시각을 새로 쓴다. Redis 오류는 이 인스턴스 안의 기억으로 같은 창을 판정한다 — 첫 조회는 기록되므로 행이 빠지지 않는다.
-     */
-    private boolean claim(ViewedStudent viewed, Instant now) {
-        String key = keyOf(viewed);
-        String nowMillis = String.valueOf(now.toEpochMilli());
-        try {
-            if (Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(key, nowMillis, DATA_ACCESS_DEDUP_WINDOW))) {
-                return true;
-            }
-            String last = redis.opsForValue().get(key);
-            if (last != null && now.isBefore(Instant.ofEpochMilli(Long.parseLong(last)).plus(DATA_ACCESS_DEDUP_WINDOW))) {
-                return false;
-            }
-            redis.opsForValue().set(key, nowMillis, DATA_ACCESS_DEDUP_WINDOW);
-            return true;
-        } catch (RuntimeException e) {
-            log.warn("감사 묶기 기록을 Redis 에서 판정하지 못했다 — 이 인스턴스 안의 기억으로 판정한다. actor={} student={}", viewed.actorAccountId(),
-                    viewed.studentId(), e);
-            return whileRedisIsDown.claim(key, Boolean.TRUE, DATA_ACCESS_DEDUP_WINDOW);
-        }
-    }
-
-    /** 행을 못 쓴 조회의 묶기 기록을 물린다. */
-    private void releaseClaim(ViewedStudent viewed) {
-        whileRedisIsDown.remove(keyOf(viewed));
-        try {
-            redis.delete(keyOf(viewed));
-        } catch (RuntimeException e) {
-            log.warn("감사 묶기 기록을 되돌리지 못했다 — 창이 끝날 때까지 같은 조회가 기록에서 빠질 수 있다. actor={} student={}",
-                    viewed.actorAccountId(), viewed.studentId(), e);
-        }
-    }
-
-    private static String keyOf(ViewedStudent viewed) {
-        return DEDUP_KEY_PREFIX + viewed.actorAccountId() + ":" + viewed.studentId() + ":" + viewed.fields();
+    /** 새 트랜잭션(REQUIRES_NEW) 하나로 감사 행들을 적재한다 — 행위자 계정은 한 번만 조회한다. */
+    private void writeRows(Long academyId, Long actorAccountId, String targetType,
+            Map<Long, Map<String, Object>> toWrite, String ip) {
+        requiresNew.executeWithoutResult(status -> {
+            String actorLoginId =
+                    accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
+            OffsetDateTime occurredAt = OffsetDateTime.now(clock);
+            List<AuditLog> rows = toWrite.entrySet().stream()
+                    .map(target -> AuditLog.forDataAccessRead(academyId, actorAccountId, actorLoginId,
+                            targetType, target.getKey(), target.getValue(), ip, occurredAt))
+                    .toList();
+            auditLogRepository.saveAll(rows);
+        });
     }
 }

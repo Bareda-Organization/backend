@@ -4,6 +4,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import src.backend.account.entity.PhoneNumber;
+
 /**
  * 관계자 계정 관리 요청(API_SPEC §6.7) — 다섯 항목 전부 선택이며 준 것만 바꾼다.
  *
@@ -20,11 +22,11 @@ import jakarta.validation.constraints.Size;
  * <b>부분 수정 규약이 필드마다 갈리기</b> 때문이다 — 나머지 넷과 같은 형태로 맞춘다.
  *
  * <p>{@code name}·{@code phone} 은 주면 비어 있을 수 없다 — {@code @Pattern} 은 {@code null}(안 줌)을 통과시켜
- * 부분 수정과 맞는다. 연락처 형식은 보호자 연락처 수정({@code StudentUpdateRequest.GuardianPhoneChange})과 같다(BR-124).
+ * 부분 수정과 맞는다. 연락처는 가입 · 복구와 같은 규칙이다({@link PhoneNumber}, BR-124).
  */
 public record StaffAccountUpdateRequest(
         @Size(max = 50) @Pattern(regexp = "(?s).*\\S.*") String name,
-        @Size(max = 30) @Pattern(regexp = "^[0-9][0-9-]{6,28}[0-9]$") String phone,
+        @Pattern(regexp = PhoneNumber.PATTERN) String phone,
         @Email @Size(max = 120) String email,
         Boolean resetPassword,
         @Pattern(regexp = "active|inactive") String status) {

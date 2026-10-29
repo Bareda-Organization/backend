@@ -1,8 +1,5 @@
 package src.backend.account.command;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -10,27 +7,20 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.RequiredArgsConstructor;
 
-import src.backend.academy.command.TemporaryPasswordGenerator;
 import src.backend.account.entity.Account;
+import src.backend.account.entity.PhoneNumber;
 import src.backend.account.entity.VerificationCode;
 import src.backend.account.entity.VerificationPurpose;
 import src.backend.account.repository.AccountRepository;
-import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.account.repository.VerificationCodeRepository;
-import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.sms.spec.SmsSender;
@@ -64,9 +54,6 @@ import src.backend.global.sms.spec.SmsSender;
 @RequiredArgsConstructor
 public class AccountRecoveryCommandService {
 
-    /** 문자 복구 대상 역할 — 관계자·메인 관리자는 제외(Ruling 513). */
-    private static final Set<Role> RECOVERABLE_ROLES = Set.of(Role.PARENT, Role.STUDENT, Role.DRIVER, Role.ESCORT);
-
     /** 코드 유효 시간 — 문자로 받아 입력하는 데 충분하고, 유출된 코드가 오래 살아 있지 않게 하는 길이다. */
     private static final Duration CODE_TTL = Duration.ofMinutes(5);
 
@@ -79,30 +66,21 @@ public class AccountRecoveryCommandService {
     /** 하루가 지난 발급 행을 지우는 간격 — 매 요청마다 훑지 않는다. */
     private static final Duration PURGE_INTERVAL = Duration.ofMinutes(10);
 
-    private static final int CODE_DIGITS = 6;
-
-    /** {@code resilience4j.circuitbreaker.instances} 의 이름 — 값은 FCM 과 같다(Ruling 899 F). */
-    private static final String SMS_CIRCUIT = "sms";
-
     private final ObjectProvider<SmsSender> smsSender;
 
     private final AccountRepository accountRepository;
 
     private final VerificationCodeRepository verificationCodeRepository;
 
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final RecoveryCodeVerifier codeVerifier;
 
-    private final TemporaryPasswordGenerator temporaryPasswordGenerator;
-
-    private final PasswordEncoder passwordEncoder;
+    private final RecoveryTemporaryCredentials credentials;
 
     private final TransactionTemplate transactionTemplate;
 
-    private final CircuitBreakerRegistry circuitBreakers;
+    private final RecoverySmsDelivery smsDelivery;
 
     private final Clock clock;
-
-    private final SecureRandom random = new SecureRandom();
 
     /** 마지막으로 하루 지난 발급 행을 지운 시각 — {@link #purgeStaleCodes}. */
     private final AtomicReference<Instant> lastPurgeAt = new AtomicReference<>(Instant.EPOCH);
@@ -110,10 +88,14 @@ public class AccountRecoveryCommandService {
     /**
      * 복구 요청 한 건을 처리한다 — {@code verificationCode} 가 없으면 발급, 있으면 대조.
      *
+     * <p>{@code rawPhone} 은 하이픈 있는 표기와 없는 표기를 모두 받고 {@link PhoneNumber#normalize} 표준형으로 바꿔 쓴다. 계정은 저장된 표기와
+     * 무관하게 하이픈을 뺀 숫자로 찾는다(다른 표기로 저장된 계정도 찾는다).
+     *
      * @throws BusinessException {@code RECOVERY_UNAVAILABLE}(발송기 없음) · {@code RECOVERY_RATE_LIMITED}(발급 빈도
      *                           초과 — 가입 여부와 무관) · {@code VERIFICATION_CODE_INVALID}(대조 실패)
      */
-    public void recover(String type, String phone, String verificationCode) {
+    public void recover(String type, String rawPhone, String verificationCode) {
+        String phone = PhoneNumber.normalize(rawPhone); // 코드 행 · 발급 한도 · 문자 수신 번호가 표기와 무관하게 한 번호로 모인다
         SmsSender sender = smsSender.getIfAvailable();
         if (sender == null) {
             throw new BusinessException(ErrorCode.RECOVERY_UNAVAILABLE);
@@ -124,8 +106,8 @@ public class AccountRecoveryCommandService {
             issued.ifPresent(code -> deliverIssued(sender, phone, code)); // 커밋 뒤 — 실패하면 방금 저장한 행을 지운다
             return;
         }
-        Map<Long, TemporaryPassword> prepared = purpose == VerificationPurpose.PASSWORD
-                && matchesIssuedCode(phone, purpose, verificationCode) ? prepareTemporaryPasswords(phone) : Map.of();
+        Map<Long, RecoveryTemporaryCredentials.TemporaryPassword> prepared = purpose == VerificationPurpose.PASSWORD
+                && codeVerifier.matchesIssuedCode(phone, purpose, verificationCode) ? credentials.prepare(phone) : Map.of();
         Boolean passed = transactionTemplate
                 .execute(status -> verifyAndDeliver(sender, phone, purpose, verificationCode, prepared));
         if (!Boolean.TRUE.equals(passed)) {
@@ -142,7 +124,8 @@ public class AccountRecoveryCommandService {
         // 이 번호의 발급을 직렬화한다 — 계정 행 잠금은 미등록 번호에 잠글 행이 없어, 동시 요청의 통과 수가 가입 여부에 따라 갈린다.
         // 발급은 계정이 있는지만 보고 바꾸지 않으므로 행을 잠그지 않는다 — 잠그면 문자 업체 응답이 올 때까지 그 계정의 로그인이 선다(BR-308).
         verificationCodeRepository.lockByPhone(phone);
-        List<Account> accounts = accountRepository.findAllByPhoneAndRoleIn(phone, RECOVERABLE_ROLES);
+        List<Account> accounts = accountRepository.findAllByPhoneAndRoleIn(PhoneNumber.digits(phone),
+                RecoveryTemporaryCredentials.RECOVERABLE_ROLES);
         OffsetDateTime now = OffsetDateTime.now(clock);
         purgeStaleCodes(now);
         // 가입 여부와 무관하게 같은 길을 지난다(Ruling 553) — 미등록 번호도 같은 한도를 받고 발급 행을 남기며, 다른 것은
@@ -152,7 +135,7 @@ public class AccountRecoveryCommandService {
             throw new BusinessException(ErrorCode.RECOVERY_RATE_LIMITED);
         }
         verificationCodeRepository.invalidateUnconsumedByPhoneAndPurpose(phone, purpose, now);
-        String code = newCode();
+        String code = codeVerifier.newCode();
         VerificationCode saved = verificationCodeRepository
                 .save(VerificationCode.issue(phone, code, purpose, now.plus(CODE_TTL), now));
         return accounts.isEmpty() ? Optional.empty()
@@ -166,17 +149,11 @@ public class AccountRecoveryCommandService {
      */
     private void deliverIssued(SmsSender sender, String phone, IssuedCode issued) {
         try {
-            deliver(sender, phone, issued.text());
+            smsDelivery.deliver(sender, phone, issued.text());
         } catch (RuntimeException e) {
             verificationCodeRepository.deleteById(issued.id());
             throw e;
         }
-    }
-
-    /** 문자 발송기를 서킷 {@code sms} 로 감싸 부른다 — 열려 있으면 업체를 부르지 않고 즉시 예외다. */
-    private void deliver(SmsSender sender, String phone, String text) {
-        CircuitBreaker circuitBreaker = circuitBreakers.circuitBreaker(SMS_CIRCUIT);
-        circuitBreaker.executeRunnable(() -> sender.send(phone, text));
     }
 
     /**
@@ -195,88 +172,21 @@ public class AccountRecoveryCommandService {
         verificationCodeRepository.deleteCreatedBefore(now.minusDays(1));
     }
 
-    /** 임시 비밀번호 원문과 저장할 해시 — 해시는 트랜잭션 밖에서 미리 만든다. */
-    private record TemporaryPassword(String plain, String hash) {
-    }
-
-    /** 가장 최근에 발급된 코드와 입력이 같고 아직 쓸 수 있는지 잠금 없이 본다 — 횟수 기록·소비는 하지 않는다(그건 대조 트랜잭션이 한다). */
-    private boolean matchesIssuedCode(String phone, VerificationPurpose purpose, String input) {
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        return verificationCodeRepository.findTopByPhoneAndPurposeOrderByCreatedAtDesc(phone, purpose)
-                .filter(issued -> issued.getConsumedAt() == null && issued.getExpiresAt().isAfter(now))
-                .filter(issued -> MessageDigest.isEqual(issued.getCode().getBytes(StandardCharsets.UTF_8),
-                        input.getBytes(StandardCharsets.UTF_8)))
-                .isPresent();
-    }
-
-    /** 같은 번호의 복구 대상 계정마다 임시 비밀번호와 해시를 만든다 — 계정 id 로 찾아 쓴다. */
-    private Map<Long, TemporaryPassword> prepareTemporaryPasswords(String phone) {
-        return accountRepository.findAllByPhoneAndRoleIn(phone, RECOVERABLE_ROLES).stream()
-                .collect(Collectors.toMap(Account::getId, account -> issueTemporaryPassword()));
-    }
-
-    private TemporaryPassword issueTemporaryPassword() {
-        String plain = temporaryPasswordGenerator.generate();
-        return new TemporaryPassword(plain, passwordEncoder.encode(plain));
-    }
-
     /** 통과하면 {@code true} — 실패는 예외가 아니라 값이다(위 클래스 설명, 대조 횟수를 커밋해야 한다). */
     private boolean verifyAndDeliver(SmsSender sender, String phone, VerificationPurpose purpose, String input,
-            Map<Long, TemporaryPassword> prepared) {
-        Optional<VerificationCode> latest = verificationCodeRepository.findTopByPhoneAndPurposeOrderByCreatedAtDesc(phone,
-                purpose);
-        if (latest.isEmpty()) {
-            return false;
-        }
-        VerificationCode issued = latest.get();
+            Map<Long, RecoveryTemporaryCredentials.TemporaryPassword> prepared) {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        // 상한 도달·소비·불일치·만료를 같은 값으로 돌려준다 — 가르면 "이 번호로 코드를 발급받은 적이 있다" 를 알려 준다.
-        if (verificationCodeRepository.recordAttempt(issued.getId(), VerificationCode.MAX_ATTEMPTS) == 0
-                || !MessageDigest.isEqual(issued.getCode().getBytes(StandardCharsets.UTF_8),
-                        input.getBytes(StandardCharsets.UTF_8))
-                || verificationCodeRepository.consumeIfValid(issued.getId(), now) == 0) {
+        if (!codeVerifier.consumeIfMatches(phone, purpose, input, now)) {
             return false;
         }
-        List<Account> accounts = accountRepository.findAllByPhoneAndRoleInForUpdate(phone, RECOVERABLE_ROLES);
+        List<Account> accounts = accountRepository.findAllByPhoneAndRoleInForUpdate(PhoneNumber.digits(phone),
+                RecoveryTemporaryCredentials.RECOVERABLE_ROLES);
         if (accounts.isEmpty()) {
             return false;
         }
-        String text = purpose == VerificationPurpose.LOGIN_ID ? loginIdText(accounts)
-                : resetPasswords(accounts, now, prepared);
-        deliver(sender, phone, text);
+        String text = purpose == VerificationPurpose.LOGIN_ID ? credentials.loginIdText(accounts)
+                : credentials.resetPasswords(accounts, now, prepared);
+        smsDelivery.deliver(sender, phone, text);
         return true;
-    }
-
-    private static String loginIdText(List<Account> accounts) {
-        return "[바래다] 아이디 " + accounts.stream().map(Account::getLoginId).collect(Collectors.joining(", "));
-    }
-
-    /**
-     * 같은 번호의 계정마다 임시 비밀번호로 바꾸고 문자 본문을 만든다. 문자함에 평문으로 남는 값이라 강제 변경 표식을 켠다
-     * ({@link Account#issueTemporaryPassword} · Ruling 785). refresh 토큰 무효화는 영속성 컨텍스트를 비우므로
-     * 비밀번호 변경이 전부 끝난 뒤에 한다({@code AccountPasswordResetCommandService} 와 같은 순서).
-     */
-    private String resetPasswords(List<Account> accounts, OffsetDateTime now, Map<Long, TemporaryPassword> prepared) {
-        StringBuilder text = new StringBuilder("[바래다]");
-        for (Account account : accounts) {
-            TemporaryPassword temporary = prepared.containsKey(account.getId()) ? prepared.get(account.getId())
-                    : issueTemporaryPassword();
-            account.issueTemporaryPassword(temporary.hash());
-            text.append(" 아이디 ").append(account.getLoginId()).append(" 임시 비밀번호 ").append(temporary.plain())
-                    .append(" /");
-        }
-        text.append(" 로그인 뒤 바로 바꿔 주세요");
-        for (Account account : accounts) {
-            refreshTokenRepository.revokeAllValidByAccountId(account.getId(), now);
-        }
-        return text.toString();
-    }
-
-    private String newCode() {
-        StringBuilder code = new StringBuilder(CODE_DIGITS);
-        for (int i = 0; i < CODE_DIGITS; i++) {
-            code.append(random.nextInt(10));
-        }
-        return code.toString();
     }
 }

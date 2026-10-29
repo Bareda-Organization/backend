@@ -95,7 +95,7 @@ public class ManagerCommandService {
     }
 
     private Manager findManageable(AuthUser requester, Long managerId) {
-        return managerRepository.findByIdAndAcademyIdAndDeletedAtIsNull(managerId, requester.academyId())
+        return managerRepository.findForUpdateByIdAndAcademyIdAndDeletedAtIsNull(managerId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MANAGER_NOT_FOUND));
     }
 

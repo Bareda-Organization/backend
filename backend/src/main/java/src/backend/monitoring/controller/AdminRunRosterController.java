@@ -1,5 +1,6 @@
 package src.backend.monitoring.controller;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.config.ApiTags;
 import src.backend.global.response.ApiResponse;
+import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.Can;
 import src.backend.global.security.authz.Permissions;
 import src.backend.monitoring.dto.AdminRunRosterResponse;
@@ -34,7 +36,8 @@ public class AdminRunRosterController {
     @Can(Permissions.MONITOR_ALL)
     @Operation(summary = "승하차지별 학생 리스트 (O-06)")
     @GetMapping("/{runId}/roster")
-    public ApiResponse<AdminRunRosterResponse> roster(@PathVariable Long runId) {
-        return ApiResponse.ok(adminRunRosterQueryService.roster(runId));
+    public ApiResponse<AdminRunRosterResponse> roster(@PathVariable Long runId,
+            @AuthenticationPrincipal AuthUser requester) {
+        return ApiResponse.ok(adminRunRosterQueryService.roster(runId, requester));
     }
 }

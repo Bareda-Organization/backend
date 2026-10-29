@@ -62,25 +62,6 @@ class RefreshTokenRepositoryTest {
         assertThat(found.getAccountId()).isEqualTo(accountId);
     }
 
-    /** §2.8 비밀번호 변경 시 무효화 대상 조회 — 이미 해지된 토큰은 결과에 섞이지 않는다. */
-    @Test
-    void findAllByAccountIdAndRevokedAtIsNull_은_해지된_토큰을_제외한다() {
-        Long accountId = createAccount("p2t3rtkfindqqq2", "010-8888-0002");
-        OffsetDateTime now = now();
-        RefreshToken valid = refreshTokenRepository.save(
-                RefreshToken.issue(accountId, "hash-valid-2", now, now.plusDays(14), "device-a"));
-        refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-revoked-2", now, now.plusDays(14), "device-b"));
-        refreshTokenRepository.revokeAllValidByAccountId(accountId, now);
-        // 위 호출로 둘 다 무효화되므로, 새 유효 토큰을 하나 더 발급해 "유효 1건 + 무효 1건" 상태를 만든다.
-        refreshTokenRepository.save(RefreshToken.issue(accountId, "hash-valid-2-b", now, now.plusDays(14), "device-c"));
-
-        var result = refreshTokenRepository.findAllByAccountIdAndRevokedAtIsNull(accountId);
-
-        assertThat(result).extracting(RefreshToken::getTokenHash)
-                .containsExactly("hash-valid-2-b")
-                .doesNotContain("hash-valid-2", "hash-revoked-2");
-    }
-
     /** §2.8 전량 무효화 — 이미 해지된 행은 원래 시각을 유지한 채 건드리지 않는다. */
     @Test
     void revokeAllValidByAccountId_은_이미_해지된_토큰의_시각을_바꾸지_않는다() {

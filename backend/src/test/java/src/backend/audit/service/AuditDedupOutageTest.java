@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -49,7 +50,8 @@ class AuditDedupOutageTest {
         OutageRedisContext.runner(redis).run(context -> {
             AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
             AuditRecorder recorder = new AuditRecorder(auditLogRepository, mock(AccountRepository.class), Clock.systemUTC(),
-                    mock(PlatformTransactionManager.class), context.getBean(StringRedisTemplate.class));
+                    mock(PlatformTransactionManager.class), context.getBean(StringRedisTemplate.class),
+                    new SimpleMeterRegistry());
             outage.begin(redis);
             try {
                 for (int i = 0; i < 8; i++) {
@@ -71,7 +73,8 @@ class AuditDedupOutageTest {
         OutageRedisContext.runner(redis).run(context -> {
             AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
             AuditRecorder recorder = new AuditRecorder(auditLogRepository, mock(AccountRepository.class), Clock.systemUTC(),
-                    mock(PlatformTransactionManager.class), context.getBean(StringRedisTemplate.class));
+                    mock(PlatformTransactionManager.class), context.getBean(StringRedisTemplate.class),
+                    new SimpleMeterRegistry());
             outage.begin(redis);
             try {
                 recorder.recordDataAccessRead(1L, 7L, "run_roster", 77L, Map.of("student_ids", List.of("5"), "fields", List.of("note")));

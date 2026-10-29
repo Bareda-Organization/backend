@@ -23,6 +23,7 @@ import src.backend.global.error.ErrorCode;
 @RequiredArgsConstructor
 public class PasswordChangeCommandService {
 
+    private final PasswordChangeFailureRecorder failureRecorder;
     private final AccountRepository accountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -30,7 +31,7 @@ public class PasswordChangeCommandService {
     private final Clock clock;
 
     /**
-     * 현재 비밀번호 불일치 시 {@code 401 INVALID_CREDENTIALS}(API_SPEC §2.8) — 형식 오류는 {@code @Valid} 가 앞단에서 걸러 {@code 422} 로 응답한다.
+     * 현재 비밀번호 불일치 시 {@code 401 INVALID_CREDENTIALS}(API_SPEC §2.8) — 로그인 실패와 같은 카운터에 쌓이고 5회째는 {@code 403 AUTH_ACCOUNT_BLOCKED}({@link PasswordChangeFailureRecorder}) — 형식 오류는 {@code @Valid} 가 앞단에서 걸러 {@code 422} 로 응답한다.
      *
      * <p><b>BCrypt(대조 · 새 해시)는 트랜잭션·행 잠금 밖에서 한다</b>({@code LoginCommandService} 와 같은 3단계) —
      * 요청당 수십~수백 ms 라 잠금 안에 두면 그 계정의 로그인이 그만큼 막히고 연결이 묶인다. 잠금 없이 읽어 대조하고 새 해시를
@@ -41,11 +42,14 @@ public class PasswordChangeCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         String comparedHash = snapshot.getPasswordHash();
         if (!passwordEncoder.matches(currentPassword, comparedHash)) {
-            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+            throw failureRecorder.record(accountId); // 틀린 시도는 로그인 실패와 같은 카운터에 쌓인다(C-11)
         }
         String newHash = passwordEncoder.encode(newPassword);
-        transactionTemplate.executeWithoutResult(
+        BusinessException failure = transactionTemplate.execute(
                 status -> settle(accountId, currentPassword, comparedHash, newHash));
+        if (failure != null) {
+            throw failure; // 카운터를 올린 트랜잭션이 커밋된 뒤에 던진다
+        }
     }
 
     /**
@@ -55,17 +59,21 @@ public class PasswordChangeCommandService {
      * 해시가 대조에 쓴 해시와 다르면</b> 그 사이 다른 요청이 비밀번호를 바꾼 것이라 앞선 대조를 버리고 현재 비밀번호를
      * 잠근 행의 해시로 다시 대조한다({@code LoginSettlement} 와 같다) — 옛 대조를 믿으면 이미 바뀐 비밀번호를 새 값으로
      * 덮어쓴다. 다시 대조하는 동안은 잠금을 쥐지만 드문 경로라 받아들인다.
+     *
+     * <p>재대조에서 틀린 것으로 드러나면 같은 트랜잭션에서 실패 카운터를 올리고({@link PasswordChangeFailureRecorder}) 던질 예외를
+     * 돌려준다 — 예외를 이 트랜잭션 안에서 던지면 방금 올린 카운터까지 롤백된다. 성공이면 {@code null}.
      */
-    private void settle(Long accountId, String currentPassword, String comparedHash, String newHash) {
+    private BusinessException settle(Long accountId, String currentPassword, String comparedHash, String newHash) {
         Account account = accountRepository.findByIdForUpdate(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         if (!account.getPasswordHash().equals(comparedHash)
                 && !passwordEncoder.matches(currentPassword, account.getPasswordHash())) {
-            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+            return failureRecorder.record(accountId);
         }
         account.changePassword(newHash);
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         refreshTokenRepository.revokeAllValidByAccountId(accountId, now);
+        return null;
     }
 }

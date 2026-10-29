@@ -86,6 +86,25 @@ public class RunForceConfirmCommandService {
      */
     @Transactional
     public ForceConfirmResponse forceConfirm(Long runId, Long actorAccountId, String reason) {
+        Run run = loadDueIdleRun(runId);
+        confirmWithFallbackOrThrow(runId);
+
+        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(runId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "confirmOne 이 persisted=true 를 반환했는데 confirmed_route 가 없다: " + runId));
+        RouteVersion routeVersion = routeVersionRepository.findById(confirmedRoute.getCurrentVersionId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "confirmed_route.current_version_id 가 가리키는 route_version 이 없다: "
+                                + confirmedRoute.getCurrentVersionId()));
+
+        recordAudit(run, runId, actorAccountId, reason, confirmedRoute, routeVersion);
+
+        return new ForceConfirmResponse(runId, confirmedRoute.getCurrentVersionId(), routeVersion.isFallbackUsed(),
+                confirmedRoute.getConfirmedAt());
+    }
+
+    /** 회차를 읽어 취소·idle·확정 시각 도래 여부를 이 순서로 검증한다. */
+    private Run loadDueIdleRun(Long runId) {
         Run run = runRepository.findById(runId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         if (run.isCanceled()) {
@@ -99,7 +118,11 @@ public class RunForceConfirmCommandService {
         if (run.getConfirmAt().isAfter(now)) {
             throw new BusinessException(ErrorCode.RUN_NOT_DUE);
         }
+        return run;
+    }
 
+    /** 강제 폴백으로 1회 확정하고, 경쟁에서 졌으면 원인(취소 또는 이미 확정)에 맞는 409 를 던진다. */
+    private void confirmWithFallbackOrThrow(Long runId) {
         boolean persisted = runConfirmationService.confirmOne(runId, true);
         if (!persisted) {
             // 확정에서 진 원인이 취소일 수 있다(BR-270) — 위 검사는 낡은 읽기라 그 뒤 커밋된 취소를 못 본다.
@@ -107,24 +130,18 @@ public class RunForceConfirmCommandService {
             boolean canceled = runRepository.findById(runId).map(Run::isCanceled).orElse(false);
             throw new BusinessException(canceled ? ErrorCode.RUN_CANCELED : ErrorCode.RUN_NOT_IDLE);
         }
+    }
 
-        ConfirmedRoute confirmedRoute = confirmedRouteRepository.findById(runId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "confirmOne 이 persisted=true 를 반환했는데 confirmed_route 가 없다: " + runId));
-        RouteVersion routeVersion = routeVersionRepository.findById(confirmedRoute.getCurrentVersionId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "confirmed_route.current_version_id 가 가리키는 route_version 이 없다: "
-                                + confirmedRoute.getCurrentVersionId()));
-
-        // audit_log 적재 — CHECK 제약 매핑 근거는 AuditLog.forRunForceConfirm 참고(Ruling 260 확정,
-        // category=DATA_ACCESS·action=UPDATE 재사용). 상태 전이와 같은 트랜잭션이라 감사 적재 실패가
-        // 곧 이 메서드 전체 롤백이다 — AccountUnblockCommandService 와 같은 근거.
+    /**
+     * audit_log 적재 — CHECK 제약 매핑 근거는 AuditLog.forRunForceConfirm 참고(Ruling 260 확정,
+     * category=DATA_ACCESS·action=UPDATE 재사용). 상태 전이와 같은 트랜잭션이라 감사 적재 실패가
+     * 곧 이 메서드 전체 롤백이다 — AccountUnblockCommandService 와 같은 근거.
+     */
+    private void recordAudit(Run run, Long runId, Long actorAccountId, String reason, ConfirmedRoute confirmedRoute,
+            RouteVersion routeVersion) {
         String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
-        auditLogRepository.save(AuditLog.forRunForceConfirm(run.getAcademyId(), actorAccountId, actorLoginId, runId,
-                reason, routeVersion.isFallbackUsed(), confirmedRoute.getCurrentVersionId(),
+        auditLogRepository.save(AuditLog.forRunForceConfirm(run.getAcademyId(), actorAccountId, actorLoginId,
+                runId, reason, routeVersion.isFallbackUsed(), confirmedRoute.getCurrentVersionId(),
                 ClientIp.ofCurrentRequest(), confirmedRoute.getConfirmedAt()));
-
-        return new ForceConfirmResponse(runId, confirmedRoute.getCurrentVersionId(), routeVersion.isFallbackUsed(),
-                confirmedRoute.getConfirmedAt());
     }
 }
