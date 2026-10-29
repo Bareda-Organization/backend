@@ -211,7 +211,7 @@ public class StudentRouteQueryService {
                 academy.getLng(), null, null);
     }
 
-    /** 배치가 아직 없으면 이름·전화 전부 {@code null} — §3.10 {@code ◐}(배치가 있을 때만, BR-055). */
+    /** 연락처는 이름만 싣는다 — 전화번호는 내지 않는다(§3.10). 배치가 아직 없으면 이름이 {@code null} 이다(§3.10 {@code ◐} 배치가 있을 때만, BR-055). */
     private StudentRouteResponse.Contact contactOf(Run run, ManagerRole role) {
         return assignmentRepository.findByRunIdAndRole(run.getId(), role)
                 .flatMap(assignment -> managerRepository.findById(assignment.getManagerId()))

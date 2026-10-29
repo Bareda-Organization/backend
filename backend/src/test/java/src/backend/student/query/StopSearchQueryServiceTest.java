@@ -22,8 +22,8 @@ import src.backend.student.geocoding.spec.PlaceSearchClient;
 import src.backend.student.repository.StopRepository;
 
 /**
- * 주소 자동완성은 돌려줄 후보(상한 10)에 대해서만 근처 승하차지를 조회한다(BR-127) — 입력마다 불리는
- * 경로라, 잘라 낼 후보까지 조회하면 버려질 질의가 입력 횟수만큼 반복된다.
+ * 주소 자동완성은 돌려줄 후보(상한 10)에 대해서만, 한 번의 질의로 근처 승하차지를 조회한다(BR-127) — 입력마다 불리는
+ * 경로라, 잘라 낼 후보까지 조회하거나 후보마다 따로 물으면 버려질 질의가 입력 횟수만큼 반복된다.
  *
  * <p>시험용 가짜 공급자는 후보를 최대 4건만 줘 상한을 넘지 않으므로 공급자를 직접 흉내 낸다.
  */
@@ -43,7 +43,7 @@ class StopSearchQueryServiceTest {
 
         assertThat(service.suggest(new AuthUser(2L, 1L, Role.STAFF, AccountStatus.ACTIVE), "테헤란").items())
                 .hasSize(10);
-        verify(stopRepository, times(10)).findNearby(anyLong(), any(), any(), any());
+        verify(stopRepository, times(1)).findNearby(anyLong(), any(), any(), any(), any());
     }
 
     private static GeocodedPoint point(int i) {

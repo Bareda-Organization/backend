@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,7 +68,7 @@ class GeocodingOutageLogTest {
 
         BusinessException thrown = catchThrowableOfType(BusinessException.class,
                 () -> new AddressVerification(geocodingClient).verifyAll(
-                        List.of(new WeeklyAddressEntryRequest("mon", "to_academy", SECRET, null))));
+                        List.of(new WeeklyAddressEntryRequest("mon", "to_academy", SECRET, null)), Map.of()));
 
         assertThat(thrown.getErrorCode()).isEqualTo(ErrorCode.ADDRESS_VERIFICATION_UNAVAILABLE);
         List<ILoggingEvent> warns = appender.list.stream().filter(event -> event.getLevel() == Level.WARN).toList();

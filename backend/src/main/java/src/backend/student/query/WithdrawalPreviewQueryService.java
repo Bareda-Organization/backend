@@ -12,9 +12,6 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.boarding.entity.RiderStatus;
-import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
 import src.backend.global.error.BusinessException;
@@ -29,6 +26,7 @@ import src.backend.student.dto.WithdrawalPreviewResponse;
 import src.backend.student.dto.WithdrawalPreviewResponse.RunItem;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
+import src.backend.student.repository.StudentRidingReader;
 import src.backend.student.repository.StudentRepository;
 
 /**
@@ -50,7 +48,7 @@ public class WithdrawalPreviewQueryService {
 
     private final RunRepository runRepository;
 
-    private final RunRiderRepository runRiderRepository;
+    private final StudentRidingReader studentRidingReader;
 
     private final BusRepository busRepository;
 
@@ -102,13 +100,7 @@ public class WithdrawalPreviewQueryService {
         Map<Long, Long> stopIdsByRunId = new HashMap<>();
         List<Long> confirmedRunIds = runs.stream().filter(run -> run.getStatus() != RunStatus.IDLE).map(Run::getId)
                 .toList();
-        if (!confirmedRunIds.isEmpty()) {
-            for (RunRider rider : runRiderRepository.findAllByRunIdInAndAcademyId(confirmedRunIds, academyId)) {
-                if (rider.getStudentId().equals(studentId) && rider.getStatus() != RiderStatus.ABSENT) {
-                    stopIdsByRunId.put(rider.getRunId(), rider.getStopId());
-                }
-            }
-        }
+        stopIdsByRunId.putAll(studentRidingReader.stopIdsByRunId(academyId, studentId, confirmedRunIds));
         // 확정 전 회차의 예정 명단은 회차 수와 무관한 조회 횟수로 한꺼번에 읽는다(DA-7)
         List<Run> idleRuns = runs.stream().filter(run -> run.getStatus() == RunStatus.IDLE).toList();
         projectedRosterReader.readAll(idleRuns).forEach((runId, planned) -> {

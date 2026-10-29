@@ -122,7 +122,7 @@ class ListenerSkipOnBadInputTest {
         given(runRepository.findByIdAndAcademyId(RUN_ID, ACADEMY_ID)).willReturn(Optional.of(run));
         GuardianAccountRecipient mother = guardian(101L, 11L, "영희엄마", "김영희");
         GuardianAccountRecipient father = guardian(102L, 12L, "철수엄마", "박철수");
-        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), any()))
+        given(guardianStudentRepository.findGuardianAccountsByAcademyId(eq(ACADEMY_ID), any()))
                 .willReturn(List.of(mother, father));
         NotificationTexts texts = new NotificationTexts();
         BoardingNotificationListener listener = new BoardingNotificationListener(guardianStudentRepository,

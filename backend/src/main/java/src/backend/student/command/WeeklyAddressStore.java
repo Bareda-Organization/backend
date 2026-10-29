@@ -8,7 +8,8 @@ import java.util.Map;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 
@@ -47,6 +48,8 @@ public class WeeklyAddressStore {
 
     private final Clock clock;
 
+    private final TransactionTemplate transactionTemplate;
+
     /**
      * 보낸 칸만 반영하고 나머지는 그대로 둔다 — 같은 칸을 다시 보내면 <b>덮어쓰기</b>다(Ruling 151).
      *
@@ -55,19 +58,39 @@ public class WeeklyAddressStore {
      * {@code 409 DUPLICATE_WEEKLY_ADDRESS} 가 된다 — 자기모순인 요청을 애플리케이션 선검사가 아니라
      * <b>DB 제약</b>이 막는 형태이며, 선검사는 동시 요청 두 건 사이에서 아무것도 막지 못한다.
      */
-    @Transactional
     public List<WeeklyAddress> apply(Long studentId, Long academyId, List<VerifiedAddressEntry> entries) {
-        Map<AddressSlot, WeeklyAddress> existing = existingBySlot(studentId, academyId);
-        OffsetDateTime now = OffsetDateTime.now(clock);
+        boolean ownsTransaction = !TransactionSynchronizationManager.isActualTransactionActive();
         try {
+            return applyInTransaction(studentId, academyId, entries);
+        } catch (DataIntegrityViolationException first) {
+            if (!duplicateSlot(first)) {
+                throw first;
+            }
+            if (!ownsTransaction) {
+                // 호출자의 트랜잭션 안에서는 실패한 flush 가 그 트랜잭션을 이미 못 쓰게 만들어 다시 시도할 수 없다 — 바로 409 로 알린다.
+                throw new BusinessException(ErrorCode.DUPLICATE_WEEKLY_ADDRESS);
+            }
+        }
+        // 같은 칸을 처음 저장하는 요청 둘이 겹치면 늦은 쪽이 먼저 커밋된 행을 밟는다 — 요청의 잘못이 아니라 겹침이므로, 새 트랜잭션에서 그 행을
+        // 읽어 덮어쓰는 길로 한 번 더 시도한다. 그래도 겹치면 그때 409 로 알린다.
+        try {
+            return applyInTransaction(studentId, academyId, entries);
+        } catch (DataIntegrityViolationException second) {
+            throw duplicateSlot(second) ? new BusinessException(ErrorCode.DUPLICATE_WEEKLY_ADDRESS) : second;
+        }
+    }
+
+    /** 한 번의 시도 — 칸 전체가 한 트랜잭션이라 뒤쪽 칸이 제약에 걸리면 앞쪽 칸도 남지 않는다. */
+    private List<WeeklyAddress> applyInTransaction(Long studentId, Long academyId, List<VerifiedAddressEntry> entries) {
+        return transactionTemplate.execute(status -> {
+            Map<AddressSlot, WeeklyAddress> existing = existingBySlot(studentId, academyId);
+            OffsetDateTime now = OffsetDateTime.now(clock);
             List<WeeklyAddress> applied = entries.stream()
                     .map(entry -> upsert(studentId, academyId, entry, existing, now))
                     .toList();
             weeklyAddressRepository.flush();
             return applied;
-        } catch (DataIntegrityViolationException e) {
-            throw duplicateSlot(e) ? new BusinessException(ErrorCode.DUPLICATE_WEEKLY_ADDRESS) : e;
-        }
+        });
     }
 
     private WeeklyAddress upsert(Long studentId, Long academyId, VerifiedAddressEntry entry,

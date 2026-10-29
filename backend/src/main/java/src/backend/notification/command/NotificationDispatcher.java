@@ -2,13 +2,17 @@ package src.backend.notification.command;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.notification.domain.NotificationRetryPolicy;
 import src.backend.notification.entity.NotificationLog;
+import src.backend.notification.entity.NotificationType;
 import src.backend.notification.entity.PushState;
 import src.backend.notification.push.spec.PushMessage;
 import src.backend.notification.push.spec.PushNotAttemptedException;
@@ -44,6 +48,11 @@ public class NotificationDispatcher {
     private final PushSender pushSender;
 
     private final Clock clock;
+
+    private final MeterRegistry meterRegistry;
+
+    /** 비상 알림(발신 · 취소) 발송 실패 횟수 — 태그 {@code type} 이 종류를 가른다. */
+    private static final String EMERGENCY_FAILURE_METRIC = "schoolbus.notification.push.emergency.failures";
 
     /** 발송 실패 사유를 {@code fail_reason}(varchar 200) 에 담을 때의 상한. */
     private static final int FAIL_REASON_MAX_LENGTH = 200;
@@ -103,9 +112,25 @@ public class NotificationDispatcher {
         } catch (PushNotAttemptedException e) {
             notificationLogRepository.releaseAttempt(target.getId(), PushState.PENDING, failReason(e));
         } catch (RuntimeException e) {
-            PushState nextState = retryPolicy.exhausted(attempts) ? PushState.FAILED : PushState.PENDING;
+            PushState nextState = retryPolicy.exhausted(target, attempts, now) ? PushState.FAILED : PushState.PENDING;
             notificationLogRepository.markAttemptFailed(target.getId(), PushState.PENDING, nextState,
                     failReason(e));
+            countEmergencyFailure(target);
+        }
+    }
+
+    /** 기동 직후 실패가 한 번도 없어도 지표 이름이 노출되도록 종류별로 미리 등록한다 — 경보 규칙이 빈 시계열을 만나지 않게 한다. */
+    @PostConstruct
+    void registerMetrics() {
+        NotificationType.EMERGENCY_TYPES.forEach(type -> meterRegistry
+                .counter(EMERGENCY_FAILURE_METRIC, "type", type.name().toLowerCase(Locale.ROOT)));
+    }
+
+    /** 비상 알림의 발송 실패는 시도마다 센다 — 재시도로 가려지는 동안에도 운영자가 채널 장애를 알아야 하므로 경보가 이 지표를 본다. */
+    private void countEmergencyFailure(NotificationLog target) {
+        if (NotificationType.EMERGENCY_TYPES.contains(target.getType())) {
+            meterRegistry.counter(EMERGENCY_FAILURE_METRIC, "type", target.getType().name().toLowerCase(Locale.ROOT))
+                    .increment();
         }
     }
 

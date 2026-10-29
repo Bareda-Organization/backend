@@ -62,6 +62,36 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             @Param("now") OffsetDateTime now);
 
     /**
+     * 읽음 시각을 <b>최초 1회만</b> 남긴다(NTF-08, API_SPEC §3.13) — 조건부 UPDATE 라 읽음 시각 한 컬럼만 쓴다. 엔티티를 고쳐 변경 감지로 쓰면 읽어 둔
+     * 시점의 발송 상태까지 행 전체를 다시 써서, 그 사이 발송 쪽이 확정한 {@code sent} · 시도 횟수가 {@code pending} · 0 으로 되돌아간다.
+     *
+     * @return 1 = 처음 읽음, 0 = 이미 읽은 알림(재요청에도 첫 읽음 시각이 보존된다)
+     */
+    @AcademyScopeExempt(reason = "알림 읽음 처리 — 대상이 id 로 특정된 단건이고, 소유(수신 계정)와 학원 범위는 호출부가 이 UPDATE 전에 "
+            + "판정한다")
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update NotificationLog n
+               set n.readAt = :now
+             where n.id = :id and n.readAt is null
+            """)
+    int markRead(@Param("id") Long id, @Param("now") OffsetDateTime now);
+
+    /**
+     * 수신 확인(NTF-10)을 <b>최초 1회만</b> 남긴다 — {@link #markRead} 와 같은 이유로 확인 표시 두 컬럼만 쓰는 조건부 UPDATE 다.
+     *
+     * @return 1 = 처음 확인, 0 = 이미 확인된 알림
+     */
+    @AcademyScopeExempt(reason = "알림 수신 확인 — markRead 와 같은 축이다. 대상이 id 로 특정된 단건이고 소유 판정은 호출부가 먼저 한다")
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update NotificationLog n
+               set n.acked = true, n.ackedAt = :now
+             where n.id = :id and n.acked = false
+            """)
+    int ack(@Param("id") Long id, @Param("now") OffsetDateTime now);
+
+    /**
      * 알림 설정이 꺼져 있어 푸시를 보내지 않고 건너뛴 행을 {@code skipped} 로 옮긴다(
      * API_SPEC §3.14). {@code markSent} 와 같은 이유로 {@code pending} 인 행만 대상이다 — 즉시 발송과
      * 워커가 같은 행을 함께 집어도 한쪽만 반영된다.
@@ -124,8 +154,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
     int releaseAttempt(@Param("id") Long id, @Param("pending") PushState pending, @Param("reason") String reason);
 
     /**
-     * 워커가 다시 집어야 할 후보 — {@code pending} 이고 재시도 상한에 닿지 않았으며, 아직 시도한 적이
-     * 없거나 마지막 시도로부터 최소 간격이 지난 행이다.
+     * 워커가 다시 집어야 할 후보 — {@code pending} 이고 재시도 상한에 닿지 않았으며(비상 알림은 상한과 무관하게 후보 — 포기 시점은
+     * {@code NotificationRetryPolicy#exhausted} 가 정한다), 아직 시도한 적이 없거나 마지막 시도로부터 최소 간격이 지난 행이다.
      *
      * <p>{@code push_state = 'pending'} 조건이 이 질의의 전부다 — 빠지면 워커가 <b>이미 보낸 알림을
      * 전부 재발송</b>한다. {@code ERD §5} 의 부분 인덱스({@code WHERE push_state='pending'})가 가리키는
@@ -146,7 +176,9 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
     @Query("""
             select n from NotificationLog n
              where n.pushState = src.backend.notification.entity.PushState.PENDING
-               and n.pushAttempts < :maxAttempts
+               and (n.pushAttempts < :maxAttempts or n.type in (
+                    src.backend.notification.entity.NotificationType.EMERGENCY,
+                    src.backend.notification.entity.NotificationType.EMERGENCY_CANCELED))
                and (n.lastAttemptAt is null or n.lastAttemptAt <= :attemptedBefore)
              order by n.lastAttemptAt asc nulls first, n.createdAt
             """)
@@ -158,7 +190,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
      * 시도 횟수를 먼저 올리고 결과 기록은 나중이라, 마지막 시도 도중 프로세스가 죽으면 행이 {@code pending}·상한 횟수로
      * 남아 후보 조건({@code push_attempts < 상한})에도 실패 전이에도 걸리지 않는다.
      *
-     * <p>{@code stalledBefore} 이전에 시도된 행만 옮긴다 — 방금 마지막 시도를 선점해 발송 중인 행은 남긴다.
+     * <p>{@code stalledBefore} 이전에 시도된 행만 옮긴다 — 방금 마지막 시도를 선점해 발송 중인 행은 남긴다. 비상 알림은 대상이 아니다 — 워커가 상한과
+     * 무관하게 다시 집어 포기 시점을 정책이 정한다.
      *
      * @return 옮긴 행 수
      */
@@ -170,6 +203,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             update NotificationLog n
                set n.pushState = :failed, n.failReason = :reason
              where n.pushState = src.backend.notification.entity.PushState.PENDING and n.pushAttempts >= :maxAttempts
+               and n.type not in (src.backend.notification.entity.NotificationType.EMERGENCY,
+                    src.backend.notification.entity.NotificationType.EMERGENCY_CANCELED)
                and n.lastAttemptAt <= :stalledBefore
             """)
     int failStalled(@Param("failed") PushState failed,
@@ -307,7 +342,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
     /**
      * 묶음 한 쪽(§5.17 {@code group=true}) — 최근 묶음부터 {@code limit} 개를 {@code offset} 부터. {@code acked} 를 주면 묶음 안에 그
      * 상태 행이 하나라도 있는 묶음을 싣는다. 수신자 앞 3명은 적재 순으로 {@code 이름 + 구분자 + 역할} 을 이어 한 칸에 돌려준다.
-     * 학원 조건을 쿼리에 고정한다.
+     * 학원 조건을 쿼리에 고정한다. 모든 행이 쪽과 무관한 전체 묶음 수({@code totalGroups})를 함께 싣는다 — 같은 집계를 개수용으로 한 번 더 돌리지 않는다.
+     * 쪽 범위를 벗어나 행이 0 개이면 이 값을 읽을 행이 없어 {@link #countGroupsForStaffLog} 로 센다.
      */
     @Query(nativeQuery = true, value = """
             SELECT n.type AS "type", n.run_id AS "runId", n.body AS "body",
@@ -317,7 +353,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
                    COUNT(*) AS "recipientCount",
                    SUM(CASE WHEN n.acked THEN 1 ELSE 0 END) AS "ackedCount",
                    array_to_string((array_agg(n.recipient_name || chr(31) || n.recipient_role ORDER BY n.id))[1:3],
-                                   chr(30)) AS "firstRecipients"
+                                   chr(30)) AS "firstRecipients",
+                   COUNT(*) OVER () AS "totalGroups"
             """ + STAFF_LOG_GROUP_FILTER + """
             ORDER BY MAX(COALESCE(n.sent_at, n.created_at)) DESC, MAX(n.id) DESC
             LIMIT :limit OFFSET :offset
@@ -327,7 +364,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
             @Param("importantTypes") Collection<String> importantTypes, @Param("from") OffsetDateTime from,
             @Param("to") OffsetDateTime to, @Param("limit") int limit, @Param("offset") long offset);
 
-    /** 묶음 수(§5.17 {@code group=true} 의 {@code total_count}) — {@link #searchGroupsForStaffLog} 와 같은 조건 조각을 쓴다. */
+    /** 묶음 수(§5.17 {@code group=true} 의 {@code total_count}) — {@link #searchGroupsForStaffLog} 와 같은 조건 조각을 쓴다. 빈 쪽에서만 부른다. */
     @Query(nativeQuery = true, value = "SELECT COUNT(*) FROM (SELECT 1 " + STAFF_LOG_GROUP_FILTER + ") g")
     long countGroupsForStaffLog(@Param("academyId") Long academyId, @Param("type") String type,
             @Param("recipientRole") String recipientRole, @Param("acked") Boolean acked,
@@ -354,6 +391,8 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
         long getAckedCount();
 
         String getFirstRecipients();
+
+        long getTotalGroups();
     }
 
     /**

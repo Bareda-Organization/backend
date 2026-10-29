@@ -25,7 +25,7 @@ public class StubPlaceSearchClient implements PlaceSearchClient {
     @Override
     public List<FoundPlace> search(String query) {
         if (query.contains(UNAVAILABLE_MARKER)) {
-            throw new GeocodingUnavailableException("스텁 장소 검색 장애 재현: " + query, null);
+            throw new GeocodingUnavailableException("스텁 장소 검색 장애 재현");
         }
         if (!query.contains(PLACE_MARKER)) {
             return List.of();

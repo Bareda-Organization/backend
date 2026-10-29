@@ -20,8 +20,8 @@ import src.backend.notification.repository.NotificationLogRepository;
 /**
  * 알림 읽음 처리(API_SPEC §3.13, NTF-08) — 중요 통지는 이 처리가 수신 확인(NTF-10)의 근거다.
  *
- * <p>"중요 통지" 3종(지연·미승차·노선 변경)은 {@code FEATURE_SPEC} NTF-10(Ruling 227)이
- * 정의처다 — "읽음 처리로 acked 가 되는 종류와 미확인 배지가 세는 종류는 같은 3종". 이 서비스가 판정을
+ * <p>"중요 통지"(지연·미승차·노선 변경)는 {@code FEATURE_SPEC} NTF-10(Ruling 227)이
+ * 정의처다 — "읽음 처리로 acked 가 되는 종류와 미확인 배지가 세는 종류는 같다". 이 서비스가 판정을
  * 들고 있는 이유는 {@link NotificationType} 을 고치지 않으려고 엔티티·타입 쪽에 업무 중요도 판단을
  * 추가로 얹지 않기 위함이다.
  *
@@ -29,8 +29,8 @@ import src.backend.notification.repository.NotificationLogRepository;
  * 모든 행에 항상 존재하는 {@code boolean}이고({@code API_SPEC §5.17} 필수 필드) 생성 시 기본값이
  * {@code false}다. {@link #markRead}가 대상 알림의 {@link NotificationType}이 {@link #IMPORTANT_TYPES}에
  * 속할 때만 {@code true}로 바꾸고 {@code acked_at}에 처리 시각을 남긴다 — 그 외 종류는 읽음 처리를
- * 거쳐도 {@code acked}가 {@code false}로 남는다. {@link NotificationLog#ack}가 이미 {@code true}인
- * 행에는 다시 손대지 않아(no-op) 첫 확인 시각이 이후 재요청으로 갱신되지 않는다. 관계자 알림 로그
+ * 거쳐도 {@code acked}가 {@code false}로 남는다. 읽음 시각과 확인 표시는 각각 조건부 UPDATE 로 <b>최초 1회만</b> 쓰고(재요청은 0 행),
+ * 발송 쪽이 같은 행에 쓰는 발송 상태 컬럼은 건드리지 않는다. 관계자 알림 로그
  * ({@code GET /staff/notifications}, §5.17 미확인 배지)가 이 필드를 그대로 읽으므로,
  * {@link #IMPORTANT_TYPES}를 넓히거나 좁히면 그 배지의 대상도 함께 바뀐다 — 변경 시 관계자 알림 코드까지
  * 함께 확인해야 한다.
@@ -40,11 +40,10 @@ import src.backend.notification.repository.NotificationLogRepository;
 @Transactional
 public class NotificationReadCommandService {
 
-    /** NTF-10 이 추적하는 중요 통지 3종(USER_FLOWS §10.2 규칙4·5) — 이 3종만 {@link NotificationLog#ack} 를 함께 부른다. */
     /**
-     * 🔴 <b>세는 쪽과 공유한다</b> — {@link NotificationType#IMPORTANT_FOR_ACK} 하나만 본다.
-     * 여기에 따로 목록을 두면 미확인 배지({@code GET /staff/notifications})와 어긋나고,
-     * 어긋나도 양쪽 시험이 각자 통과해 아무 데서도 안 잡힌다(Ruling 227).
+     * NTF-10 이 추적하는 중요 통지(USER_FLOWS §10.2 규칙4·5) — 이 종류만 읽음 처리와 함께 수신 확인을 남긴다. <b>세는 쪽과 공유한다</b>:
+     * {@link NotificationType#IMPORTANT_FOR_ACK} 하나만 본다. 여기에 따로 목록을 두면 미확인 배지({@code GET /staff/notifications})와
+     * 어긋나고, 어긋나도 양쪽 시험이 각자 통과해 아무 데서도 안 잡힌다(Ruling 227).
      */
     private static final Set<NotificationType> IMPORTANT_TYPES = NotificationType.IMPORTANT_FOR_ACK;
 
@@ -71,9 +70,9 @@ public class NotificationReadCommandService {
         AcademyScope.assertAccessible(requester, notification.getAcademyId());
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        notification.markRead(now);
+        notificationLogRepository.markRead(notificationId, now);
         if (IMPORTANT_TYPES.contains(notification.getType())) {
-            notification.ack(now);
+            notificationLogRepository.ack(notificationId, now);
         }
     }
 }

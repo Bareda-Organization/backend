@@ -54,14 +54,16 @@ public class StopSearchQueryService {
         try {
             candidates = geocodingClient.candidates(query.trim());
         } catch (GeocodingUnavailableException e) {
+            log.warn("자동완성 후보 조회 실패: {}", e.getMessage());
             throw new BusinessException(ErrorCode.ADDRESS_VERIFICATION_UNAVAILABLE);
         }
         // 상한을 먼저 자르고 근처 승하차지를 조회한다 — 잘라 낼 후보까지 조회하면 입력마다 질의가 버려진다(BR-127).
         List<PlaceSearchClient.FoundPlace> found = new ArrayList<>(placesOf(query.trim()));
         candidates.forEach(point -> found.add(new PlaceSearchClient.FoundPlace(null, point)));
-        return new StopSuggestResponse(found.stream()
-                .limit(SUGGEST_LIMIT)
-                .map(place -> itemOf(requester, place.name(), place.point()))
+        List<PlaceSearchClient.FoundPlace> shown = found.stream().limit(SUGGEST_LIMIT).toList();
+        List<Stop> nearby = nearbyStopsOf(requester.academyId(), shown);
+        return new StopSuggestResponse(shown.stream()
+                .map(place -> itemOf(place.name(), place.point(), nearby))
                 .toList());
     }
 
@@ -73,23 +75,44 @@ public class StopSearchQueryService {
         try {
             return placeSearchClient.search(query);
         } catch (GeocodingUnavailableException e) {
-            log.warn("장소 검색 실패 — 주소 후보만 돌려준다: {}", e.getMessage(), e.getCause());
+            log.warn("장소 검색 실패 — 주소 후보만 돌려준다: {}", e.getMessage());
             return List.of();
         }
     }
 
-    private StopSuggestResponse.Item itemOf(AuthUser requester, String placeName, GeocodedPoint point) {
+    private StopSuggestResponse.Item itemOf(String placeName, GeocodedPoint point, List<Stop> nearby) {
         return new StopSuggestResponse.Item(placeName, point.lat(), point.lng(), point.displayName(),
-                nearbyOf(requester.academyId(), point));
+                nearbyOf(point, nearby));
     }
 
-    private List<StopSuggestResponse.NearbyStop> nearbyOf(Long academyId, GeocodedPoint point) {
-        return stopRepository
-                .findNearby(academyId, point.lat(), point.lng(), StopProximity.searchBoxDegrees(point.lat()))
-                .stream()
+    /**
+     * 보여 줄 후보 전부의 임계 상자를 한 번에 덮는 직사각형으로 승하차지를 한 번만 읽는다 — 후보마다 묻으면 입력 한 번이 질의 열 개가 된다.
+     * shortcut: 후보가 멀리 흩어지면 직사각형이 넓어져 읽는 행이 늘어난다, 후보 사이 거리가 수 km 를 넘는 입력이 관측되면 묶음으로 나눠 읽는다.
+     */
+    private List<Stop> nearbyStopsOf(Long academyId, List<PlaceSearchClient.FoundPlace> shown) {
+        if (shown.isEmpty()) {
+            return List.of();
+        }
+        BigDecimal minLat = null;
+        BigDecimal maxLat = null;
+        BigDecimal minLng = null;
+        BigDecimal maxLng = null;
+        for (PlaceSearchClient.FoundPlace place : shown) {
+            GeocodedPoint point = place.point();
+            BigDecimal box = StopProximity.searchBoxDegrees(point.lat());
+            minLat = minLat == null ? point.lat().subtract(box) : minLat.min(point.lat().subtract(box));
+            maxLat = maxLat == null ? point.lat().add(box) : maxLat.max(point.lat().add(box));
+            minLng = minLng == null ? point.lng().subtract(box) : minLng.min(point.lng().subtract(box));
+            maxLng = maxLng == null ? point.lng().add(box) : maxLng.max(point.lng().add(box));
+        }
+        return stopRepository.findNearby(academyId, minLat, maxLat, minLng, maxLng);
+    }
+
+    private List<StopSuggestResponse.NearbyStop> nearbyOf(GeocodedPoint point, List<Stop> nearby) {
+        return nearby.stream()
                 .map(stop -> new StopSuggestResponse.NearbyStop(stop.getId(), stop.getName(), stop.getAddress(),
                         stop.getLat(), stop.getLng(), distanceOf(stop, point)))
-                .filter(nearby -> nearby.distanceM() <= StopProximity.MERGE_RADIUS_METERS)
+                .filter(near -> near.distanceM() <= StopProximity.MERGE_RADIUS_METERS)
                 .sorted(Comparator.comparingInt(StopSuggestResponse.NearbyStop::distanceM))
                 .toList();
     }

@@ -85,7 +85,7 @@ public class StubGeocodingClient implements GeocodingClient {
     @Override
     public Optional<GeocodedPoint> geocode(String address) {
         if (address.contains(UNAVAILABLE_MARKER)) {
-            throw new GeocodingUnavailableException("스텁 장애 재현: " + address, null);
+            throw new GeocodingUnavailableException("스텁 장애 재현");
         }
         Matcher parsed = ROAD_AND_NUMBER.matcher(address.trim());
         if (!parsed.matches()) {

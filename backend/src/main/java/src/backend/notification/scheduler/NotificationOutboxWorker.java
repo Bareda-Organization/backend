@@ -13,6 +13,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import src.backend.notification.command.NotificationDispatcher;
 import src.backend.notification.domain.NotificationRetryPolicy;
@@ -30,6 +31,7 @@ import src.backend.notification.repository.NotificationLogRepository;
  * <p>회수 대상을 <b>{@code pending} 으로 좁히는 것</b>이 이 클래스의 전부다. 조건이 빠지면 이미 보낸
  * 알림까지 전부 재발송되는데, 그 워커도 "미발송분이 발송된다" 는 그대로 통과한다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotificationOutboxWorker {
@@ -80,9 +82,23 @@ public class NotificationOutboxWorker {
                 NotificationRetryPolicy.MAX_ATTEMPTS, retryPolicy.attemptedBefore(now),
                 PageRequest.of(0, BATCH_SIZE));
 
-        candidates.stream()
-                .filter(candidate -> retryPolicy.retryDue(candidate, now))
-                .forEach(this::dispatchAndObserve);
+        for (NotificationLog candidate : candidates) {
+            dispatchIfDue(candidate, now);
+        }
+    }
+
+    /**
+     * 후보 한 건을 격리해 처리한다 — 한 행에서 난 예외가 같은 틱의 나머지 행을 막지 않는다. 격리하지 않으면 앞쪽에서 늘 예외를 던지는 행이 매 틱 같은 자리에서
+     * 틱을 끊어, 그 뒤 행(비상 알림 포함)이 영영 발송되지 않는다.
+     */
+    private void dispatchIfDue(NotificationLog candidate, OffsetDateTime now) {
+        try {
+            if (retryPolicy.retryDue(candidate, now)) {
+                dispatchAndObserve(candidate);
+            }
+        } catch (RuntimeException e) {
+            log.warn("[outbox] 알림 {} 처리 실패 — 다음 행으로 넘어간다: {}", candidate.getId(), e.getClass().getSimpleName(), e);
+        }
     }
 
     /**

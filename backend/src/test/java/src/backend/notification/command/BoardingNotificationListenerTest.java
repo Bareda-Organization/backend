@@ -65,7 +65,7 @@ class BoardingNotificationListenerTest {
                 guardian(103L, 14L, "민수엄마", "이민수"));
         given(runRiderRepository.findFinalizedByRunIdAndStopId(RUN_ID, STOP_ID)).willReturn(finalized);
         givenRunDirection(Direction.TO_ACADEMY);
-        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID),
+        given(guardianStudentRepository.findGuardianAccountsByAcademyId(eq(ACADEMY_ID),
                 eq(List.of(101L, 102L, 103L)))).willReturn(guardians);
     }
 
@@ -74,7 +74,7 @@ class BoardingNotificationListenerTest {
         listener.appendStopDeparted(new StopDepartedEvent(RUN_ID, ACADEMY_ID, STOP_ID, DEPARTED_AT));
 
         verify(guardianStudentRepository, times(1))
-                .findActiveGuardianAccountsByStudentIds(anyLong(), anyList());
+                .findGuardianAccountsByAcademyId(anyLong(), anyList());
     }
 
     @Test
@@ -100,7 +100,7 @@ class BoardingNotificationListenerTest {
     void 출발_뒤_기록은_그_학생의_보호자에게_종류별_문구로_즉시_적재한다() {
         List<GuardianAccountRecipient> guardians = List.of(guardian(101L, 11L, "영희엄마", "김영희"),
                 guardian(101L, 12L, "영희아빠", "김영희"));
-        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), eq(List.of(101L))))
+        given(guardianStudentRepository.findGuardianAccountsByAcademyId(eq(ACADEMY_ID), eq(List.of(101L))))
                 .willReturn(guardians);
 
         listener.appendRecordedAfterDeparture(new RiderRecordedAfterDepartureEvent(RUN_ID, ACADEMY_ID,
@@ -116,7 +116,7 @@ class BoardingNotificationListenerTest {
     @Test
     void 출발_뒤_하원_미승차는_하원_문구와_미승차_종류로_적재한다() {
         List<GuardianAccountRecipient> guardians = List.of(guardian(101L, 11L, "영희엄마", "김영희"));
-        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), eq(List.of(101L))))
+        given(guardianStudentRepository.findGuardianAccountsByAcademyId(eq(ACADEMY_ID), eq(List.of(101L))))
                 .willReturn(guardians);
 
         listener.appendRecordedAfterDeparture(new RiderRecordedAfterDepartureEvent(RUN_ID, ACADEMY_ID,
@@ -137,7 +137,7 @@ class BoardingNotificationListenerTest {
         given(runRiderRepository.findFinalizedByRunIdAndStopId(RUN_ID, otherStopId)).willReturn(List.of(noShow));
         givenRunDirection(Direction.FROM_ACADEMY);
         List<GuardianAccountRecipient> guardians = List.of(guardian(104L, 15L, "하원엄마", "최하원"));
-        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), eq(List.of(104L))))
+        given(guardianStudentRepository.findGuardianAccountsByAcademyId(eq(ACADEMY_ID), eq(List.of(104L))))
                 .willReturn(guardians);
 
         listener.appendStopDeparted(new StopDepartedEvent(RUN_ID, ACADEMY_ID, otherStopId, DEPARTED_AT));
@@ -152,7 +152,7 @@ class BoardingNotificationListenerTest {
     void 출발_뒤_기록의_중복_방지_키는_보호자마다_다르다() {
         List<GuardianAccountRecipient> guardians = List.of(guardian(101L, 11L, "영희엄마", "김영희"),
                 guardian(101L, 12L, "영희아빠", "김영희"));
-        given(guardianStudentRepository.findActiveGuardianAccountsByStudentIds(eq(ACADEMY_ID), eq(List.of(101L))))
+        given(guardianStudentRepository.findGuardianAccountsByAcademyId(eq(ACADEMY_ID), eq(List.of(101L))))
                 .willReturn(guardians);
 
         listener.appendRecordedAfterDeparture(new RiderRecordedAfterDepartureEvent(RUN_ID, ACADEMY_ID,

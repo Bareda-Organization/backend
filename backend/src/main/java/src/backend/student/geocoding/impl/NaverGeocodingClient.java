@@ -137,12 +137,12 @@ public class NaverGeocodingClient implements GeocodingClient {
      * 메서드 + {@link Throwable} 인 것도 그 규약이다.
      */
     List<GeocodedPoint> candidatesUnavailable(String query, Throwable cause) {
-        throw new GeocodingUnavailableException("지오코딩 호출 실패: " + query, cause);
+        throw new GeocodingUnavailableException("지오코딩 호출 실패: " + ProviderFailure.describe(cause));
     }
 
     /** {@link #candidatesUnavailable} 와 같은 계약 — {@link #geocode} 전용 fallback. */
     Optional<GeocodedPoint> unavailable(String address, Throwable cause) {
-        throw new GeocodingUnavailableException("지오코딩 호출 실패: " + address, cause);
+        throw new GeocodingUnavailableException("지오코딩 호출 실패: " + ProviderFailure.describe(cause));
     }
 
     /** 주소를 <b>쿼리 파라미터로</b> 붙인다 — {@code encode()} 가 없으면 한글 주소가 그대로 실려 요청이 깨진다. */

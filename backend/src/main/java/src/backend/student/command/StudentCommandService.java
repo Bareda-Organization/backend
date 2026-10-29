@@ -59,6 +59,9 @@ import src.backend.student.repository.StudentRepository;
 @Transactional
 public class StudentCommandService {
 
+    /** {@code student.name} 의 컬럼 길이 — 요청 DTO 를 거치지 않는 최소 등록이 스스로 지킨다. */
+    private static final int NAME_MAX_LENGTH = 50;
+
     private final StudentRepository studentRepository;
 
     private final GuardianStudentRepository guardianStudentRepository;
@@ -80,10 +83,10 @@ public class StudentCommandService {
      * @return 등록된 학생의 식별자 — 응답 조립은 조회 쪽이 맡는다(§1.9 "변경 후 자원 상태를 반환")
      */
     public Long register(AuthUser requester, StudentRegisterRequest request, StudentPhoto photo) {
-        StudentProfile profile = new StudentProfile(request.name(), request.studentPhone(),
+        StudentProfile profile = new StudentProfile(request.name(), blankToNull(request.studentPhone()),
                 studentPhotoWriter.store(photo), parseGender(request.gender()), request.birthDate(),
-                request.grade(),
-                request.className(), request.note(), request.canGoAlone());
+                blankToNull(request.grade()), blankToNull(request.className()), blankToNull(request.note()),
+                request.canGoAlone());
         return studentRepository.save(Student.register(academyOf(requester), profile)).getId();
     }
 
@@ -96,6 +99,9 @@ public class StudentCommandService {
      * 유일한 쓰기 지점이라는 원칙만 지키면 된다.
      */
     public Long registerMinimal(Long academyId, String name) {
+        if (name == null || name.isBlank() || name.length() > NAME_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
+        }
         StudentProfile profile = new StudentProfile(name, null, null, null, null, null, null, null, null);
         return studentRepository.save(Student.register(academyId, profile)).getId();
     }
@@ -212,7 +218,7 @@ public class StudentCommandService {
     /** 이 학생의 채널을 구독할 수 있던 계정 — 살아 있는 보호자 연결의 계정과 학생 본인 계정. */
     private Set<Long> openChannelAccountsOf(Student student) {
         Set<Long> accounts = guardianStudentRepository
-                .findActiveGuardianAccountsByStudentIds(student.getAcademyId(), List.of(student.getId())).stream()
+                .findGuardianAccountsByAcademyId(student.getAcademyId(), List.of(student.getId())).stream()
                 .map(GuardianAccountRecipient::getAccountId)
                 .collect(Collectors.toCollection(HashSet::new));
         if (student.getAccountId() != null) {
@@ -221,8 +227,9 @@ public class StudentCommandService {
         return accounts;
     }
 
+    /** 행 잠금으로 꺼낸다 — 수정과 퇴원이 같은 행을 읽고 쓰는 사이에 끼면 나중에 커밋한 쪽이 앞선 변경(퇴원 시각 포함)을 덮어쓴다. */
     private Student find(AuthUser requester, Long studentId) {
-        return studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(studentId, academyOf(requester))
+        return studentRepository.lockActiveByIdAndAcademyId(studentId, academyOf(requester))
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
     }
 
@@ -235,6 +242,11 @@ public class StudentCommandService {
     private Long academyOf(AuthUser requester) {
         return AcademyScope.resolveListScope(requester, null)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
+    }
+
+    /** 선택 문자 항목의 빈 문자열·공백은 값이 없는 것으로 저장한다 — 수정(PATCH)이 빈 값을 지우는 것과 같은 규칙이다. */
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /** 성별은 문자열로 받아 {@link Gender} 로 옮기므로 {@link Patch#optional} 을 못 쓴다 — 키 없음·지움·값을 여기서 가른다. */

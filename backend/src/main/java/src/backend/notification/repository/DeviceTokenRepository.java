@@ -55,6 +55,24 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     int revokeOtherAccounts(@Param("token") String token, @Param("accountId") Long accountId,
             @Param("revokedAt") OffsetDateTime revokedAt);
 
+    /**
+     * 같은 (계정, 단말) 행을 새 토큰으로 바꿔 심는다 — 없으면 만들고, 있으면 값 수정이 아니라 행 대체와 같은 결과(해지 표시 해제 · 생성 시각 갱신)로
+     * 덮는다(ERD §3.4). 한 문장이라 같은 단말의 첫 등록 두 건이 겹쳐도 UNIQUE 위반(500) 없이 나중 값이 남는다. 지우고 다시 넣는 세 걸음은 두 요청이
+     * 모두 "없음" 을 본 뒤 함께 넣는 창이 있다.
+     */
+    @AcademyScopeExempt(reason = "§2.11 본인 단말 등록 — device_token 은 account 부모 경유라 계정이 곧 학원 범위이고, 호출부가 토큰의 "
+            + "accountId 만 넘긴다는 전제 — 요청 파라미터의 accountId 를 넘기면 이 예외가 우회로가 된다")
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            INSERT INTO device_token (account_id, device_id, token, platform, app_version, revoked_at, created_at, updated_at)
+            VALUES (:accountId, :deviceId, :token, :platform, :appVersion, NULL, :now, :now)
+            ON CONFLICT (account_id, device_id) DO UPDATE
+               SET token = EXCLUDED.token, platform = EXCLUDED.platform, app_version = EXCLUDED.app_version,
+                   revoked_at = NULL, created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at
+            """, nativeQuery = true)
+    int upsert(@Param("accountId") Long accountId, @Param("deviceId") String deviceId, @Param("token") String token,
+            @Param("platform") String platform, @Param("appVersion") String appVersion, @Param("now") OffsetDateTime now);
+
     /** 계정의 푸시 단말을 전량 지운다(익명화 파기 Ruling 480 ②·520 · 매니저 삭제 Ruling 891) — 해지 표시가 아니라 행을 지운다. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @AcademyScopeExempt(reason = "보존 정리 배치(Ruling 480 ②) · 매니저 삭제(Ruling 891) — 계정 id 는 학생 파기 처리 또는 "

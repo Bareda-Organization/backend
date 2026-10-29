@@ -15,6 +15,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import src.backend.academy.dto.AcademyStaffAccountView;
 import src.backend.academy.repository.AcademyStaffRepository;
@@ -29,6 +30,8 @@ import src.backend.run.entity.DelayReason;
 import src.backend.run.event.DelayRequestedEvent;
 import src.backend.run.event.RunStartedEvent;
 import src.backend.run.repository.RunRepository;
+import src.backend.student.entity.Student;
+import src.backend.student.entity.StudentProfile;
 import src.backend.student.repository.GuardianAccountRecipient;
 import src.backend.student.repository.GuardianStudentRepository;
 import src.backend.student.repository.StudentRepository;
@@ -86,6 +89,9 @@ class NotificationDedupKeySpaceTest {
         StudentRepository studentRepository = mock(StudentRepository.class);
         RunRepository runRepository = mock(RunRepository.class);
         given(runRepository.findByIdAndAcademyId(anyLong(), anyLong())).willReturn(Optional.empty());
+        Student child = Student.register(ACADEMY_ID, new StudentProfile("자녀", null, null, null, null, null, null, null, null));
+        ReflectionTestUtils.setField(child, "id", COLLIDING_ID);
+        given(studentRepository.findAllByAcademyIdAndIdIn(any(), any())).willReturn(List.of(child));
         DelayRequestedEvent event = new DelayRequestedEvent(RUN_ID, ACADEMY_ID, 10, DelayReason.TRAFFIC, null, AT,
                 List.of(new DelayNoticeRecipient(COLLIDING_ID, "관계자", COLLIDING_ID)),
                 List.of(new DelayNoticeRecipient(9L, "보호자", COLLIDING_ID)),

@@ -61,7 +61,11 @@ public class GuardianChildAccess {
      * <b>정본 §3.7 이 이 경로에 {@code 403} 을 명시</b>한다. 정본이 명시한 곳에서는 정본이 이긴다.
      */
     public void assertLinkedChild(AuthUser requester, Long studentId) {
-        Guardian guardian = requireGuardian(requester);
+        assertLinkedChild(requireGuardian(requester), studentId);
+    }
+
+    /** 보호자를 이미 꺼낸 호출부용 — 같은 요청에서 보호자 행을 두 번 읽지 않는다. 판정은 위와 같다. */
+    public void assertLinkedChild(Guardian guardian, Long studentId) {
         if (!guardianStudentRepository.existsActiveLink(guardian.getId(), studentId, guardian.getAcademyId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }

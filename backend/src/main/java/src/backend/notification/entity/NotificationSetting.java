@@ -95,18 +95,14 @@ public class NotificationSetting {
      * 값이 늘 때마다 이 메서드가 어느 쪽으로도 자동 분류하지 않고 <b>컴파일 오류로 멈춰</b> 분류를
      * 강제한다. if-else 사슬의 마지막 분기가 {@code return true}(설정 대상 밖)로 떨어지면,
      * {@code boarding} 소관인 새 종류를 등록에서 빠뜨려도 조용히 "항상 발송"으로 새는 형태다 —
-     * 그 형태의 결함이 실제로 한 번 났다(Ruling 223, {@code ALIGHTING_CANCELED} 를
-     * 처음엔 존재하지 않는 {@code alighting} 토글 소관으로 잘못 짚었던 사례). {@code BOARDING_CANCELED}·
-     * {@code ALIGHTING_CANCELED}(되돌리기 정정)도 둘 다 {@code boarding} 토글 소관이라
-     * 아래 {@code BOARDING} 계열 {@code case} 에 이미 들어 있다(Ruling 223).
+     * 그 형태의 결함이 실제로 한 번 났다(Ruling 223, 승하차 알림을 처음엔 존재하지 않는 {@code alighting} 토글 소관으로 잘못 짚었던 사례).
      */
     public boolean isEnabledFor(NotificationType type) {
         return switch (type) {
             case ARRIVE -> arrive;
-            // 되돌리기 정정 2종도 같은 토글이다 — §3.14 가 `boarding` 을
-            // "등하원(승차·하차·운행 시작) 알림" 으로 이미 승차·하차를 한 항목에 묶었고,
+            // §3.14 가 `boarding` 을 "등하원(승차·하차·운행 시작) 알림" 으로 이미 승차·하차를 한 항목에 묶었고,
             // `alighting` 토글은 실재하지 않는다(Ruling 223).
-            case BOARDING, ALIGHTING, RUN_STARTED, BOARDING_CANCELED, ALIGHTING_CANCELED -> boarding;
+            case BOARDING, ALIGHTING, RUN_STARTED -> boarding;
             case NO_SHOW -> noShow;
             case ABSENT, DELAY, RUN_ENDED, SIGNUP_DECIDED, CHANGE_DECIDED, APPROVAL_REQUESTED,
                     INTENT_CHANGED, ROUTE_CHANGED, ASSIGNMENT_CHANGED,

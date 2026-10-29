@@ -35,8 +35,10 @@ import src.backend.notification.repository.NotificationLogRepository;
 @Transactional(readOnly = true)
 public class NotificationQueryService {
 
-    /** 보관 기간(API_SPEC §3.12) — 이 값보다 오래된 알림은 목록·배지 어디에도 나타나지 않는다. */
-    /** 알림 조회 범위(일) — 정의처는 보존 정리 배치와 같은 {@link RetentionPolicy#NOTIFICATION_LOG_RETENTION} 이다(Ruling 820). */
+    /**
+     * 보관 기간(API_SPEC §3.12, 일) — 이 값보다 오래된 알림은 목록·배지 어디에도 나타나지 않는다. 정의처는 보존 정리 배치와 같은
+     * {@link RetentionPolicy#NOTIFICATION_LOG_RETENTION} 이다(Ruling 820).
+     */
     private static final long RETENTION_DAYS = RetentionPolicy.NOTIFICATION_LOG_RETENTION.toDays();
 
     /** {@code sent_at} 이 널일 수 있어(§3.12) 정렬 축은 {@code created_at} 하나다 — 선택 정렬 부재. */

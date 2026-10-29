@@ -117,14 +117,33 @@ class NotificationFirstWriteRaceTest {
         CyclicBarrier together = new CyclicBarrier(2);
         AtomicInteger calls = new AtomicInteger();
         RepositoryReadHooks.afterRead(repositoryMethod, () -> {
+            if (!호출한_서비스가_대상이다()) {
+                return;
+            }
             if (calls.incrementAndGet() <= 2) {
-                try {
-                    together.await(10, TimeUnit.SECONDS);
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new IllegalStateException("두 요청이 조회 뒤에 모이지 못했다", e);
-                }
+                기다린다(together);
             }
         });
+    }
+
+    /**
+     * 상대가 올 때까지 최대 2초 기다린다. 쓰기를 한 문장으로 직렬화하는 구현에서는 상대가 이쪽 커밋을 기다리느라 오지 못하므로, 안 와도 예외 없이 이어간다 —
+     * 겹침을 만들 수 있는 구현에서만 둘이 함께 통과한다.
+     */
+    private static void 기다린다(CyclicBarrier together) {
+        try {
+            together.await(2, TimeUnit.SECONDS);
+        } catch (BrokenBarrierException | TimeoutException e) {
+            // 상대가 오지 않았다 — 그대로 이어간다
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** 같은 이름의 조회가 요청 경로의 다른 곳(인증 등)에서도 불리므로, 쓰기 서비스 안에서 불린 것만 모은다. */
+    private static boolean 호출한_서비스가_대상이다() {
+        return java.util.Arrays.stream(Thread.currentThread().getStackTrace())
+                .anyMatch(frame -> frame.getClassName().contains("CommandService"));
     }
 
     private List<Integer> 둘이_동시에(Callable<Integer> request) throws Exception {

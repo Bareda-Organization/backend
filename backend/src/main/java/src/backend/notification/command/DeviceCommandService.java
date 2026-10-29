@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import src.backend.notification.dto.DeviceRegisterRequest;
 import src.backend.notification.dto.DeviceRegisterResponse;
 import src.backend.notification.entity.DevicePlatform;
-import src.backend.notification.entity.DeviceToken;
 import src.backend.notification.repository.DeviceTokenRepository;
 
 /** 푸시 단말 등록·해지(NTF-12, API_SPEC §2.11). */
@@ -24,24 +23,18 @@ public class DeviceCommandService {
     private final Clock clock;
 
     /**
-     * 단말을 등록한다 — 같은 {@code (accountId, deviceId)} 행이 이미 있으면 삭제 후 새로 만든다
-     * ({@code DeviceToken} Javadoc "값 수정이 아니라 행 대체"). DB UNIQUE 제약이 있어 update 로
-     * 흉내내지 않고 실제로 지웠다 다시 심어야, 같은 기기를 두 번 등록해도 행이 늘지 않는다.
-     * 같은 토큰을 가진 다른 계정의 유효 행은 먼저 해지한다(BR-223 — 한 기기의 토큰은 한 계정에만 유효).
+     * 단말을 등록한다 — 같은 {@code (accountId, deviceId)} 행이 이미 있으면 새 토큰으로 바꿔 심는다({@code DeviceToken} Javadoc "값 수정이 아니라
+     * 행 대체"). 한 문장의 upsert 라 같은 단말을 겹쳐 등록해도 행이 늘지 않고 UNIQUE 위반도 없다. 같은 토큰을 가진 다른 계정의 유효 행은 먼저
+     * 해지한다(BR-223 — 한 기기의 토큰은 한 계정에만 유효).
      */
     @Transactional
     public DeviceRegisterResponse register(Long accountId, DeviceRegisterRequest request) {
-        deviceTokenRepository.revokeOtherAccounts(request.token(), accountId, OffsetDateTime.now(clock));
-        deviceTokenRepository.findByAccountIdAndDeviceId(accountId, request.deviceId())
-                .ifPresent(deviceTokenRepository::delete);
-        deviceTokenRepository.flush();
-
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        deviceTokenRepository.revokeOtherAccounts(request.token(), accountId, now);
         DevicePlatform platform = DevicePlatform.valueOf(request.platform().toUpperCase(Locale.ROOT));
-        DeviceToken deviceToken = DeviceToken.register(accountId, request.deviceId(), request.token(), platform,
-                request.appVersion());
-        deviceTokenRepository.save(deviceToken);
-
-        return new DeviceRegisterResponse(deviceToken.getDeviceId(), deviceToken.getCreatedAt());
+        deviceTokenRepository.upsert(accountId, request.deviceId(), request.token(),
+                platform.name().toLowerCase(Locale.ROOT), request.appVersion(), now);
+        return new DeviceRegisterResponse(request.deviceId(), now);
     }
 
     /**

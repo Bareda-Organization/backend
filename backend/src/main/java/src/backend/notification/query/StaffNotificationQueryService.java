@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.function.LongSupplier;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -106,14 +107,26 @@ public class StaffNotificationQueryService {
         String typeCode = type == null ? null : lower(type.name());
         String roleCode = recipientRole == null ? null : lower(recipientRole.name());
         List<String> importantTypes = NotificationType.IMPORTANT_FOR_ACK.stream().map(t -> lower(t.name())).toList();
-        long total = notificationLogRepository.countGroupsForStaffLog(academyId, typeCode, roleCode, acked,
-                importantTypes, from, to);
-        List<StaffNotificationGroupResponse> items = notificationLogRepository
+        List<NotificationLogRepository.StaffLogGroup> rows = notificationLogRepository
                 .searchGroupsForStaffLog(academyId, typeCode, roleCode, acked, importantTypes, from, to,
-                        pageParams.size(), (long) pageParams.page() * pageParams.size())
-                .stream().map(this::toGroup).toList();
+                        pageParams.size(), (long) pageParams.page() * pageParams.size());
+        long total = totalGroupsOf(rows, pageParams, () -> notificationLogRepository.countGroupsForStaffLog(academyId,
+                typeCode, roleCode, acked, importantTypes, from, to));
+        List<StaffNotificationGroupResponse> items = rows.stream().map(this::toGroup).toList();
         return StaffNotificationListResponse.ofGroups(pageParams.page(), pageParams.size(), total, items,
                 unackedCount);
+    }
+
+    /**
+     * 전체 묶음 수 — 행이 있으면 첫 행이 싣고 온 값이다. 행이 없으면 첫 쪽은 묶음이 0 개이고, 그 뒤 쪽은 범위를 벗어난 요청이라 전체 수를 따로 센다
+     * (뒤 쪽을 요청해도 {@code total_count} 는 같아야 한다).
+     */
+    private static long totalGroupsOf(List<NotificationLogRepository.StaffLogGroup> rows, PageParams pageParams,
+            LongSupplier count) {
+        if (!rows.isEmpty()) {
+            return rows.getFirst().getTotalGroups();
+        }
+        return pageParams.page() == 0 ? 0 : count.getAsLong();
     }
 
     /** 묶음 한 줄 — 키는 구성 값(type · run_id · 초 · body)에서 만든다(같은 사건이면 언제 읽어도 같다). */

@@ -89,7 +89,7 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
                             : answer.createError())
                     .block(TIMEOUT);
         } catch (RuntimeException e) {
-            throw new GeocodingUnavailableException("장소 검색 호출 실패: " + query, e);
+            throw new GeocodingUnavailableException("장소 검색 호출 실패: " + ProviderFailure.describe(e));
         }
         if (response == null || response.items() == null) {
             return List.of();
@@ -109,7 +109,7 @@ public class NaverPlaceSearchClient implements PlaceSearchClient {
         if (cause instanceof GeocodingUnavailableException unavailable) {
             throw unavailable;
         }
-        throw new GeocodingUnavailableException("장소 검색 호출 실패: " + query, cause);
+        throw new GeocodingUnavailableException("장소 검색 호출 실패: " + ProviderFailure.describe(cause));
     }
 
     private URI localUri(String query) {

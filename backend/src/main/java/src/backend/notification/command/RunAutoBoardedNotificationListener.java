@@ -41,7 +41,7 @@ public class RunAutoBoardedNotificationListener {
     @EventListener
     public void appendRunAutoBoarded(RunAutoBoardedEvent event) {
         List<NotificationDraft> drafts = guardianStudentRepository
-                .findActiveGuardianAccountsByStudentIds(event.academyId(), event.studentIds()).stream()
+                .findGuardianAccountsByAcademyId(event.academyId(), event.studentIds()).stream()
                 .map(guardian -> draftFor(event, guardian))
                 .toList();
         notificationOutbox.appendAll(drafts);

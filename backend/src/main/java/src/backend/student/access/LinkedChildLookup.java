@@ -41,7 +41,7 @@ public class LinkedChildLookup {
      */
     public Student linkedChild(AuthUser requester, Long studentId) {
         Guardian guardian = guardianChildAccess.requireGuardian(requester);
-        guardianChildAccess.assertLinkedChild(requester, studentId);
+        guardianChildAccess.assertLinkedChild(guardian, studentId);
         return studentRepository.findByIdAndAcademyIdAndDeletedAtIsNull(studentId, guardian.getAcademyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.STUDENT_NOT_FOUND));
     }
