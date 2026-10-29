@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.common.logging.RateLimitedWarn;
+
 /**
  * 확정 배치의 마지막 성공 시각 — 관리자 대시보드 {@code confirm_batch} 칸의 입력이다.
  *
@@ -25,6 +27,11 @@ public class ConfirmationBatchHeartbeat {
     private static final int TTL_HOURS = 1;
 
     private static final Duration TTL = Duration.ofHours(TTL_HOURS);
+
+    /** Redis 가 멈춘 동안 30초 틱과 대시보드 읽기마다 같은 스택이 쌓이지 않게 쓰기 · 읽기 경고를 각각 분당 한 번으로 줄인다. */
+    private final RateLimitedWarn writeFailure = RateLimitedWarn.perMinute(log);
+
+    private final RateLimitedWarn readFailure = RateLimitedWarn.perMinute(log);
 
     private final StringRedisTemplate redis;
 
@@ -46,7 +53,7 @@ public class ConfirmationBatchHeartbeat {
         try {
             redis.opsForValue().set(KEY, Long.toString(now.toEpochMilli()), TTL);
         } catch (RuntimeException e) {
-            log.warn("확정 배치 마지막 성공 시각의 공유 기록 실패 — 이 인스턴스 안 기록만 남는다", e);
+            writeFailure.warn(e, "확정 배치 마지막 성공 시각의 공유 기록 실패 — 이 인스턴스 안 기록만 남는다");
         }
     }
 
@@ -60,7 +67,7 @@ public class ConfirmationBatchHeartbeat {
                 return sharedAt.isAfter(last) ? sharedAt : last;
             }
         } catch (RuntimeException e) {
-            log.warn("확정 배치 마지막 성공 시각의 공유 읽기 실패 — 이 인스턴스 안 시각으로 판정한다", e);
+            readFailure.warn(e, "확정 배치 마지막 성공 시각의 공유 읽기 실패 — 이 인스턴스 안 시각으로 판정한다");
         }
         return last;
     }
