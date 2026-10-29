@@ -105,7 +105,8 @@ public class EmergencyCommandService {
         Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
         Run run = findConfirmedRun(requester.academyId(), runId);
         Optional<EmergencyRaiseResponse> replayed = clientKeyReplay.replay(request.clientKey(),
-                emergencyAlertRepository::findByClientKey, existing -> replayResponse(existing, requester.academyId(), runId, request));
+                emergencyAlertRepository::findByClientKey,
+                existing -> replayResponse(existing, requester.academyId(), runId, request));
         if (replayed.isPresent()) {
             return replayed.get();
         }
