@@ -1,10 +1,7 @@
 package src.backend.exception.command;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -15,36 +12,22 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import src.backend.academy.entity.Academy;
-import src.backend.academy.entity.StaffStatus;
-import src.backend.academy.repository.AcademyRepository;
-import src.backend.academy.repository.AcademyStaffRepository;
-import src.backend.account.entity.Account;
-import src.backend.account.repository.AccountRepository;
 import src.backend.boarding.command.ClientKeyReplay;
 import src.backend.bus.entity.Bus;
 import src.backend.bus.repository.BusRepository;
-import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.exception.dto.EmergencyAckResponse;
 import src.backend.exception.dto.EmergencyCancelResponse;
 import src.backend.exception.dto.EmergencyRaiseRequest;
 import src.backend.exception.dto.EmergencyRaiseResponse;
 import src.backend.exception.entity.EmergencyAlert;
 import src.backend.exception.entity.EmergencyType;
-import src.backend.exception.event.EmergencyAckedEvent;
-import src.backend.exception.event.EmergencyCanceledEvent;
-import src.backend.exception.event.EmergencyRaisedEvent;
 import src.backend.exception.repository.EmergencyAlertRepository;
-import src.backend.global.common.enums.AccountStatus;
-import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.manager.entity.Assignment;
-import src.backend.manager.entity.Manager;
-import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
@@ -74,22 +57,18 @@ public class EmergencyCommandService {
 
     private final BusRepository busRepository;
 
-    private final RunRiderRepository runRiderRepository;
-
     private final RunAssignmentAccess runAssignmentAccess;
 
     /** 같은 {@code client_key} 재전송의 키 잠금 · 이전 처리 조회 절차(BR-226). */
     private final ClientKeyReplay clientKeyReplay;
 
-    private final ManagerRepository managerRepository;
+    private final EmergencyCancelStep cancelStep;
 
-    private final AcademyStaffRepository academyStaffRepository;
-
-    private final AcademyRepository academyRepository;
-
-    private final AccountRepository accountRepository;
+    private final EmergencyAckStep ackStep;
 
     private final RunPositionStore runPositionStore;
+
+    private final EmergencyRaiseAssembler raiseAssembler;
 
     private final TransactionTemplate transactionTemplate;
 
@@ -111,65 +90,45 @@ public class EmergencyCommandService {
 
     /** 같은 키 재전송 — 같은 회차 · 같은 종류일 때만 최초 접수 결과를 돌려주고, 아니면 422 로 거절한다(BR-078). */
     private EmergencyRaiseResponse replayResponse(EmergencyAlert existing, Long runId, EmergencyRaiseRequest request) {
-        if (!existing.getRunId().equals(runId) || existing.getType() != parseType(request.type())) {
+        if (!existing.getRunId().equals(runId)
+                || existing.getType() != EmergencyRequestRules.parseType(request.type())) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED);
         }
         return new EmergencyRaiseResponse(String.valueOf(existing.getId()), existing.getReceivedAt(),
-                existing.cancelableUntil(), notifiedCount(existing.getAcademyId()), true);
+                existing.cancelableUntil(), raiseAssembler.notifiedCount(existing.getAcademyId()), true);
     }
 
     /** 접수의 DB 구간 — 배치·회차 확인 · 재전송 재생 · 신고 저장 · 이벤트 발행이 한 트랜잭션이다. */
     private EmergencyRaiseResponse persistRaise(AuthUser requester, Long runId, EmergencyRaiseRequest request,
             Optional<RunPositionRedisValue> cachedPosition) {
         Assignment assignment = runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
-        Run run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        if (run.getStatus() == RunStatus.IDLE) {
-            throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
-        }
-
+        Run run = findConfirmedRun(requester.academyId(), runId);
         Optional<EmergencyRaiseResponse> replayed = clientKeyReplay.replay(request.clientKey(),
                 emergencyAlertRepository::findByClientKey, existing -> replayResponse(existing, runId, request));
         if (replayed.isPresent()) {
             return replayed.get();
         }
-
         Bus bus = busRepository.findByIdAndAcademyId(run.getBusId(), requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.BUS_NOT_FOUND));
-
-        EmergencyType type = parseType(request.type());
-        if (type == EmergencyType.ETC && (request.memo() == null || request.memo().isBlank())) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
-        }
-
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        OffsetDateTime occurredAt = request.occurredAt() == null ? now : request.occurredAt();
-        int riderCount = Math.toIntExact(runRiderRepository.countByRunId(run.getId()));
-
-        EmergencyAlert alert = EmergencyAlert.onRaise(requester.academyId(), runId, bus.getBusNo(),
-                assignment.getManagerId(), assignment.getRole(), type, riderCount, occurredAt, now,
-                request.clientKey());
-        if (request.memo() != null) {
-            alert.attachMemo(request.memo());
-        }
-        attachLocation(alert, request, occurredAt, cachedPosition);
-
+        EmergencyType type = EmergencyRequestRules.parseType(request.type());
+        EmergencyRequestRules.assertMemoForEtc(type, request.memo());
+        EmergencyRaiseContext ctx = new EmergencyRaiseContext(requester.academyId(), runId, bus, assignment, type,
+                request, OffsetDateTime.now(clock));
+        EmergencyAlert alert = raiseAssembler.buildAlert(ctx, cachedPosition);
         emergencyAlertRepository.save(alert);
+        eventPublisher.publishEvent(raiseAssembler.buildEvent(ctx, alert));
+        return new EmergencyRaiseResponse(String.valueOf(alert.getId()), ctx.now(), alert.cancelableUntil(),
+                raiseAssembler.notifiedCount(requester.academyId()), false);
+    }
 
-        Manager raiser = managerRepository.findAllByIdIn(List.of(assignment.getManagerId())).stream()
-                .findFirst()
-                .orElse(null);
-        EmergencyRaisedEvent.RaisedBy raisedBy = new EmergencyRaisedEvent.RaisedBy(
-                raiser == null ? null : raiser.getName(), assignment.getRole().name().toLowerCase(Locale.ROOT),
-                raiser == null ? null : raiser.getPhone());
-        EmergencyRaisedEvent.Position position = new EmergencyRaisedEvent.Position(alert.getLat(), alert.getLng());
-
-        String academyName = academyRepository.findById(requester.academyId()).map(Academy::getName).orElse(null);
-        eventPublisher.publishEvent(new EmergencyRaisedEvent(alert.getId(), requester.academyId(), academyName, runId,
-                bus.getBusNo(), type, raisedBy, position, alert.getRiderCount(), now));
-
-        return new EmergencyRaiseResponse(String.valueOf(alert.getId()), now, alert.cancelableUntil(),
-                notifiedCount(requester.academyId()), false);
+    /** 호출자 학원의 회차를 찾고, 확정 전({@code idle}) 회차는 {@code RUN_NOT_CONFIRMED} 로 거절한다. */
+    private Run findConfirmedRun(Long academyId, Long runId) {
+        Run run = runRepository.findByIdAndAcademyId(runId, academyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        if (run.getStatus() == RunStatus.IDLE) {
+            throw new BusinessException(ErrorCode.RUN_NOT_CONFIRMED);
+        }
+        return run;
     }
 
     /**
@@ -184,31 +143,7 @@ public class EmergencyCommandService {
      */
     @Transactional
     public EmergencyCancelResponse cancel(AuthUser requester, Long runId, Long emergencyId) {
-        runAssignmentAccess.assertAssignedDriverOrEscort(requester, runId);
-        EmergencyAlert alert = emergencyAlertRepository.findByIdAndRunIdAndAcademyId(emergencyId, runId,
-                        requester.academyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND));
-
-        if (alert.isCanceled()) {
-            return new EmergencyCancelResponse(alert.getId(), alert.getCanceledAt());
-        }
-
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        assertWithinCancelWindow(alert.getReceivedAt(), now);
-
-        // 엔티티를 바꿔 전체 컬럼 UPDATE 로 쓰지 않는다 — 읽은 뒤 먼저 커밋된 확인 기록(acked_*)을 null 로 되돌린다
-        if (emergencyAlertRepository.cancelIfOpen(alert.getId(), now) == 0) {
-            // 읽은 뒤 동시에 먼저 취소한 쪽이 있다 — 최초 취소 결과를 그대로 돌려준다(위 재취소와 같다). 조건부 UPDATE 가 영속성 컨텍스트를 비웠으므로 최신 행이다
-            EmergencyAlert canceled = emergencyAlertRepository
-                    .findByIdAndRunIdAndAcademyId(emergencyId, runId, requester.academyId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND));
-            return new EmergencyCancelResponse(canceled.getId(), canceled.getCanceledAt());
-        }
-
-        eventPublisher.publishEvent(
-                new EmergencyCanceledEvent(alert.getId(), requester.academyId(), runId, alert.getBusNo(), now));
-
-        return new EmergencyCancelResponse(alert.getId(), now);
+        return cancelStep.cancel(requester, runId, emergencyId);
     }
 
     /**
@@ -222,7 +157,7 @@ public class EmergencyCommandService {
      * <p>조치 메모({@code ackMemo}, Ruling 541)는 선택이다 — 확인과 같은 조건부 UPDATE 한 문장으로 쓴다. 따로 쓰면 최초 확인자가
      * 아닌 쪽의 메모가 최초 확인자의 기록을 덮을 수 있다.
      *
-     * <p>{@code EmergencyAckedEvent.ackedByName} 은 여기서(트랜잭션 안에서) {@link AccountRepository}
+     * <p>{@code EmergencyAckedEvent.ackedByName} 은 여기서(트랜잭션 안에서) {@link src.backend.account.repository.AccountRepository}
      * 로 이름을 조회해 채운다({@code Ruling 277} — 판단 근거, 보고서 항목) — {@link #raise} 가
      * {@code raisedBy.name} 을 발행 지점에서 조회해 싣는 것과 같은 자리다. 리스너
      * ({@code EmergencyBroadcastListener}) 는 {@code AFTER_COMMIT} 에서 돌아 그 시점엔 트랜잭션이
@@ -231,69 +166,7 @@ public class EmergencyCommandService {
      */
     @Transactional
     public EmergencyAckResponse ack(AuthUser requester, Long emergencyId, String ackMemo) {
-        EmergencyAlert alert = emergencyAlertRepository.findByIdAndAcademyId(emergencyId, requester.academyId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.EMERGENCY_NOT_FOUND));
-
-        if (alert.isCanceled()) {
-            throw new BusinessException(ErrorCode.EMERGENCY_CANCELED);
-        }
-        if (alert.isAcked()) {
-            throw new BusinessException(ErrorCode.ALREADY_ACKED);
-        }
-
-        OffsetDateTime now = OffsetDateTime.now(clock);
-        int acked = emergencyAlertRepository.ackIfUnacked(alert.getId(), requester.accountId(), now,
-                normalizeMemo(ackMemo));
-        if (acked == 0) {
-            // 읽은 뒤 동시에 먼저 처리한 쪽이 있다 — 취소가 먼저면 EMERGENCY_CANCELED, 확인이 먼저면 ALREADY_ACKED(BR-079 · Ruling 885 ①).
-            // 조건부 UPDATE 가 영속성 컨텍스트를 비웠으므로 다시 읽으면 커밋된 최신 행이다
-            boolean canceledFirst = emergencyAlertRepository.findByIdAndAcademyId(emergencyId, requester.academyId())
-                    .map(EmergencyAlert::isCanceled).orElse(false);
-            throw new BusinessException(canceledFirst ? ErrorCode.EMERGENCY_CANCELED : ErrorCode.ALREADY_ACKED);
-        }
-
-        String ackedByName = accountRepository.findById(requester.accountId()).map(Account::getName).orElse(null);
-        eventPublisher.publishEvent(
-                new EmergencyAckedEvent(alert.getId(), alert.getAcademyId(), alert.getRunId(), ackedByName, now));
-
-        return new EmergencyAckResponse(alert.getId(), now);
-    }
-
-    /** 조치 메모는 앞뒤 공백을 지우고, 비었으면 메모가 없는 것으로 본다(Ruling 541) — 공백만 있는 문자열을 저장하지 않는다. */
-    private static String normalizeMemo(String memo) {
-        if (memo == null || memo.isBlank()) {
-            return null;
-        }
-        return memo.strip();
-    }
-
-    /**
-     * 발신 응답 {@code notified}(API_SPEC §4.14) — 이 신고가 실제로 도달할 수신자 수다.
-     * {@link src.backend.notification.command.EmergencyNotificationListener} 가 팬아웃하는 대상과
-     * 같은 기준(재직 관계자 + 알림을 받는 상태의 메인관리자 전원 — 차단 포함, {@link AccountStatus#NOTIFIABLE})으로 센다 — 그 리스너는 이벤트 발행 후 별도로
-     * 실행돼 개수를 되돌려주지 않으므로, 응답을 만드는 이 자리에서 같은 조건으로 다시 센다(판단
-     * 근거, 보고서 항목 — 목록을 불러 크기만 쓰지 않고 count 전용 조회를 골랐다. 팬아웃 자체는
-     * 이름까지 필요하지만 이 응답은 개수만 필요하다).
-     */
-    private long notifiedCount(Long academyId) {
-        return academyStaffRepository.countByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE)
-                + accountRepository.countByRoleAndStatusIn(Role.SYSTEM_ADMIN, AccountStatus.NOTIFIABLE);
-    }
-
-    /**
-     * 발신 시점 위치를 붙인다(§4.14) — 단말이 {@code lat}·{@code lng} 를 둘 다 보냈으면 그 좌표와 발신 시각을,
-     * 아니면 트랜잭션 앞에서 읽어 둔 위치 캐시의 최신 좌표를 쓴다(BR-109). 한쪽만 온 좌표는 요청 오류다.
-     */
-    private void attachLocation(EmergencyAlert alert, EmergencyRaiseRequest request, OffsetDateTime occurredAt,
-            Optional<RunPositionRedisValue> cachedPosition) {
-        if ((request.lat() == null) != (request.lng() == null)) {
-            throw new BusinessException(ErrorCode.VALIDATION_FAILED);
-        }
-        if (request.lat() != null) {
-            alert.attachLocation(request.lat(), request.lng(), occurredAt);
-            return;
-        }
-        cachedPosition.ifPresent(position -> alert.attachLocation(position.lat(), position.lng(), position.recordedAt()));
+        return ackStep.ack(requester, emergencyId, ackMemo);
     }
 
     /**
@@ -308,31 +181,5 @@ public class EmergencyCommandService {
             log.warn("비상 신고 위치 첨부 실패 — 위치 없이 접수한다. runId={}", runId, e);
             return Optional.empty();
         }
-    }
-
-    /**
-     * "발신 후 1분 이내" 의 기준 시각은 {@code occurredAt}(클라이언트가 신고했다고 주장하는 시각,
-     * 조작 가능)이 아니라 {@code receivedAt}(서버가 실제로 접수한 시각)이다 — 취소 창을 신뢰할 수
-     * 없는 클라이언트 시계에 맡기지 않기 위함이다.
-     *
-     * <p>경계는 <b>포함</b>이다 — 정확히 60.000초에 취소 요청이 오면 성공으로 본다("1분 이내"를 닫힌
-     * 구간으로 읽는 판단, 보고서 항목). {@code compareTo(...) > 0} 만 창 닫힘으로 판정해, 정확히
-     * 같은 값은 아직 열린 것으로 남긴다. 기준 창은 {@link EmergencyAlert#CANCEL_WINDOW} 하나를
-     * §4.15 {@code cancelable_until} 계산과 공유한다 — 두 곳이 다른 규칙으로 계산되게 두지 않는다.
-     */
-    private void assertWithinCancelWindow(OffsetDateTime receivedAt, OffsetDateTime now) {
-        if (Duration.between(receivedAt, now).compareTo(EmergencyAlert.CANCEL_WINDOW) > 0) {
-            throw new BusinessException(ErrorCode.EMERGENCY_CANCEL_WINDOW_CLOSED);
-        }
-    }
-
-    private static EmergencyType parseType(String type) {
-        return switch (type.toLowerCase(Locale.ROOT)) {
-            case "accident" -> EmergencyType.ACCIDENT;
-            case "vehicle_fault" -> EmergencyType.VEHICLE_FAULT;
-            case "student_emergency" -> EmergencyType.STUDENT_EMERGENCY;
-            case "etc" -> EmergencyType.ETC;
-            default -> throw new BusinessException(ErrorCode.VALIDATION_FAILED);
-        };
     }
 }

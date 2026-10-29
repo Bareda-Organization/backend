@@ -84,15 +84,25 @@ public class NoShowContactCommandService {
         if (run.getStatus() != RunStatus.MOVING) {
             throw new BusinessException(ErrorCode.RUN_NOT_MOVING);
         }
+        NoShowCase noShowCase = findLockedCase(runId, riderId);
+        return record(requester, noShowCase, request);
+    }
+
+    /** 탑승자가 아직 no_show 인지 확인한 뒤 그 미승차 케이스 행을 잠가 읽는다. */
+    private NoShowCase findLockedCase(Long runId, Long riderId) {
         RunRider rider = runRiderRepository.findByIdAndRunIdAndStatusNot(riderId, runId, RiderStatus.ABSENT)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RIDER_NOT_FOUND));
         // 되돌린 탑승자(BR-009)는 종결된 케이스 행이 남지만 더는 no_show 가 아니다 — §4.8 "no_show 미처리 탑승자" (BR-254)
         if (rider.getStatus() != RiderStatus.NO_SHOW) {
             throw new BusinessException(ErrorCode.NO_SHOW_CASE_NOT_FOUND);
         }
-        NoShowCase noShowCase = noShowCaseRepository.findLockedByRunRiderId(rider.getId())
+        return noShowCaseRepository.findLockedByRunRiderId(rider.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NO_SHOW_CASE_NOT_FOUND));
+    }
 
+    /** 요청을 파싱해 연락 시도를 저장하고, 응답·최종 판단에 따라 케이스를 갱신한다. */
+    private NoShowContactResponse record(AuthUser requester, NoShowCase noShowCase,
+            NoShowContactRequest request) {
         ContactAttemptType attemptType = parseAttemptType(request.attemptType());
         ContactResult result = parseResult(request.result());
         NoShowDecision decision = parseDecision(request.decision());

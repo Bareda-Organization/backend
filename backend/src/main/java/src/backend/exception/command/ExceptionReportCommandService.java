@@ -83,6 +83,12 @@ public class ExceptionReportCommandService {
         if (replayed.isPresent()) {
             return replayed.get();
         }
+        return create(requester, run, type, request);
+    }
+
+    /** 재전송이 아닌 새 보고를 저장하고 관계자 통지 이벤트를 발행한다. */
+    private ExceptionReportCreateResponse create(AuthUser requester, Run run, ExceptionReportType type,
+            ExceptionReportCreateRequest request) {
         Long runRiderId = type == ExceptionReportType.GUARDIAN_ABSENT
                 ? resolveRunRiderId(request.riderId(), run.getId())
                 : null;

@@ -6,9 +6,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
@@ -16,11 +13,8 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.boarding.entity.RunRider;
-import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.account.entity.Account;
-import src.backend.account.repository.AccountRepository;
 import src.backend.bus.entity.Bus;
-import src.backend.bus.repository.BusRepository;
 import src.backend.exception.dto.StaffReportItemResponse;
 import src.backend.exception.dto.StaffReportListResponse;
 import src.backend.exception.entity.ExceptionReport;
@@ -33,17 +27,13 @@ import src.backend.global.request.ApiValues;
 import src.backend.global.request.PageParams;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.entity.Manager;
-import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.entity.Run;
-import src.backend.run.repository.RunRepository;
-import src.backend.student.entity.Student;
-import src.backend.student.repository.StudentRepository;
 
 /**
  * 관계자용 예외 보고 조회(API_SPEC §5.20) — 목록·상세 둘 다 학원 범위로 좁힌다.
  *
  * <p>{@code student_name} 은 저장하지 않는다 — {@code type=guardian_absent} 일 때만 {@code run_rider_id}
- * 로 그 시점의 탑승자를 다시 조인해 채운다({@code ApprovalQueryService.toSummary} 와 같은 조회 시점
+ * 로 그 시점의 탑승자를 다시 조인해 채운다({@code ApprovalSummaryAssembler.toSummary} 와 같은 조회 시점
  * 조립 관례). 처리 여부는 {@code exception_report.handled_at}·{@code handled_by} 에서 읽고 처리자 이름만 조회
  * 시점에 계정에서 조인한다(Ruling 814).
  *
@@ -57,17 +47,7 @@ public class ExceptionReportQueryService {
 
     private final ExceptionReportRepository exceptionReportRepository;
 
-    private final RunRepository runRepository;
-
-    private final BusRepository busRepository;
-
-    private final RunRiderRepository runRiderRepository;
-
-    private final StudentRepository studentRepository;
-
-    private final ManagerRepository managerRepository;
-
-    private final AccountRepository accountRepository;
+    private final ExceptionReportLookupLoader lookupLoader;
 
     private final Clock clock;
 
@@ -118,48 +98,21 @@ public class ExceptionReportQueryService {
      * 않게 한다(BR-228, {@code EmergencyStaffQueryService#list} 와 같은 형태).
      */
     private List<StaffReportItemResponse> toItems(List<ExceptionReport> reports, Long academyId) {
-        List<Long> runIds = reports.stream().map(ExceptionReport::getRunId).distinct().toList();
-        Map<Long, Run> runsById = runRepository.findAllByIdInAndAcademyId(runIds, academyId).stream()
-                .collect(Collectors.toMap(Run::getId, run -> run));
-        Map<Long, Bus> busesById = busRepository
-                .findAllByAcademyIdAndIdIn(academyId, runsById.values().stream().map(Run::getBusId).distinct().toList())
-                .stream().collect(Collectors.toMap(Bus::getId, bus -> bus));
-        Map<Long, Manager> reportersByAccountId = managerRepository
-                .findAllByAcademyIdAndAccountIdIn(academyId,
-                        reports.stream().map(ExceptionReport::getReportedBy).distinct().toList())
-                .stream().collect(Collectors.toMap(Manager::getAccountId, manager -> manager));
-        Map<Long, Account> handlersById = accountRepository
-                .findAllByAcademyIdAndIdIn(academyId, reports.stream().map(ExceptionReport::getHandledBy)
-                        .filter(Objects::nonNull).distinct().toList())
-                .stream().collect(Collectors.toMap(Account::getId, account -> account));
-        List<Long> reportedRiderIds = reports.stream().map(ExceptionReport::getRunRiderId).filter(Objects::nonNull)
-                .distinct().toList();
-        Map<Long, RunRider> ridersById = reportedRiderIds.isEmpty() ? Map.of()
-                : runRiderRepository.findAllByIdInAndAcademyId(reportedRiderIds, academyId).stream()
-                        .collect(Collectors.toMap(RunRider::getId, rider -> rider));
-        Map<Long, Student> studentsById = studentRepository
-                .findAllByAcademyIdAndIdIn(academyId,
-                        ridersById.values().stream().map(RunRider::getStudentId).distinct().toList())
-                .stream().collect(Collectors.toMap(Student::getId, student -> student));
-
-        return reports.stream()
-                .map(report -> toItem(report, runsById, busesById, reportersByAccountId, handlersById, ridersById,
-                        studentsById))
-                .toList();
+        ExceptionReportLookup lookup = lookupLoader.load(reports, academyId);
+        return reports.stream().map(report -> toItem(report, lookup)).toList();
     }
 
-    private StaffReportItemResponse toItem(ExceptionReport report, Map<Long, Run> runsById,
-            Map<Long, Bus> busesById, Map<Long, Manager> reportersByAccountId, Map<Long, Account> handlersById,
-            Map<Long, RunRider> ridersById, Map<Long, Student> studentsById) {
-        Run run = required(runsById.get(report.getRunId()), "예외 보고의 회차가 없다 — runId=" + report.getRunId());
-        Bus bus = required(busesById.get(run.getBusId()), "예외 보고의 버스가 없다 — busId=" + run.getBusId());
-        Manager reporter = required(reportersByAccountId.get(report.getReportedBy()),
+    private StaffReportItemResponse toItem(ExceptionReport report, ExceptionReportLookup lookup) {
+        Run run = required(lookup.runsById().get(report.getRunId()),
+                "예외 보고의 회차가 없다 — runId=" + report.getRunId());
+        Bus bus = required(lookup.busesById().get(run.getBusId()), "예외 보고의 버스가 없다 — busId=" + run.getBusId());
+        Manager reporter = required(lookup.reportersByAccountId().get(report.getReportedBy()),
                 "예외 보고자가 없다 — accountId=" + report.getReportedBy());
         String studentName = report.getType() == ExceptionReportType.GUARDIAN_ABSENT
-                ? studentNameOf(report.getRunRiderId(), ridersById, studentsById)
+                ? studentNameOf(report.getRunRiderId(), lookup)
                 : null;
 
-        Account handler = report.isHandled() ? handlersById.get(report.getHandledBy()) : null;
+        Account handler = report.isHandled() ? lookup.handlersById().get(report.getHandledBy()) : null;
 
         return new StaffReportItemResponse(report.getId(), lower(report.getType()), report.getMemo(),
                 report.getRunId(), bus.getBusNo(), studentName, reporter.getName(),
@@ -168,10 +121,10 @@ public class ExceptionReportQueryService {
     }
 
     /** {@code guardian_absent} 보고의 대상 학생 이름 — {@code run_rider} → {@code student} 순서로 조인한다. */
-    private String studentNameOf(Long runRiderId, Map<Long, RunRider> ridersById, Map<Long, Student> studentsById) {
-        RunRider runRider = required(ridersById.get(runRiderId),
+    private String studentNameOf(Long runRiderId, ExceptionReportLookup lookup) {
+        RunRider runRider = required(lookup.ridersById().get(runRiderId),
                 "보호자 부재 보고의 탑승자가 없다 — runRiderId=" + runRiderId);
-        return required(studentsById.get(runRider.getStudentId()),
+        return required(lookup.studentsById().get(runRider.getStudentId()),
                 "보호자 부재 보고의 학생이 없다 — studentId=" + runRider.getStudentId()).getName();
     }
 
