@@ -12,15 +12,15 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.annotation.AnnotationTemplateExpressionDefaults;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import lombok.RequiredArgsConstructor;
@@ -28,10 +28,8 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.config.ApiPathPrefixConfig;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
-import src.backend.global.request.RequestIdFilter;
 import src.backend.global.security.authz.RolePermissions;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -73,35 +71,56 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // 실제 요청 경로는 ApiPathPrefixConfig 가 컨트롤러 핸들러 등록 시점에 API_PREFIX 를
-                        // 붙인 결과라 이 매처도 같은 접두사를 붙여야 한다(Ruling 102) — PublicEndpoints(Ruling
-                        // 103) 의 bare path 에 여기서 접두사를 조립한다. ControllerAuthorizationConventionTest
-                        // .EXPECTED_PUBLIC_ENDPOINTS 는 소스 텍스트(bare path)를 스캔하므로 접두사가 없다 —
-                        // 그 목록과 이 매처가 다른 표현(bare vs 접두사 포함)을 쓰는 것은 각자가 보는 대상이
-                        // 다르기 때문이지 불일치가 아니다.
-                        .requestMatchers(HttpMethod.GET, withPrefix(PublicEndpoints.GET_ENDPOINTS)).permitAll()
-                        .requestMatchers(HttpMethod.POST, withPrefix(PublicEndpoints.POST_ENDPOINTS)).permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
-                        // 외부 가동 감시용 헬스 그룹(application.yml management.endpoint.health.group.external) — 앱 포트에 낸다(Ruling 740).
-                        .requestMatchers("/healthz").permitAll()
-                        // Prometheus 는 JWT 를 들고 스크레이프하지 않는다 — 여기를 막으면 인증을 통과할 방법이 없어
-                        // 스크레이프 자체가 401 로 실패한다. 접근 경계는 이 필터가 아니라 네트워크다
-                        // (nginx 가 외부의 /actuator 를 404 로 막고, Prometheus 는 compose 내부망에서만 닿는다).
-                        .requestMatchers("/actuator/prometheus").permitAll()
-                        .requestMatchers("/ws/**").permitAll()
-                        // API 테스트용 Swagger UI(springdoc) — 문서·UI 자체는 공개, 보호 API 호출은 Authorize 로 넣은 토큰이 검증
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-                        .anyRequest().authenticated())
-                // 인증 안 된 요청은 403 대신 401 — 본문은 GlobalExceptionHandler 가 §1.10 형태로 쓴다(BR-033).
-                // 필터가 남긴 사유가 없으면(토큰 부재) UNAUTHORIZED, 만료면 TOKEN_EXPIRED 라 클라이언트가
-                // "재발급 시도" 와 "로그인부터" 를 가른다(§8.1)
-                .exceptionHandling(e -> e.authenticationEntryPoint((request, response, ex) ->
-                        exceptionResolver.resolveException(request, response, null, new BusinessException(
-                                request.getAttribute(JwtAuthenticationFilter.AUTH_FAILURE_ATTR) instanceof ErrorCode code
-                                        ? code : ErrorCode.UNAUTHORIZED))))
+                .authorizeHttpRequests(this::requestRules)
+                .exceptionHandling(e -> e.authenticationEntryPoint(unauthorizedEntryPoint(exceptionResolver)))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    /** 공개 경로만 열고 나머지는 인증을 요구한다. */
+    private void requestRules(AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
+        permitPublicApi(auth);
+        permitInfrastructure(auth);
+        auth.anyRequest().authenticated();
+    }
+
+    /** 비인증 API 경로 — 학원 검색 · 회원가입 · 로그인 · 토큰 재발급 · 복구. */
+    private void permitPublicApi(AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
+        // 실제 요청 경로는 ApiPathPrefixConfig 가 컨트롤러 핸들러 등록 시점에 API_PREFIX 를
+        // 붙인 결과라 이 매처도 같은 접두사를 붙여야 한다(Ruling 102) — PublicEndpoints(Ruling
+        // 103) 의 bare path 에 여기서 접두사를 조립한다. ControllerAuthorizationConventionTest
+        // .EXPECTED_PUBLIC_ENDPOINTS 는 소스 텍스트(bare path)를 스캔하므로 접두사가 없다 —
+        // 그 목록과 이 매처가 다른 표현(bare vs 접두사 포함)을 쓰는 것은 각자가 보는 대상이
+        // 다르기 때문이지 불일치가 아니다.
+        auth.requestMatchers(HttpMethod.GET, withPrefix(PublicEndpoints.GET_ENDPOINTS)).permitAll();
+        auth.requestMatchers(HttpMethod.POST, withPrefix(PublicEndpoints.POST_ENDPOINTS)).permitAll();
+    }
+
+    /** API 밖의 공개 경로 — 헬스 · 지표 · WebSocket 핸드셰이크 · 컨테이너 오류 · Swagger UI. */
+    private void permitInfrastructure(AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry auth) {
+        auth.requestMatchers("/actuator/health").permitAll();
+        // 외부 가동 감시용 헬스 그룹(application.yml management.endpoint.health.group.external) — 앱 포트에 낸다(Ruling 740).
+        auth.requestMatchers("/healthz").permitAll();
+        // Prometheus 는 JWT 를 들고 스크레이프하지 않는다 — 여기를 막으면 인증을 통과할 방법이 없어
+        // 스크레이프 자체가 401 로 실패한다. 접근 경계는 이 필터가 아니라 네트워크다
+        // (nginx 가 외부의 /actuator 를 404 로 막고, Prometheus 는 compose 내부망에서만 닿는다).
+        auth.requestMatchers("/actuator/prometheus").permitAll();
+        auth.requestMatchers("/ws/**").permitAll();
+        // 컨테이너 단계 오류(잘못된 요청 · 방화벽 거절)가 넘어오는 경로 — 인증을 요구하면 원래 오류가 401 로 바뀐다. 본문은 ContainerErrorController 가 쓴다.
+        auth.requestMatchers("/error").permitAll();
+        // API 테스트용 Swagger UI(springdoc) — 문서·UI 자체는 공개, 보호 API 호출은 Authorize 로 넣은 토큰이 검증
+        auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll();
+    }
+
+    /**
+     * 인증 안 된 요청은 403 대신 401 — 본문은 GlobalExceptionHandler 가 §1.10 형태로 쓴다(BR-033).
+     * 필터가 남긴 사유가 없으면(토큰 부재) UNAUTHORIZED, 만료면 TOKEN_EXPIRED 라 클라이언트가
+     * "재발급 시도" 와 "로그인부터" 를 가른다(§8.1)
+     */
+    private static AuthenticationEntryPoint unauthorizedEntryPoint(HandlerExceptionResolver exceptionResolver) {
+        return (request, response, ex) -> exceptionResolver.resolveException(request, response, null,
+                new BusinessException(request.getAttribute(JwtAuthenticationFilter.AUTH_FAILURE_ATTR) instanceof ErrorCode code
+                        ? code : ErrorCode.UNAUTHORIZED));
     }
 
     /** {@code PublicEndpoints} 의 bare path 각각에 {@link ApiPathPrefixConfig#API_PREFIX} 를 붙인다. */
@@ -129,25 +148,7 @@ public class SecurityConfig {
 
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
-        List<String> origins = Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(origin -> !origin.isBlank())
-                .toList();
-
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        // API_SPEC §1.2.1 — refresh 토큰이 웹에서 쿠키로만 오간다. 이 값이 없으면 브라우저가
-        // `credentials: include` 요청을 통째로 거부해 웹 로그인 자체가 성립하지 않는다.
-        // 허용 출처가 `*` 가 아니라 명시 목록이라 이 조합이 성립한다.
-        configuration.setAllowCredentials(true);
-        // 브라우저는 노출 목록에 없는 응답 헤더를 스크립트에 숨긴다 — 웹이 요청 추적 식별자(§1.3)를 읽게 한다
-        configuration.setExposedHeaders(List.of(RequestIdFilter.HEADER));
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
-        return source;
+        return ApiCorsConfiguration.source(allowedOrigins);
     }
 
     @Bean
@@ -174,7 +175,7 @@ public class SecurityConfig {
      * 이 메서드가 인스턴스 상태를 안 쓰기 때문에 가능한 것이고, 옆의 다른 @Bean 들은
      * {@code jwtAuthenticationFilter}·{@code allowedOrigins} 를 쓰므로 static 이 될 수 없다.
      *
-     * <p>부여표는 {@code RolePermissions.HIERARCHY} 를 쓴다(권한 31종, FEATURE_SPEC §6.2, Ruling 71 · Ruling 76).
+     * <p>부여표는 {@code RolePermissions.HIERARCHY} 를 쓴다(권한 29종, FEATURE_SPEC §6.2, Ruling 71 · Ruling 76).
      */
     @Bean
     static RoleHierarchy roleHierarchy() {

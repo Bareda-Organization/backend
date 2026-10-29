@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.StompWebSocketEndpointRegistration;
 
@@ -28,11 +29,11 @@ class WebSocketOriginTest {
         ForbiddenSubscriptionCloseFactory closeFactory = mock(ForbiddenSubscriptionCloseFactory.class);
         String[] origins = {"https://app.example.com", "https://preview.example.com"};
 
-        // 뒤 여섯 인자는 수신 채널 실행기 스레드 수·큐 상한과 팬아웃 실행기 스레드 수·큐 상한·세션 송신 버퍼·시간 한도 — 이 시험은 허용
-        // 출처만 보므로 아무 값이나 준다(WebSocketOutboundPoolSizeTest·WebSocketOutboundQueueCapacityTest·
-        // WebSocketOutboundSendLimitTest 가 그쪽을 맡는다).
+        // 실행기 셋과 뒤 두 인자(세션 송신 버퍼·시간 한도)는 이 시험이 허용 출처만 보므로 아무 값이나 준다(실행기 크기는
+        // WebSocketOutboundPoolSizeTest·WebSocketOutboundQueueCapacityTest, 송신 한도는 WebSocketOutboundSendLimitTest 가 맡는다).
         WebSocketConfig config = new WebSocketConfig(interceptor, closeFactory, mock(ReadIdleTimeoutFactory.class),
-                mock(StompSessionExpiry.class), mock(OpenWebSocketSessions.class), mock(ConnectDeadlineFactory.class), origins, 0, 0, 0, 0, 0, 0);
+                mock(StompSessionExpiry.class), mock(OpenWebSocketSessions.class), mock(ConnectDeadlineFactory.class),
+                mock(ObjectProvider.class), mock(ObjectProvider.class), mock(ObjectProvider.class), origins, 0, 0);
 
         StompEndpointRegistry registry = mock(StompEndpointRegistry.class);
         StompWebSocketEndpointRegistration registration = mock(StompWebSocketEndpointRegistration.class);

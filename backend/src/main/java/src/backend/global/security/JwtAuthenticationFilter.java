@@ -36,8 +36,6 @@ import src.backend.global.error.ErrorCode;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String HEADER = "Authorization";
-    private static final String PREFIX = "Bearer ";
     /** 토큰 거부 사유({@link ErrorCode})를 엔트리 포인트로 넘기는 요청 속성 이름. */
     static final String AUTH_FAILURE_ATTR = JwtAuthenticationFilter.class.getName() + ".failure";
 
@@ -47,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        String token = resolveToken(request);
+        String token = BearerToken.from(request.getHeader(BearerToken.HEADER));
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             authenticate(request, token);
         }
@@ -63,36 +61,39 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (accountStanding.isLost(principal.accountId())) {
                 throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
             }
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            establish(request, principal);
         } catch (BusinessException e) {
             // 위조·만료 토큰은 인증을 세우지 않는다(익명으로 진행) — 보호 자원이면 엔트리 포인트가
             // 여기 남긴 코드(TOKEN_EXPIRED · UNAUTHORIZED)로 401 본문을 쓴다(BR-033)
             SecurityContextHolder.clearContext();
             request.setAttribute(AUTH_FAILURE_ATTR, e.getErrorCode());
         } catch (CannotCreateTransactionException | DataAccessException e) {
-            // 계정 상태 조회가 DB 예외로 실패했다 — 필터는 컨트롤러 어드바이스 바깥이라 잡지 않으면 규격 없는 500 이 된다. 어느 쪽이든
-            // 모르는 상태를 통과시키지 않고(인증을 세우지 않음) 보호 자원이면 엔트리 포인트가 사유 코드로 §1.10 본문을 쓴다.
-            // 자원 오류(풀 연결 대기 초과·연결 끊김·쿼리 취소)만 503 SERVER_BUSY, SQL 문법 오류 같은 코드 결함은 500 INTERNAL_ERROR 다 —
-            // 둘을 가르는 목록은 GlobalExceptionHandler 와 같은 DbResourceFailure 한 곳이다(API_SPEC §1.10·§1.11)
-            SecurityContextHolder.clearContext();
-            if (DbResourceFailure.isResourceUnavailable(e)) {
-                log.warn("[db-unavailable] 인증 필터의 계정 상태 조회 실패 — {}: {}", e.getClass().getSimpleName(), e.getMessage());
-                request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.SERVER_BUSY);
-            } else {
-                log.error("[unexpected] 인증 필터의 계정 상태 조회 실패 — {}", e.getMessage(), e);
-                request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.INTERNAL_ERROR);
-            }
+            rejectOnDbFailure(request, e);
         }
     }
 
-    private String resolveToken(HttpServletRequest request) {
-        String header = request.getHeader(HEADER);
-        if (header != null && header.startsWith(PREFIX)) {
-            return header.substring(PREFIX.length());
+    /** 검증을 통과한 주체로 SecurityContext 를 세운다. */
+    private void establish(HttpServletRequest request, AuthUser principal) {
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(principal, null, principal.authorities());
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    /**
+     * 계정 상태 조회가 DB 예외로 실패했다 — 필터는 컨트롤러 어드바이스 바깥이라 잡지 않으면 규격 없는 500 이 된다. 어느 쪽이든
+     * 모르는 상태를 통과시키지 않고(인증을 세우지 않음) 보호 자원이면 엔트리 포인트가 사유 코드로 §1.10 본문을 쓴다.
+     * 자원 오류(풀 연결 대기 초과·연결 끊김·쿼리 취소)만 503 SERVER_BUSY, SQL 문법 오류 같은 코드 결함은 500 INTERNAL_ERROR 다 —
+     * 둘을 가르는 목록은 GlobalExceptionHandler 와 같은 DbResourceFailure 한 곳이다(API_SPEC §1.10·§1.11)
+     */
+    private void rejectOnDbFailure(HttpServletRequest request, RuntimeException e) {
+        SecurityContextHolder.clearContext();
+        if (DbResourceFailure.isResourceUnavailable(e)) {
+            log.warn("[db-unavailable] 인증 필터의 계정 상태 조회 실패 — {}: {}", e.getClass().getSimpleName(), e.getMessage());
+            request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.SERVER_BUSY);
+        } else {
+            log.error("[unexpected] 인증 필터의 계정 상태 조회 실패 — {}", e.getMessage(), e);
+            request.setAttribute(AUTH_FAILURE_ATTR, ErrorCode.INTERNAL_ERROR);
         }
-        return null;
     }
 }

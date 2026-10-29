@@ -31,6 +31,7 @@ import ch.qos.logback.core.read.ListAppender;
 import src.backend.BackendApplication;
 import src.backend.audit.repository.AuditLogRepository;
 import src.backend.boarding.entity.RiderStatus;
+import src.backend.global.retention.IdempotencyKeyExpiry;
 import src.backend.notification.entity.PushState;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.run.entity.RunStatus;
@@ -82,6 +83,9 @@ class PartialIndexQueryPlanTest {
 
     @Autowired
     private AuditLogRepository auditLogRepository;
+
+    @Autowired
+    private IdempotencyKeyExpiry idempotencyKeyExpiry;
 
     /** 확정 배치가 매 틱 읽는 조회 — 상태는 리터럴이라 일반 계획에서도 부분 인덱스를 탄다(DA-3, Ruling 899). */
     @Test
@@ -222,9 +226,34 @@ class PartialIndexQueryPlanTest {
                 .doesNotContain("Seq Scan");
     }
 
+    /**
+     * 밤마다 도는 멱등 키 비우기는 무기한 보관하는 이력 표에서 {@code client_key IS NOT NULL} 인 행만 찾는다 — 키가 있는 행은 회차 종료 24시간 안의 소수라,
+     * 그 행만 담은 부분 인덱스가 없으면 표 전체의 {@code id} 순서를 훑는다. {@code IdempotencyKeyExpiry} 가 {@code JdbcTemplate} 으로 낸 SQL 을 그대로 잡아 본다.
+     */
+    @Test
+    void 멱등_키_비우기는_두_표_모두_client_key_부분_인덱스로_후보를_찾는다() throws Exception {
+        SoftAssertions softly = new SoftAssertions();
+        for (String[] target : new String[][] {{"rider_status_history", "ix_rider_status_history_client_key"},
+                {"no_show_contact", "ix_no_show_contact_client_key"}}) {
+            String sql = 실행된_SQL("org.springframework.jdbc.core.JdbcTemplate",
+                    Pattern.compile("(?is).*update " + target[0] + " set client_key = null.*"),
+                    () -> idempotencyKeyExpiry.expire(OffsetDateTime.now(), 10));
+            String update = sql.substring(sql.toLowerCase().indexOf("update " + target[0])).replaceAll("\\]$", "");
+
+            String plan = 맞춤_계획을_본다(update, List.of("now() - interval '1 day'", "10"), List.of());
+
+            softly.assertThat(plan).as("%s%n%s", update, plan).contains(target[1]);
+        }
+        softly.assertAll();
+    }
+
     /** 저장소 메서드를 부르는 동안 Hibernate 가 낸 SQL 중 패턴에 맞는 첫 문장 — 없으면 시험이 아니라 쿼리 경로의 문제다. */
     private static String 실행된_SQL(Pattern statement, Runnable repositoryCall) {
-        Logger logger = (Logger) LoggerFactory.getLogger(SQL_LOGGER);
+        return 실행된_SQL(SQL_LOGGER, statement, repositoryCall);
+    }
+
+    private static String 실행된_SQL(String loggerName, Pattern statement, Runnable repositoryCall) {
+        Logger logger = (Logger) LoggerFactory.getLogger(loggerName);
         Level before = logger.getLevel();
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();

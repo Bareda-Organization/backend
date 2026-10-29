@@ -21,8 +21,8 @@ import src.backend.global.security.PublicEndpoints;
 
 /**
  * 모든 엔드포인트에 공통 에러 응답을 실어 주는 문서 보정(API_SPEC §1.11).
- * 공통 항목은 정의상 104개 핸들러 전부에 해당하므로 핸들러마다 애너테이션으로 적으면 같은 문장이
- * 104벌로 늘고, 규약이 바뀔 때 한 곳만 고쳐지고 나머지가 낡는다 — 사양이 "개별 엔드포인트의 에러 줄에는
+ * 공통 항목은 정의상 모든 핸들러에 해당하므로 핸들러마다 애너테이션으로 적으면 같은 문장이
+ * 핸들러 수만큼 늘고, 규약이 바뀔 때 한 곳만 고쳐지고 나머지가 낡는다 — 사양이 "개별 엔드포인트의 에러 줄에는
  * 반복 기재 부재" 라고 정한 것과 같은 이유다. 그래서 한 곳에서 붙인다.
  *
  * <p>비인증 허용 경로({@link PublicEndpoints})는 토큰 자체가 없으므로 401·403 을 달지 않는다 —
@@ -110,14 +110,19 @@ public class CommonErrorResponsesCustomizer implements OpenApiCustomizer {
                     .content(errorContent()));
             return;
         }
+        appendDescription(existing, description);
+        if (existing.getContent() == null) {
+            existing.setContent(errorContent());
+        }
+    }
+
+    /** 설명이 비었으면 채우고, 이미 다른 설명이 있으면 같은 문장이 아닐 때만 {@code " · "} 로 잇는다. */
+    private void appendDescription(ApiResponse existing, String description) {
         String current = existing.getDescription();
         if (current == null || current.isBlank()) {
             existing.setDescription(description);
         } else if (!current.contains(description)) {
             existing.setDescription(current + " · " + description);
-        }
-        if (existing.getContent() == null) {
-            existing.setContent(errorContent());
         }
     }
 

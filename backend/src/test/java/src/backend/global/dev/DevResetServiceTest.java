@@ -106,4 +106,31 @@ class DevResetServiceTest {
         verify(migrationStrategy, times(DevResetService.MAX_MIGRATE_ATTEMPTS)).migrate(flyway);
         verify(previewCache, never()).clear();
     }
+
+    /**
+     * Flyway clean 이 꺼진 서버({@code app.flyway-clean.suppressed=true})는 마이그레이션만 돌 뿐 데이터를 지우지 못한다 — 그 상태로 200 을 돌려주면 호출자는 초기화됐다고 믿는다.
+     * 아무것도 지우거나 만들지 않고 이유를 담은 오류로 끝나야 한다.
+     */
+    @Test
+    void clean_이_꺼진_서버의_초기화는_오류로_끝나고_아무것도_바꾸지_않는다() {
+        FlywayMigrationStrategy suppressed = new src.backend.global.config.LocalFlywayCleanStrategy(
+                new org.springframework.mock.env.MockEnvironment().withProperty("app.flyway-clean.suppressed", "true"));
+        DevResetService suppressedService = new DevResetService(flyway, suppressed, runPositionStore, previewCache,
+                runGenerationService, clock);
+
+        assertThatThrownBy(suppressedService::reset)
+                .isInstanceOfSatisfying(src.backend.global.error.BusinessException.class, e -> {
+                    org.assertj.core.api.Assertions.assertThat(e.getErrorCode())
+                            .isEqualTo(src.backend.global.error.ErrorCode.INTERNAL_ERROR);
+                    // 응답 본문은 쉬운 말이다 — 설정 이름 · 클래스 이름 같은 내부 사정은 서버 로그에만 남는다
+                    org.assertj.core.api.Assertions.assertThat(e.getMessage()).contains("초기화")
+                            .doesNotContain("app.").doesNotContain("suppressed").doesNotContain("Flyway")
+                            .doesNotContain("flyway").doesNotContain("Strategy");
+                });
+
+        verify(flyway, never()).migrate();
+        verify(previewCache, never()).clear();
+        verify(runPositionStore, never()).deleteAll();
+        verify(runGenerationService, never()).generate(org.mockito.ArgumentMatchers.any());
+    }
 }

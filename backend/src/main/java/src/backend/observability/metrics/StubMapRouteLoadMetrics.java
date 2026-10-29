@@ -2,6 +2,7 @@ package src.backend.observability.metrics;
 
 import java.util.Locale;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import io.micrometer.core.instrument.Counter;
@@ -24,6 +25,7 @@ import src.backend.routing.map.spec.CallerPolicy;
  * on-demand 재측정), timeout·failure_injected 는 이번 목표 범위 밖이라 태그를 추가하지 않는다.
  */
 @Component
+@ConditionalOnProperty(name = "app.routing.map.provider", havingValue = "stub")
 public class StubMapRouteLoadMetrics {
 
     private static final String THROTTLED_METRIC = "schoolbus.routing.stub.load.throttled";

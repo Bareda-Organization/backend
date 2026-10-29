@@ -13,7 +13,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 대신해, Redis 가 멈춘 동안 같은 입력이 지도 API 나 DB 쓰기를 반복해서 부르지 않게 한다(Ruling 919 B ⑤). 인스턴스가 여러 대면 인스턴스끼리 나누지 못하는 값이라
  * 정합성의 근거로 쓰지 않는다 — 호출부는 이 기억을 Redis 가 실패했을 때만 읽고, 지우는 경로는 Redis 와 이 기억 둘 다 지운다.
  *
- * <p>가득 차면 만료된 항목을 먼저 치우고, 그래도 가득이면 아무 항목 하나를 버린다 — 버려진 항목은 다시 계산 · 다시 기록되는 쪽 오차다.
+ * <p>가득 차면 만료된 항목을 먼저 치우고, 그래도 가득이면 아무 항목 하나를 버린다 — 버려진 항목은 다시 계산 · 다시 기록되는 쪽 오차다. 쓰기({@link #put} · {@link #claim})는 자리 확보와 넣기를
+ * 한 잠금 안에서 해 여러 스레드가 동시에 넣어도 항목 수가 상한을 넘지 않는다(읽기는 잠금 없이 만료된 항목만 치운다).
  */
 public final class LocalFallbackMemory<V> {
 
@@ -30,7 +31,7 @@ public final class LocalFallbackMemory<V> {
     }
 
     /** {@code ttl} 동안 기억한다 — 같은 키가 있으면 덮어쓴다. */
-    public void put(String key, V value, Duration ttl) {
+    public synchronized void put(String key, V value, Duration ttl) {
         makeRoomFor(key);
         entries.put(key, new Entry<>(value, clock.instant().plus(ttl)));
     }
@@ -57,18 +58,20 @@ public final class LocalFallbackMemory<V> {
     }
 
     /** 키가 없거나 만료됐으면 {@code ttl} 동안 맡고 {@code true} — 살아 있는 항목이 있으면 {@code false}. 동시에 부르면 하나만 {@code true} 를 받는다. */
-    public boolean claim(String key, V value, Duration ttl) {
+    public synchronized boolean claim(String key, V value, Duration ttl) {
         makeRoomFor(key);
         Instant now = clock.instant();
-        boolean[] claimed = {false};
-        entries.compute(key, (k, existing) -> {
-            if (existing != null && now.isBefore(existing.expiresAt())) {
-                return existing;
-            }
-            claimed[0] = true;
-            return new Entry<>(value, now.plus(ttl));
-        });
-        return claimed[0];
+        Entry<V> existing = entries.get(key);
+        if (existing != null && now.isBefore(existing.expiresAt())) {
+            return false;
+        }
+        entries.put(key, new Entry<>(value, now.plus(ttl)));
+        return true;
+    }
+
+    /** 지금 들고 있는 항목 수 — 만료됐지만 아직 치워지지 않은 항목도 센다. */
+    public int size() {
+        return entries.size();
     }
 
     private void makeRoomFor(String key) {

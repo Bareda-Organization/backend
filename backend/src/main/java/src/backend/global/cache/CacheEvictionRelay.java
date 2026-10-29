@@ -40,6 +40,12 @@ public class CacheEvictionRelay {
     /** 위치 방송 캐시의 학생 목록만 — 키는 회차 id. */
     public static final String RUN_STUDENTS = "run-students";
 
+    /**
+     * 채널 권한이 바뀐 계정의 열린 WebSocket 세션 닫기(4500) — 키는 계정 id. 캐시 항목이 아니라 세션을 닫으라는 신호이지만 모양(이름 + 숫자 키)과 "자기 신호는 되돌아와도
+     * 처리하지 않는다" 는 규칙이 같아 같은 채널을 쓴다. 신호를 놓친 인스턴스의 세션은 토큰 만료와 30초 주기 계정 상태 점검이 상한이다.
+     */
+    public static final String SESSIONS_REVOKE = "sessions-revoke";
+
     private static final String CHANNEL = "schoolbus:relay:cache-evict";
 
     private static final String SEPARATOR = "|";

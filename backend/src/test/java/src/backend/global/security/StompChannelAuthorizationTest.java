@@ -133,6 +133,23 @@ class StompChannelAuthorizationTest {
     }
 
     @Test
+    void 서명_없는_토큰의_CONNECT_는_UNAUTHORIZED_로_거부된다() throws Exception {
+        String unsigned = io.jsonwebtoken.Jwts.builder().subject("1").claim("academyId", 1L).claim("role", Role.STAFF.name())
+                .claim("status", AccountStatus.ACTIVE.name()).claim("type", "access").compact();
+
+        assertThat(connectOutcome("CONNECT", unsigned)).startsWith("ERROR").contains("message:UNAUTHORIZED");
+    }
+
+    @Test
+    void 비대칭_알고리즘으로_서명한_토큰의_CONNECT_는_UNAUTHORIZED_로_거부된다() throws Exception {
+        String rsa = io.jsonwebtoken.Jwts.builder().subject("1").claim("academyId", 1L).claim("role", Role.STAFF.name())
+                .claim("status", AccountStatus.ACTIVE.name()).claim("type", "access")
+                .signWith(io.jsonwebtoken.Jwts.SIG.RS256.keyPair().build().getPrivate()).compact();
+
+        assertThat(connectOutcome("CONNECT", rsa)).startsWith("ERROR").contains("message:UNAUTHORIZED");
+    }
+
+    @Test
     void refresh_토큰의_CONNECT_는_UNAUTHORIZED_로_거부된다() throws Exception {
         String refresh = tokenProvider.createRefreshToken(1L, 1L, Role.STAFF, AccountStatus.ACTIVE);
 

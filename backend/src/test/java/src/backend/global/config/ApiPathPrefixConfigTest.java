@@ -32,8 +32,8 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 @SpringBootTest
 class ApiPathPrefixConfigTest {
 
-    /** src.backend 안에 있어도 API 접두사 대상이 아닌 경로(프레임워크 관용 경로 성격). */
-    private static final List<String> EXCEPTION_PREFIXES = List.of("/actuator", "/ws", "/swagger-ui");
+    /** src.backend 안에 있어도 API 접두사 대상이 아닌 경로(프레임워크 관용 경로 성격 — {@code /error} 는 컨테이너가 오류를 넘기는 고정 경로). */
+    private static final List<String> EXCEPTION_PREFIXES = List.of("/actuator", "/ws", "/swagger-ui", "/error");
 
     @Autowired
     private RequestMappingHandlerMapping requestMappingHandlerMapping;

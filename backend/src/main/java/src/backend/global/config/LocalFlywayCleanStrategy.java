@@ -65,6 +65,11 @@ public class LocalFlywayCleanStrategy implements FlywayMigrationStrategy {
         this.allowedHosts = Set.copyOf(hosts);
     }
 
+    /** clean 을 건너뛰는 서버인가 — 개발용 초기화가 데이터를 지우지 못하는 서버에서 성공으로 답하지 않게 묻는다. */
+    public boolean isCleanSuppressed() {
+        return cleanSuppressed;
+    }
+
     /**
      * 데이터소스가 실제로 localhost 를 가리킬 때만 clean() 후 migrate() 한다. 아니면 clean() 을 호출하지 않고 예외를 던진다.
      * {@link #cleanSuppressed} 면 이 판정 자체를 건너뛰고 migrate() 만 한다 — clean() 을 아예 안 부르므로

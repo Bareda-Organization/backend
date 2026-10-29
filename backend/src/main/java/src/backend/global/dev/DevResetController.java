@@ -2,6 +2,9 @@ package src.backend.global.dev;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,8 +14,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.common.enums.Role;
 import src.backend.global.config.ApiTags;
+import src.backend.global.error.BusinessException;
+import src.backend.global.error.ErrorCode;
 import src.backend.global.response.ApiResponse;
+import src.backend.global.security.AuthUser;
 import src.backend.global.security.authz.AuthenticatedOnly;
 
 /**
@@ -30,7 +37,9 @@ import src.backend.global.security.authz.AuthenticatedOnly;
  * </ul>
  *
  * <p>인증은 요구한다({@code @AuthenticatedOnly}) — 초기화 후에도 액세스 토큰은 그대로 유효하다
- * (JWT 는 상태를 서버에 두지 않고, 시드가 같은 계정을 다시 만든다).
+ * (JWT 는 상태를 서버에 두지 않고, 시드가 같은 계정을 다시 만든다). 공개 주소에 올라가는 {@code staging} 에서는 관계자({@code STAFF})와
+ * 메인 관리자만 부른다 — 공유 DB 를 통째로 지우는 호출이라 다른 역할의 토큰으로는 {@code 403} 이다. {@code local} 단독에서는 웹·모바일
+ * 실서버 계약 시험이 학부모·기사 토큰으로 초기화하므로 역할을 묻지 않는다.
  */
 @Tag(name = ApiTags.DEV)
 @RestController
@@ -42,11 +51,17 @@ public class DevResetController {
 
     private final DevResetService devResetService;
 
-    /** DB 를 시드 상태로 되돌리고 위치 캐시를 비운다. */
+    private final Environment environment;
+
+    /** DB 를 시드 상태로 되돌리고 위치 캐시를 비운다. {@code staging} 에서는 관계자와 메인 관리자만 부를 수 있다. */
     @AuthenticatedOnly
-    @Operation(summary = "개발용 초기화 — DB 를 시드 상태로 되돌린다 (local 전용)")
+    @Operation(summary = "개발용 초기화 — DB 를 시드 상태로 되돌린다 (local 전용, staging 은 관계자·메인 관리자만)")
     @PostMapping
-    public ApiResponse<DevResetResponse> reset() {
+    public ApiResponse<DevResetResponse> reset(@AuthenticationPrincipal AuthUser requester) {
+        boolean stagingServer = environment.acceptsProfiles(Profiles.of("staging"));
+        if (stagingServer && requester.role() != Role.STAFF && requester.role() != Role.SYSTEM_ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
         return ApiResponse.ok(new DevResetResponse(devResetService.reset()));
     }
 

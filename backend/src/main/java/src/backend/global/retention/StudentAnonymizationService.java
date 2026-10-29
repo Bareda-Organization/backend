@@ -159,10 +159,23 @@ public class StudentAnonymizationService {
         }
         List<Long> ids = students.stream().map(Student::getId).toList();
         List<Long> accountIds = students.stream().map(Student::getAccountId).filter(Objects::nonNull).toList();
+        anonymizeEntities(students, accountIds, now);
+        deleteLinkedRows(ids, accountIds);
+        recordAudit(students.size(), now);
+        log.info("퇴원 학생 개인정보 파기 — {}명 익명화", students.size());
+        return students.size();
+    }
+
+    /** 학생 · 계정 엔티티를 익명화한다. */
+    private void anonymizeEntities(List<Student> students, List<Long> accountIds, OffsetDateTime now) {
         // 엔티티 변경을 벌크 쿼리보다 먼저 한다 — 벌크 쿼리는 flush 뒤 영속성 컨텍스트를 비워, 그 뒤에 바꾼 엔티티는 저장되지 않는다
         accountRepository.findAllByIdIn(accountIds)
                 .forEach(account -> account.anonymizeForRetention(Student.ANONYMIZED_NAME, now));
         students.forEach(student -> student.anonymize(now));
+    }
+
+    /** 파기 대상에 딸린 토큰 · 주소 · 연결 코드 · 보호자 연결 · 변경 요청 주소를 지우거나 비운다. */
+    private void deleteLinkedRows(List<Long> ids, List<Long> accountIds) {
         if (!accountIds.isEmpty()) {
             refreshTokenRepository.deleteAllByAccountIds(accountIds);
             deviceTokenRepository.deleteAllByAccountIds(accountIds);
@@ -171,10 +184,12 @@ public class StudentAnonymizationService {
         linkCodeRepository.deleteAllByStudentIds(ids);
         guardianStudentRepository.deleteAllByStudentIds(ids);
         changeRequestRepository.anonymizeAddressesOfStudents(ids, Student.ANONYMIZED_ADDRESS);
+    }
+
+    /** 파기한 인원 수를 감사 기록으로 남긴다. */
+    private void recordAudit(int purgedStudents, OffsetDateTime now) {
         // 시스템 배치라 요청 IP 가 없다(ip 인자 — 요청 밖은 null)
         auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, null, null, null, "student", null,
-                Map.of("purged_students", students.size()), null, now));
-        log.info("퇴원 학생 개인정보 파기 — {}명 익명화", students.size());
-        return students.size();
+                Map.of("purged_students", purgedStudents), null, now));
     }
 }
