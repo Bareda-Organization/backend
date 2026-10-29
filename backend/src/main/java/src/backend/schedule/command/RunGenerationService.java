@@ -57,17 +57,22 @@ public class RunGenerationService {
                 }
             } catch (RuntimeException e) {
                 log.warn("스케줄 {} 의 {} 회차 생성 실패 — 나머지 스케줄은 계속 만든다", schedule.getId(), serviceDate, e);
-                if (firstFailure == null) {
-                    firstFailure = e;
-                } else {
-                    firstFailure.addSuppressed(e);
-                }
+                firstFailure = accumulate(firstFailure, e);
             }
         }
         if (firstFailure != null) {
             throw firstFailure;
         }
         return created;
+    }
+
+    /** 첫 실패는 그대로 두고 이어지는 실패는 첫 실패의 suppressed 로 붙인다 — 처음 실패한 예외를 돌려준다. */
+    private RuntimeException accumulate(RuntimeException firstFailure, RuntimeException e) {
+        if (firstFailure == null) {
+            return e;
+        }
+        firstFailure.addSuppressed(e);
+        return firstFailure;
     }
 
     /**
