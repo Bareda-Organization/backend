@@ -1,19 +1,13 @@
 package src.backend.routing.map.impl;
 
-import java.math.BigDecimal;
-import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
@@ -63,29 +57,10 @@ public class NaverDirectionsGateway {
     /** 온디맨드 전용 격벽 이름(`Ruling 350` — 온디맨드 1칸). 재시도 설정 이름과 문자열은 같지만 별개 축이다. */
     public static final String ON_DEMAND_BULKHEAD_INSTANCE = "mapRouteOnDemand";
 
-    private static final String KEY_ID_HEADER = "x-ncp-apigw-api-key-id";
-
-    private static final String KEY_HEADER = "x-ncp-apigw-api-key";
-
-    /** NCP 가 경유지를 가르는 문자 — URI 에 그대로 실을 수 없어 인코딩을 거친다. */
-    private static final String WAYPOINT_SEPARATOR = "|";
-
     /** 연결 자체가 안 되는 경우의 상한 — 응답 대기 상한은 호출자가 요청마다 주입한다. */
     private static final int CONNECT_TIMEOUT_MILLIS = 3000;
 
-    /** NCP 는 소요 시간을 밀리초로 준다. */
-    private static final int MILLIS_PER_SECOND = 1000;
-
-    private final WebClient webClient;
-
-    private final String baseUrl;
-
-    /** Directions 5 · 15 경로 — {@code max-waypoints} 와 짝으로 바꾼다({@code application.yml} 주석). */
-    private final String drivingPath;
-
-    private final String keyId;
-
-    private final String key;
+    private final NaverDrivingRequester requester;
 
     /**
      * 공유 {@code webClient} 빈을 쓰지 않고 여기서 따로 만든다 — 그쪽은 응답 타임아웃이 5초로
@@ -99,11 +74,8 @@ public class NaverDirectionsGateway {
             @Value("${app.routing.map.naver.key:}") String key) {
         HttpClient httpClient = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS);
-        this.webClient = builder.clientConnector(new ReactorClientHttpConnector(httpClient)).build();
-        this.baseUrl = baseUrl;
-        this.drivingPath = drivingPath;
-        this.keyId = keyId;
-        this.key = key;
+        WebClient webClient = builder.clientConnector(new ReactorClientHttpConnector(httpClient)).build();
+        this.requester = new NaverDrivingRequester(webClient, baseUrl, drivingPath, keyId, key);
     }
 
     /**
@@ -138,7 +110,7 @@ public class NaverDirectionsGateway {
      * 것은 정상적인 배차</b>라 흔히 일어난다 — {@code RunConfirmationService} 가 등원 origin 을
      * 노선의 첫 정차지 좌표로 잡고, 그 정차지에 학생이 있으면 같은 좌표가 정차지 목록에도 들어가
      * {@code [origin, 그 정차지, ...]} 로 중복된다. 걷어낸 자리는 거리·시간 0 인 leg 로 되돌려
-     * ({@link #expand}) {@code segment.size() - 1} 개를 그대로 지킨다.
+     * ({@link NaverLegParser#expand}) {@code segment.size() - 1} 개를 그대로 지킨다.
      *
      * @throws MapRouteUnavailableException 공급자에 닿지 못한 전부 — 타임아웃 · 5xx · 서킷 개방
      */
@@ -162,162 +134,14 @@ public class NaverDirectionsGateway {
     }
 
     private List<RoadLeg> fetchLegs(List<GeoPoint> segment, Duration timeout) {
-        List<GeoPoint> distinct = withoutConsecutiveDuplicates(segment);
+        List<GeoPoint> distinct = NaverLegParser.withoutConsecutiveDuplicates(segment);
         if (distinct.size() < 2) {
-            return zeroLegs(segment.size() - 1);
+            return NaverLegParser.zeroLegs(segment.size() - 1);
         }
-        DrivingResponse response = webClient.get()
-                .uri(drivingUri(distinct))
-                .header(KEY_ID_HEADER, keyId)
-                .header(KEY_HEADER, key)
-                .retrieve()
-                .bodyToMono(DrivingResponse.class)
-                .timeout(timeout)
-                .block();
-        Traoptimal traoptimal = traoptimalOf(response);
-        List<RoadLeg> legs = legsOf(distinct, traoptimal.summary());
-        return withPath(expand(segment, legs), pathOf(traoptimal));
-    }
-
-    /** 연속 중복 지점을 걷어낸다 — {@link #expand} 가 반대 방향으로 되돌린다. */
-    static List<GeoPoint> withoutConsecutiveDuplicates(List<GeoPoint> segment) {
-        List<GeoPoint> distinct = new ArrayList<>();
-        distinct.add(segment.getFirst());
-        for (int i = 1; i < segment.size(); i++) {
-            if (!samePoint(segment.get(i), segment.get(i - 1))) {
-                distinct.add(segment.get(i));
-            }
-        }
-        return distinct;
-    }
-
-    /**
-     * 값이 같은 위경도인지 — {@code BigDecimal.equals} 는 스케일이 다르면 값이 같아도 다르다고
-     * 답해 이 판정에 쓰면 안 된다({@code numeric(9,6)} 컬럼끼리는 대개 스케일이 같지만, 그 전제에
-     * 기대지 않는다).
-     */
-    private static boolean samePoint(GeoPoint a, GeoPoint b) {
-        return a.lat().compareTo(b.lat()) == 0 && a.lng().compareTo(b.lng()) == 0;
-    }
-
-    /** 지점 전부가 한 자리면 부를 이유가 없다 — 거리·시간 0 인 leg 로 바로 답한다. */
-    static List<RoadLeg> zeroLegs(int count) {
-        return Collections.nCopies(count, new RoadLeg(0, 0, List.of()));
-    }
-
-    /**
-     * {@link #withoutConsecutiveDuplicates} 로 걷어낸 자리에 거리·시간 0 인 leg 를 끼워 넣어
-     * {@code segment.size() - 1} 개로 되돌린다.
-     */
-    static List<RoadLeg> expand(List<GeoPoint> segment, List<RoadLeg> distinctLegs) {
-        List<RoadLeg> legs = new ArrayList<>(segment.size() - 1);
-        int distinctIndex = 0;
-        for (int i = 1; i < segment.size(); i++) {
-            if (samePoint(segment.get(i), segment.get(i - 1))) {
-                legs.add(new RoadLeg(0, 0, List.of()));
-            } else {
-                legs.add(distinctLegs.get(distinctIndex++));
-            }
-        }
-        return legs;
-    }
-
-    /**
-     * 구간별 실측값이 있으면 그대로 쓰고, 없으면 직선거리 비율로 대체한다.
-     *
-     * <p>NCP 는 경유지가 있는 요청에 <b>구간별 실측값을 그대로 준다</b>({@code summary.waypoints[]}
-     * 가 시작점→첫 경유지, 경유지→다음 경유지 순으로, {@code summary.goal} 이 마지막 경유지→도착지
-     * 구간을 담는다(실 API 확인, {@code NaverDirectionsClientLiveTest}).
-     * {@link StraightLineLegs#distribute} 는 실측값이 없을 때만 쓰는 직선거리 근사다.
-     *
-     * <p>경유지가 없어 구간이 하나뿐이면(총합 자체가 그 구간의 실측값이라 배분이 필요 없다) 또는
-     * 응답이 예상과 다른 개수를 주면(방어적으로) 기존 직선거리 비율로 되돌아간다.
-     */
-    static List<RoadLeg> legsOf(List<GeoPoint> segment, Summary summary) {
-        int expectedLegs = segment.size() - 1;
-        List<RoadLeg> measured = measuredLegsOf(summary, expectedLegs);
-        if (measured != null) {
-            return measured;
-        }
-        return StraightLineLegs.distribute(segment, (int) Math.round(summary.distance()),
-                (int) Math.round(summary.duration() / MILLIS_PER_SECOND));
-    }
-
-    /**
-     * {@code summary.waypoints[]} + {@code summary.goal} 을 구간 목록으로 옮긴다 — 개수가 안 맞거나
-     * 값이 없으면 {@code null} 을 돌려줘 호출부가 직선거리 비율로 대체하게 한다.
-     *
-     * <p>거리(m)는 이미 정수라 반올림 오차가 없지만, 시간은 밀리초라 구간마다 따로 반올림하면 합이
-     * 총합에서 벗어난다({@code 1500ms + 1500ms → 2s + 2s = 4s} 인데 총합은 {@code 3000ms → 3s}).
-     * 누적값을 반올림하고 직전에 배정한 값을 빼는 방식({@link StraightLineLegs#distribute} 와 같은
-     * 기법)으로 마지막 구간에서 합이 총합과 정확히 맞아떨어지게 한다.
-     */
-    private static List<RoadLeg> measuredLegsOf(Summary summary, int expectedLegs) {
-        List<WaypointLeg> waypoints = summary.waypoints();
-        GoalLeg goal = summary.goal();
-        if (waypoints == null || waypoints.size() != expectedLegs - 1
-                || goal == null || goal.distance() == null || goal.duration() == null) {
-            return null;
-        }
-        List<RoadLeg> legs = new ArrayList<>(expectedLegs);
-        double cumulativeMeters = 0;
-        double cumulativeMillis = 0;
-        long assignedMeters = 0;
-        long assignedSeconds = 0;
-        for (WaypointLeg waypoint : waypoints) {
-            cumulativeMeters += waypoint.distance();
-            cumulativeMillis += waypoint.duration();
-            long meters = Math.round(cumulativeMeters);
-            long seconds = Math.round(cumulativeMillis / MILLIS_PER_SECOND);
-            legs.add(new RoadLeg((int) (meters - assignedMeters), (int) (seconds - assignedSeconds), List.of()));
-            assignedMeters = meters;
-            assignedSeconds = seconds;
-        }
-        cumulativeMeters += goal.distance();
-        cumulativeMillis += goal.duration();
-        long meters = Math.round(cumulativeMeters);
-        long seconds = Math.round(cumulativeMillis / MILLIS_PER_SECOND);
-        legs.add(new RoadLeg((int) (meters - assignedMeters), (int) (seconds - assignedSeconds), List.of()));
-        return legs;
-    }
-
-    /**
-     * 세그먼트 전체 도로 좌표를 <b>첫 leg 에만</b> 싣고 나머지는 비운다.
-     *
-     * <p>공급자가 경유지별 좌표를 안 주므로(거리·시간처럼 배분할 근거가 없다) leg 마다 나눠 담을
-     * 수 없다 — 대신 세그먼트당 좌표 뭉치 하나로 두고, {@link RoadRoute#roadPath()} 가 이어 붙이면서
-     * 세그먼트 경계의 겹친 좌표를 걷어낸다. leg 가 비어 있으면(구간 분할이 0개 지점을 만들 수 없어
-     * 실제로는 나지 않지만 방어적으로) 그대로 돌려준다.
-     */
-    private static List<RoadLeg> withPath(List<RoadLeg> legs, List<GeoPoint> path) {
-        if (legs.isEmpty()) {
-            return legs;
-        }
-        List<RoadLeg> result = new ArrayList<>(legs.size());
-        RoadLeg first = legs.getFirst();
-        result.add(new RoadLeg(first.distanceMeters(), first.durationSeconds(), path));
-        for (int i = 1; i < legs.size(); i++) {
-            RoadLeg leg = legs.get(i);
-            result.add(new RoadLeg(leg.distanceMeters(), leg.durationSeconds(), List.of()));
-        }
-        return result;
-    }
-
-    /**
-     * {@code route.traoptimal[].path} 를 {@link GeoPoint} 로 옮긴다 — <b>NCP 는 좌표를
-     * {@code [경도, 위도]} 순으로 준다</b>(NCP 공식 문서 응답 예시 실측). 뒤집어 넣으면 좌표가
-     * 지구 반대편(바다)으로 간다.
-     */
-    private static List<GeoPoint> pathOf(Traoptimal traoptimal) {
-        List<List<BigDecimal>> path = traoptimal.path();
-        if (path == null || path.isEmpty()) {
-            return List.of();
-        }
-        List<GeoPoint> points = new ArrayList<>(path.size());
-        for (List<BigDecimal> point : path) {
-            points.add(new GeoPoint(point.get(1), point.get(0)));
-        }
-        return points;
+        NaverDrivingResponse response = requester.fetch(distinct, timeout);
+        NaverDrivingResponse.Traoptimal traoptimal = NaverLegParser.traoptimalOf(response);
+        List<RoadLeg> legs = NaverLegParser.legsOf(distinct, traoptimal.summary());
+        return NaverLegParser.withPath(NaverLegParser.expand(segment, legs), NaverLegParser.pathOf(traoptimal));
     }
 
     /**
@@ -348,84 +172,5 @@ public class NaverDirectionsGateway {
         log.warn("도로 경로 조회가 폴백으로 떨어졌다 — 지점 {}개, 원인: {}", segment.size(), cause.toString());
         throw new MapRouteUnavailableException("도로 경로 조회 실패: 지점 " + segment.size() + "개", cause,
                 cause instanceof CallNotPermittedException);
-    }
-
-    /**
-     * 첫 지점이 {@code start}, 마지막이 {@code goal}, 나머지가 {@code waypoints} 다 — NCP 는
-     * <b>경도를 먼저</b> 적는다.
-     *
-     * <p><b>문자열을 이어 {@code URI.create} 로 넘기면 안 된다</b> — 경유지 구분자 {@code |} 는
-     * URI 에 쓸 수 없는 문자라 {@code IllegalArgumentException} 이 나고, 그 예외가 폴백에 삼켜져
-     * <b>"경유지가 있는 요청만 조용히 근사값이 되는"</b> 형태로 나타난다(이 저장소가 실제로 그
-     * 상태였다). 그것을 막는 것은 {@link UriComponentsBuilder} 로 조립하는 것 자체다.
-     *
-     * <p>⚠ 부하를 지는 것은 {@code .encode()} 가 <b>아니다</b> — 이 입력에서는 {@code build().toUri()}
-     * 와 결과가 같다(spring-web 7.0.8 실측: 둘 다 {@code %7C}). 좌표·호스트 밖의 문자가 섞일 때를
-     * 위해 남겨 둔 것이고, {@code |} 처리의 근거로 읽으면 안 된다.
-     */
-    private URI drivingUri(List<GeoPoint> segment) {
-        UriComponentsBuilder url = UriComponentsBuilder.fromUriString(baseUrl)
-                .path(drivingPath)
-                .queryParam("start", coordinate(segment.getFirst()))
-                .queryParam("goal", coordinate(segment.getLast()));
-        List<GeoPoint> middle = segment.subList(1, segment.size() - 1);
-        if (!middle.isEmpty()) {
-            url.queryParam("waypoints", middle.stream()
-                    .map(NaverDirectionsGateway::coordinate)
-                    .collect(Collectors.joining(WAYPOINT_SEPARATOR)));
-        }
-        return url.build().encode().toUri();
-    }
-
-    private static String coordinate(GeoPoint point) {
-        return point.lng().toPlainString() + "," + point.lat().toPlainString();
-    }
-
-    /**
-     * 경로를 찾지 못한 응답도 실패로 올린다 — 여기서 예외를 내면 위 {@code fallbackMethod} 를 거쳐
-     * 직선거리 근사로 이어지고, 회차 하나가 경로 부재로 통째로 멈추지 않는다.
-     *
-     * <p>⚠ NCP 는 {@code option} 을 지정하지 않으면 {@code trafast}(최속)가 아니라
-     * {@code traoptimal}(기본·실시간 반영)로 응답한다({@code Ruling 276} — 실 호출로 확인).
-     * {@code trafast} 를 읽으면 파싱이 항상 {@code null} 로 떨어지고, 그 실패가 예외가 아니라
-     * 바로 위 폴백(직선거리 근사)으로 조용히 흡수돼 <b>실 도로 경로가 쓰이지 않는다</b>.
-     */
-    private static Traoptimal traoptimalOf(DrivingResponse response) {
-        if (response == null || response.route() == null || response.route().traoptimal() == null
-                || response.route().traoptimal().isEmpty()) {
-            throw new IllegalStateException("네이버 응답에 경로가 없다");
-        }
-        return response.route().traoptimal().getFirst();
-    }
-
-    /** NCP 응답 최상위. */
-    record DrivingResponse(RouteWrapper route) {
-    }
-
-    /** {@code option} 을 지정하지 않았을 때의 기본 탐색 결과 묶음이 {@code traoptimal} 이다. */
-    record RouteWrapper(List<Traoptimal> traoptimal) {
-    }
-
-    /** @param path {@code [[경도, 위도], ...]} — 경로를 구성하는 좌표(NCP 공식 문서 응답 예시). */
-    record Traoptimal(Summary summary, List<List<BigDecimal>> path) {
-    }
-
-    /**
-     * 총합과 함께 구간별 실측값도 온다(경유지가 있을 때만 — 실 API 확인).
-     *
-     * @param waypoints 시작점→첫 경유지, 경유지→다음 경유지 순 구간값. 경유지가 없으면 {@code null}
-     * @param goal      마지막 경유지(또는 경유지가 없으면 시작점)→도착지 구간값. 경유지가 없으면
-     *                  {@code location}·{@code dir} 만 오고 {@code distance}·{@code duration} 은
-     *                  {@code null} 이다
-     */
-    record Summary(double distance, double duration, List<WaypointLeg> waypoints, GoalLeg goal) {
-    }
-
-    /** 경유지 하나 직전 구간의 실측 거리(m)·시간(ms). */
-    record WaypointLeg(double distance, double duration) {
-    }
-
-    /** 도착지 직전 구간의 실측 거리(m)·시간(ms) — 경유지가 없으면 둘 다 {@code null} 이다. */
-    record GoalLeg(Double distance, Double duration) {
     }
 }

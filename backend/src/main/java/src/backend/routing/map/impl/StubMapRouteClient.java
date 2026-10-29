@@ -3,8 +3,6 @@ package src.backend.routing.map.impl;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import src.backend.observability.metrics.StubMapRouteLoadMetrics;
 import src.backend.global.location.GeoPoint;
-import src.backend.routing.map.spec.CallerPolicy;
 import src.backend.routing.map.spec.MapRouteClient;
 import src.backend.routing.map.spec.MapRouteUnavailableException;
 import src.backend.routing.map.spec.RoadLeg;
@@ -90,20 +87,10 @@ public class StubMapRouteClient implements MapRouteClient {
 
     private static final double METERS_PER_KILOMETER = 1000d;
 
-    private final long minDelayMs;
-
-    private final long maxDelayMs;
-
-    private final double failureRate;
-
-    private final int maxConcurrent;
-
     private final StubMapRouteLoadMetrics loadMetrics;
 
-    /** 위 4개 값이 전부 비활성 기본값이면 {@code route()} 의 주입 분기 자체를 타지 않는다. */
-    private final boolean loadInjectionEnabled;
-
-    private final AtomicInteger inFlight = new AtomicInteger(0);
+    /** 값이 전부 비활성 기본값이면 {@code route()} 의 주입 분기 자체를 타지 않는다. */
+    private final StubLoadInjection loadInjection;
 
     /** 부하 주입이 없는 기존 호출(시험 전체 묶음 포함)을 위한 편의 생성자 — 전부 비활성. */
     public StubMapRouteClient() {
@@ -117,12 +104,8 @@ public class StubMapRouteClient implements MapRouteClient {
             @Value("${app.routing.map.stub.load.failure-rate:0}") double failureRate,
             @Value("${app.routing.map.stub.load.max-concurrent:2147483647}") int maxConcurrent,
             StubMapRouteLoadMetrics loadMetrics) {
-        this.minDelayMs = minDelayMs;
-        this.maxDelayMs = maxDelayMs;
-        this.failureRate = failureRate;
-        this.maxConcurrent = maxConcurrent;
         this.loadMetrics = loadMetrics;
-        this.loadInjectionEnabled = maxDelayMs > 0 || failureRate > 0 || maxConcurrent < Integer.MAX_VALUE;
+        this.loadInjection = new StubLoadInjection(minDelayMs, maxDelayMs, failureRate, maxConcurrent, loadMetrics);
     }
 
     @Override
@@ -133,13 +116,17 @@ public class StubMapRouteClient implements MapRouteClient {
         if (request.forceFallback() || hasUnavailableMarker(request.points())) {
             return StraightLineLegs.approximate(request.points());
         }
-        if (loadInjectionEnabled) {
-            RoadRoute injected = applyLoadInjection(request);
+        if (loadInjection.enabled()) {
+            RoadRoute injected = loadInjection.apply(request);
             if (injected != null) {
                 return injected;
             }
         }
-        List<GeoPoint> points = request.points();
+        return detourRoute(request.points());
+    }
+
+    /** 인접 지점마다 직선거리에 {@link #ROAD_DETOUR_FACTOR} 를 곱한 정상 응답 구간을 만든다. */
+    private static RoadRoute detourRoute(List<GeoPoint> points) {
         List<RoadLeg> legs = new ArrayList<>(points.size() - 1);
         for (int i = 0; i < points.size() - 1; i++) {
             GeoPoint from = points.get(i);
@@ -150,51 +137,6 @@ public class StubMapRouteClient implements MapRouteClient {
             legs.add(new RoadLeg(meters, secondsFor(meters), List.of(from, to)));
         }
         return new RoadRoute(legs, false);
-    }
-
-    /**
-     * 부하 주입 3종을 이 순서로 적용한다 — 격벽(동시성) → 지연(타임아웃) → 실패율. 실 시스템의
-     * 계층 순서(격벽이 가장 바깥, 그 다음 응답 대기, 실패는 응답을 받은 뒤에야 가른다)와 같다.
-     *
-     * @return 폴백으로 흡수됐으면 그 {@link RoadRoute}, 아무 주입도 걸리지 않았으면 {@code null}
-     *         (호출부가 정상 경로를 계속 계산한다)
-     * @throws MapRouteUnavailableException {@code failure-rate} 로 뽑힌 실패가 {@code ON_DEMAND}
-     *                                       호출자에게 서킷 개방으로 올라갈 때
-     */
-    private RoadRoute applyLoadInjection(RoadRouteRequest request) {
-        int current = inFlight.incrementAndGet();
-        try {
-            if (current > maxConcurrent) {
-                loadMetrics.recordThrottled(request.caller());
-                return StraightLineLegs.approximate(request.points());
-            }
-            if (maxDelayMs > 0) {
-                long delay = ThreadLocalRandom.current().nextLong(minDelayMs, maxDelayMs + 1);
-                if (delay >= request.timeout().toMillis()) {
-                    loadMetrics.recordTimeout();
-                    return StraightLineLegs.approximate(request.points());
-                }
-                sleepUninterruptibly(delay);
-            }
-            if (failureRate > 0 && ThreadLocalRandom.current().nextDouble() < failureRate) {
-                loadMetrics.recordFailureInjected();
-                if (request.caller() == CallerPolicy.ON_DEMAND) {
-                    throw new MapRouteUnavailableException("부하 시험 주입 실패(서킷 개방 모사)", null, true);
-                }
-                return StraightLineLegs.approximate(request.points());
-            }
-            return null;
-        } finally {
-            inFlight.decrementAndGet();
-        }
-    }
-
-    private static void sleepUninterruptibly(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     private static boolean hasUnavailableMarker(List<GeoPoint> points) {

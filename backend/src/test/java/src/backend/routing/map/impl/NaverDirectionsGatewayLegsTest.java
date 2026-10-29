@@ -11,7 +11,7 @@ import src.backend.global.location.GeoPoint;
 import src.backend.routing.map.spec.RoadLeg;
 
 /**
- * {@code NaverDirectionsGateway.legsOf(List, Summary)} — NCP 가 준 구간별 실측값을 우선 쓰고,
+ * {@code NaverLegParser.legsOf(List, Summary)} — NCP 가 준 구간별 실측값을 우선 쓰고,
  * 값이 없거나 개수가 안 맞을 때만 {@link StraightLineLegs#distribute} 로 대체하는 분기를 고정한다.
  *
  * <p>실 HTTP 호출 없이 {@code Summary} 를 직접 조립해 검사한다 — 파싱된 이후의 분기 로직만 여기서
@@ -30,12 +30,12 @@ class NaverDirectionsGatewayLegsTest {
     @Test
     void 실측_구간값이_있으면_그대로_쓰고_합이_총합과_정확히_같다() {
         List<GeoPoint> points = 지점_여러개(3);
-        NaverDirectionsGateway.Summary summary = new NaverDirectionsGateway.Summary(
+        NaverDrivingResponse.Summary summary = new NaverDrivingResponse.Summary(
                 200, 3000,
-                List.of(new NaverDirectionsGateway.WaypointLeg(30, 1500)),
-                new NaverDirectionsGateway.GoalLeg(170.0, 1500.0));
+                List.of(new NaverDrivingResponse.WaypointLeg(30, 1500)),
+                new NaverDrivingResponse.GoalLeg(170.0, 1500.0));
 
-        List<RoadLeg> legs = NaverDirectionsGateway.legsOf(points, summary);
+        List<RoadLeg> legs = NaverLegParser.legsOf(points, summary);
 
         assertThat(legs).hasSize(2);
         assertThat(legs.get(0).distanceMeters())
@@ -64,13 +64,13 @@ class NaverDirectionsGatewayLegsTest {
     @Test
     void 구간이_셋_이상이면_중간_구간도_누적_반올림으로_정확하다() {
         List<GeoPoint> points = 지점_여러개(4);
-        NaverDirectionsGateway.Summary summary = new NaverDirectionsGateway.Summary(
+        NaverDrivingResponse.Summary summary = new NaverDrivingResponse.Summary(
                 300, 4500,
-                List.of(new NaverDirectionsGateway.WaypointLeg(100, 1500),
-                        new NaverDirectionsGateway.WaypointLeg(100, 1500)),
-                new NaverDirectionsGateway.GoalLeg(100.0, 1500.0));
+                List.of(new NaverDrivingResponse.WaypointLeg(100, 1500),
+                        new NaverDrivingResponse.WaypointLeg(100, 1500)),
+                new NaverDrivingResponse.GoalLeg(100.0, 1500.0));
 
-        List<RoadLeg> legs = NaverDirectionsGateway.legsOf(points, summary);
+        List<RoadLeg> legs = NaverLegParser.legsOf(points, summary);
 
         assertThat(legs).hasSize(3);
         assertThat(legs.stream().map(RoadLeg::durationSeconds).toList())
@@ -88,9 +88,9 @@ class NaverDirectionsGatewayLegsTest {
     @Test
     void 경유지가_없으면_직선비율_배분으로_대체한다() {
         List<GeoPoint> points = 지점_여러개(2);
-        NaverDirectionsGateway.Summary summary = new NaverDirectionsGateway.Summary(500, 6000, null, null);
+        NaverDrivingResponse.Summary summary = new NaverDrivingResponse.Summary(500, 6000, null, null);
 
-        List<RoadLeg> legs = NaverDirectionsGateway.legsOf(points, summary);
+        List<RoadLeg> legs = NaverLegParser.legsOf(points, summary);
 
         assertThat(legs).hasSize(1);
         assertThat(legs.getFirst().distanceMeters()).isEqualTo(500);
@@ -106,13 +106,13 @@ class NaverDirectionsGatewayLegsTest {
     void 실측_구간_수가_안_맞으면_직선비율_배분으로_대체한다() {
         List<GeoPoint> points = 지점_여러개(3);
         // 구간은 2개인데 waypoints 가 2개(1개여야 함) — 개수 불일치.
-        NaverDirectionsGateway.Summary summary = new NaverDirectionsGateway.Summary(
+        NaverDrivingResponse.Summary summary = new NaverDrivingResponse.Summary(
                 200, 3000,
-                List.of(new NaverDirectionsGateway.WaypointLeg(50, 500),
-                        new NaverDirectionsGateway.WaypointLeg(50, 500)),
-                new NaverDirectionsGateway.GoalLeg(100.0, 2000.0));
+                List.of(new NaverDrivingResponse.WaypointLeg(50, 500),
+                        new NaverDrivingResponse.WaypointLeg(50, 500)),
+                new NaverDrivingResponse.GoalLeg(100.0, 2000.0));
 
-        List<RoadLeg> legs = NaverDirectionsGateway.legsOf(points, summary);
+        List<RoadLeg> legs = NaverLegParser.legsOf(points, summary);
 
         List<RoadLeg> 기대값 = StraightLineLegs.distribute(points, 200, 3);
         assertThat(legs)
@@ -142,11 +142,11 @@ class NaverDirectionsGatewayLegsTest {
         GeoPoint destination = new GeoPoint(new BigDecimal("37.561000"), new BigDecimal("126.971000"));
         List<GeoPoint> segment = List.of(origin, duplicateOfOrigin, destination);
 
-        List<GeoPoint> distinct = NaverDirectionsGateway.withoutConsecutiveDuplicates(segment);
+        List<GeoPoint> distinct = NaverLegParser.withoutConsecutiveDuplicates(segment);
         assertThat(distinct).as("연속 중복은 하나로 걷어내야 한다").containsExactly(origin, destination);
 
         List<RoadLeg> measured = List.of(new RoadLeg(120, 30, List.of()));
-        List<RoadLeg> legs = NaverDirectionsGateway.expand(segment, measured);
+        List<RoadLeg> legs = NaverLegParser.expand(segment, measured);
         assertThat(legs).hasSize(2);
         assertThat(legs.get(0))
                 .as("중복이 걷힌 첫 구간은 거리·시간 0 이어야 한다 -- API 에 안 보냈으니 값을 지어내지 않는다")
@@ -160,7 +160,7 @@ class NaverDirectionsGatewayLegsTest {
      */
     @Test
     void 지점_전부가_한_자리면_0인_leg_들로만_답한다() {
-        List<RoadLeg> legs = NaverDirectionsGateway.zeroLegs(3);
+        List<RoadLeg> legs = NaverLegParser.zeroLegs(3);
 
         assertThat(legs).hasSize(3);
         assertThat(legs).allSatisfy(leg -> assertThat(leg).isEqualTo(new RoadLeg(0, 0, List.of())));

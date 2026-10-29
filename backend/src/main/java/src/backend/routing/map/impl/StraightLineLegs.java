@@ -56,7 +56,7 @@ final class StraightLineLegs {
      * 공급자가 준 구간 총합을 직선거리 비율로 갈라 구간별 값을 만든다 — <b>갈린 값의 합은 총합과
      * 정확히 같다.</b>
      *
-     * <p>{@code NaverDirectionsGateway.legsOf(List, Summary)} 가 <b>먼저 구간별 실측값
+     * <p>{@code NaverLegParser.legsOf(List, Summary)} 가 <b>먼저 구간별 실측값
      * ({@code summary.waypoints[]}·{@code goal})을 시도하고, 그 값이 없을 때만</b> 이 메서드로
      * 넘어온다 — 경유지가 없어 구간이 하나뿐이거나(총합 자체가 그 구간 값이라 배분이 무의미) 응답이
      * 예상과 다른 개수를 줄 때다(실 API 확인 — NCP 는 경유지가 있으면 구간별 실측값을
