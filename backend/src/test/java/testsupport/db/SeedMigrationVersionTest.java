@@ -81,7 +81,7 @@ class SeedMigrationVersionTest extends MigratedPostgresTestBase {
     @Test
     void QA_시드를_이미_적용한_demo_DB_는_뒤늦게_생긴_V2_를_받고_기동한다() throws SQLException {
         List<String> seeded = migrate(false, false, "demo");
-        assertThat(seeded).as("V2 가 없던 시절 demo 가 적용한 버전").containsExactly("1", "900", "901");
+        assertThat(seeded).as("V2 가 없는 상태의 demo DB 가 적용한 버전").containsExactly("1", "900", "901");
 
         List<String> upgraded = migrate(true, false, "demo");
 
