@@ -62,8 +62,9 @@ public interface RunPositionRepository extends JpaRepository<RunPosition, Long> 
             @Param("until") OffsetDateTime until);
 
     /**
-     * 위치 1건을 적재하되, {@code windowStart} 이후에 받은 위치가 이 회차에 이미 있으면(겹쳐 온 송신이 먼저 커밋된 경우) 적재하지 않는다 — 한 회차의 송신을 줄 세우는
-     * 회차 행 잠금을 쥔 채 부른다. 잠금 뒤 새 문장이라 먼저 커밋된 행이 보이고, 어느 쪽이 먼저 커밋됐든 하나만 남는다.
+     * 위치 1건을 적재하되, 이 위치의 수신 시각 직전 1초({@code windowStart} 이상 {@code receivedAt} 이하)에 받은 위치가 이 회차에 이미 있으면(겹쳐 온 송신이
+     * 먼저 커밋된 경우) 적재하지 않는다 — 한 회차의 송신을 줄 세우는 회차 행 잠금을 쥔 채 부른다. 잠금 뒤 새 문장이라 먼저 커밋된 행이 보인다. 수신 시각이 이 위치보다 늦은 행은
+     * 막지 못한다 — 시계가 빠른 다른 인스턴스나 시계를 되돌린 서버가 남긴 행이 뒤따르는 위치를 계속 막지 않게 하는 {@code PositionIntakeGuard} 의 음수 간격 규칙과 같다.
      * {@code recordedFloor} 는 일 파티션 가지치기용 하한이다(기기 시각은 수신 시각과 허용 오차 안으로만 저장된다).
      *
      * @return 적재했으면 1, 겹친 송신이 먼저 있어 적재하지 않았으면 0
@@ -75,7 +76,7 @@ public interface RunPositionRepository extends JpaRepository<RunPosition, Long> 
             SELECT :runId, :lat, :lng, :recordedAt, :receivedAt, CAST(:speed AS numeric), CAST(:heading AS numeric)
             WHERE NOT EXISTS (
                 SELECT 1 FROM run_position
-                WHERE run_id = :runId AND recorded_at >= :recordedFloor AND received_at >= :windowStart)
+                WHERE run_id = :runId AND recorded_at >= :recordedFloor AND received_at >= :windowStart AND received_at <= :receivedAt)
             """, nativeQuery = true)
     int insertUnlessOverlapping(@Param("runId") Long runId, @Param("lat") BigDecimal lat, @Param("lng") BigDecimal lng,
             @Param("recordedAt") OffsetDateTime recordedAt, @Param("receivedAt") OffsetDateTime receivedAt,
