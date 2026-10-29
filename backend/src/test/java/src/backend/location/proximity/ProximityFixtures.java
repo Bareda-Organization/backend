@@ -27,6 +27,7 @@ import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.repository.RunStopProximityRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
@@ -74,14 +75,28 @@ public class ProximityFixtures {
 
     private final RunStopRepository runStopRepository;
 
+    private final RunStopProximityRepository runStopProximityRepository;
+
     private final RunRiderRepository runRiderRepository;
 
+    /** 근접 선점 저장소 없이 만든다 — {@link #observeNear} 를 쓰지 않는 시험용이다. */
     public ProximityFixtures(AcademyRepository academyRepository, BusRepository busRepository,
             StopRepository stopRepository, StudentRepository studentRepository, AccountRepository accountRepository,
             GuardianRepository guardianRepository, GuardianStudentRepository guardianStudentRepository,
             RunRepository runRepository, ConfirmedRouteRepository confirmedRouteRepository,
             RouteVersionRepository routeVersionRepository, RunStopRepository runStopRepository,
             RunRiderRepository runRiderRepository) {
+        this(academyRepository, busRepository, stopRepository, studentRepository, accountRepository,
+                guardianRepository, guardianStudentRepository, runRepository, confirmedRouteRepository,
+                routeVersionRepository, runStopRepository, null, runRiderRepository);
+    }
+
+    public ProximityFixtures(AcademyRepository academyRepository, BusRepository busRepository,
+            StopRepository stopRepository, StudentRepository studentRepository, AccountRepository accountRepository,
+            GuardianRepository guardianRepository, GuardianStudentRepository guardianStudentRepository,
+            RunRepository runRepository, ConfirmedRouteRepository confirmedRouteRepository,
+            RouteVersionRepository routeVersionRepository, RunStopRepository runStopRepository,
+            RunStopProximityRepository runStopProximityRepository, RunRiderRepository runRiderRepository) {
         this.academyRepository = academyRepository;
         this.busRepository = busRepository;
         this.stopRepository = stopRepository;
@@ -93,6 +108,7 @@ public class ProximityFixtures {
         this.confirmedRouteRepository = confirmedRouteRepository;
         this.routeVersionRepository = routeVersionRepository;
         this.runStopRepository = runStopRepository;
+        this.runStopProximityRepository = runStopProximityRepository;
         this.runRiderRepository = runRiderRepository;
     }
 
@@ -110,6 +126,7 @@ public class ProximityFixtures {
                 context.getBean(ConfirmedRouteRepository.class),
                 context.getBean(RouteVersionRepository.class),
                 context.getBean(RunStopRepository.class),
+                context.getBean(RunStopProximityRepository.class),
                 context.getBean(RunRiderRepository.class));
     }
 
@@ -197,7 +214,7 @@ public class ProximityFixtures {
 
     /** 도착 처리 뒤 100m 안 관측을 기록한다(Ruling 875) — 출발 판정의 선행 조건을 직접 채워 이후 틱이 바로 출발을 판정하게 한다. */
     public void observeNear(long runStopId, OffsetDateTime observedAt) {
-        runStopRepository.claimNearObservation(runStopId, observedAt);
+        runStopProximityRepository.claimNearObservation(runStopId, observedAt);
     }
 
     /** 그 회차의 라이더 1건 — {@code ABSENT} 면 결석 처리까지 마친다(C-02 배제 시험용). */

@@ -2,16 +2,9 @@ package src.backend.location.proximity;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -22,14 +15,9 @@ import lombok.RequiredArgsConstructor;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.event.RunApproachingStopEvent;
 import src.backend.global.location.RunRiderDirectory;
-import src.backend.global.location.GeoPoint;
-import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.repository.ConfirmedRouteRepository;
-import src.backend.routing.repository.RunStopRepository;
+import src.backend.routing.repository.RunStopProximityRepository;
 import src.backend.run.command.StopDepartureService;
-import src.backend.student.entity.Stop;
-import src.backend.student.repository.StopRepository;
 
 /**
  * 회차 1건의 근접·출발 두 판정 — {@link #judgeRun} 이 위치(스케줄러가 회차 묶음당 Redis {@code MGET} 한 번으로 미리 읽어 넘긴다)로
@@ -38,7 +26,7 @@ import src.backend.student.repository.StopRepository;
  * 처리되지 않은 정차지에서 100m 밖으로 벗어났는지(Ruling 307)를 본다.
  *
  * <p><b>읽기와 선점을 가른다</b> — 읽기 트랜잭션은 "판정이 걸렸는가" 만 알아낸다. 걸린 판정(정차지당 한 번뿐이라 드물다)은 각자
- * 별도 트랜잭션에서 선점({@link RunStopRepository#claimProximityNotice} · {@link StopDepartureService#claimAndPublish}) 하고
+ * 별도 트랜잭션에서 선점({@link RunStopProximityRepository#claimProximityNotice} · {@link StopDepartureService#claimAndPublish}) 하고
  * 이벤트를 발행한다. 선점 뒤 이벤트 발행이 실패하면 <b>그 판정의 트랜잭션만</b> 롤백돼 선점도 함께 취소되고(다음 틱에 재시도) 다른
  * 판정은 영향이 없다 — 한 트랜잭션에 합치면 한 판정의 롤백이 다른 판정의 선점까지 되돌린다. 판정이 던진 예외는 호출자가 넘긴
  * {@code onFailure} 로 알리고 다른 판정은 이어서 돈다(BR-235 — 판정별 격리).
@@ -65,28 +53,19 @@ public class ProximityNotificationService {
         public static final RunTargets NONE = new RunTargets(null, null, null);
     }
 
-    /** 출발 판정의 읽기 결과 — 출발로 볼 정차 항목, 또는 이번 위치로 "100m 안 관측" 을 처음 기록할 정차 항목(둘 다 없을 수 있다). */
-    private record DepartureRead(RunStop departureStop, RunStop nearObservedStop) {
-        static final DepartureRead NONE = new DepartureRead(null, null);
-    }
-
     /** 판정이 던진 예외를 받는다 — 회차 · 판정마다 한 번씩 불린다. */
     @FunctionalInterface
     public interface FailureSink {
         void accept(Long runId, Judgment judgment, Exception e);
     }
 
-    private final ProximityJudge proximityJudge;
+    private final ProximityTargetReader proximityTargetReader;
 
-    private final ConfirmedRouteRepository confirmedRouteRepository;
-
-    private final RunStopRepository runStopRepository;
+    private final RunStopProximityRepository runStopProximityRepository;
 
     private final RunRiderDirectory runRiderDirectory;
 
     private final StopDepartureService stopDepartureService;
-
-    private final StopRepository stopRepository;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -106,7 +85,7 @@ public class ProximityNotificationService {
             return Map.of();
         }
         try {
-            return transactionTemplate.execute(status -> targetsOf(positions, onFailure));
+            return transactionTemplate.execute(status -> proximityTargetReader.targetsOf(positions, onFailure));
         } catch (Exception e) {
             // 트랜잭션 시작 · 조회가 실패했다 — 이 묶음은 두 판정 모두 이번 틱에 돌지 못했다
             positions.keySet().forEach(runId -> {
@@ -115,45 +94,6 @@ public class ProximityNotificationService {
             });
             return Map.of();
         }
-    }
-
-    private Map<Long, RunTargets> targetsOf(Map<Long, RunPositionRedisValue> positions, FailureSink onFailure) {
-        Map<Long, Long> versionIdByRun = new HashMap<>();
-        for (ConfirmedRoute route : confirmedRouteRepository.findAllByRunIdIn(positions.keySet())) {
-            if (route.getCurrentVersionId() != null) {
-                versionIdByRun.put(route.getRunId(), route.getCurrentVersionId());
-            }
-        }
-        if (versionIdByRun.isEmpty()) {
-            return Map.of();
-        }
-        List<Long> versionIds = versionIdByRun.values().stream().distinct().toList();
-        Map<Long, RunStop> nextUnarrivedByVersion = byVersion(runStopRepository.findNextUnarrivedOfVersions(versionIds));
-        Map<Long, RunStop> arrivedNotDepartedByVersion = byVersion(
-                runStopRepository.findFirstArrivedNotDepartedOfVersions(versionIds));
-        Set<Long> stopIds = new HashSet<>();
-        Stream.concat(nextUnarrivedByVersion.values().stream(), arrivedNotDepartedByVersion.values().stream())
-                .forEach(runStop -> stopIds.add(runStop.getStopId()));
-        Map<Long, Stop> stopsById = stopRepository.findAllByIdIn(stopIds).stream()
-                .collect(Collectors.toMap(Stop::getId, Function.identity()));
-
-        Map<Long, RunTargets> targets = new HashMap<>();
-        versionIdByRun.forEach((runId, versionId) -> {
-            RunPositionRedisValue position = positions.get(runId);
-            GeoPoint bus = new GeoPoint(position.lat(), position.lng());
-            RunStop approach = readIsolated(runId, Judgment.APPROACH, onFailure,
-                    () -> approachTarget(nextUnarrivedByVersion.get(versionId), stopsById, bus), null);
-            DepartureRead departure = readIsolated(runId, Judgment.DEPARTURE, onFailure,
-                    () -> departureTarget(arrivedNotDepartedByVersion.get(versionId), stopsById, bus, position),
-                    DepartureRead.NONE);
-            targets.put(runId, new RunTargets(approach, departure.departureStop(), departure.nearObservedStop()));
-        });
-        return targets;
-    }
-
-    private static Map<Long, RunStop> byVersion(List<RunStop> runStops) {
-        return runStops.stream().collect(Collectors.toMap(RunStop::getRouteVersionId, Function.identity(),
-                (first, duplicate) -> first));
     }
 
     /**
@@ -186,7 +126,7 @@ public class ProximityNotificationService {
         }
         if (targets.nearObservedStop() != null) {
             runIsolated(Judgment.DEPARTURE, onFailure, () -> transactionTemplate.executeWithoutResult(
-                    status -> runStopRepository.claimNearObservation(targets.nearObservedStop().getId(),
+                    status -> runStopProximityRepository.claimNearObservation(targets.nearObservedStop().getId(),
                             OffsetDateTime.now(clock))));
         }
         if (targets.departureStop() != null) {
@@ -195,46 +135,13 @@ public class ProximityNotificationService {
         }
     }
 
-    /** 다음 미도착 정차지가 300m 안이면 그 정차 항목, 아니면 {@code null}. */
-    private RunStop approachTarget(RunStop nextStop, Map<Long, Stop> stopsById, GeoPoint bus) {
-        if (nextStop == null) {
-            return null;
-        }
-        Stop stop = stopsById.get(nextStop.getStopId());
-        return stop != null && proximityJudge.isWithinThreshold(bus, new GeoPoint(stop.getLat(), stop.getLng()))
-                ? nextStop
-                : null;
-    }
-
-    /**
-     * 도착했지만 출발 처리 전인 첫 정차지의 출발 판정(Ruling 307·875). 도착 처리 뒤 그 정차지 100m 안에서 받은 위치가 아직 없으면(
-     * {@code near_observed_at} 이 비었으면) 100m 밖 위치는 출발이 아니다 — 안쪽이면서 도착 처리 <b>뒤</b>({@code receivedAt} 기준)에 받은
-     * 위치일 때만 "관측" 으로 기록한다. 관측이 끝내 없는 정차지는 다음 승하차지 도착·운행 종료의 강제 발송(Ruling 854)이 출발 처리한다.
-     */
-    private DepartureRead departureTarget(RunStop targetStop, Map<Long, Stop> stopsById, GeoPoint bus,
-            RunPositionRedisValue position) {
-        if (targetStop == null) {
-            return DepartureRead.NONE;
-        }
-        Stop stop = stopsById.get(targetStop.getStopId());
-        if (stop == null) {
-            return DepartureRead.NONE;
-        }
-        boolean outside = proximityJudge.hasDeparted(bus, new GeoPoint(stop.getLat(), stop.getLng()));
-        if (targetStop.getNearObservedAt() != null) {
-            return outside ? new DepartureRead(targetStop, null) : DepartureRead.NONE;
-        }
-        boolean receivedAfterArrival = !position.receivedAt().isBefore(targetStop.getArrivedAt());
-        return !outside && receivedAfterArrival ? new DepartureRead(null, targetStop) : DepartureRead.NONE;
-    }
-
     /**
      * 근접 선점 → 학생별 이벤트 발행을 한 트랜잭션으로 — 발행(동기 리스너가 알림을 아웃박스에 적재)이 실패하면 선점도 롤백돼
      * 다음 틱에 다시 판정한다. 선점이 0행이면 이미 다른 인스턴스가 먼저 선점한 것이다.
      */
     private void announceApproach(Long runId, Long academyId, RunStop nextStop) {
         transactionTemplate.executeWithoutResult(status -> {
-            int claimed = runStopRepository.claimProximityNotice(nextStop.getId(), OffsetDateTime.now(clock));
+            int claimed = runStopProximityRepository.claimProximityNotice(nextStop.getId(), OffsetDateTime.now(clock));
             if (claimed == 0) {
                 return;
             }
@@ -245,15 +152,6 @@ public class ProximityNotificationService {
                         new RunApproachingStopEvent(runId, academyId, studentId, nextStop.getStopId(), judgedAt));
             }
         });
-    }
-
-    private <T> T readIsolated(Long runId, Judgment judgment, FailureSink onFailure, Supplier<T> read, T onError) {
-        try {
-            return read.get();
-        } catch (Exception e) {
-            onFailure.accept(runId, judgment, e);
-            return onError;
-        }
     }
 
     private void runIsolated(Judgment judgment, BiConsumer<Judgment, Exception> onFailure, Runnable action) {

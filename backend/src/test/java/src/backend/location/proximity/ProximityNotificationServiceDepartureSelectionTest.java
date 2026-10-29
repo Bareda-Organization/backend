@@ -19,6 +19,7 @@ import src.backend.bus.repository.BusRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
+import src.backend.routing.repository.RunStopProximityRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
@@ -29,7 +30,7 @@ import src.backend.student.repository.StudentRepository;
 import testsupport.location.ProximityJudging;
 
 /**
- * {@link ProximityNotificationService#judgeDeparture} 의 <b>선정과 거리 판정의 결합</b>(Ruling 307) — {@code judgeDeparture} 는 {@link RunStopRepository#findFirstArrivedNotDeparted}
+ * {@link ProximityNotificationService#judgeDeparture} 의 <b>선정과 거리 판정의 결합</b>(Ruling 307) — {@code judgeDeparture} 는 {@link RunStopProximityRepository#findFirstArrivedNotDepartedOfVersions}
  * 가 고른 정차지의 {@code stopId} 로 좌표를 다시 조회해 그 좌표로 거리 판정을 한다. 정차지 1건짜리
  * 시험({@link ProximityNotificationServiceTest})과 저장소만 보는 선정 시험
  * ({@link RunStopDepartureSelectionTest})은 각자 따로 통과해도, 그 사이의 결합 — "고른 id 의 좌표를
@@ -98,6 +99,9 @@ class ProximityNotificationServiceDepartureSelectionTest {
     private RunStopRepository runStopRepository;
 
     @Autowired
+    private RunStopProximityRepository runStopProximityRepository;
+
+    @Autowired
     private RunRiderRepository runRiderRepository;
 
     @AfterEach
@@ -115,7 +119,8 @@ class ProximityNotificationServiceDepartureSelectionTest {
         OffsetDateTime now = OffsetDateTime.now();
         ProximityFixtures fx = new ProximityFixtures(academyRepository, busRepository, stopRepository,
                 studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository);
+                confirmedRouteRepository, routeVersionRepository, runStopRepository, runStopProximityRepository,
+                runRiderRepository);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
