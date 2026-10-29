@@ -9,7 +9,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import src.backend.academy.repository.AcademyRepository;
@@ -29,7 +28,7 @@ import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentRepository;
 
 /**
- * {@link RunStopRepository#findFirstArrivedNotDeparted} 의 대상 선정(Ruling 307) —
+ * {@link RunStopRepository#findFirstArrivedNotDepartedOfVersions} 의 대상 선정(Ruling 307) —
  * 신호 유실로 도착·미출발 정차지가 여러 개 쌓였을 때 ①{@code seq} 최솟값 1건만 선정되고
  * ②{@link StopDepartureService#claimAndPublish} 로 그 1건을 처리하면 다음 틱은 그다음
  * {@code seq} 를 순서대로 선정하는지 본다.
@@ -116,24 +115,24 @@ class RunStopDepartureSelectionTest {
         fx.arriveStop(runStopSeq1, now);
         fx.arriveStop(runStopSeq2, now);
 
-        List<RunStop> 첫번째_틱_대상 = runStopRepository.findFirstArrivedNotDeparted(versionId, PageRequest.of(0, 1));
+        List<RunStop> 첫번째_틱_대상 = runStopRepository.findFirstArrivedNotDepartedOfVersions(List.of(versionId));
         assertThat(첫번째_틱_대상).as("①seq 최솟값(1) 1건만 대상이어야 한다 — 개수가 아니라 어느 id 인지로 본다")
                 .extracting(RunStop::getId).containsExactly(runStopSeq1);
 
         stopDepartureService.claimAndPublish(첫번째_틱_대상.get(0), runId, academyId, now.plusMinutes(1));
 
-        List<RunStop> 두번째_틱_대상 = runStopRepository.findFirstArrivedNotDeparted(versionId, PageRequest.of(0, 1));
+        List<RunStop> 두번째_틱_대상 = runStopRepository.findFirstArrivedNotDepartedOfVersions(List.of(versionId));
         assertThat(두번째_틱_대상).as("②seq 1이 처리됐으니 다음은 seq 2여야 한다").extracting(RunStop::getId)
                 .containsExactly(runStopSeq2);
 
         stopDepartureService.claimAndPublish(두번째_틱_대상.get(0), runId, academyId, now.plusMinutes(2));
 
-        List<RunStop> 세번째_틱_대상 = runStopRepository.findFirstArrivedNotDeparted(versionId, PageRequest.of(0, 1));
+        List<RunStop> 세번째_틱_대상 = runStopRepository.findFirstArrivedNotDepartedOfVersions(List.of(versionId));
         assertThat(세번째_틱_대상).as("③그다음은 seq 3이어야 한다").extracting(RunStop::getId).containsExactly(runStopSeq3);
 
         stopDepartureService.claimAndPublish(세번째_틱_대상.get(0), runId, academyId, now.plusMinutes(3));
 
-        assertThat(runStopRepository.findFirstArrivedNotDeparted(versionId, PageRequest.of(0, 1)))
+        assertThat(runStopRepository.findFirstArrivedNotDepartedOfVersions(List.of(versionId)))
                 .as("④셋 다 처리됐으면 더 이상 대상이 없어야 한다").isEmpty();
     }
 }
