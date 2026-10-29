@@ -63,7 +63,10 @@ public class RunConfirmationScheduler {
     /** 예기치 못한 예외(버그·인프라 장애)의 스택은 분당 한 번만 남긴다 — 설정 오류는 스택 없이 한 줄이라 이 제한을 받지 않는다. */
     private final RateLimitedWarn unexpectedFailure = RateLimitedWarn.perMinute(log);
 
-    /** 틱이 정상 반환한 시각을 남긴다 — 관리자 대시보드 {@code confirm_batch} 칸이 인스턴스와 무관하게 읽는다. */
+    /**
+     * 회차 하나가 끝날 때마다와 틱이 정상 반환할 때 그 시각을 남긴다 — 관리자 대시보드 {@code confirm_batch} 칸이 인스턴스와 무관하게 읽는다. 회차가 많고 지도 호출이 느린
+     * 틱도 건강한 동안은 회차가 끝나는 대로 시각이 갱신되어 {@code down} 으로 보이지 않는다.
+     */
     private final ConfirmationBatchHeartbeat heartbeat;
 
     /**
@@ -91,8 +94,10 @@ public class RunConfirmationScheduler {
                 PageRequest.of(0, BATCH_SIZE));
 
         List<CompletableFuture<Void>> tasks = dueRuns.stream()
-                .map(run -> CompletableFuture.runAsync(
-                        () -> confirmSafely(run.getId(), run.getConsecutiveFailures()), runConfirmationExecutor))
+                .map(run -> CompletableFuture.runAsync(() -> {
+                    confirmSafely(run.getId(), run.getConsecutiveFailures());
+                    heartbeat.markSuccess();
+                }, runConfirmationExecutor))
                 .toList();
         CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
         heartbeat.markSuccess();
