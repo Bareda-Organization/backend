@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.zaxxer.hikari.HikariDataSource;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.lettuce.core.ClientOptions;
 
 import src.backend.global.common.enums.AccountStatus;
@@ -79,6 +81,18 @@ class RedisUnresponsiveTest {
 
     @Autowired
     private RedisConnectionFactory redisConnectionFactory;
+
+    @Autowired
+    private CircuitBreakerRegistry circuitBreakerRegistry;
+
+    /**
+     * 시험마다 {@code redis} 서킷을 닫힌 상태로 시작한다 — 앞 시험이 얼린 Redis 에서 낸 실패(위치 수신은 중복 판정 읽기 · 최신 좌표 쓰기 ·
+     * 방송 중계 발행이 각자 센다)가 서킷을 열어 둔 채 남으면, 다음 시험의 명령이 Redis 를 기다리지 않고 곧바로 거절돼 "대기 중" 을 잴 수 없다.
+     */
+    @BeforeEach
+    void 서킷을_닫고_시작한다() {
+        circuitBreakerRegistry.circuitBreaker("redis").reset();
+    }
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
