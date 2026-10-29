@@ -9,14 +9,21 @@ import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.mockito.Mockito;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+
+import tools.jackson.databind.json.JsonMapper;
 
 import src.backend.global.websocket.WebSocketBroadcastGateway;
 import src.backend.location.dto.RunPositionRedisValue;
@@ -44,9 +51,13 @@ class RunPositionLateCommitTest {
     @MockitoSpyBean
     private WebSocketBroadcastGateway gateway;
 
+    @MockitoSpyBean
+    private StringRedisTemplate redis;
+
     @BeforeEach
+    @AfterEach
     void 방송_기록을_비운다() {
-        reset(gateway);
+        reset(gateway, redis);
     }
 
     @Test
@@ -91,6 +102,32 @@ class RunPositionLateCommitTest {
         runPositionStore.save(runId, 값("37.500000", T0.plusSeconds(2).withOffsetSameInstant(java.time.ZoneOffset.UTC)));
 
         assertThat(runPositionStore.find(runId).orElseThrow().lat()).isEqualByComparingTo("37.510000");
+    }
+
+    @Test
+    void 읽은_뒤_쓰기_전에_더_새로운_값이_들어오면_그_값을_덮어쓰지_않는다() throws Exception {
+        long runId = RUN_IDS.incrementAndGet();
+        String key = "run:" + runId + ":position";
+        runPositionStore.save(runId, 값("37.500000", T0.plusSeconds(2)));
+        String newer = JsonMapper.builder().build().writeValueAsString(값("37.590000", T0.plusSeconds(9)));
+        ValueOperations<String, String> real = redis.opsForValue();
+        ValueOperations<String, String> afterRead = Mockito.spy(real);
+        AtomicBoolean injected = new AtomicBoolean();
+        Mockito.doAnswer(invocation -> {
+            Object read = invocation.callRealMethod();
+            if (injected.compareAndSet(false, true)) {
+                real.set(key, newer);
+            }
+            return read;
+        }).when(afterRead).get(key);
+        Mockito.doReturn(afterRead).when(redis).opsForValue();
+
+        runPositionStore.save(runId, 값("37.510000", T0.plusSeconds(3)));
+
+        assertThat(injected).as("읽은 직후 새 값이 끼어들었다").isTrue();
+        assertThat(runPositionStore.find(runId).orElseThrow().lat())
+                .as("읽은 값이 바뀌었으면 쓰지 않고 다시 읽어 판단한다 — 끼어든 더 새로운 값(37.59)이 남아야 한다")
+                .isEqualByComparingTo("37.590000");
     }
 
     private static RunPositionReceivedEvent 이벤트(long runId, String lat, OffsetDateTime recordedAt) {

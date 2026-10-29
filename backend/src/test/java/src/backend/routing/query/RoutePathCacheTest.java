@@ -107,6 +107,18 @@ class RoutePathCacheTest {
     }
 
     @Test
+    void 직선_근사_경로는_캐시하지_않아_다음_조회가_지도를_다시_부른다() throws Exception {
+        when(mapRouteClient.route(any())).thenReturn(
+                new RoadRoute(List.of(new RoadLeg(700, 100, PATH), new RoadLeg(500, 60, List.of())), true));
+        long routeId = 편성한다("fri", "[1,2]");
+
+        경로를_조회한다(routeId);
+        경로를_조회한다(routeId);
+
+        verify(mapRouteClient, times(2)).route(any());
+    }
+
+    @Test
     void Redis_가_안_되어도_경로를_지도로_계산해_답한다() throws Exception {
         long routeId = 편성한다("wed", "[1,2]");
         doAnswer(invocation -> {

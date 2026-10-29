@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -53,6 +55,8 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.controller.DriverRunFixtures;
+import testsupport.clock.AdvanceableClock;
+import testsupport.clock.AdvanceableClockConfig;
 import src.backend.run.event.StopArrivedEvent;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.repository.GuardianRepository;
@@ -70,9 +74,14 @@ import src.backend.student.repository.StudentRepository;
 @SpringBootTest(properties = {"spring.jpa.properties.hibernate.generate_statistics=true",
         "app.security.account-standing-cache-ttl=5s"})
 @AutoConfigureMockMvc
+@Import(AdvanceableClockConfig.class)
 class RunPositionQueryCountTest {
 
+    /** 중복·과다 수신 차단(1초)을 넘기려고 위치를 보낼 때마다 시계를 이만큼 앞으로 민다. */
+    private static final Duration SEND_INTERVAL = Duration.ofMillis(1100);
+
     @Autowired private ApplicationContext applicationContext;
+    @Autowired private AdvanceableClock clock;
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtTokenProvider tokenProvider;
     @Autowired private EntityManagerFactory entityManagerFactory;
@@ -106,6 +115,7 @@ class RunPositionQueryCountTest {
 
     @AfterEach
     void 뒷정리한다() {
+        clock.reset();
         for (Long academyId : academyIds) {
             jdbcTemplate.update("DELETE FROM run_position WHERE run_id IN (SELECT id FROM run WHERE academy_id = ?)",
                     academyId);
@@ -182,10 +192,10 @@ class RunPositionQueryCountTest {
     @DisplayName("RT-5 — 실제 요청 경로로 데워진 위치 3건의 SQL 은 각각 3건 이하다(계정 상태 캐시 5초)")
     void 데워진_실제_요청_3건의_SQL_은_각각_3건_이하다() throws Exception {
         Seeded seeded = 회차를_심는다(true);
-        위치를_보낸다(seeded, 0);
+        위치를_보낸다(seeded);
 
         for (int i = 1; i <= 3; i++) {
-            assertThat(위치를_보내고_SQL_수를_센다(seeded, i)).as("데워진 %d번째 요청", i).isLessThanOrEqualTo(3);
+            assertThat(위치를_보내고_SQL_수를_센다(seeded)).as("데워진 %d번째 요청", i).isLessThanOrEqualTo(3);
         }
     }
 
@@ -280,28 +290,32 @@ class RunPositionQueryCountTest {
         return new Seeded(academyId, runId, driverAccountId, now);
     }
 
+    /**
+     * 위치 1건을 요청 경로로 보낸다 — 앞 위치보다 새로운 기록 시각과 1초 넘는 수신 간격으로 보내, 중복·과다 수신 차단에 걸러지지 않고
+     * 매번 적재되게 한다.
+     */
     private void 위치를_보낸다(Seeded seeded) throws Exception {
-        위치를_보낸다(seeded, 0);
-    }
-
-    /** {@code sequence} 번째 요청 — 기록 시각을 1초씩 앞으로 보내 앞 위치보다 오래된 값으로 걸러지지 않게 한다. */
-    private void 위치를_보낸다(Seeded seeded, int sequence) throws Exception {
+        clock.advance(SEND_INTERVAL);
         mockMvc.perform(post("/api/v1/runs/" + seeded.runId() + "/position")
                         .header("Authorization", "Bearer " + tokenProvider.createAccessToken(seeded.driverAccountId(),
                                 seeded.academyId(), Role.DRIVER, AccountStatus.ACTIVE))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"lat": 37.561000, "lng": 126.971000, "recorded_at": "%s"}
-                                """.formatted(seeded.now().minusSeconds(2).plusSeconds(sequence))))
+                                """.formatted(OffsetDateTime.now(clock).minusSeconds(1))))
                 .andExpect(status().isNoContent());
     }
 
 
-    /** 인증 필터를 거치지 않고 서비스를 직접 부른다 — 위치 경로의 SQL(인가 · 회차 · INSERT · 목록)만 센다. */
+    /**
+     * 인증 필터를 거치지 않고 서비스를 직접 부른다 — 위치 경로의 SQL(인가 · 회차 · INSERT · 목록)만 센다. 요청 경로와 같이 시계를 앞으로 밀고 새 기록
+     * 시각으로 보내 중복·과다 수신 차단에 걸러지지 않게 한다.
+     */
     private void 직접_보낸다(Seeded seeded) {
+        clock.advance(SEND_INTERVAL);
         AuthUser driver = new AuthUser(seeded.driverAccountId(), seeded.academyId(), Role.DRIVER, AccountStatus.ACTIVE, false);
         positionCommandService.receive(driver, seeded.runId(), new RunPositionRequest(new java.math.BigDecimal("37.561000"),
-                new java.math.BigDecimal("126.971000"), seeded.now().minusSeconds(2), null, null));
+                new java.math.BigDecimal("126.971000"), OffsetDateTime.now(clock).minusSeconds(1), null, null));
     }
 
     private long 직접_보내고_SQL_수를_센다(Seeded seeded) {
@@ -313,13 +327,9 @@ class RunPositionQueryCountTest {
 
     /** Hibernate 가 준비한 문장 수의 요청 전후 차이 — 커밋 뒤 리스너(탑승자 조회)까지 같은 스레드라 포함된다. */
     private long 위치를_보내고_SQL_수를_센다(Seeded seeded) throws Exception {
-        return 위치를_보내고_SQL_수를_센다(seeded, 0);
-    }
-
-    private long 위치를_보내고_SQL_수를_센다(Seeded seeded, int sequence) throws Exception {
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         long before = statistics.getPrepareStatementCount();
-        위치를_보낸다(seeded, sequence);
+        위치를_보낸다(seeded);
         return statistics.getPrepareStatementCount() - before;
     }
 

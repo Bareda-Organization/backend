@@ -13,6 +13,7 @@ import static testsupport.auth.TestTokens.토큰;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -21,7 +22,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.mockito.Mockito;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -81,13 +85,17 @@ class RunPositionDedupeTest {
 
     private final List<Long> academyIds = new ArrayList<>();
 
+    @MockitoSpyBean
+    private StringRedisTemplate redis;
+
     @BeforeEach
     void 방송_기록을_비운다() {
-        reset(gateway);
+        reset(gateway, redis);
     }
 
     @AfterEach
     void 뒷정리한다() {
+        reset(redis);
         clock.reset();
         if (academyIds.isEmpty()) {
             return;
@@ -151,6 +159,25 @@ class RunPositionDedupeTest {
         assertThat(행_수(run)).as("1초가 지난 새 위치는 받는다").isEqualTo(2);
         verify(gateway, times(2)).broadcast(eq("position"), eq(run.runId()), any(), any());
         assertThat(runPositionStore.find(run.runId()).orElseThrow().lat()).isEqualByComparingTo("37.520000");
+    }
+
+    @Test
+    void 마지막_위치를_Redis_에서_못_읽으면_버리지_않고_받아들인다() throws Exception {
+        MovingRun run = 움직이는_회차를_만든다();
+        OffsetDateTime recordedAt = OffsetDateTime.now(clock).minusSeconds(3);
+        위치를_보낸다(run, "37.500000", recordedAt);
+        clock.advance(Duration.ofSeconds(5));
+        Mockito.doAnswer(invocation -> {
+            if (Arrays.stream(Thread.currentThread().getStackTrace())
+                    .anyMatch(frame -> frame.getMethodName().equals("findAcceptedInRedis"))) {
+                throw new RedisConnectionFailureException("redis down");
+            }
+            return invocation.callRealMethod();
+        }).when(redis).opsForValue();
+
+        위치를_보낸다(run, "37.510000", recordedAt);
+
+        assertThat(행_수(run)).as("Redis 로 판단할 수 없으면 같은 recorded_at 도 받아들인다").isEqualTo(2);
     }
 
     private void 위치를_보낸다(MovingRun run, String lat, OffsetDateTime recordedAt) throws Exception {

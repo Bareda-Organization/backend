@@ -26,6 +26,7 @@ import src.backend.routing.dto.RouteDetailResponse;
 import src.backend.routing.dto.RouteOptimizeRequest;
 import src.backend.routing.dto.RouteRegisterRequest;
 import src.backend.routing.dto.RouteStopsSaveRequest;
+import src.backend.routing.dto.RouteUpdateRequest;
 
 /**
  * 한 노선의 정차 목록을 두 요청이 동시에 갈아 끼울 때 — 오류 없이 나중에 잠금을 얻은 요청의 순서가 남고,
@@ -123,6 +124,33 @@ class RouteStopConcurrencyTest {
                 .as("3번 승하차지를 고정했으니 잠금 뒤에 읽은 순서(3번이 첫째)에서 출발해 첫째 자리를 지켜야 한다")
                 .isEqualTo(3L);
         assertThat(저장된_순서(routeId)).hasSize(4).first().isEqualTo(3L);
+    }
+
+    @Test
+    void 정차_목록을_바꾸는_수정과_저장이_겹쳐도_오류_없이_나중_요청의_순서가_남는다() throws Exception {
+        long routeId = 편성한다(List.of(1L, 2L, 3L, 4L));
+        CountDownLatch 먼저_바꿨다 = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> 먼저 = pool.submit(() -> 트랜잭션(() -> {
+                routeCommandService.update(관계자A(), routeId,
+                        new RouteUpdateRequest(null, null, null, null, null, List.of(4L, 3L, 2L, 1L)));
+                먼저_바꿨다.countDown();
+                상대가_잠금을_기다릴_때까지_커밋을_미룬다();
+            }));
+            Future<?> 나중 = pool.submit(() -> {
+                먼저_바꿨다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                트랜잭션(() -> routeCommandService.saveStops(관계자A(), routeId, 저장요청(List.of(2L, 1L, 3L, 4L))));
+                return null;
+            });
+            먼저.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            나중.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        assertThat(저장된_순서(routeId)).containsExactly(2L, 1L, 3L, 4L);
     }
 
     private long 편성한다(List<Long> stopIds) {
