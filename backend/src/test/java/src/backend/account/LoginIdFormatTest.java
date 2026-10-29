@@ -5,6 +5,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,11 +34,24 @@ class LoginIdFormatTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    /** 이 시험이 만들기 전의 마지막 감사 행 번호 — 시험이 커밋한 login_fail 행만 세고 지운다. */
+    private long baseAuditId;
+
+    @BeforeEach
+    void 시작_전_감사_행_번호를_잡는다() {
+        baseAuditId = jdbcTemplate.queryForObject("SELECT COALESCE(max(id), 0) FROM audit_log", Long.class);
+    }
+
+    @AfterEach
+    void 시험이_남긴_로그인_실패_행을_지운다() {
+        jdbcTemplate.update("DELETE FROM audit_log WHERE action = 'login_fail' AND id > ?", baseAuditId);
+    }
+
     @Test
     void 형식에_맞는_미등록_아이디는_감사_행에_그대로_남는다() throws Exception {
         로그인한다("typo.id-1", "password").andExpect(status().isUnauthorized());
 
-        assertThat(마지막_실패_행의_아이디()).isEqualTo("typo.id-1");
+        assertThat(새_실패_행의_아이디들()).as("새로 생긴 login_fail 행").containsExactly("typo.id-1");
     }
 
     @Test
@@ -43,7 +60,8 @@ class LoginIdFormatTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"));
 
-        assertThat(마지막_실패_행의_아이디()).isNull();
+        assertThat(새_실패_행의_아이디들()).as("행은 하나 생기되 아이디 칸은 비어 있다 — 행이 아예 안 생긴 경우와 구별한다")
+                .hasSize(1).containsOnlyNulls();
     }
 
     @Test
@@ -76,9 +94,8 @@ class LoginIdFormatTest {
                 .content("{\"login_id\":\"%s\",\"password\":\"%s\"}".formatted(loginId, password)));
     }
 
-    private String 마지막_실패_행의_아이디() {
-        return jdbcTemplate.queryForObject(
-                "SELECT actor_login_id FROM audit_log WHERE action = 'login_fail' ORDER BY id DESC LIMIT 1",
-                String.class);
+    private List<String> 새_실패_행의_아이디들() {
+        return jdbcTemplate.query("SELECT actor_login_id FROM audit_log WHERE action = 'login_fail' AND id > ? ORDER BY id",
+                (rs, row) -> rs.getString(1), baseAuditId);
     }
 }

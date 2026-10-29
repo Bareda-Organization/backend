@@ -18,8 +18,8 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 
 /**
- * STOMP 구독 인가가 부르는 두 포트({@link StudentChannelAccess} · {@link RunChannelAccess})의 구현이 호출자 토큰의 학원 · 역할로 판정한다 —
- * 구독자가 남의 학원 학생 · 회차 채널을 얻지 못한다. 시드 계정은 로그인 아이디({@link SeedFixtures})로 찾는다: 학생 1 의 보호자 = parentA1,
+ * STOMP 구독 인가가 부르는 두 포트({@link StudentChannelAccess} · {@link RunChannelAccess})의 구현은 토큰의 계정 id · 역할로 찾은 행(보호자 · 배치)을 기준으로 판정한다 —
+ * 학원은 그 행이 가진 학원이다(보호자 행의 학원은 계정과 같다는 것을 복합 외래 키가 보장한다). 구독자가 남의 학원 학생 · 회차 채널을 얻지 못한다. 시드 계정은 로그인 아이디({@link SeedFixtures})로 찾는다: 학생 1 의 보호자 = parentA1,
  * 학생 3 은 그 보호자와 연결이 없는 학생, 학생 본인 계정 = studentA4, 회차 1 의 기사 = driverA1. 학원 B 의 계정은 parentB1 · driverB1 이다.
  */
 @SpringBootTest

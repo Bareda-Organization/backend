@@ -24,6 +24,7 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
+import src.backend.global.policy.PolicyConstants;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
@@ -74,7 +75,7 @@ class RunPositionStoreMissTest {
     @Test
     @DisplayName("키가 없을 때 읽는 범위는 위치가 낡았다고 보는 기준과 같은 값이다")
     void 범위는_낡음_기준과_같다() {
-        assertThat(RunPositionStore.MISS_LOOKBACK).isEqualTo(StudentBusPositionQueryService.STALE_THRESHOLD);
+        assertThat(RunPositionStore.MISS_LOOKBACK).isEqualTo(PolicyConstants.POSITION_STALE_THRESHOLD);
     }
 
     @Test
@@ -90,7 +91,7 @@ class RunPositionStoreMissTest {
         ArgumentCaptor<OffsetDateTime> since = forClass(OffsetDateTime.class);
         verify(repository).findLatestMovingByRunIdIn(any(), since.capture(), any());
         assertThat(Duration.between(since.getValue(), before)).as("조회 하한은 지금보다 낡음 기준만큼 앞")
-                .isBetween(StudentBusPositionQueryService.STALE_THRESHOLD.minusSeconds(5), StudentBusPositionQueryService.STALE_THRESHOLD.plusSeconds(5));
+                .isBetween(PolicyConstants.POSITION_STALE_THRESHOLD.minusSeconds(5), PolicyConstants.POSITION_STALE_THRESHOLD.plusSeconds(5));
 
         RunPositionRepository untouched = mock(RunPositionRepository.class);
         RunPositionStore withValue = new RunPositionStore(template, untouched, mock(RunStopRepository.class), new SimpleMeterRegistry(), Clock.systemUTC());

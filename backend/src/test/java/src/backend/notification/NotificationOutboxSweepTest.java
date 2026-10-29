@@ -27,7 +27,8 @@ import src.backend.notification.scheduler.NotificationOutboxWorker;
  * 포기되지 않으며, 실패한 비상 발송은 운영 지표로 센다.
  *
  * <p>발송기는 목으로 바꿔 성공·실패를 시험이 정한다. 발송 상태 전이가 {@code REQUIRES_NEW} 라 트랜잭션 없이 실제 커밋을 남기고, 심은 행과
- * 시드 미발송 행(id 4)의 상태는 앞뒤로 되돌린다.
+ * 시드 미발송 행(id 4)의 상태는 앞뒤로 되돌린다. 시드의 미발송 행이 id 4 하나뿐이라는 전제 위에 있다 — 다른 시험이 커밋한 {@code pending} 행이 있으면
+ * {@code sweep()} 이 그 행도 발송 처리하므로 이 클래스는 그런 행을 남기지 않는 시험들과만 같은 데이터베이스를 쓴다.
  */
 @SpringBootTest
 class NotificationOutboxSweepTest {

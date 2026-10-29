@@ -72,9 +72,9 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = RetentionSchedulerFactory.of(notificationLogRepository,
                 runPositionPartitionManager, refreshTokenRepository, linkCodeRepository, auditLogRepository,
                 retentionPolicy,
-                new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry()),
+                new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), new SimpleMeterRegistry()),
                 new WithdrawnStudentAnonymizer(studentRepository, studentAnonymizationService,
-                        new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry())),
+                        new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), new SimpleMeterRegistry())),
                 clock);
 
         scheduler.cleanUp();
@@ -107,9 +107,9 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = RetentionSchedulerFactory.of(notificationLogRepository,
                 runPositionPartitionManager, refreshTokenRepository, linkCodeRepository, auditLogRepository,
                 retentionPolicy,
-                new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry()),
+                new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), new SimpleMeterRegistry()),
                 new WithdrawnStudentAnonymizer(studentRepository, studentAnonymizationService,
-                        new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry())),
+                        new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), new SimpleMeterRegistry())),
                 clock);
 
         scheduler.cleanUp();
@@ -138,9 +138,9 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = RetentionSchedulerFactory.of(notificationLogRepository,
                 runPositionPartitionManager, refreshTokenRepository, linkCodeRepository, auditLogRepository,
                 retentionPolicy,
-                new RetentionTableCleaner(passThroughTransactions(), registry),
+                new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), registry),
                 new WithdrawnStudentAnonymizer(studentRepository, studentAnonymizationService,
-                        new RetentionTableCleaner(passThroughTransactions(), registry)),
+                        new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), registry)),
                 clock);
 
         scheduler.cleanUp();
@@ -166,9 +166,9 @@ class RetentionCleanupSchedulerBatchCapTest {
         RetentionCleanupScheduler scheduler = RetentionSchedulerFactory.of(notificationLogRepository,
                 runPositionPartitionManager, refreshTokenRepository, linkCodeRepository, auditLogRepository,
                 retentionPolicy,
-                new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry()),
+                new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), new SimpleMeterRegistry()),
                 new WithdrawnStudentAnonymizer(studentRepository, studentAnonymizationService,
-                        new RetentionTableCleaner(passThroughTransactions(), new SimpleMeterRegistry())),
+                        new RetentionTableCleaner(RetentionSchedulerFactory.passThroughTransactions(), new SimpleMeterRegistry())),
                 clock);
 
         scheduler.cleanUp();
@@ -184,11 +184,5 @@ class RetentionCleanupSchedulerBatchCapTest {
             ids.add(i);
         }
         return ids;
-    }
-
-    /** 트랜잭션 관리자를 흉내만 내는 통과 장치 — 이 시험은 묶음 상한만 본다(문장 시간 상한은 DataAccessSettingsTest). */
-    private static RetentionTransactions passThroughTransactions() {
-        return new RetentionTransactions(mock(org.springframework.transaction.PlatformTransactionManager.class),
-                mock(org.springframework.jdbc.core.JdbcTemplate.class));
     }
 }

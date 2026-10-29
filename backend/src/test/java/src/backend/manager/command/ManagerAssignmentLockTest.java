@@ -120,6 +120,26 @@ class ManagerAssignmentLockTest {
                 .isEqualTo("driver");
     }
 
+    @Test
+    void 역할_변경이_먼저이면_배치는_바뀐_역할을_보고_404_MANAGER_NOT_FOUND_로_끝난다() throws Exception {
+        Optional<ErrorCode> assignment = 먼저_하고_그동안_끼어든다(() -> managerCommandService.update(관계자A(), managerId,
+                new ManagerUpdateRequest(null, null, "escort", null)), this::배치한다);
+
+        assertThat(assignment).contains(ErrorCode.MANAGER_NOT_FOUND);
+        assertThat(jdbcTemplate.queryForObject("SELECT role FROM manager WHERE id = ?", String.class, managerId))
+                .isEqualTo("escort");
+        assertThat(배치_행_수()).as("역할이 바뀐 매니저는 기사 자리에 배치되지 않는다").isZero();
+    }
+
+    @Test
+    void 운행_시작이_먼저이면_배치는_이동_중_회차를_보고_409_RUN_ALREADY_STARTED_로_끝난다() throws Exception {
+        Optional<ErrorCode> assignment = 먼저_하고_그동안_끼어든다(() -> jdbcTemplate.update(
+                "UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", runId), this::배치한다);
+
+        assertThat(assignment).contains(ErrorCode.RUN_ALREADY_STARTED);
+        assertThat(배치_행_수()).as("시작된 회차에는 배치가 늘지 않는다").isZero();
+    }
+
     private void 배치한다() {
         assignmentCommandService.assign(관계자A(), runId, new AssignmentRequest(managerId, null));
     }

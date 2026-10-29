@@ -20,7 +20,7 @@ import src.backend.account.entity.VerificationPurpose;
 import src.backend.account.repository.VerificationCodeRepository;
 
 /**
- * 복구 인증 코드 발급 행은 보존 정리 배치가 지운다 — 발급 요청이 돌리는 인스턴스 메모리 타이머가 아니라 하루 한 번의 분산 락 배치다(ARCHITECTURE §9 "인증 코드 정리").
+ * 복구 인증 코드 발급 행은 보존 정리 배치가 지운다 — 발급 요청이 돌리는 인스턴스 메모리 타이머가 아니라 하루 한 번의 분산 락 배치다(ARCHITECTURE §9 표 "보존 정리" · ERD §7.2 {@code verification_code}).
  * 만든 지 24시간이 지난 행만 지워지고 그 안쪽 행은 남는다. 배치는 실제 시각을 쓰므로 심는 행은 실제 {@code now} 기준 상대 시각이다.
  */
 @SpringBootTest

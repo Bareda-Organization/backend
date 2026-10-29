@@ -452,7 +452,7 @@ class StaffBusControllerTest {
                 .content(body));
     }
 
-    // ⚠ 호차 이름은 **시드에 없는 값**을 쓴다 — 데모 선단(V13)이 3·4·5호차를 시드에 더해
+    // ⚠ 호차 이름은 **시드에 없는 값**을 쓴다 — 데모 선단(V802)이 3·4·5호차를 시드에 더해
     // 그 번호로 등록하면 `409 DUPLICATE_BUS` 다.
     private long 등록된_차량_id(String token, String busNo, String plateNo, int capacity) throws Exception {
         MvcResult result = 등록한다(token,

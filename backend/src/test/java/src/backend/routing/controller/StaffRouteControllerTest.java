@@ -361,8 +361,8 @@ class StaffRouteControllerTest {
      */
     @Test
     void 목록이_페이징_봉투_네_필드를_실제_값으로_돌려준다() throws Exception {
-        // ⚠ 시드 편성 수를 상수로 박지 않는다 — 시드가 늘 때마다(V12 PREVIEW_STALE 재현용 1건,
-        // V13 데모 선단 3건) 이 시험이 깨졌다. 여기서 보는 것은 편성 개수가 아니라 **페이징 봉투
+        // ⚠ 시드 편성 수를 상수로 박지 않는다 — 시드가 늘 때마다(V801 PREVIEW_STALE 재현용 1건,
+        // V802 데모 선단 3건) 이 시험이 깨졌다. 여기서 보는 것은 편성 개수가 아니라 **페이징 봉투
         // 네 필드가 실제 값을 싣는가** 이므로, 총계·마지막 쪽을 실측 시드 수에서 유도한다.
         int 시드_편성수 = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM route WHERE academy_id = ?", Integer.class, ACADEMY_A_ID);

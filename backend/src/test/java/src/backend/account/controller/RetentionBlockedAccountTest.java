@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static testsupport.auth.TestTokens.메인관리자_토큰;
 
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import com.jayway.jsonpath.JsonPath;
 
 import jakarta.persistence.EntityManager;
 
+import src.backend.account.repository.AccountRepository;
 import src.backend.global.security.JwtTokenProvider;
 
 /**
@@ -43,6 +45,9 @@ class RetentionBlockedAccountTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private AccountRepository accountRepository;
 
     @Autowired
     private JwtTokenProvider tokenProvider;
@@ -99,6 +104,27 @@ class RetentionBlockedAccountTest {
                         .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.account_status").value("active"));
+    }
+
+    @Test
+    void 로그인_실패로_먼저_차단된_계정이_익명화돼도_목록과_건수에서_빠지고_해제는_409_이다() throws Exception {
+        long failed = 차단_계정을_심는다("retention.failthenpurge", "로그인 실패 5회 누적(C-11)");
+        int listedBefore = 목록_건수();
+        long blockedBefore = 대시보드_차단_건수();
+        assertThat(로그인_아이디들(목록_본문())).contains("retention.failthenpurge");
+
+        accountRepository.findById(failed).orElseThrow()
+                .anonymizeForRetention("퇴원 학생", OffsetDateTime.now());
+        entityManager.flush();
+
+        assertThat(로그인_아이디들(목록_본문())).as("익명화된 계정은 목록에서 빠진다").doesNotContain("retention.failthenpurge")
+                .doesNotContain("withdrawn-" + failed);
+        assertThat(목록_건수()).isEqualTo(listedBefore - 1);
+        assertThat(대시보드_차단_건수()).isEqualTo(blockedBefore - 1);
+        mockMvc.perform(post("/api/v1/admin/blocked-accounts/" + failed + "/unblock")
+                        .header("Authorization", 메인관리자_토큰(tokenProvider, SYSTEM_ADMIN_ACCOUNT_ID)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code").value("ACCOUNT_NOT_BLOCKED"));
     }
 
     private long 차단_계정을_심는다(String loginId, String reason) {

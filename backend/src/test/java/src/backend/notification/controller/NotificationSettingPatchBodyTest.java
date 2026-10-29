@@ -58,6 +58,20 @@ class NotificationSettingPatchBodyTest {
     }
 
     @Test
+    void 문자열_boolean_은_422_다() throws Exception {
+        변경("{\"arrive\": \"true\"}").andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        변경("{\"boarding\": \"false\"}").andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void 숫자_boolean_은_422_다() throws Exception {
+        변경("{\"arrive\": 1}").andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+        변경("{\"no_show\": 0}").andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
     void 보낸_항목만_바뀌고_나머지는_그대로다() throws Exception {
         String before = mockMvc.perform(get("/api/v1/me/notification-settings").header("Authorization", 부모_토큰()))
                 .andReturn().getResponse().getContentAsString();

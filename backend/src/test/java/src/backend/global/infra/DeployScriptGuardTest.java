@@ -260,6 +260,52 @@ class DeployScriptGuardTest {
     }
 
     @Test
+    @DisplayName("사진 폴더 소유자 맞추기(chown)는 이미지 수신 뒤 기동 앞에서 한 번 돈다")
+    void photoFolderOwnerIsFixedBetweenPullAndStart(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of());
+
+        assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
+        int pull = run.indexOfDockerCall(" pull backend");
+        int chown = run.indexOfDockerCall(" --entrypoint chown ");
+        int up = run.indexOfDockerCall(" up -d");
+        assertThat(chown).as("chown 호출이 기록돼 있다").isNotNegative();
+        assertThat(pull).as("이미지를 받은 뒤").isLessThan(chown);
+        assertThat(chown).as("컨테이너를 띄우기 앞").isLessThan(up);
+        assertThat(run.dockerCalls().get(chown)).contains("10001:10001").contains("/app/var/photos");
+    }
+
+    @Test
+    @DisplayName("사진 폴더 소유자를 맞추지 못하면 컨테이너를 건드리지 않고 .env 를 직전 태그로 되돌린 채 실패로 끝낸다")
+    void failedChownKeepsThePreviousTagAndStopsBeforeStart(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_RUN_FAIL_TAG", NEW_TAG));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.dockerTagsOf("up -d")).as("소유자를 못 맞춘 채 컨테이너를 띄우지 않는다").isEmpty();
+        assertThat(run.envFile()).contains("IMAGE_TAG='oldtag'").doesNotContain(NEW_TAG);
+    }
+
+    @Test
+    @DisplayName("배포 게이트가 운행 중 회차 때문에 멈추면 이미지를 받기 전에 끝나고 .env 는 직전 태그 그대로다")
+    void gateStopKeepsThePreviousTagInEnv(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_GATE_BLOCK", "1"));
+
+        assertThat(run.exitCode()).as("출력:\n%s", run.output()).isNotZero();
+        assertThat(run.dockerTagsOf("pull backend")).as("게이트가 막으면 이미지를 받지 않는다").isEmpty();
+        assertThat(run.envFile()).as("받지도 않은 새 태그를 가리키면 .env 를 읽는 백업 크론이 없는 이미지를 대상으로 한다")
+                .contains("IMAGE_TAG='oldtag'").doesNotContain(NEW_TAG);
+    }
+
+    @Test
+    @DisplayName("ECR 로그인이 실패하면 이미지를 받지 않고 .env 는 직전 태그 그대로다")
+    void failedRegistryLoginKeepsThePreviousTagInEnv(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_ECR_FAIL", "1"));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.dockerTagsOf("pull backend")).isEmpty();
+        assertThat(run.envFile()).contains("IMAGE_TAG='oldtag'").doesNotContain(NEW_TAG);
+    }
+
+    @Test
     @DisplayName("직전 태그가 없는 첫 배포가 실패하면 되돌릴 곳이 없다고 알린다")
     void firstDeployFailureSaysThereIsNothingToRollBackTo(@TempDir Path tmp) throws Exception {
         Run run = runFullDeploy(tmp, null, Map.of("FAKE_BAD_TAG", NEW_TAG));
@@ -348,6 +394,16 @@ class DeployScriptGuardTest {
      */
     private record Run(int exitCode, String output, String envFile, String alertmanagerYml, List<String> dockerCalls) {
 
+        /** 인자에 {@code fragment} 가 든 첫 docker 호출의 순서(없으면 -1). */
+        int indexOfDockerCall(String fragment) {
+            for (int i = 0; i < dockerCalls.size(); i++) {
+                if (dockerCalls.get(i).contains(fragment)) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
         /** 인자에 {@code command} 가 든 docker 호출들이 호출 순간 본 {@code .env} 태그를 호출 순서대로. */
         List<String> dockerTagsOf(String command) {
             return dockerCalls.stream().filter(call -> call.endsWith(" " + command))
@@ -357,7 +413,8 @@ class DeployScriptGuardTest {
 
     /**
      * docker 호출을 기록하고({@code FAKE_DOCKER_LOG}) 환경변수가 가리키는 태그에서만 실패한다. 태그 목록은 쉼표로 잇는다 —
-     * {@code FAKE_PULL_FAIL_TAG}(이미지 수신) · {@code FAKE_UP_FAIL_TAG}(기동) · {@code FAKE_BAD_TAG}(헬스체크 무응답), {@code FAKE_LOGS_FAIL}(로그 조회 실패, 값이 있으면 태그와 무관).
+     * {@code FAKE_PULL_FAIL_TAG}(이미지 수신) · {@code FAKE_RUN_FAIL_TAG}(일회용 실행 — 사진 폴더 소유자 맞추기) · {@code FAKE_UP_FAIL_TAG}(기동) · {@code FAKE_BAD_TAG}(헬스체크 무응답),
+     * {@code FAKE_LOGS_FAIL}(로그 조회 실패, 값이 있으면 태그와 무관), {@code FAKE_GATE_BLOCK}(배포 게이트가 보는 postgres 가 떠 있고 운행 중 회차가 2건).
      * 그 밖의 호출은 성공이고, compose 설정 출력은 {@code FAKE_RENDERED_HASH} 를 시드 해시로 보여 준다.
      */
     private static final String FAKE_DOCKER = """
@@ -370,6 +427,9 @@ class DeployScriptGuardTest {
               *" config") printf '      SEED_PASSWORD_HASH: %s\\n' "$FAKE_RENDERED_HASH" ;;
               *" pull backend") listed "${FAKE_PULL_FAIL_TAG:-}" "$tag" && exit 1 ;;
               *" up -d") listed "${FAKE_UP_FAIL_TAG:-}" "$tag" && exit 1 ;;
+              *" run "*) listed "${FAKE_RUN_FAIL_TAG:-}" "$tag" && exit 1 ;;
+              *" ps --status running -q postgres"*) [ -n "${FAKE_GATE_BLOCK:-}" ] && echo fake-postgres-id ;;
+              *" exec -T postgres psql"*) case "$*" in *to_regclass*) echo t ;; *) echo 2 ;; esac ;;
               *" logs "*) [ -n "${FAKE_LOGS_FAIL:-}" ] && exit 1 ;;
               *" exec -T backend curl"*) listed "${FAKE_BAD_TAG:-}" "$tag" && exit 1; echo '{"status":"UP"}' ;;
             esac
@@ -382,6 +442,10 @@ class DeployScriptGuardTest {
      */
     private static final String FAKE_AWS = """
             #!/usr/bin/env bash
+            if [ "$1 $2" = "ecr get-login-password" ] && [ -n "${FAKE_ECR_FAIL:-}" ]; then
+              echo "An error occurred (AccessDeniedException) when calling the GetAuthorizationToken operation: denied" >&2
+              exit 255
+            fi
             if [ "$1 $2" = "ssm get-parameter" ]; then
               name=""
               while [ $# -gt 0 ]; do [ "$1" = "--name" ] && name="$(basename "$2")"; shift; done
