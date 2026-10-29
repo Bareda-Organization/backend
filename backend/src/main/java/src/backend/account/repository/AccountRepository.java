@@ -79,7 +79,8 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByIdAndAcademyIdForUpdate(@Param("id") Long id, @Param("academyId") Long academyId);
 
     /**
-     * 연락처가 같은 복구 대상 계정을 <b>행 잠금</b>으로 읽는다(API_SPEC §2.9 · Ruling 513) — 전화번호 복구가 비밀번호를
+     * 연락처가 같은 복구 대상 계정을 <b>행 잠금</b>으로 읽는다(저장된 표기와 무관하게 하이픈을 뺀 숫자 {@code digits} 로 비교한다 —
+     * {@code PhoneNumber#digits})(API_SPEC §2.9 · Ruling 513) — 전화번호 복구가 비밀번호를
      * 교체할 때 그 사이 커밋된 로그인 실패 차단을 지우지 않게 한다(BR-249). 연락처는 유일하지 않아 여러 건일 수 있다.
      * <b>차단된 계정은 대상이 아니다</b>(BR-336) — 퇴원 파기로 익명화된 계정이 모두 같은 가짜 번호로 걸리고, 차단 계정은
      * 복구해도 로그인이 {@code 403} 이다. 코드 발급은 존재 여부만 보므로 이 잠금 읽기가 아니라
@@ -87,9 +88,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      */
     @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles "
+    @Query("SELECT a FROM Account a WHERE REPLACE(a.phone, '-', '') = :digits AND a.role IN :roles "
             + "AND a.status <> src.backend.global.common.enums.AccountStatus.BLOCKED ORDER BY a.id")
-    List<Account> findAllByPhoneAndRoleInForUpdate(@Param("phone") String phone, @Param("roles") Collection<Role> roles);
+    List<Account> findAllByPhoneAndRoleInForUpdate(@Param("digits") String digits, @Param("roles") Collection<Role> roles);
 
     /**
      * 같은 번호의 복구 대상 계정을 잠금 없이 읽는다(차단 계정 제외 · {@link #findAllByPhoneAndRoleInForUpdate} 와 같은 조건)
@@ -97,9 +98,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
      * 저장은 {@link #findAllByPhoneAndRoleInForUpdate} 로 다시 읽은 행에 한다.
      */
     @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
-    @Query("SELECT a FROM Account a WHERE a.phone = :phone AND a.role IN :roles "
+    @Query("SELECT a FROM Account a WHERE REPLACE(a.phone, '-', '') = :digits AND a.role IN :roles "
             + "AND a.status <> src.backend.global.common.enums.AccountStatus.BLOCKED ORDER BY a.id")
-    List<Account> findAllByPhoneAndRoleIn(@Param("phone") String phone, @Param("roles") Collection<Role> roles);
+    List<Account> findAllByPhoneAndRoleIn(@Param("digits") String digits, @Param("roles") Collection<Role> roles);
 
     /**
      * 학원별 소속 사용자 수(API_SPEC §6.1 {@code user_count}) — 역할과 상태를 인자로 받아 무엇을 세는지
@@ -132,10 +133,8 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findAllByIdIn(Collection<Long> ids);
 
     /**
-     * 차단 계정 목록(API_SPEC §6.10 {@code GET /admin/blocked-accounts}) — 호출부가 {@code blocked} 를 넘긴다.
-     *
-     * <p>상태를 상수로 박지 않고 인자로 받는 이유는, 박아 두면 이 조회의 이름과 조건이 갈릴 때
-     * (예: 나중에 {@code rejected} 목록이 필요해질 때) 같은 형태의 조회가 하나 더 복제되기 때문이다.
+     * 차단 계정 목록(API_SPEC §6.10 {@code GET /admin/blocked-accounts}) — {@code blocked} 계정 중 차단 사유가 {@code retentionReason}
+     * 인 것(퇴원 보존 익명화)을 뺀다. 사유가 없는 차단 행도 목록에 든다.
      *
      * <p>정렬은 {@code Pageable} 이 실어 온다 — 파생 쿼리 이름에 {@code OrderBy} 를 박으면
      * {@code Pageable} 의 정렬과 어느 쪽이 이기는지가 호출부에서 보이지 않는다.
@@ -143,7 +142,14 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     @AcademyScopeExempt(reason = "§6.10 메인 관리자 콘솔 — /admin 은 전 학원 범위이며 학원 격리의 명시적 예외다(§1.5). "
             + "차단 해제는 계정 단위 조치라 대상을 학원으로 좁히면 운영사가 어느 학원에서 사고가 났는지 "
             + "알아야만 목록을 볼 수 있게 된다. 예외를 여는 판정은 컨트롤러의 @Can(Permissions.ACCOUNT_UNBLOCK) 하나다")
-    Page<Account> findAllByStatus(AccountStatus status, Pageable pageable);
+    @Query("SELECT a FROM Account a WHERE a.status = src.backend.global.common.enums.AccountStatus.BLOCKED "
+            + "AND (a.blockReason IS NULL OR a.blockReason <> :retentionReason)")
+    Page<Account> findAllBlockedExcludingReason(@Param("retentionReason") String retentionReason, Pageable pageable);
+
+    /** 로그인 실패 등으로 막힌 계정 — 퇴원 보존 익명화로 막힌 계정({@link Account#RETENTION_BLOCK_REASON})은 뺀다(API_SPEC §6.10). */
+    default Page<Account> findAllLoginBlocked(Pageable pageable) {
+        return findAllBlockedExcludingReason(Account.RETENTION_BLOCK_REASON, pageable);
+    }
 
     /**
      * 전 학원 소속 사용자 수(API_SPEC §6.1 {@code summary.user_count}) — {@link #countByAcademyIdInGroupedByAcademyId} 와 같은 역할·상태
@@ -213,8 +219,15 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
             + "OR EXISTS (SELECT 1 FROM Manager m WHERE m.accountId = a.id AND m.deletedAt IS NOT NULL))")
     List<Long> findIdsWithLostStanding(@Param("ids") Collection<Long> ids);
 
-    /** 지금 차단된 계정 수(§6.18 {@code attention.blocked_accounts}, §6.10) — 계정 단위 조치라 전 학원 범위다. */
-    @AcademyScopeExempt(reason = "차단 계정 수(§6.18 · §6.10)는 계정 단위 조치라 전 학원 범위로 센다 — findAllByStatus 와 같은 근거. 호출부는 "
+    /** 지금 차단된 계정 수(§6.18 {@code attention.blocked_accounts}, §6.10) 중 {@code retentionReason} 으로 막힌 것을 뺀 수 — 계정 단위 조치라 전 학원 범위다. */
+    @AcademyScopeExempt(reason = "차단 계정 수(§6.18 · §6.10)는 계정 단위 조치라 전 학원 범위로 센다 — findAllBlockedExcludingReason 과 같은 근거. 호출부는 "
             + "@Can(Permissions.MONITOR_ALL) 로 보호되는 AdminDashboardQueryService 뿐이라는 전제")
-    long countByStatus(AccountStatus status);
+    @Query("SELECT count(a) FROM Account a WHERE a.status = src.backend.global.common.enums.AccountStatus.BLOCKED "
+            + "AND (a.blockReason IS NULL OR a.blockReason <> :retentionReason)")
+    long countBlockedExcludingReason(@Param("retentionReason") String retentionReason);
+
+    /** 로그인 실패 등으로 막힌 계정 수 — 퇴원 보존 익명화로 막힌 계정은 세지 않는다(API_SPEC §6.10 · §6.18). */
+    default long countLoginBlocked() {
+        return countBlockedExcludingReason(Account.RETENTION_BLOCK_REASON);
+    }
 }

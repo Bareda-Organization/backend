@@ -2,6 +2,8 @@ package src.backend.account.dto;
 
 import java.util.List;
 
+import jakarta.validation.constraints.Size;
+
 /**
  * 가입 수락 시 계정에 이을 실제 레코드(AUTH-11 · API_SPEC §5.2 {@code link}).
  *
@@ -12,5 +14,8 @@ import java.util.List;
  *
  * <p>JSON 필드명은 전역 {@code spring.jackson.property-naming-strategy: SNAKE_CASE}(Ruling 104)가 변환한다.
  */
-public record SignupLinkPayload(List<Long> studentIds, Long managerId) {
+public record SignupLinkPayload(@Size(max = SignupLinkPayload.MAX_STUDENT_IDS) List<Long> studentIds, Long managerId) {
+
+    /** 한 번에 이을 수 있는 학생 수 상한(API_SPEC §5.2) — 수락 트랜잭션의 행 잠금이 열린 채 도는 조회·쓰기의 길이를 막는다. */
+    public static final int MAX_STUDENT_IDS = 20;
 }

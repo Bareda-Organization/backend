@@ -1,11 +1,8 @@
 package src.backend.account.controller;
 
-import java.util.Locale;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.util.StringUtils;
@@ -39,8 +36,6 @@ import src.backend.account.dto.RecoverRequestPayload;
 import src.backend.account.dto.RefreshRequestPayload;
 import src.backend.account.dto.RefreshResponse;
 import src.backend.global.config.ApiTags;
-import src.backend.global.error.BusinessException;
-import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ClientIp;
 import src.backend.global.response.ApiResponse;
 import src.backend.global.security.AuthUser;
@@ -87,26 +82,7 @@ public class AuthController {
             @Valid @RequestBody LoginRequestPayload payload, HttpServletRequest request) {
         LoginResult result = loginCommandService.login(payload.loginId(), payload.password(),
                 ClientIp.of(request));
-        boolean isWeb = CLIENT_TYPE_WEB.equalsIgnoreCase(clientType);
-
-        LoginResponse.Academy academy = result.role().hasPlatformScope() ? null
-                : new LoginResponse.Academy(String.valueOf(result.academyId()), result.academyName(),
-                        result.academyContact());
-        LoginResponse body = new LoginResponse(
-                result.accessToken(),
-                isWeb ? null : result.refreshToken(),
-                result.role().name().toLowerCase(Locale.ROOT),
-                result.status().name().toLowerCase(Locale.ROOT),
-                String.valueOf(result.accountId()),
-                academy,
-                result.mustChangePassword());
-
-        ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.ok();
-        if (isWeb) {
-            responseBuilder.header(HttpHeaders.SET_COOKIE,
-                    cookieAssembler.issue(result.refreshToken(), result.refreshTokenValiditySeconds()).toString());
-        }
-        return responseBuilder.body(ApiResponse.ok(body));
+        return cookieAssembler.loginResponse(result, CLIENT_TYPE_WEB.equalsIgnoreCase(clientType));
     }
 
     /**
@@ -119,21 +95,10 @@ public class AuthController {
     public ResponseEntity<ApiResponse<RefreshResponse>> refresh(
             @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String cookieToken,
             @RequestBody(required = false) RefreshRequestPayload payload) {
-        boolean isWeb = StringUtils.hasText(cookieToken);
-        String rawToken = isWeb ? cookieToken : (payload == null ? null : payload.refreshToken());
-        if (!StringUtils.hasText(rawToken)) {
-            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
-        }
-
+        String rawToken = RefreshTokenCookieAssembler.presentedToken(cookieToken,
+                payload == null ? null : payload.refreshToken());
         RefreshResult result = refreshCommandService.refresh(rawToken);
-        RefreshResponse body = new RefreshResponse(result.accessToken(), isWeb ? null : result.refreshToken());
-
-        ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.ok();
-        if (isWeb) {
-            responseBuilder.header(HttpHeaders.SET_COOKIE,
-                    cookieAssembler.issue(result.refreshToken(), result.refreshTokenValiditySeconds()).toString());
-        }
-        return responseBuilder.body(ApiResponse.ok(body));
+        return cookieAssembler.refreshResponse(result, StringUtils.hasText(cookieToken));
     }
 
     /**
@@ -149,19 +114,10 @@ public class AuthController {
     public ResponseEntity<Void> logout(@AuthenticationPrincipal AuthUser authUser,
             @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String cookieToken,
             @Valid @RequestBody(required = false) LogoutRequestPayload payload) {
-        boolean isWeb = StringUtils.hasText(cookieToken);
-        String rawToken = isWeb ? cookieToken : (payload == null ? null : payload.refreshToken());
-        if (!StringUtils.hasText(rawToken)) {
-            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
-        }
-
+        String rawToken = RefreshTokenCookieAssembler.presentedToken(cookieToken,
+                payload == null ? null : payload.refreshToken());
         logoutCommandService.logout(authUser.accountId(), rawToken, payload == null ? null : payload.deviceId());
-
-        ResponseEntity.HeadersBuilder<?> responseBuilder = ResponseEntity.noContent();
-        if (isWeb) {
-            responseBuilder.header(HttpHeaders.SET_COOKIE, cookieAssembler.delete().toString());
-        }
-        return responseBuilder.build();
+        return cookieAssembler.noContent(StringUtils.hasText(cookieToken));
     }
 
     /**
@@ -178,12 +134,7 @@ public class AuthController {
             @Valid @RequestBody PasswordChangeRequestPayload payload) {
         passwordChangeCommandService.changePassword(authUser.accountId(), payload.currentPassword(),
                 payload.newPassword());
-
-        ResponseEntity.HeadersBuilder<?> responseBuilder = ResponseEntity.noContent();
-        if (StringUtils.hasText(cookieToken)) {
-            responseBuilder.header(HttpHeaders.SET_COOKIE, cookieAssembler.delete().toString());
-        }
-        return responseBuilder.build();
+        return cookieAssembler.noContent(StringUtils.hasText(cookieToken));
     }
 
     /**

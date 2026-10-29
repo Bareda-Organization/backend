@@ -20,6 +20,7 @@ import src.backend.academy.event.StaffResignedEvent;
 import src.backend.academy.repository.AcademyRepository;
 import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.account.entity.Account;
+import src.backend.account.entity.PhoneNumber;
 import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.global.error.BusinessException;
@@ -105,7 +106,8 @@ public class StaffAccountCommandService {
         AcademyStaff staff = academyStaffRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
 
-        account.changeProfile(request.name(), request.phone(), request.email());
+        String phone = request.phone() == null ? null : PhoneNumber.normalize(request.phone());
+        account.changeProfile(request.name(), phone, request.email());
         String temporaryPassword = applyTemporaryPassword(account, temporary);
         boolean employmentRevoked = applyEmploymentStatus(staff, request.status());
 

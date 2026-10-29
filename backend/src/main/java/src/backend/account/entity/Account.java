@@ -51,7 +51,8 @@ public class Account extends BaseTimeEntity {
     /** {@code phone} 은 NOT NULL 이라 지우지 못한다 — 형식만 갖춘 빈 번호로 덮는다. */
     private static final String ANONYMIZED_PHONE = "000-0000-0000";
 
-    private static final String RETENTION_BLOCK_REASON = "퇴원 90일 경과 개인정보 파기";
+    /** 퇴원 보존 기간 익명화가 {@code blocked} 로 옮기며 남기는 차단 사유 — 로그인 실패 차단과 가르는 표지다. */
+    public static final String RETENTION_BLOCK_REASON = "퇴원 90일 경과 개인정보 파기";
 
     /**
      * 첫 실패 뒤 남는 시도 횟수 — 미등록 {@code login_id} 의 실패 응답이 실어야 하는 값이다
@@ -288,8 +289,8 @@ public class Account extends BaseTimeEntity {
     }
 
     /**
-     * 메인 관리자가 로그인 차단을 해제한다(AUTH-06 · API_SPEC §6.12) — {@code blocked} 가 아니면
-     * {@link BusinessException}({@code ACCOUNT_NOT_BLOCKED}, 409).
+     * 메인 관리자가 로그인 차단을 해제한다(AUTH-06 · API_SPEC §6.12) — {@code blocked} 가 아니거나 퇴원 보존 익명화로 막힌 계정이면
+     * {@link BusinessException}({@code ACCOUNT_NOT_BLOCKED}, 409). 익명화 계정을 풀면 지워 둔 개인정보 자리의 계정이 되살아난다.
      *
      * <p><b>{@code failedAttempts} 초기화가 이 메서드의 절반이다.</b> 상태만 되돌리고
      * 카운터를 두면 상한을 채운 값이 남아 <b>다음 1회 실패로 즉시 재차단</b>된다. 그런데 해제 직후의
@@ -306,7 +307,7 @@ public class Account extends BaseTimeEntity {
      * @param actorAccountId 해제를 실행한 메인 관리자 계정({@code unblocked_by})
      */
     public void unblock(Long actorAccountId, OffsetDateTime now) {
-        if (status != AccountStatus.BLOCKED) {
+        if (status != AccountStatus.BLOCKED || RETENTION_BLOCK_REASON.equals(blockReason)) {
             throw new BusinessException(ErrorCode.ACCOUNT_NOT_BLOCKED);
         }
         this.status = statusBeforeBlock;

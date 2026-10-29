@@ -15,6 +15,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.account.entity.Account;
@@ -90,12 +93,17 @@ public class AuditRecorder {
     /** Redis 를 못 쓰는 동안의 묶기 기록 — 반복 조회가 조회마다 감사 행(새 트랜잭션 · 새 커넥션)을 쓰지 않게 한다. 인스턴스 1대 기준의 같은 창이다(Ruling 919 B ⑤). */
     private final LocalFallbackMemory<Boolean> whileRedisIsDown;
 
+    /** L3 조회 감사 행을 못 쓴 횟수 — 응답은 그대로 나가므로(위 클래스 자바독) 이 지표의 경보가 감사 누락을 알리는 유일한 신호다. */
+    private final Counter readRecordFailures;
+
     public AuditRecorder(AuditLogRepository auditLogRepository, AccountRepository accountRepository, Clock clock,
-            PlatformTransactionManager transactionManager, StringRedisTemplate redis) {
+            PlatformTransactionManager transactionManager, StringRedisTemplate redis, MeterRegistry meterRegistry) {
         this.auditLogRepository = auditLogRepository;
         this.accountRepository = accountRepository;
         this.clock = clock;
         this.redis = redis;
+        this.readRecordFailures = Counter.builder("schoolbus.audit.read.record.failures")
+                .description("L3 조회 감사 행 적재 실패 수").register(meterRegistry);
         this.whileRedisIsDown = new LocalFallbackMemory<>(clock, DEDUP_FALLBACK_MAX_ENTRIES);
         this.requiresNew = new TransactionTemplate(transactionManager);
         this.requiresNew.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -158,6 +166,7 @@ public class AuditRecorder {
         } catch (RuntimeException e) {
             // 못 쓴 행의 묶기 기록은 물린다 — 남겨 두면 다음 조회가 "이미 기록함" 으로 건너뛰어 기록이 영영 빠진다
             claimed.forEach(this::releaseClaim);
+            readRecordFailures.increment();
             log.error("감사 로그 적재 실패 — 조회 자체는 정상 처리됨. targetType={}, targetIds={}, actorAccountId={}",
                     targetType, detailByTargetId.keySet(), actorAccountId, e);
         }

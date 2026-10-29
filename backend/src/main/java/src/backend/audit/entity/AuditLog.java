@@ -100,11 +100,6 @@ public class AuditLog {
         this.occurredAt = occurredAt;
     }
 
-    /** 감사 대상 동작이 일어났을 때 최소 상태로 생성한다 — 행위자·대상 식별 필드는 도메인 Phase 가 채운다. */
-    public static AuditLog forOccurrence(AuditCategory category, AuditAction action, OffsetDateTime occurredAt) {
-        return new AuditLog(category, action, occurredAt);
-    }
-
     /**
      * 메인 관리자가 로그인 차단을 해제한 사실을 남긴다(AUTH-06 · API_SPEC §6.12).
      *
@@ -213,7 +208,8 @@ public class AuditLog {
      * 가능성 존재" 라고 명시해, 계정을 특정하지 못한 실패도 기록 대상임을 전제한다 — 그 경우
      * {@code actorAccountId} 는 {@code null}, {@code targetId} 도 {@code null} 이고
      * {@code actorLoginId} 에는 시도된 문자열이 남는다(계정이 없어도 "누가 무엇으로
-     * 시도했는지"는 감사 대상이다) — 컬럼이 {@code varchar(50)} 이라 <b>앞 50자까지만</b> 남긴다. 등록될 수 없는
+     * 시도했는지"는 감사 대상이다. 단 등록되지 않은 아이디는 호출부가 가입 아이디 형식에 맞는 입력만 넘기고 그 밖은 {@code null} 을 넘긴다 —
+     * 아이디 칸에 잘못 넣은 비밀번호가 2년 보존되지 않게 한다, Ruling 937) — 컬럼이 {@code varchar(50)} 이라 <b>앞 50자까지만</b> 남긴다. 등록될 수 없는
      * 긴 아이디를 그대로 넣으면 저장이 실패해 로그인 응답이 {@code 500} 이 된다(BR-216).
      *
      * <p><b>차단된 계정의 대조 전 거부는 이 팩토리를 부르지 않는다</b>(Ruling 242 — 카운터도 안

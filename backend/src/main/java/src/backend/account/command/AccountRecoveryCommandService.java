@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.academy.command.TemporaryPasswordGenerator;
 import src.backend.account.entity.Account;
+import src.backend.account.entity.PhoneNumber;
 import src.backend.account.entity.VerificationCode;
 import src.backend.account.entity.VerificationPurpose;
 import src.backend.account.repository.AccountRepository;
@@ -110,10 +111,14 @@ public class AccountRecoveryCommandService {
     /**
      * 복구 요청 한 건을 처리한다 — {@code verificationCode} 가 없으면 발급, 있으면 대조.
      *
+     * <p>{@code rawPhone} 은 하이픈 있는 표기와 없는 표기를 모두 받고 {@link PhoneNumber#normalize} 표준형으로 바꿔 쓴다. 계정은 저장된 표기와
+     * 무관하게 하이픈을 뺀 숫자로 찾는다(예전에 다른 표기로 저장된 계정도 찾는다).
+     *
      * @throws BusinessException {@code RECOVERY_UNAVAILABLE}(발송기 없음) · {@code RECOVERY_RATE_LIMITED}(발급 빈도
      *                           초과 — 가입 여부와 무관) · {@code VERIFICATION_CODE_INVALID}(대조 실패)
      */
-    public void recover(String type, String phone, String verificationCode) {
+    public void recover(String type, String rawPhone, String verificationCode) {
+        String phone = PhoneNumber.normalize(rawPhone); // 코드 행 · 발급 한도 · 문자 수신 번호가 표기와 무관하게 한 번호로 모인다
         SmsSender sender = smsSender.getIfAvailable();
         if (sender == null) {
             throw new BusinessException(ErrorCode.RECOVERY_UNAVAILABLE);
@@ -142,7 +147,7 @@ public class AccountRecoveryCommandService {
         // 이 번호의 발급을 직렬화한다 — 계정 행 잠금은 미등록 번호에 잠글 행이 없어, 동시 요청의 통과 수가 가입 여부에 따라 갈린다.
         // 발급은 계정이 있는지만 보고 바꾸지 않으므로 행을 잠그지 않는다 — 잠그면 문자 업체 응답이 올 때까지 그 계정의 로그인이 선다(BR-308).
         verificationCodeRepository.lockByPhone(phone);
-        List<Account> accounts = accountRepository.findAllByPhoneAndRoleIn(phone, RECOVERABLE_ROLES);
+        List<Account> accounts = accountRepository.findAllByPhoneAndRoleIn(PhoneNumber.digits(phone), RECOVERABLE_ROLES);
         OffsetDateTime now = OffsetDateTime.now(clock);
         purgeStaleCodes(now);
         // 가입 여부와 무관하게 같은 길을 지난다(Ruling 553) — 미등록 번호도 같은 한도를 받고 발급 행을 남기며, 다른 것은
@@ -211,7 +216,7 @@ public class AccountRecoveryCommandService {
 
     /** 같은 번호의 복구 대상 계정마다 임시 비밀번호와 해시를 만든다 — 계정 id 로 찾아 쓴다. */
     private Map<Long, TemporaryPassword> prepareTemporaryPasswords(String phone) {
-        return accountRepository.findAllByPhoneAndRoleIn(phone, RECOVERABLE_ROLES).stream()
+        return accountRepository.findAllByPhoneAndRoleIn(PhoneNumber.digits(phone), RECOVERABLE_ROLES).stream()
                 .collect(Collectors.toMap(Account::getId, account -> issueTemporaryPassword()));
     }
 
@@ -237,7 +242,7 @@ public class AccountRecoveryCommandService {
                 || verificationCodeRepository.consumeIfValid(issued.getId(), now) == 0) {
             return false;
         }
-        List<Account> accounts = accountRepository.findAllByPhoneAndRoleInForUpdate(phone, RECOVERABLE_ROLES);
+        List<Account> accounts = accountRepository.findAllByPhoneAndRoleInForUpdate(PhoneNumber.digits(phone), RECOVERABLE_ROLES);
         if (accounts.isEmpty()) {
             return false;
         }

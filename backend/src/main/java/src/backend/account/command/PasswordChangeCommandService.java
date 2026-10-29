@@ -23,6 +23,7 @@ import src.backend.global.error.ErrorCode;
 @RequiredArgsConstructor
 public class PasswordChangeCommandService {
 
+    private final PasswordChangeFailureRecorder failureRecorder;
     private final AccountRepository accountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
@@ -30,7 +31,7 @@ public class PasswordChangeCommandService {
     private final Clock clock;
 
     /**
-     * 현재 비밀번호 불일치 시 {@code 401 INVALID_CREDENTIALS}(API_SPEC §2.8) — 형식 오류는 {@code @Valid} 가 앞단에서 걸러 {@code 422} 로 응답한다.
+     * 현재 비밀번호 불일치 시 {@code 401 INVALID_CREDENTIALS}(API_SPEC §2.8) — 로그인 실패와 같은 카운터에 쌓이고 5회째는 {@code 403 AUTH_ACCOUNT_BLOCKED}({@link PasswordChangeFailureRecorder}) — 형식 오류는 {@code @Valid} 가 앞단에서 걸러 {@code 422} 로 응답한다.
      *
      * <p><b>BCrypt(대조 · 새 해시)는 트랜잭션·행 잠금 밖에서 한다</b>({@code LoginCommandService} 와 같은 3단계) —
      * 요청당 수십~수백 ms 라 잠금 안에 두면 그 계정의 로그인이 그만큼 막히고 연결이 묶인다. 잠금 없이 읽어 대조하고 새 해시를
@@ -41,7 +42,7 @@ public class PasswordChangeCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
         String comparedHash = snapshot.getPasswordHash();
         if (!passwordEncoder.matches(currentPassword, comparedHash)) {
-            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+            throw failureRecorder.record(accountId); // 틀린 시도는 로그인 실패와 같은 카운터에 쌓인다(C-11)
         }
         String newHash = passwordEncoder.encode(newPassword);
         transactionTemplate.executeWithoutResult(
