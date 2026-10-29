@@ -29,6 +29,18 @@ class FrameworkErrorTestController {
         throw new ResponseStatusException(HttpStatus.valueOf(code), "사유 " + code);
     }
 
+    @GetMapping("/framework-error-test/status-with-allow")
+    String statusWithAllow() {
+        org.springframework.http.HttpHeaders carried = new org.springframework.http.HttpHeaders();
+        carried.setAllow(java.util.Set.of(org.springframework.http.HttpMethod.GET));
+        throw new ResponseStatusException(HttpStatus.METHOD_NOT_ALLOWED, "허용하지 않는 메서드") {
+            @Override
+            public org.springframework.http.HttpHeaders getHeaders() {
+                return carried;
+            }
+        };
+    }
+
     @GetMapping("/framework-error-test/client-abort")
     String clientAbort() throws AsyncRequestNotUsableException {
         throw new AsyncRequestNotUsableException("Response not usable after response errors");

@@ -85,6 +85,21 @@ class AccountSessionsRevokeRelayTest extends RedisTestContainerBase {
         verify(openSessions).revoke(Set.of(31L));
     }
 
+    @Test
+    @DisplayName("이 인스턴스의 세션 닫기가 실패해도 다른 인스턴스에 알리고 예외는 밖으로 나가지 않는다")
+    void 로컬_닫기_실패에도_신호는_나간다() {
+        OpenWebSocketSessions openSessions = mock(OpenWebSocketSessions.class);
+        org.mockito.Mockito.when(openSessions.revoke(org.mockito.ArgumentMatchers.<Collection<Long>>any()))
+                .thenThrow(new IllegalStateException("close failed"));
+        CacheEvictionRelay relay = mock(CacheEvictionRelay.class);
+        AccountSessionsRevokeListener listener = new AccountSessionsRevokeListener(openSessions, relay);
+
+        org.assertj.core.api.Assertions.assertThatCode(() -> listener.revoke(new AccountSessionsRevokeEvent(Set.of(41L))))
+                .doesNotThrowAnyException();
+
+        verify(relay).publish(CacheEvictionRelay.SESSIONS_REVOKE, 41L);
+    }
+
     /** 두 인스턴스의 구독이 모두 성립할 때까지 다른 인스턴스 이름의 탐침을 보낸다 — 구독이 성립하기 전의 메시지는 Redis 가 버린다. */
     private void awaitBothSubscribed(Instance first, Instance second) {
         first.relay.register("probe", key -> first.probes.add(key));

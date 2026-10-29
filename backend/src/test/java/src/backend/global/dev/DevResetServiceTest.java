@@ -119,8 +119,14 @@ class DevResetServiceTest {
                 runGenerationService, clock);
 
         assertThatThrownBy(suppressedService::reset)
-                .isInstanceOfSatisfying(src.backend.global.error.BusinessException.class,
-                        e -> org.assertj.core.api.Assertions.assertThat(e.getMessage()).contains("app.flyway-clean.suppressed"));
+                .isInstanceOfSatisfying(src.backend.global.error.BusinessException.class, e -> {
+                    org.assertj.core.api.Assertions.assertThat(e.getErrorCode())
+                            .isEqualTo(src.backend.global.error.ErrorCode.INTERNAL_ERROR);
+                    // 응답 본문은 쉬운 말이다 — 설정 이름 · 클래스 이름 같은 내부 사정은 서버 로그에만 남는다
+                    org.assertj.core.api.Assertions.assertThat(e.getMessage()).contains("초기화")
+                            .doesNotContain("app.").doesNotContain("suppressed").doesNotContain("Flyway")
+                            .doesNotContain("flyway").doesNotContain("Strategy");
+                });
 
         verify(flyway, never()).migrate();
         verify(previewCache, never()).clear();

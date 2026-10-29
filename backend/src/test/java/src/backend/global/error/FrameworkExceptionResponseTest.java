@@ -88,6 +88,15 @@ class FrameworkExceptionResponseTest {
     }
 
     @Test
+    @DisplayName("ResponseStatusException 이 싣고 온 헤더(Allow)는 응답에 그대로 실린다")
+    void ResponseStatusException_의_헤더가_응답에_실린다() throws Exception {
+        mockMvc.perform(get("/api/v1/framework-error-test/status-with-allow").header("Authorization", staff()))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string("Allow", containsString("GET")))
+                .andExpect(jsonPath("$.error.code").value("METHOD_NOT_ALLOWED"));
+    }
+
+    @Test
     @DisplayName("클라이언트가 끊은 요청은 본문을 쓰지 않고 ERROR 로 남기지 않는다")
     void 클라이언트_중단은_본문도_ERROR_로그도_없다() throws Exception {
         mockMvc.perform(get("/api/v1/framework-error-test/client-abort").header("Authorization", staff()))
