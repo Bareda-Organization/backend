@@ -4,6 +4,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -13,8 +14,8 @@ import jakarta.validation.constraints.Size;
  * 로 모아 검증({@code @Size(max = 0)})이 거부하게 한다 — 전역 설정을 바꾸지 않고 이 요청 한 곳에서만 엄격하다. boolean 이 아닌 값은 읽는
  * 단계에서 형식 오류({@code 422})가 된다.
  *
- * @param unknownKeys 사양에 없는 키 — 비어 있어야 통과한다
+ * @param unknownKeys 사양에 없는 키 — 비어 있어야 통과한다. 요청 본문의 항목이 아니라 검증용 내부 칸이라 API 문서 스키마에서 숨긴다
  */
 public record NotificationSettingUpdateRequest(Boolean arrive, Boolean boarding, Boolean noShow,
-        @JsonAnySetter @Size(max = 0) Map<String, Object> unknownKeys) {
+        @Schema(hidden = true) @JsonAnySetter @Size(max = 0) Map<String, Object> unknownKeys) {
 }
