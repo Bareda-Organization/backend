@@ -33,6 +33,12 @@ public final class PolicyConstants {
     /** 출발 판정 기준(m) — 도착 처리된 승하차지에서 버스가 이 거리 밖으로 벗어나면 출발로 본다(Ruling 307 · 875). */
     public static final int DEPARTURE_DETECTION_METERS = 100;
 
+    /**
+     * 버스 위치가 낡았다고 보는 기준 — 마지막 수신이 이 시간 이상 지났으면 좌표 대신 마지막 수신 시각만 싣는다(신호 유실). 학부모 화면 · 관제 판정 · 유실 집계가 같은 값을 쥐어야 해서
+     * 한 곳에 둔다 — 값이 갈리면 "관제엔 경고, 학부모 화면은 정상" 구간이 생긴다.
+     */
+    public static final Duration POSITION_STALE_THRESHOLD = Duration.ofMinutes(2);
+
     private PolicyConstants() {
     }
 }

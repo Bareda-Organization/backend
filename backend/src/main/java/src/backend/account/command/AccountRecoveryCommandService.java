@@ -2,12 +2,10 @@ package src.backend.account.command;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -63,9 +61,6 @@ public class AccountRecoveryCommandService {
     /** 같은 번호의 24시간 발급 상한(API_SPEC §2.9). */
     private static final int DAILY_ISSUE_LIMIT = 5;
 
-    /** 하루가 지난 발급 행을 지우는 간격 — 매 요청마다 훑지 않는다. */
-    private static final Duration PURGE_INTERVAL = Duration.ofMinutes(10);
-
     private final ObjectProvider<SmsSender> smsSender;
 
     private final AccountRepository accountRepository;
@@ -81,9 +76,6 @@ public class AccountRecoveryCommandService {
     private final RecoverySmsDelivery smsDelivery;
 
     private final Clock clock;
-
-    /** 마지막으로 하루 지난 발급 행을 지운 시각 — {@link #purgeStaleCodes}. */
-    private final AtomicReference<Instant> lastPurgeAt = new AtomicReference<>(Instant.EPOCH);
 
     /**
      * 복구 요청 한 건을 처리한다 — {@code verificationCode} 가 없으면 발급, 있으면 대조.
@@ -127,7 +119,6 @@ public class AccountRecoveryCommandService {
         List<Account> accounts = accountRepository.findAllByPhoneAndRoleIn(PhoneNumber.digits(phone),
                 RecoveryTemporaryCredentials.RECOVERABLE_ROLES);
         OffsetDateTime now = OffsetDateTime.now(clock);
-        purgeStaleCodes(now);
         // 가입 여부와 무관하게 같은 길을 지난다(Ruling 553) — 미등록 번호도 같은 한도를 받고 발급 행을 남기며, 다른 것은
         // 문자를 보내는지뿐이다. 미등록·대상 밖 역할이 다른 응답(404 · 한도 없음)을 내면 번호의 가입 여부가 드러난다.
         if (verificationCodeRepository.countByPhoneAndCreatedAtAfter(phone, now.minus(ISSUE_INTERVAL)) > 0
@@ -154,22 +145,6 @@ public class AccountRecoveryCommandService {
             verificationCodeRepository.deleteById(issued.id());
             throw e;
         }
-    }
-
-    /**
-     * 하루가 지난 발급 행을 지운다 — 미등록 번호의 요청도 행을 남기므로 번호를 바꿔 가며 보내는 요청이 행을 쌓지 못하게
-     * 한다. 매 요청마다 훑지 않고 {@link #PURGE_INTERVAL} 에 한 번만 돈다.
-     *
-     * <p>ponytail: 마지막 정리 시각을 인스턴스 메모리에 둔다 — 인스턴스마다 {@link #PURGE_INTERVAL} 에 한 번씩 돌아 여러 대면 그만큼 겹쳐 돌지만,
-     * 같은 행을 지우는 멱등 삭제라 해가 없다(재기동 직후 한 번 더 도는 것도 같다). 삭제 부하가 문제가 되면 스케줄러(보존 정리)로 옮긴다.
-     */
-    private void purgeStaleCodes(OffsetDateTime now) {
-        Instant last = lastPurgeAt.get();
-        Instant current = now.toInstant();
-        if (last.plus(PURGE_INTERVAL).isAfter(current) || !lastPurgeAt.compareAndSet(last, current)) {
-            return;
-        }
-        verificationCodeRepository.deleteCreatedBefore(now.minusDays(1));
     }
 
     /** 통과하면 {@code true} — 실패는 예외가 아니라 값이다(위 클래스 설명, 대조 횟수를 커밋해야 한다). */

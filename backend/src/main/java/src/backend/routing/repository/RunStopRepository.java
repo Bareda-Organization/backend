@@ -143,7 +143,6 @@ public interface RunStopRepository extends JpaRepository<RunStop, Long> {
     Optional<RunStop> findLockedByRouteVersionIdAndStopId(@Param("routeVersionId") Long routeVersionId,
             @Param("stopId") Long stopId);
 
-
     /**
      * 아직 출발 처리되지 않은 정차지 <b>전부</b> — <b>도착 처리 여부와 무관</b>하다(Ruling 312). 운행 종료 시
      * 강제 적용이 "남은 전부"를 한 번에 쓸어야 해서 {@link RunStopProximityRepository#findFirstArrivedNotDepartedOfVersions} 의 limit 1 로는 못 쓴다.

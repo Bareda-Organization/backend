@@ -37,7 +37,7 @@ import src.backend.notification.scheduler.NotificationOutboxWorker;
 @SpringBootTest
 class NotificationOutboxWorkerTest {
 
-    /** 시드의 유일한 미발송 행({@code V2__seed_data.sql} — {@code no_show}, 학부모 계정 6). */
+    /** 시드의 유일한 미발송 행({@code V800__seed_data.sql} — {@code no_show}, 학부모 계정 6). */
     private static final long 시드_미발송_행 = 4L;
 
     /** 시드의 재시도 상한 초과 행 — 워커의 회수 대상 밖이다. */

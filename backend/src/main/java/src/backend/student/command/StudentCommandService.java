@@ -17,7 +17,7 @@ import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ClientIp;
@@ -60,7 +60,7 @@ public class StudentCommandService {
 
     private final StudentPhotoWriter studentPhotoWriter;
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
 
     private final AccountRepository accountRepository;
 
@@ -168,7 +168,7 @@ public class StudentCommandService {
      */
     private void recordChange(AuthUser requester, Student student, AuditAction action, Map<String, Object> detail) {
         String actorLoginId = accountRepository.findById(requester.accountId()).map(Account::getLoginId).orElse(null);
-        auditLogRepository.save(AuditLog.forDataAccessChange(action, student.getAcademyId(), requester.accountId(),
+        auditRecorder.record(AuditLog.forDataAccessChange(action, student.getAcademyId(), requester.accountId(),
                 actorLoginId, "student", student.getId(), detail, ClientIp.ofCurrentRequest(),
                 OffsetDateTime.now(clock)));
     }

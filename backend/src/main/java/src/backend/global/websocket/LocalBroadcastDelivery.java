@@ -100,7 +100,7 @@ final class LocalBroadcastDelivery {
                 .findSubscriptions(MessageBuilder.createMessage(new byte[0], headers.getMessageHeaders())).isEmpty();
     }
 
-    /** 팬아웃 실행기 큐에 남은 자리가 없는지 본다(BR-170) — 큐 상한은 {@code WebSocketConfig} 가 정한다. */
+    /** 팬아웃 실행기 큐에 남은 자리가 없는지 본다(BR-170) — 큐 상한은 {@code WebSocketExecutorConfig} 가 정한다. */
     private boolean isOutboundQueueFull() {
         ThreadPoolExecutor delegate = outboundTaskExecutor.getThreadPoolExecutor();
         return delegate.getQueue().remainingCapacity() == 0;

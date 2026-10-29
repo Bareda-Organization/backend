@@ -1,8 +1,10 @@
 package src.backend.account.repository;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -103,13 +105,10 @@ public interface VerificationCodeRepository extends JpaRepository<VerificationCo
     long lockByPhone(@Param("phone") String phone);
 
     /**
-     * {@code cutoff} 보다 오래된 발급 행을 지운다 — 미등록 번호의 요청도 행을 남기게 되어(발급 빈도를 가입 여부와 무관하게
-     * 세려고) 번호를 바꿔 가며 보내는 요청이 행을 끝없이 쌓을 수 있다. 하루가 지난 행은 어느 제한({@code 60초·24시간})에도
-     * 세어지지 않고 코드도 만료돼 있어 지워도 동작이 달라지지 않는다.
+     * {@code cutoff} 보다 오래된 발급 행의 id 를 {@code limit} 건까지 고른다 — 보존 정리 배치가 묶음 단위로 지운다. 미등록 번호의 요청도 행을 남기게 되어(발급 빈도를 가입 여부와 무관하게
+     * 세려고) 번호를 바꿔 가며 보내는 요청이 행을 끝없이 쌓을 수 있다. 하루가 지난 행은 어느 제한({@code 60초·24시간})에도 세어지지 않고 코드도 만료돼 있어 지워도 동작이 달라지지 않는다.
      */
-    @AcademyScopeExempt(reason = "§2.9 계정 복구 — 전화번호만 들고 시작해 소속 학원이 미상")
-    @Transactional
-    @Modifying
-    @Query("DELETE FROM VerificationCode v WHERE v.createdAt < :cutoff")
-    int deleteCreatedBefore(@Param("cutoff") OffsetDateTime cutoff);
+    @AcademyScopeExempt(reason = "보존 정리 배치 — 전 학원의 만료 발급 행 전건이 대상이고, 부르는 주체가 사용자 요청이 아니라 스케줄러라 요청 주체의 소속 자체가 부재")
+    @Query("SELECT v.id FROM VerificationCode v WHERE v.createdAt < :cutoff ORDER BY v.id")
+    List<Long> findIdsForRetentionCleanup(@Param("cutoff") OffsetDateTime cutoff, Limit limit);
 }

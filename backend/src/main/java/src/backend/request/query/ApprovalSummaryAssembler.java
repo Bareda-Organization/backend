@@ -23,12 +23,12 @@ import src.backend.global.error.ErrorCode;
 import src.backend.request.dto.ApprovalSummaryResponse;
 import src.backend.request.entity.ChangeRequest;
 import src.backend.run.entity.Run;
+import src.backend.student.access.DailyStopLookup;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentDailyStop;
 import src.backend.student.repository.StudentRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 승인 요약({@link ApprovalSummaryResponse}) 조립 — 목록 항목과 상세 상단이 같은 요약을 쓴다(API_SPEC §5.5).
@@ -44,7 +44,7 @@ class ApprovalSummaryAssembler {
 
     private final StopRepository stopRepository;
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
+    private final DailyStopLookup dailyStopLookup;
 
     /** 요약 하나를 만드는 데 필요한 요청·회차·명단·승하차지 묶음. */
     record SummaryContext(ChangeRequest cr, Run run, List<RunRider> riders, Map<Long, Stop> stops, Long academyId) {
@@ -134,7 +134,7 @@ class ApprovalSummaryAssembler {
         }
         Run run = context.run();
         Weekday weekday = Weekday.of(run.getServiceDate());
-        return weeklyAddressRepository
+        return dailyStopLookup
                 .findDailyStops(context.academyId(), List.of(cr.getStudentId()), weekday, run.getDirection())
                 .stream()
                 .map(StudentDailyStop::getStopId)

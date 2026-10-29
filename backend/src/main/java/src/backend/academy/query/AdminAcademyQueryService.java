@@ -35,7 +35,7 @@ import src.backend.global.request.SortParam;
 import src.backend.global.response.PageResponse;
 import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.RunStatus;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunDashboardRepository;
 
 /**
  * 메인 관리자 콘솔의 학원 목록·상세 조회(ACAD-01·03, API_SPEC §6.1·§6.3).
@@ -77,7 +77,7 @@ public class AdminAcademyQueryService {
 
     private final AccountRepository accountRepository;
 
-    private final RunRepository runRepository;
+    private final RunDashboardRepository runDashboardRepository;
 
     private final AcademyCountAssembler counts;
 
@@ -105,7 +105,7 @@ public class AdminAcademyQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACADEMY_NOT_FOUND));
         long staffCount = academyStaffRepository.countByAcademyIdAndStatus(academyId, StaffStatus.ACTIVE);
         long userCount = counts.userCount(academyId);
-        List<String> movingBusNos = runRepository.findBusNosByStatusFromServiceDate(academyId, RunStatus.MOVING,
+        List<String> movingBusNos = runDashboardRepository.findBusNosByStatusFromServiceDate(academyId, RunStatus.MOVING,
                 movingRunWindowPolicy.earliestServiceDate());
         long pendingSignupCount = counts.pendingSignupCount(academyId);
         return AcademyDetailResponse.from(academy, staffCount, userCount, pendingSignupCount,

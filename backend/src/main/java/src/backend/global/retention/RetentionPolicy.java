@@ -35,6 +35,12 @@ public class RetentionPolicy {
      */
     public static final Duration WITHDRAWN_STUDENT_RETENTION = Duration.ofDays(90);
 
+    /**
+     * 복구 인증 코드 발급 행 보관 기간 — 하루. 하루가 지난 행은 어느 발급 제한(60초·24시간)에도 세어지지 않고 코드도 만료돼 있어 지워도 동작이 달라지지 않는다(API_SPEC §2.9).
+     * 미등록 번호의 요청도 행을 남기므로 번호를 바꿔 가며 보내는 요청이 행을 쌓지 못하게 한다.
+     */
+    public static final Duration VERIFICATION_CODE_RETENTION = Duration.ofDays(1);
+
     /** 알림 로그 보관 기간 — 14일 확정(ERD §7.2 "notification_log — 14일 — 알림 보관 기간"). */
     public static final Duration NOTIFICATION_LOG_RETENTION = Duration.ofDays(14);
 
@@ -83,6 +89,11 @@ public class RetentionPolicy {
     /** {@code notification_log} 삭제 기준 시각 — 이보다 이전에 생성된 행이 대상. */
     public OffsetDateTime notificationLogCutoff(OffsetDateTime now) {
         return now.minus(NOTIFICATION_LOG_RETENTION);
+    }
+
+    /** {@code verification_code} 삭제 기준 시각 — 이보다 이전에 발급된 행이 대상. */
+    public OffsetDateTime verificationCodeCutoff(OffsetDateTime now) {
+        return now.minus(VERIFICATION_CODE_RETENTION);
     }
 
     /** {@code run_position} 삭제 기준 시각 — 이보다 이전에 측정된 행이 대상. */

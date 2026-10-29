@@ -184,7 +184,7 @@ class LoginAuditIntegrationTest {
                 .extracting(AuditLog::getIp).isEqualTo("203.0.113.7");
     }
 
-    /** IP 형식이 아닌 값이 와도 로그인은 성공하고 {@code ip} 는 비운다(BR-062) — 그대로 넣으면 {@code inet} 변환이 실패해 500 이 난다. */
+    /** IP 형식이 아닌 헤더 값이 와도 로그인은 성공하고 {@code ip} 는 헤더를 버린 접속 주소다(BR-062) — 그대로 넣으면 {@code inet} 변환이 실패해 500 이 난다. */
     @Test
     void IP_형식이_아닌_주소_헤더가_와도_로그인은_성공한다() throws Exception {
         Long accountId = createAccount("P14T1AUD06", "p14t1loginip2", "010-9000-0006");
@@ -198,6 +198,6 @@ class LoginAuditIntegrationTest {
         entityManager.flush();
 
         assertThat(auditRowsFor(accountId)).singleElement()
-                .extracting(AuditLog::getIp).isNull();
+                .extracting(AuditLog::getIp).isEqualTo("127.0.0.1"); // MockMvc 의 접속 주소 — 프록시 헤더가 IP 표기가 아니면 접속 주소를 쓴다
     }
 }

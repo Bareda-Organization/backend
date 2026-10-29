@@ -5,7 +5,6 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,7 +71,6 @@ public class ChildLinkCommandService {
     private final LinkCodeGenerator codeGenerator;
 
     private final Clock clock;
-
 
     /**
      * ① 학생이 인증 코드를 만든다(S-05, §3.3) — 선행 조건이 없다(Ruling 324).

@@ -28,7 +28,7 @@ import src.backend.request.repository.RunPendingCount;
 import src.backend.run.entity.DelayNotice;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.DelayNoticeRepository;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunDashboardRepository;
 
 /**
  * 대시보드의 최근 기록(API_SPEC §6.18 {@code recent_events[]}, Ruling 804) — 회차 확정 · 출발 · 종료 · 지연 알림 발송 · 관계자 가입 신청 5종 중
@@ -44,7 +44,7 @@ class AdminDashboardEventReader {
 
     static final int WINDOW_DAYS = 7;
 
-    private final RunRepository runRepository;
+    private final RunDashboardRepository runDashboardRepository;
 
     private final DelayNoticeRepository delayNoticeRepository;
 
@@ -71,9 +71,9 @@ class AdminDashboardEventReader {
         LocalDate sinceDate = today.minusDays(WINDOW_DAYS + 1L);
         Limit limit = Limit.of(LIMIT);
 
-        List<Run> confirmed = runRepository.findRecentlyConfirmed(academyIds, sinceDate, since, limit);
-        List<Run> started = runRepository.findRecentlyStarted(academyIds, sinceDate, since, limit);
-        List<Run> finished = runRepository.findRecentlyFinished(academyIds, sinceDate, since, limit);
+        List<Run> confirmed = runDashboardRepository.findRecentlyConfirmed(academyIds, sinceDate, since, limit);
+        List<Run> started = runDashboardRepository.findRecentlyStarted(academyIds, sinceDate, since, limit);
+        List<Run> finished = runDashboardRepository.findRecentlyFinished(academyIds, sinceDate, since, limit);
         List<DelayNotice> notices = delayNoticeRepository.findRecent(academyIds, sinceDate, since, limit);
         List<SignupRequest> signups = signupRequestRepository.findRecentStaffSignups(academyIds, since, limit);
         return new Fetched(confirmed, started, finished, notices, signups);
@@ -131,7 +131,7 @@ class AdminDashboardEventReader {
         Set<Long> missing = notices.stream().map(DelayNotice::getRunId).filter(id -> !runs.containsKey(id))
                 .collect(Collectors.toSet());
         if (!missing.isEmpty()) {
-            runRepository.findAllByAcademyIdInAndIdIn(academyIds, missing).forEach(run -> runs.put(run.getId(), run));
+            runDashboardRepository.findAllByAcademyIdInAndIdIn(academyIds, missing).forEach(run -> runs.put(run.getId(), run));
         }
         return runs;
     }

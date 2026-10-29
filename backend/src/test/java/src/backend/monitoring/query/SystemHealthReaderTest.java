@@ -29,6 +29,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
+import src.backend.global.health.NotificationBacklog;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
 import src.backend.run.domain.MovingRunWindowPolicy;
@@ -48,7 +49,7 @@ class SystemHealthReaderTest {
 
     private final HealthEndpoint healthEndpoint = mock(HealthEndpoint.class);
 
-    private final NotificationBacklogReader notificationBacklogReader = mock(NotificationBacklogReader.class);
+    private final NotificationBacklog notificationBacklog = mock(NotificationBacklog.class);
 
     private final Map<String, String> sharedStore = new HashMap<>();
 
@@ -75,7 +76,7 @@ class SystemHealthReaderTest {
 
     private SystemHealthReader readerOf(ConfirmationBatchHeartbeat of) {
         return new SystemHealthReader(healthEndpoint, mock(RunRepository.class), mock(MovingRunWindowPolicy.class),
-                mock(RunPositionStore.class), mock(RunLiveStateResolver.class), of, notificationBacklogReader, clock);
+                mock(RunPositionStore.class), mock(RunLiveStateResolver.class), of, notificationBacklog, clock);
     }
 
     @SuppressWarnings("unchecked")
@@ -94,7 +95,7 @@ class SystemHealthReaderTest {
     private void 정상으로_맞춘다() {
         when(healthEndpoint.healthForPath("db")).thenReturn(up);
         when(healthEndpoint.healthForPath("redis")).thenReturn(up);
-        when(notificationBacklogReader.countPendingCreatedBefore(any())).thenReturn(0L);
+        when(notificationBacklog.countPendingCreatedBefore(any())).thenReturn(0L);
     }
 
     private static IndicatedHealthDescriptor descriptor(Status status) {
@@ -217,7 +218,7 @@ class SystemHealthReaderTest {
     @Test
     @DisplayName("notification — 5분 넘게 대기한 알림이 있으면 warn 과 건수")
     void 발송_지연이_있으면_warn() {
-        when(notificationBacklogReader.countPendingCreatedBefore(any())).thenReturn(3L);
+        when(notificationBacklog.countPendingCreatedBefore(any())).thenReturn(3L);
 
         assertThat(cell("notification")).isEqualTo(new HealthCell("notification", "warn", "발송 지연 3건"));
     }

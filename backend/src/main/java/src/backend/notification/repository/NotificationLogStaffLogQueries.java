@@ -18,6 +18,10 @@ import src.backend.notification.entity.NotificationType;
 
 /**
  * 관계자 웹의 알림 로그 조회(API_SPEC §5.17) — 목록 · 묶어 보기 · 미확인 배지. {@link NotificationLogRepository} 가 상속한다.
+ *
+ * <p>조회 메서드({@code searchForStaffLog}·{@code countUnackedForStaffLog})는 §5.17 전용이다. 이름에 {@code ForStaffLog} 를 붙인 이유는 한 저장소가 전이 메서드와 조회
+ * 메서드를 함께 갖게 되면서, 양쪽 담당이 서로 다른 뜻으로 같은 이름을 지어 충돌하는 것이 실제 위험이기 때문이다(Ruling 222) — 아웃박스 전이 메서드는 전부
+ * 단건({@code id} 로 특정)이라 이름이 겹칠 일이 없지만 조회는 그렇지 않다.
  */
 @NoRepositoryBean
 public interface NotificationLogStaffLogQueries extends Repository<NotificationLog, Long> {

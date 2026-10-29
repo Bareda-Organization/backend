@@ -29,7 +29,7 @@ public abstract class RunConfirmationState extends BaseTimeEntity {
      *
      * <p>값을 이 컬럼에 두는 이유는 배치가 재시작되면 인메모리 카운터는 사라지기 때문이다. 이 필드는
      * 읽기 전용이다 — 증가·초기화는 {@code RunRepository} 의 조건부 UPDATE 가 DB 에서 직접 하고,
-     * 엔티티를 통해 쓰지 않는다(아래 {@code confirmIfIdle}·{@code recordFailure} 참고). 조건부 UPDATE 인
+     * 엔티티를 통해 쓰지 않는다({@code RunRepository#confirmIfIdle}·{@code RunRepository#recordFailure} 참고). 조건부 UPDATE 인
      * 이유는 확정 배치의 멱등성이 영향받은 행 수로 판정되어야 하는데, 엔티티 변경 후
      * {@code save()} 로는 "내가 실제로 idle 이던 행을 바꿨는지" 를 알 수 없기 때문이다.
      */

@@ -13,9 +13,8 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.security.access.AcademyScope;
-import src.backend.run.access.RunAssignmentAccess;
-import src.backend.student.access.GuardianChildAccess;
-import src.backend.student.repository.StudentRepository;
+import src.backend.global.security.access.RunChannelAccess;
+import src.backend.global.security.access.StudentChannelAccess;
 
 /**
  * STOMP SUBSCRIBE 인가(ARCHITECTURE §5.1 3층 중 역할 권한 · 자원 소속 검증). 구독 목적지 4종({@code /topic/students/{studentId}/run} ·
@@ -31,9 +30,8 @@ public class StompSubscribeAuthorizer {
     private static final Pattern ACADEMY_LIVE_PATTERN = Pattern.compile("^/topic/academy/(\\d{1,18})/live$");
     private static final Pattern ADMIN_LIVE_PATTERN = Pattern.compile("^/topic/admin/live$");
 
-    private final GuardianChildAccess guardianChildAccess;
-    private final RunAssignmentAccess runAssignmentAccess;
-    private final StudentRepository studentRepository;
+    private final StudentChannelAccess studentChannelAccess;
+    private final RunChannelAccess runChannelAccess;
 
     /** 구독 목적지를 인가하고, 거절되면 4403 으로 닫을 표식을 세션에 남긴다. */
     public void authorize(StompHeaderAccessor accessor) {
@@ -82,7 +80,7 @@ public class StompSubscribeAuthorizer {
         if (runId == null) {
             return false;
         }
-        runAssignmentAccess.assertAssignedDriverOrEscort(subscriber, runId);
+        runChannelAccess.assertMayFollowRun(subscriber, runId);
         return true;
     }
 
@@ -111,23 +109,9 @@ public class StompSubscribeAuthorizer {
         return matcher.matches() ? Long.valueOf(matcher.group(1)) : null;
     }
 
-    /**
-     * 학생 채널 — 학부모(연결된 자녀) 또는 학생 본인만 구독한다. STAFF·DRIVER·ESCORT·SYSTEM_ADMIN 이
-     * 시도하면 {@link GuardianChildAccess#requireGuardian} 이 guardian 행을 못 찾아 자연히
-     * {@link ErrorCode#FORBIDDEN} 으로 막힌다 — 별도 역할 분기를 두지 않는다(재사용 우선).
-     */
+    /** 학생 채널 — 학생 본인 또는 연결된 보호자만 구독한다. 판정은 학생 모듈의 {@link StudentChannelAccess} 구현이 한다. */
     private void authorizeStudentChannel(AuthUser subscriber, Long studentId) {
-        if (subscriber.role() == Role.STUDENT) {
-            boolean self = studentRepository.findByAccountId(subscriber.accountId())
-                    .filter(student -> student.getDeletedAt() == null)
-                    .map(student -> student.getId().equals(studentId))
-                    .orElse(false);
-            if (!self) {
-                throw new BusinessException(ErrorCode.FORBIDDEN);
-            }
-            return;
-        }
-        guardianChildAccess.assertLinkedChild(subscriber, studentId);
+        studentChannelAccess.assertMayFollowStudent(subscriber, studentId);
     }
 
     /**

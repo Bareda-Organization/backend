@@ -12,10 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import src.backend.global.location.GeoPoint;
 import src.backend.routing.engine.spec.OrderableStop;
+import src.backend.student.access.DailyStopLookup;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentDailyStop;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 노선 계산 ①단계 — 그날의 승하차지를 좌표로 바꾸고 얻지 못한 학생을 분리한다
@@ -29,12 +29,12 @@ import src.backend.student.repository.WeeklyAddressRepository;
 @Component
 public class DailyStopResolver {
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
+    private final DailyStopLookup dailyStopLookup;
 
     private final StopRepository stopRepository;
 
-    public DailyStopResolver(WeeklyAddressRepository weeklyAddressRepository, StopRepository stopRepository) {
-        this.weeklyAddressRepository = weeklyAddressRepository;
+    public DailyStopResolver(DailyStopLookup dailyStopLookup, StopRepository stopRepository) {
+        this.dailyStopLookup = dailyStopLookup;
         this.stopRepository = stopRepository;
     }
 
@@ -72,7 +72,7 @@ public class DailyStopResolver {
     private Map<Long, Long> studentToStop(DailyRoster roster) {
         Map<Long, Long> resolved = new LinkedHashMap<>();
         if (!roster.studentIds().isEmpty()) {
-            for (StudentDailyStop row : weeklyAddressRepository.findDailyStops(
+            for (StudentDailyStop row : dailyStopLookup.findDailyStops(
                     roster.academyId(), roster.studentIds(), roster.weekday(), roster.direction())) {
                 resolved.put(row.getStudentId(), row.getStopId());
             }

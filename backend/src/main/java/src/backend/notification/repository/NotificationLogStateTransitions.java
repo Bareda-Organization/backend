@@ -16,6 +16,14 @@ import src.backend.notification.entity.PushState;
 
 /**
  * 아웃박스 행의 발송 상태 전이 — 선점 · 성공 · 실패 · 건너뜀 · 시도 되돌리기. 전부 조건부 UPDATE 단건이고 {@link NotificationLogRepository} 가 상속한다(호출부는 그 저장소로 부른다).
+ *
+ * <p>상태 전이를 전부 {@code @Modifying} 조건부 UPDATE 로 두는 이유는 §7 규칙 3 이다 — 변경 감지는
+ * "읽고 판단하고 쓰는" 사이에 창이 생겨, 즉시 발송과 워커가 같은 행을 함께 집는다.
+ *
+ * <p>전이 메서드가 전부 {@code REQUIRES_NEW} 인 것은 호출 시점 때문이다. 즉시 발송은
+ * {@code AFTER_COMMIT} 리스너에서 부르는데, 그 시점의 스레드에는 <b>이미 커밋된</b> 트랜잭션의
+ * {@code EntityManager} 가 아직 묶여 있다. {@code REQUIRED} 로 두면 그 끝난 트랜잭션에 합류해
+ * UPDATE 가 아무 데도 반영되지 않고, 그런데도 예외가 부재해 초록으로 지나간다.
  */
 @NoRepositoryBean
 public interface NotificationLogStateTransitions extends Repository<NotificationLog, Long> {

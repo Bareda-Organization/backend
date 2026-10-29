@@ -64,7 +64,7 @@ public class NotificationDispatcher {
      * <p><b>선점에 실패하면 아무것도 하지 않는다.</b> 즉시 발송과 워커가 같은 행을 겨냥하는 것은
      * 정상이며(하나는 빠르라고, 하나는 잃지 말라고 있다), 둘 다 보내는 것이 사고다.
      *
-     * <p>설정이 꺼져 있으면 {@link #claim} 을 거치지 않고 바로 {@code skipped} 로 옮긴다 — 발송
+     * <p>설정이 꺼져 있으면 {@link src.backend.notification.repository.NotificationLogStateTransitions#claim} 을 거치지 않고 바로 {@code skipped} 로 옮긴다 — 발송
      * 시도 자체가 없으니 {@code push_attempts} 를 올릴 이유가 없다({@code markSkipped} 자바독).
      */
     public void dispatch(Long notificationId) {

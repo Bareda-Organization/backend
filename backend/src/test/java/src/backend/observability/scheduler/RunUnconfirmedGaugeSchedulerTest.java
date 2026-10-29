@@ -43,7 +43,7 @@ import testsupport.clock.FixedClock20300401Config;
  *
  * <p>절대값이 아니라 <b>증분</b>으로 단언한다 — 이 게이지는 전 학원 대상 집계라(범위를 좁힐 수 없는
  * 이유는 {@code RunRepository} 의 {@code @AcademyScopeExempt} 근거 참고) 로컬 시드
- * ({@code V2__seed_data.sql})가 심어 둔 idle 회차 1건이 이미 실측 문턱을 넘겨 있다. 문턱 전후로 이
+ * ({@code V800__seed_data.sql})가 심어 둔 idle 회차 1건이 이미 실측 문턱을 넘겨 있다. 문턱 전후로 이
  * 시험이 심은 5건만큼만 값이 얼마나 늘었는지를 보면 그 시드 오염과 무관하게 판정할 수 있다.
  */
 @SpringBootTest

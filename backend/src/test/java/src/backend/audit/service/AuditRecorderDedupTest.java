@@ -95,7 +95,7 @@ class AuditRecorderDedupTest {
 
     /**
      * 같은 행위자의 같은 조회가 동시에 들어와도 행은 1건이다 — "새 학생인가" 판정과 시각 기록이 한 단계로 원자적이어야 한다
-     * ({@code AuditRecorder.claimNewStudents}). 읽고 나서 쓰는 두 단계면 동시 호출이 모두 새 학생으로 판정해 행이 겹쳐 남는다.
+     * ({@code AuditDedupWindow.claimNewStudents}). 읽고 나서 쓰는 두 단계면 동시 호출이 모두 새 학생으로 판정해 행이 겹쳐 남는다.
      */
     @Test
     void 같은_학생의_같은_조회가_동시에_들어와도_행은_1건이다() throws Exception {

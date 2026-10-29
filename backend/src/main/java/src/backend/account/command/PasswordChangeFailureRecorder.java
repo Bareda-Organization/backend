@@ -14,7 +14,7 @@ import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -36,7 +36,7 @@ public class PasswordChangeFailureRecorder {
 
     private final AccountRepository accountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
@@ -55,7 +55,7 @@ public class PasswordChangeFailureRecorder {
             return new BusinessException(ErrorCode.INVALID_CREDENTIALS, new LoginFailureDetail(remaining));
         }
         refreshTokenRepository.revokeAllValidByAccountId(accountId, now);
-        auditLogRepository.save(AuditLog.forLoginBlock(account.getAcademyId(), accountId, account.getLoginId(),
+        auditRecorder.record(AuditLog.forLoginBlock(account.getAcademyId(), accountId, account.getLoginId(),
                 ClientIp.ofCurrentRequest(), now));
         eventPublisher.publishEvent(new AccountStandingChangedEvent(accountId)); // 커밋 직후 계정 상태 보관 항목을 비운다
         return new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationEventPublisher;
@@ -24,6 +25,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import tools.jackson.databind.json.JsonMapper;
@@ -153,12 +158,26 @@ class RunPositionLateCommitTest {
         }).when(afterRead).get(key);
         Mockito.doReturn(afterRead).when(redis).opsForValue();
         double before = 버린_횟수("write_contended");
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        Logger storeLogger = (Logger) LoggerFactory.getLogger(RunPositionStore.class);
+        storeLogger.addAppender(logs);
 
-        boolean stored = runPositionStore.save(runId, 값("37.510000", T0.plusSeconds(50)));
+        boolean stored;
+        try {
+            stored = runPositionStore.save(runId, 값("37.510000", T0.plusSeconds(50)));
+        } finally {
+            storeLogger.detachAppender(logs);
+            logs.stop();
+        }
 
         assertThat(stored).as("끼어드는 값 때문에 끝내 쓰지 못했다").isFalse();
         assertThat(interlopers).as("정해진 횟수만 다시 시도하고 멈춘다").hasValue(5);
         assertThat(버린_횟수("write_contended") - before).as("쓰지 못한 위치는 이유와 함께 세어야 한다").isEqualTo(1.0);
+        assertThat(logs.list).as("쓰지 못한 위치는 WARN 으로도 남는다(분당 한 번)")
+                .filteredOn(event -> event.getLevel() == Level.WARN)
+                .singleElement()
+                .satisfies(event -> assertThat(event.getFormattedMessage()).contains("비교 쓰기가 5번 밀려").contains("runId=" + runId));
     }
 
     private double 버린_횟수(String reason) {

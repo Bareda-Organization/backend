@@ -103,7 +103,7 @@ public interface AssignmentViewQueries extends Repository<Assignment, Long> {
      *
      * <p>학원 조건이 {@link #findAssignedManagers} 와 같은 자리(조인된 {@code manager})에 걸려 있다.
      * 삭제된 매니저({@code deleted_at})는 담지 않는다 — 그만둔 매니저에게 새 회차 확정을 알릴 이유가
-     * 없다. MGR-04({@link #existsUnfinishedByManagerId})는 <b>끝나지 않은</b> 회차의 배치만 삭제를
+     * 없다. MGR-04({@link AssignmentRepository#existsUnfinishedByManagerId})는 <b>끝나지 않은</b> 회차의 배치만 삭제를
      * 막으므로(BR-023), 지난 회차에 배치된 채 삭제된 매니저는 정상 흐름에서 생긴다 — 그 회차가 다시
      * 확정되는 경로는 없지만, 이 조건이 그 매니저를 수신자에서 확실히 뺀다. 도달 가능성은
      * {@code RunRouteConfirmedNotificationTest#삭제된_매니저는_알림을_받지_않는다} 가 상태를 직접 만들어

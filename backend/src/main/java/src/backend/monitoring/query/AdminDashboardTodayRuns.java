@@ -23,7 +23,7 @@ import src.backend.request.repository.RunPendingCount;
 import src.backend.routing.entity.RunStop;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunDashboardRepository;
 
 /**
  * 대시보드의 오늘 회차 보드(API_SPEC §6.18 {@code today_runs[]} · {@code attention.delayed_runs[]}) — 두 목록이 같은 "오늘 미취소 회차" 와 같은 정차
@@ -33,7 +33,7 @@ import src.backend.run.repository.RunRepository;
 @RequiredArgsConstructor
 class AdminDashboardTodayRuns {
 
-    private final RunRepository runRepository;
+    private final RunDashboardRepository runDashboardRepository;
 
     private final BusRepository busRepository;
 
@@ -48,7 +48,7 @@ class AdminDashboardTodayRuns {
     }
 
     Board read(DashboardScope scope, LocalDate today) {
-        List<Run> runs = runRepository.findAllByAcademyIdInAndServiceDateAndCanceledAtIsNullOrderByDepartTimeAsc(
+        List<Run> runs = runDashboardRepository.findAllByAcademyIdInAndServiceDateAndCanceledAtIsNullOrderByDepartTimeAsc(
                 scope.academyIds(), today);
         if (runs.isEmpty()) {
             return new Board(List.of(), List.of());
@@ -74,7 +74,7 @@ class AdminDashboardTodayRuns {
     }
 
     private Set<Long> delayedIdsOf(DashboardScope scope, LocalDate today) {
-        return runRepository.findDelayedToday(scope.academyIds(), today).stream().map(Run::getId)
+        return runDashboardRepository.findDelayedToday(scope.academyIds(), today).stream().map(Run::getId)
                 .collect(Collectors.toSet());
     }
 

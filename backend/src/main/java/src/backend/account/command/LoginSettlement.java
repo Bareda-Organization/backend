@@ -18,7 +18,7 @@ import src.backend.account.entity.RefreshToken;
 import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -44,7 +44,7 @@ public class LoginSettlement {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
     @Value("${jwt.refresh-token-validity-seconds}")
     private final long refreshValiditySeconds;
 
@@ -63,9 +63,9 @@ public class LoginSettlement {
      * 무효화"만 적고 트리거를 명시하지 않는데, 이 로그인 경로에서의 차단도 그 트리거에 포함시킨
      * 판단이다.
      *
-     * <p>감사 기록을 {@code AuditRecorder}(별도 트랜잭션, {@link
-     * src.backend.audit.service.AuditRecorder}) 가 아니라 이 메서드와 <b>같은 트랜잭션</b>에서
-     * {@code auditLogRepository} 로 직접 쓴다 — 실패 카운터 증가도 뒤따르는 {@code BusinessException}
+     * <p>감사 기록을 조회 감사처럼 별도 트랜잭션({@link
+     * src.backend.audit.service.AuditRecorder#recordDataAccessRead})에 두지 않고 이 메서드와 <b>같은 트랜잭션</b>에서
+     * {@link src.backend.audit.service.AuditRecorder#record} 로 쓴다 — 실패 카운터 증가도 뒤따르는 {@code BusinessException}
      * 과 같은 트랜잭션에 있어야 자격 대조 결과와 감사 기록이 하나의 단위로 묶인다(이 클래스의 기존
      * 설계). 문제는 그 뒤따르는 {@code BusinessException} 이 Spring 의 기본 롤백 규칙(모든
      * {@code RuntimeException} 에서 롤백)을 그대로 타면 <b>이 메서드가 방금 쓴 것 전부가 함께
@@ -95,7 +95,7 @@ public class LoginSettlement {
         }
         assertStandingKept(account);
         account.recordLoginSuccess(now);
-        auditLogRepository.save(
+        auditRecorder.record(
                 AuditLog.forLoginSuccess(account.getAcademyId(), account.getId(), loginId, ip, now));
         return issueTokens(account, now);
     }
@@ -103,11 +103,11 @@ public class LoginSettlement {
     /** 실패를 누적하고 감사 행을 남긴다 — 상한에 닿아 차단되면 refresh 토큰 무효화·차단 감사·상태 변경 이벤트까지 하고 던질 예외를 돌려준다. */
     private BusinessException recordFailure(Account account, String loginId, String ip, OffsetDateTime now) {
         int remaining = account.recordLoginFailure(now);
-        auditLogRepository.save(
+        auditRecorder.record(
                 AuditLog.forLoginFail(account.getAcademyId(), account.getId(), loginId, ip, now));
         if (account.getStatus() == AccountStatus.BLOCKED) {
             refreshTokenRepository.revokeAllValidByAccountId(account.getId(), now);
-            auditLogRepository.save(
+            auditRecorder.record(
                     AuditLog.forLoginBlock(account.getAcademyId(), account.getId(), loginId, ip, now));
             eventPublisher.publishEvent(new AccountStandingChangedEvent(account.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다
             return new BusinessException(ErrorCode.AUTH_ACCOUNT_BLOCKED);

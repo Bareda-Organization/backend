@@ -30,7 +30,7 @@ final class RunPositionHistoryFallback {
     /** Redis 대체 조회가 거슬러 올라가는 한계 — 이보다 오래된 위치는 운행 중 회차의 "최신" 이 아니고, 구간이 있어야 읽는 일 파티션이 2개로 묶인다(DA-2). */
     private static final Duration FALLBACK_LOOKBACK = Duration.ofHours(24);
 
-    /** Redis 키가 없을 때 DB 를 읽는 범위 — 위치가 낡았다고 보는 기준과 같다({@code StudentBusPositionQueryService.STALE_THRESHOLD}, 같은 값임을 시험이 본다). 이보다 오래된 행은 어차피 낡은 위치다. */
+    /** Redis 키가 없을 때 DB 를 읽는 범위 — 위치가 낡았다고 보는 기준과 같다({@code PolicyConstants.POSITION_STALE_THRESHOLD}, 같은 값임을 시험이 본다). 이보다 오래된 행은 어차피 낡은 위치다. */
     static final Duration MISS_LOOKBACK = Duration.ofMinutes(2);
 
     /** Redis 는 살아 있는데 운행 중 회차의 키가 비어 DB 최신 행으로 채운 읽기 횟수를 세는 지표 이름. */

@@ -14,7 +14,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import src.backend.account.repository.AccountRepository;
 
 /**
  * 계정이 <b>권한을 잃었는가</b>(Ruling 880) — 차단 · 퇴사한 관계자 · 삭제된 매니저면 그 계정이 이미 받은 access 토큰은
@@ -43,7 +42,7 @@ public class AccountStanding {
     record Cached(boolean lost, long expiresAtMillis) {
     }
 
-    private final AccountRepository accountRepository;
+    private final LostStandingSource standingSource;
     private final Clock clock;
     private final Duration cacheTtl;
     private final Map<Long, Cached> cache;
@@ -54,14 +53,14 @@ public class AccountStanding {
     private final AtomicLong evictions = new AtomicLong();
 
     @Autowired
-    public AccountStanding(AccountRepository accountRepository, Clock clock,
+    public AccountStanding(LostStandingSource standingSource, Clock clock,
             @Value("${app.security.account-standing-cache-ttl:5s}") Duration cacheTtl) {
-        this(accountRepository, clock, cacheTtl, new ConcurrentHashMap<>());
+        this(standingSource, clock, cacheTtl, new ConcurrentHashMap<>());
     }
 
     /** 보관 맵을 바꿔 끼울 수 있는 생성자 — 시험이 비움이 보관 직전에 끼어드는 순간을 만들어 낸다. */
-    AccountStanding(AccountRepository accountRepository, Clock clock, Duration cacheTtl, Map<Long, Cached> cache) {
-        this.accountRepository = accountRepository;
+    AccountStanding(LostStandingSource standingSource, Clock clock, Duration cacheTtl, Map<Long, Cached> cache) {
+        this.standingSource = standingSource;
         this.clock = clock;
         this.cacheTtl = cacheTtl;
         this.cache = cache;
@@ -94,13 +93,13 @@ public class AccountStanding {
         List<Long> ids = List.copyOf(accountIds);
         Set<Long> lost = new HashSet<>();
         for (int from = 0; from < ids.size(); from += QUERY_CHUNK) {
-            lost.addAll(accountRepository.findIdsWithLostStanding(ids.subList(from, Math.min(from + QUERY_CHUNK, ids.size()))));
+            lost.addAll(standingSource.findIdsWithLostStanding(ids.subList(from, Math.min(from + QUERY_CHUNK, ids.size()))));
         }
         return lost;
     }
 
     private boolean queryLost(Long accountId) {
-        return !accountRepository.findIdsWithLostStanding(List.of(accountId)).isEmpty();
+        return !standingSource.findIdsWithLostStanding(List.of(accountId)).isEmpty();
     }
 
     /** 질의를 시작한 뒤 비움이 한 번도 없었을 때만 보관한다 — 비교와 보관을 한 키 안에서 한꺼번에 해 그 사이에 비움이 끼어들 수 없다. */

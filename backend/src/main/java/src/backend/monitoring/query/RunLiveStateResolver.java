@@ -11,10 +11,10 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 
 import src.backend.global.common.enums.ChangeType;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.routing.entity.RunStop;
 import src.backend.routing.query.CurrentRunStopResolver;
-import src.backend.student.query.StudentBusPositionQueryService;
 
 /**
  * 회차 1건의 "지금" 상태 판정 — §5.18({@code GET /staff/runs/live})과 §6.8이 공유하는 세 판정을
@@ -57,7 +57,7 @@ public class RunLiveStateResolver {
     }
 
     /**
-     * {@code StudentBusPositionQueryService.STALE_THRESHOLD} 를 그대로 참조한다 — 값을 복사하지 않는
+     * {@code PolicyConstants.POSITION_STALE_THRESHOLD} 를 그대로 참조한다 — 값을 복사하지 않는
      * 이유는 그 상수 자바독을 본다.
      */
     private boolean isStale(RunPositionRedisValue position) {
@@ -65,7 +65,7 @@ public class RunLiveStateResolver {
             return true;
         }
         Duration elapsed = Duration.between(position.receivedAt(), OffsetDateTime.now(clock));
-        return elapsed.compareTo(StudentBusPositionQueryService.STALE_THRESHOLD) >= 0;
+        return elapsed.compareTo(PolicyConstants.POSITION_STALE_THRESHOLD) >= 0;
     }
 
     /** 정차가 없으면(확정 노선 부재) 둘 다 null 이다. */

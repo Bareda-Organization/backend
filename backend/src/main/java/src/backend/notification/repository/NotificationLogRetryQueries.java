@@ -56,7 +56,7 @@ public interface NotificationLogRetryQueries extends Repository<NotificationLog,
             Pageable limit);
 
     /**
-     * 시도 상한에 닿은 채 {@code pending} 으로 멈춘 행을 {@code failed} 로 옮긴다(BR-225) — 선점({@link #claim})이
+     * 시도 상한에 닿은 채 {@code pending} 으로 멈춘 행을 {@code failed} 로 옮긴다(BR-225) — 선점({@link NotificationLogStateTransitions#claim})이
      * 시도 횟수를 먼저 올리고 결과 기록은 나중이라, 마지막 시도 도중 프로세스가 죽으면 행이 {@code pending}·상한 횟수로
      * 남아 후보 조건({@code push_attempts < 상한})에도 실패 전이에도 걸리지 않는다.
      *

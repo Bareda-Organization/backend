@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import src.backend.account.repository.AccountRepository;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.error.BusinessException;
 
 /**
@@ -28,7 +28,7 @@ class LoginCommandServiceTest {
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
 
     private final LoginCommandService service = new LoginCommandService(accountRepository, passwordEncoder,
-            Clock.systemUTC(), mock(AuditLogRepository.class), mock(LoginSettlement.class));
+            Clock.systemUTC(), mock(AuditRecorder.class), mock(LoginSettlement.class));
 
     @Test
     void 미등록_아이디도_비밀번호_대조를_한_번_한다() {

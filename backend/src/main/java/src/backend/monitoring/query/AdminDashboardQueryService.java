@@ -28,7 +28,7 @@ import src.backend.request.entity.ChangeRequestStatus;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.request.repository.ChangeRequestStatusCount;
 import src.backend.run.repository.RunDailyAggregate;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunDashboardRepository;
 
 /**
  * 메인 관리자 대시보드 집계(API_SPEC §6.18 {@code GET /admin/dashboard}, Ruling 801) — 기간·학원 범위를 정하고 지표별 읽기 구성 요소를 모아 응답
@@ -49,7 +49,7 @@ public class AdminDashboardQueryService {
 
     private final AcademyRepository academyRepository;
 
-    private final RunRepository runRepository;
+    private final RunDashboardRepository runDashboardRepository;
 
     private final ChangeRequestRepository changeRequestRepository;
 
@@ -93,7 +93,7 @@ public class AdminDashboardQueryService {
         DashboardPeriod period = new DashboardPeriod(LocalDate.now(clock), days, clock.getZone());
 
         List<RunDailyAggregate> aggregates = scope.academyIds().isEmpty() ? List.of()
-                : runRepository.aggregateDaily(scope.academyIds(), period.queryFrom(), period.today());
+                : runDashboardRepository.aggregateDaily(scope.academyIds(), period.queryFrom(), period.today());
         AdminDashboardLoginMetrics.Result logins = loginMetrics.read(period);
         AdminDashboardTodayRuns.Board board = todayRuns.read(scope, period.today());
 

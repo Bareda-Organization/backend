@@ -69,6 +69,7 @@ class DelayNotificationRowLockTest {
         String academies = "(SELECT id FROM academy WHERE name = '" + DriverRunFixtures.ACADEMY_NAME + "')";
         jdbcTemplate.update("DELETE FROM notification_log WHERE academy_id IN " + academies);
         jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academies);
+        jdbcTemplate.update("DELETE FROM student WHERE academy_id IN " + academies);
         jdbcTemplate.update("DELETE FROM manager WHERE academy_id IN " + academies);
         jdbcTemplate.update("DELETE FROM account WHERE academy_id IN " + academies);
         jdbcTemplate.update("DELETE FROM stop WHERE academy_id IN " + academies);

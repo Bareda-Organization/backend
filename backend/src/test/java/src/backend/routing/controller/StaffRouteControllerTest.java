@@ -66,7 +66,7 @@ class StaffRouteControllerTest {
      * 시드 학원 A 의 2호차 — 고정 노선이 하나도 매달려 있지 않아 어느 요일·방향이든 비어 있다.
      *
      * <p>1호차를 쓰지 않는 이유는 시드가 <b>오늘 요일</b>의 등원 편성을 이미 걸어 두었기 때문이다
-     * ({@code V2__seed_data.sql} 의 {@code route} 1행) — 요일이 실행일에 따라 바뀌므로 1호차로는
+     * ({@code V800__seed_data.sql} 의 {@code route} 1행) — 요일이 실행일에 따라 바뀌므로 1호차로는
      * "비어 있는 조합" 을 고정해 적을 수 없다.
      */
     private static final long BUS_A_ID = 2L;
@@ -502,7 +502,7 @@ class StaffRouteControllerTest {
 
     /**
      * 정차지 2곳 이상인 편성은 {@code road_path} 가 비어 있지 않다 — 시드 학원 A 는 좌표를
-     * 가지고 있어({@code V2__seed_data.sql}) 정차지끼리 + 학원 기준점까지 이어져 스텁
+     * 가지고 있어({@code V800__seed_data.sql}) 정차지끼리 + 학원 기준점까지 이어져 스텁
      * ({@code StubMapRouteClient})이 최소 1개 이상의 구간 좌표를 돌려준다.
      */
     @Test

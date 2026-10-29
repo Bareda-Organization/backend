@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -39,7 +38,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -455,26 +453,17 @@ class AccountRecoveryFlowTest {
     }
 
     /**
-     * 미등록 번호의 요청도 발급 행을 남기므로 하루가 지난 행은 정리한다 — 번호를 바꿔 가며 보내는 요청이 행을 끝없이 쌓지 못하게.
-     * 하루 안의 행은 남아야 한다(그 행이 24시간 한도를 센다).
+     * 발급 요청은 하루가 지난 행을 지우지 않는다 — 정리는 요청 안의 인스턴스별 타이머가 아니라 보존 정리 배치의 몫이다({@code VerificationCodeRetentionTest}).
      */
     @Test
-    void 하루가_지난_발급_행은_정리되고_하루_안의_행은_남는다() throws Exception {
+    void 발급_요청은_하루가_지난_행을_지우지_않는다() throws Exception {
         jdbcTemplate.update("INSERT INTO verification_code (phone, code, purpose, expires_at, created_at) "
                 + "VALUES (?, '111111', 'password', now() - interval '47 hours', now() - interval '2 days')", phone);
-        jdbcTemplate.update("INSERT INTO verification_code (phone, code, purpose, expires_at, created_at) "
-                + "VALUES (?, '222222', 'password', now() - interval '1 hour', now() - interval '2 hours')", phone);
-        // 정리는 10분에 한 번만 도므로, 앞선 시험이 이미 돌았더라도 이 시험에서 돌게 마지막 정리 시각을 되돌린다
-        @SuppressWarnings("unchecked")
-        AtomicReference<Instant> lastPurgeAt = (AtomicReference<Instant>) ReflectionTestUtils
-                .getField(accountRecoveryCommandService, "lastPurgeAt");
-        lastPurgeAt.set(Instant.EPOCH);
 
         recover("password", null).andExpect(status().isOk());
 
         assertThat(jdbcTemplate.queryForList("SELECT code FROM verification_code WHERE phone = ? ORDER BY id",
-                String.class, phone)).as("2일 전 행은 지워지고 2시간 전 행과 방금 발급한 행이 남는다")
-                .hasSize(2).contains("222222").doesNotContain("111111");
+                String.class, phone)).as("2일 전 행도 그대로 남고 방금 발급한 행이 더해진다").hasSize(2).contains("111111");
     }
 
     /** 대조 실패도 같은 오류다 — 미등록 번호도, 발급 행이 있는 미등록 번호가 맞는 값을 넣어도 {@code 403} 하나다. */

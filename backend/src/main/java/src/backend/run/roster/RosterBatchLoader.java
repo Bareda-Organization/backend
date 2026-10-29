@@ -31,8 +31,8 @@ import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunTransferRepository;
+import src.backend.student.access.DailyStopLookup;
 import src.backend.student.repository.StudentDailyStop;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 같은 학원 회차 묶음의 예정 명단 재료({@link RosterSources})를 <b>회차 수와 무관한 조회 횟수</b>로 읽는다(DA-7) — 노선 · 노선 정차지 · 요일별 주소(방향별) · 탑승 의사 · 승인된 변경 · 강제 추가 · 이동을
@@ -46,7 +46,7 @@ class RosterBatchLoader {
 
     private final RouteStopRepository routeStopRepository;
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
+    private final DailyStopLookup dailyStopLookup;
 
     private final BoardingIntentRepository boardingIntentRepository;
 
@@ -66,7 +66,7 @@ class RosterBatchLoader {
         Batch batch = new Batch(dailyStopsOf(academyId, runs), excludedByRun(academyId, runIds),
                 relocationsByRun(academyId, runIds), forcedByRun(academyId, runIds), outgoingByRun(academyId, runIds),
                 incomingByRun(academyId, runIds));
-        return runs.stream().collect(Collectors.toMap(Run::getId, batch::sourcesOf));
+        return runs.stream().collect(Collectors.toMap(Run::getId, batch::sourcesOf, (first, second) -> second));
     }
 
     private static Long academyIdOf(List<Run> runs) {
@@ -145,7 +145,7 @@ class RosterBatchLoader {
         if (unionStopIds.isEmpty()) {
             return Map.of();
         }
-        List<StudentDailyStop> union = weeklyAddressRepository.findDailyStopsByStopIds(academyId, unionStopIds,
+        List<StudentDailyStop> union = dailyStopLookup.findDailyStopsByStopIds(academyId, unionStopIds,
                 query.weekday(), query.direction(), serviceDayStart(group.get(0)));
         Map<DailyKey, List<StudentDailyStop>> result = new HashMap<>();
         for (Run run : group) {

@@ -32,10 +32,10 @@ import src.backend.run.dto.RunRouteResponse;
 import src.backend.run.dto.StaffRunRouteResponse;
 import src.backend.run.dto.StaffRunRouteResponse.Ack;
 import src.backend.run.entity.Run;
+import src.backend.student.access.DailyStopLookup;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
 import src.backend.student.repository.StudentDailyStop;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 확정 전(idle) 회차의 예정 경로를 고정 노선에서 계산해 §5.19 응답으로 조립한다.
@@ -57,7 +57,7 @@ class StaffPlannedRouteAssembler {
 
     private final StopRepository stopRepository;
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
+    private final DailyStopLookup dailyStopLookup;
 
     private final RouteComputationPipeline routeComputationPipeline;
 
@@ -126,7 +126,7 @@ class StaffPlannedRouteAssembler {
     /** 오늘 자 요일별 주소로 경로를 계산해 응답으로 조립한다. */
     private StaffRunRouteResponse computePlannedRoute(Run run, Weekday weekday, RunRouteEndpoints.Endpoints endpoints,
             List<Long> stopIds, Map<Long, Stop> stopsById) {
-        List<StudentDailyStop> dailyStops = weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(),
+        List<StudentDailyStop> dailyStops = dailyStopLookup.findDailyStopsByStopIds(run.getAcademyId(),
                 stopIds, weekday, run.getDirection(), run.getServiceDate().atStartOfDay(clock.getZone()).toOffsetDateTime());
         RouteComputation computation = routeComputationPipeline
                 .compute(computationInputOf(run, weekday, endpoints, dailyStops));

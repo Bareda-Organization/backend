@@ -1,6 +1,5 @@
 package src.backend.global.security;
 
-
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.support.MessageHeaderAccessor;
@@ -16,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 
-
 /**
  * STOMP CONNECT 인증과 계정 상태 게이트를 처리한다(ARCHITECTURE §5.1 3층 중 계정 상태 게이트). CONNECT 는 세션 수립 시 1회만
  * 인증하고, 이후 같은 세션의 모든 메시지는 그때 심어둔 Principal(AuthUser)을 그대로 쓴다. SUBSCRIBE 의 역할 권한 · 자원 소속 검증은
@@ -27,7 +25,6 @@ import src.backend.global.error.ErrorCode;
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private static final String APP_DESTINATION_PREFIX = "/app/";
-
 
     private final JwtTokenProvider tokenProvider;
     private final StompSubscribeAuthorizer subscribeAuthorizer;

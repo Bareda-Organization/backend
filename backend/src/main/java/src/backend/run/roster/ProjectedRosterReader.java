@@ -22,8 +22,8 @@ import src.backend.run.entity.Run;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.repository.RunForcedAdditionRepository;
 import src.backend.run.repository.RunTransferRepository;
+import src.backend.student.access.DailyStopLookup;
 import src.backend.student.repository.StudentDailyStop;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 확정 전(idle) 회차의 예정 명단 — 확정 배치(RTE-08)가 그 회차 {@code run_rider} 에 싣는 규칙 한 벌.
@@ -42,7 +42,7 @@ public class ProjectedRosterReader {
 
     private final RouteStopRepository routeStopRepository;
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
+    private final DailyStopLookup dailyStopLookup;
 
     private final BoardingIntentRepository boardingIntentRepository;
 
@@ -72,7 +72,7 @@ public class ProjectedRosterReader {
     /** 확정 배치처럼 고정 노선의 정차지를 이미 읽은 호출부용. */
     public ProjectedRoster read(Run run, Weekday weekday, List<Long> stopIds) {
         List<StudentDailyStop> dailyStops = stopIds.isEmpty() ? List.of()
-                : weeklyAddressRepository.findDailyStopsByStopIds(run.getAcademyId(), stopIds, weekday,
+                : dailyStopLookup.findDailyStopsByStopIds(run.getAcademyId(), stopIds, weekday,
                         run.getDirection(), serviceDayStart(run));
         return RosterAssembler.assemble(new RosterSources(run, dailyStops,
                 boardingIntentRepository.findStudentIdsByRunIdAndRidingFalse(run.getId()),

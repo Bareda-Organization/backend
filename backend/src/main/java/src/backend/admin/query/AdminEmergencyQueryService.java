@@ -32,7 +32,7 @@ import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.entity.Run;
-import src.backend.run.repository.RunRepository;
+import src.backend.run.repository.RunDashboardRepository;
 
 /**
  * 메인 관리자 콘솔의 전 학원 비상 알림 조회 — {@code
@@ -61,7 +61,7 @@ public class AdminEmergencyQueryService {
 
     private final AssignmentRepository assignmentRepository;
 
-    private final RunRepository runRepository;
+    private final RunDashboardRepository runDashboardRepository;
 
     private final Clock clock;
 
@@ -114,7 +114,7 @@ public class AdminEmergencyQueryService {
                 .findAllByIdIn(alerts.stream().map(EmergencyAlert::getAckedBy).filter(Objects::nonNull).toList())
                 .stream()
                 .collect(Collectors.toMap(Account::getId, a -> a));
-        Map<Long, Run> runsById = runRepository
+        Map<Long, Run> runsById = runDashboardRepository
                 .findAllByIdIn(alerts.stream().map(EmergencyAlert::getRunId).distinct().toList())
                 .stream()
                 .collect(Collectors.toMap(Run::getId, r -> r));

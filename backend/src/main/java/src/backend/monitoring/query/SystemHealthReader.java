@@ -17,6 +17,8 @@ import org.springframework.boot.health.actuate.endpoint.HealthDescriptor;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
 import org.springframework.boot.health.contributor.Status;
 
+import src.backend.global.health.NotificationBacklog;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.monitoring.dto.AdminDashboardResponse.HealthCell;
@@ -24,7 +26,6 @@ import src.backend.run.domain.MovingRunWindowPolicy;
 import src.backend.run.entity.Run;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.scheduler.ConfirmationBatchHeartbeat;
-import src.backend.student.query.StudentBusPositionQueryService;
 
 /**
  * 시스템 상태 4칸(API_SPEC §6.18 {@code health[]}, Ruling 803) — 서버가 이미 가진 값만 읽는다. 새 감시 체계가 아니다: 정식 감시는 운영 경보
@@ -75,7 +76,7 @@ class SystemHealthReader {
 
     private final ConfirmationBatchHeartbeat confirmationBatchHeartbeat;
 
-    private final NotificationBacklogReader notificationBacklogReader;
+    private final NotificationBacklog notificationBacklog;
 
     private final Clock clock;
 
@@ -106,7 +107,7 @@ class SystemHealthReader {
     }
 
     private HealthCell position() {
-        OffsetDateTime startedBefore = OffsetDateTime.now(clock).minus(StudentBusPositionQueryService.STALE_THRESHOLD);
+        OffsetDateTime startedBefore = OffsetDateTime.now(clock).minus(PolicyConstants.POSITION_STALE_THRESHOLD);
         LocalDate since = movingRunWindowPolicy.earliestServiceDate();
         List<Run> moving = runRepository.findMovingFromServiceDate(since, 0L, PageRequest.of(0, MOVING_BATCH));
         Map<Long, RunPositionRedisValue> positions = runPositionStore.findAll(moving.stream().map(Run::getId).toList());
@@ -125,7 +126,7 @@ class SystemHealthReader {
     }
 
     private HealthCell notification() {
-        long stale = notificationBacklogReader
+        long stale = notificationBacklog
                 .countPendingCreatedBefore(OffsetDateTime.now(clock).minus(NOTIFICATION_LIMIT));
         return stale == 0 ? new HealthCell(NOTIFICATION, OK, null)
                 : new HealthCell(NOTIFICATION, WARN, "발송 지연 " + stale + "건");
