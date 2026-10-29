@@ -81,7 +81,7 @@ public class RouteOptimizeService {
      */
     public RouteDetailResponse optimize(AuthUser requester, Long routeId, RouteOptimizeRequest request) {
         RouteStopLimit.assertWithin(request.fixedStopIds());
-        Route route = routeRepository.findByIdAndAcademyId(routeId, requester.academyId())
+        Route route = routeRepository.findByIdAndAcademyIdForUpdate(routeId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_FOUND));
         List<Long> currentOrder = routeStopRepository
                 .findAllOrderedByRouteIdAndAcademyId(routeId, requester.academyId()).stream()

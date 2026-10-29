@@ -101,7 +101,8 @@ public class RouteCommandService {
      */
     public RouteDetailResponse update(AuthUser requester, Long routeId, RouteUpdateRequest request) {
         RouteStopLimit.assertWithin(request.stopIds());
-        Route route = findOwnRoute(requester, routeId);
+        Route route = request.stopIds() == null ? findOwnRoute(requester, routeId)
+                : findOwnRouteForUpdate(requester, routeId);
         RoutePlan plan = planOf(request);
         if (plan.busId() != null) {
             assertOwnBus(requester, plan.busId());
@@ -131,7 +132,7 @@ public class RouteCommandService {
      */
     public RouteDetailResponse saveStops(AuthUser requester, Long routeId, RouteStopsSaveRequest request) {
         RouteStopLimit.assertWithin(request.stops());
-        Route route = findOwnRoute(requester, routeId);
+        Route route = findOwnRouteForUpdate(requester, routeId);
         Map<Long, Stop> existing = routeStopArranger.resolve(requester.academyId(), request.existingStopIds());
         assertNotRelocatingStopsOfMovingRun(requester, existing, request);
 
@@ -191,6 +192,12 @@ public class RouteCommandService {
 
     private Route findOwnRoute(AuthUser requester, Long routeId) {
         return routeRepository.findByIdAndAcademyId(routeId, requester.academyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_FOUND));
+    }
+
+    /** 정차 목록을 갈아 끼울 요청은 편성 행을 잠그고 시작한다 — 같은 노선의 겹친 저장·최적화가 순서대로 처리된다. */
+    private Route findOwnRouteForUpdate(AuthUser requester, Long routeId) {
+        return routeRepository.findByIdAndAcademyIdForUpdate(routeId, requester.academyId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ROUTE_NOT_FOUND));
     }
 
