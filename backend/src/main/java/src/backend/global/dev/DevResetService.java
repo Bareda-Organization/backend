@@ -80,8 +80,8 @@ public class DevResetService {
      */
     public int reset() {
         if (migrationStrategy instanceof LocalFlywayCleanStrategy cleanStrategy && cleanStrategy.isCleanSuppressed()) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "이 서버는 DB 초기화가 꺼져 있어(app.flyway-clean.suppressed) 데이터를 지울 수 없다 — 아무것도 바꾸지 않았다");
+            log.warn("[dev-reset] app.flyway-clean.suppressed=true 라 Flyway clean 을 건너뛰는 서버다 — 초기화를 거절한다");
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "이 서버는 데이터 초기화를 할 수 없습니다. 아무것도 바꾸지 않았습니다");
         }
         migrateRetryingOnDeadlock();
         previewCache.clear();

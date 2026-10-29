@@ -215,18 +215,18 @@ public class GlobalExceptionHandler {
     /**
      * 자기 HTTP 상태를 싣고 온 프레임워크 예외 — 받을 수 없는 {@code Accept}(406) · 필수 헤더 누락 같은 바인딩 오류(400) · 서버 안에서 상태를 지정해 던진
      * {@code ResponseStatusException}. 아래 catch-all 로 떨어지면 클라이언트 실수가 {@code 500} 과 ERROR 스택으로 보이므로 상태 분류에 맞는 코드로 답한다
-     * ({@link StatusErrorCodes}). 응답은 JSON 으로 고정한다 — 406 은 요청의 {@code Accept} 가 바로 응답 형식을 못 맞춘 경우라 협상에 맡기면 같은 오류가 되풀이된다.
+     * ({@link StatusErrorCodes}). 예외가 싣고 온 응답 헤더(405 의 {@code Allow} 등)는 그대로 응답에 싣는다. 응답은 JSON 으로 고정한다 — 406 은 요청의 {@code Accept} 가 바로 응답 형식을 못 맞춘 경우라 협상에 맡기면 같은 오류가 되풀이된다.
      */
     @ExceptionHandler({HttpMediaTypeNotAcceptableException.class, ServletRequestBindingException.class,
             ResponseStatusException.class})
     public ResponseEntity<ErrorResponse> handleStatusCarrying(Exception e) {
-        int status = e instanceof org.springframework.web.ErrorResponse carrier ? carrier.getStatusCode().value() : 500;
-        ErrorCode code = StatusErrorCodes.of(status);
+        org.springframework.web.ErrorResponse carrier = (org.springframework.web.ErrorResponse) e;
+        ErrorCode code = StatusErrorCodes.of(carrier.getStatusCode().value());
         if (code == ErrorCode.INTERNAL_ERROR) {
             return handleUnexpected(e);
         }
         log.warn("[request] {} {}", e.getClass().getSimpleName(), e.getMessage());
-        return ResponseEntity.status(code.getStatus()).contentType(MediaType.APPLICATION_JSON)
+        return ResponseEntity.status(code.getStatus()).headers(carrier.getHeaders()).contentType(MediaType.APPLICATION_JSON)
                 .body(ErrorResponse.of(code.name(), code.getMessage()));
     }
 
