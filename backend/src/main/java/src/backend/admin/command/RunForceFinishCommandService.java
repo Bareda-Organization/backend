@@ -12,7 +12,7 @@ import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.admin.dto.ForceFinishResponse;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.repository.RunRiderRepository;
 import src.backend.global.error.BusinessException;
@@ -46,7 +46,7 @@ public class RunForceFinishCommandService {
 
     private final AccountRepository accountRepository;
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
 
     private final MovingRunWindowPolicy movingRunWindowPolicy;
 
@@ -74,7 +74,7 @@ public class RunForceFinishCommandService {
                 .orElseThrow(() -> new IllegalStateException("방금 종료한 회차가 읽히지 않는다: " + runId));
         long boardedCount = runRiderRepository.countByRunIdAndStatus(runId, RiderStatus.BOARDED);
         String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
-        auditLogRepository.save(AuditLog.forRunForceFinish(run.getAcademyId(), actorAccountId, actorLoginId, runId,
+        auditRecorder.record(AuditLog.forRunForceFinish(run.getAcademyId(), actorAccountId, actorLoginId, runId,
                 reason, boardedCount, ClientIp.ofCurrentRequest(), now));
         return new ForceFinishResponse(runId, now, boardedCount);
     }

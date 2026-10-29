@@ -13,7 +13,7 @@ import src.backend.account.dto.AccountUnblockResponse;
 import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ClientIp;
@@ -32,7 +32,7 @@ public class AccountUnblockCommandService {
 
     private final AccountRepository accountRepository;
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
 
     private final Clock clock;
 
@@ -67,7 +67,7 @@ public class AccountUnblockCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         target.unblock(actor.getId(), now);
         eventPublisher.publishEvent(new AccountStandingChangedEvent(target.getId())); // 커밋 직후 계정 상태 보관 항목을 비운다
-        auditLogRepository.save(AuditLog.forAccountUnblock(target.getAcademyId(), actor.getId(),
+        auditRecorder.record(AuditLog.forAccountUnblock(target.getAcademyId(), actor.getId(),
                 actor.getLoginId(), target.getId(), ClientIp.ofCurrentRequest(), now));
 
         return AccountUnblockResponse.from(target);

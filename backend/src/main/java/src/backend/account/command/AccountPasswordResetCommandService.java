@@ -16,7 +16,7 @@ import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -41,7 +41,7 @@ public class AccountPasswordResetCommandService {
 
     private final RefreshTokenRepository refreshTokenRepository;
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
 
     private final TemporaryPasswordGenerator temporaryPasswordGenerator;
 
@@ -79,7 +79,7 @@ public class AccountPasswordResetCommandService {
         OffsetDateTime now = OffsetDateTime.now(clock);
 
         target.issueTemporaryPassword(temporaryHash);
-        auditLogRepository.save(AuditLog.forAccountPasswordReset(target.getAcademyId(), actor.getId(),
+        auditRecorder.record(AuditLog.forAccountPasswordReset(target.getAcademyId(), actor.getId(),
                 actor.getLoginId(), target.getId(), ClientIp.ofCurrentRequest(), now));
         AccountPasswordResetResponse response =
                 new AccountPasswordResetResponse(String.valueOf(target.getId()), target.getLoginId(), temporaryPassword);

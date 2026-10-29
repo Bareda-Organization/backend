@@ -12,7 +12,7 @@ import src.backend.account.entity.Account;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.request.ClientIp;
 import src.backend.run.entity.RunTransferStatus;
 import src.backend.run.repository.RunTransferRepository;
@@ -27,7 +27,7 @@ class RunTransferRemoval {
 
     private final RunTransferRepository runTransferRepository;
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
 
     private final AccountRepository accountRepository;
 
@@ -39,7 +39,7 @@ class RunTransferRemoval {
             return false;
         }
         String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
-        auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, academyId, actorAccountId,
+        auditRecorder.record(AuditLog.forDataAccessChange(AuditAction.DELETE, academyId, actorAccountId,
                 actorLoginId, "run_transfer", transferId, Map.of(), ClientIp.ofCurrentRequest(),
                 OffsetDateTime.now(clock)));
         return true;

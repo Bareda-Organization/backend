@@ -15,7 +15,7 @@ import src.backend.account.entity.Account;
 import src.backend.account.entity.LoginIdFormat;
 import src.backend.account.repository.AccountRepository;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 
@@ -38,7 +38,7 @@ public class LoginCommandService {
     private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
     private final LoginSettlement loginSettlement;
 
     /**
@@ -79,7 +79,7 @@ public class LoginCommandService {
         if (snapshot == null) {
             passwordEncoder.matches(rawPassword, UNKNOWN_ACCOUNT_HASH);
             String recordedId = LoginIdFormat.matches(loginId) ? loginId : null; // 형식 밖 입력(아이디 칸에 넣은 비밀번호 등)은 남기지 않는다
-            auditLogRepository.save(AuditLog.forLoginFail(null, null, recordedId, ip, now));
+            auditRecorder.record(AuditLog.forLoginFail(null, null, recordedId, ip, now));
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS,
                     new LoginFailureDetail(Account.REMAINING_AFTER_FIRST_FAILURE));
         }

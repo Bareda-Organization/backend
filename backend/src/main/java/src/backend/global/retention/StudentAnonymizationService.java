@@ -15,7 +15,7 @@ import src.backend.account.repository.AccountRepository;
 import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.audit.entity.AuditAction;
 import src.backend.audit.entity.AuditLog;
-import src.backend.audit.repository.AuditLogRepository;
+import src.backend.audit.service.AuditRecorder;
 import src.backend.notification.repository.DeviceTokenRepository;
 import src.backend.request.repository.ChangeRequestRepository;
 import src.backend.student.entity.Student;
@@ -77,7 +77,7 @@ public class StudentAnonymizationService {
 
     private final DeviceTokenRepository deviceTokenRepository;
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditRecorder auditRecorder;
 
     private final PhotoStorage photoStorage;
 
@@ -89,7 +89,7 @@ public class StudentAnonymizationService {
             WeeklyAddressRepository weeklyAddressRepository, LinkCodeRepository linkCodeRepository,
             GuardianStudentRepository guardianStudentRepository, ChangeRequestRepository changeRequestRepository, AccountRepository accountRepository,
             RefreshTokenRepository refreshTokenRepository, DeviceTokenRepository deviceTokenRepository,
-            AuditLogRepository auditLogRepository, PhotoStorage photoStorage, Clock clock,
+            AuditRecorder auditRecorder, PhotoStorage photoStorage, Clock clock,
             RetentionTransactions retentionTransactions) {
         this.studentRepository = studentRepository;
         this.weeklyAddressRepository = weeklyAddressRepository;
@@ -99,7 +99,7 @@ public class StudentAnonymizationService {
         this.accountRepository = accountRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.deviceTokenRepository = deviceTokenRepository;
-        this.auditLogRepository = auditLogRepository;
+        this.auditRecorder = auditRecorder;
         this.photoStorage = photoStorage;
         this.clock = clock;
         this.transaction = retentionTransactions;
@@ -189,7 +189,7 @@ public class StudentAnonymizationService {
     /** 파기한 인원 수를 감사 기록으로 남긴다. */
     private void recordAudit(int purgedStudents, OffsetDateTime now) {
         // 시스템 배치라 요청 IP 가 없다(ip 인자 — 요청 밖은 null)
-        auditLogRepository.save(AuditLog.forDataAccessChange(AuditAction.DELETE, null, null, null, "student", null,
+        auditRecorder.record(AuditLog.forDataAccessChange(AuditAction.DELETE, null, null, null, "student", null,
                 Map.of("purged_students", purgedStudents), null, now));
     }
 }
