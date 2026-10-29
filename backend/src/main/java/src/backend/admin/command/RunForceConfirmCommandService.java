@@ -98,7 +98,7 @@ public class RunForceConfirmCommandService {
                         "confirmed_route.current_version_id 가 가리키는 route_version 이 없다: "
                                 + confirmedRoute.getCurrentVersionId()));
 
-        recordAudit(run, runId, actorAccountId, reason, confirmedRoute, routeVersion);
+        recordAudit(new Confirmation(run, actorAccountId, reason, confirmedRoute, routeVersion));
 
         return new ForceConfirmResponse(runId, confirmedRoute.getCurrentVersionId(), routeVersion.isFallbackUsed(),
                 confirmedRoute.getConfirmedAt());
@@ -144,11 +144,18 @@ public class RunForceConfirmCommandService {
      * category=DATA_ACCESS·action=UPDATE 재사용). 상태 전이와 같은 트랜잭션이라 감사 적재 실패가
      * 곧 이 메서드 전체 롤백이다 — AccountUnblockCommandService 와 같은 근거.
      */
-    private void recordAudit(Run run, Long runId, Long actorAccountId, String reason, ConfirmedRoute confirmedRoute,
+    private void recordAudit(Confirmation confirmation) {
+        Run run = confirmation.run();
+        String actorLoginId = accountRepository.findById(confirmation.actorAccountId()).map(Account::getLoginId)
+                .orElse(null);
+        auditRecorder.record(AuditLog.forRunForceConfirm(run.getAcademyId(), confirmation.actorAccountId(), actorLoginId,
+                run.getId(), confirmation.reason(), confirmation.routeVersion().isFallbackUsed(),
+                confirmation.confirmedRoute().getCurrentVersionId(), ClientIp.ofCurrentRequest(),
+                confirmation.confirmedRoute().getConfirmedAt()));
+    }
+
+    /** 방금 끝낸 강제 확정 한 건의 감사 재료 — 확정한 회차 · 행위자 · 사유와 저장된 확정 노선 · 판본. */
+    private record Confirmation(Run run, Long actorAccountId, String reason, ConfirmedRoute confirmedRoute,
             RouteVersion routeVersion) {
-        String actorLoginId = accountRepository.findById(actorAccountId).map(Account::getLoginId).orElse(null);
-        auditRecorder.record(AuditLog.forRunForceConfirm(run.getAcademyId(), actorAccountId, actorLoginId,
-                runId, reason, routeVersion.isFallbackUsed(), confirmedRoute.getCurrentVersionId(),
-                ClientIp.ofCurrentRequest(), confirmedRoute.getConfirmedAt()));
     }
 }

@@ -66,7 +66,7 @@ class RosterBatchLoader {
         Batch batch = new Batch(dailyStopsOf(academyId, runs), excludedByRun(academyId, runIds),
                 relocationsByRun(academyId, runIds), forcedByRun(academyId, runIds), outgoingByRun(academyId, runIds),
                 incomingByRun(academyId, runIds));
-        return runs.stream().collect(Collectors.toMap(Run::getId, batch::sourcesOf));
+        return runs.stream().collect(Collectors.toMap(Run::getId, batch::sourcesOf, (first, second) -> second));
     }
 
     private static Long academyIdOf(List<Run> runs) {

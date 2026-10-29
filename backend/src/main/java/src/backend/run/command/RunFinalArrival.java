@@ -31,6 +31,10 @@ class RunFinalArrival {
 
     private final RunRiderPersistence runRiderPersistence;
 
+    private final StopDepartureService stopDepartureService;
+
+    private final ApplicationEventPublisher eventPublisher;
+
     /**
      * 정차지 도착 처리 응답에 실리는 최종 도착의 결과.
      *
@@ -42,10 +46,6 @@ class RunFinalArrival {
         /** 최종 지점이 아닌 도착 — 자동 하차도 잔류도 없다. */
         static final Outcome NONE = new Outcome(null, List.of());
     }
-
-    private final StopDepartureService stopDepartureService;
-
-    private final ApplicationEventPublisher eventPublisher;
 
     /** 최종 지점에 도착한 회차를 방향에 따라 종료하거나 종료를 보류한다. */
     Outcome handle(Run run, OffsetDateTime now) {
@@ -59,7 +59,7 @@ class RunFinalArrival {
         if (stillBoarded == 0) {
             run.finish(now);
             // 마지막 승하차지 강제 출발(Ruling 312) — 하원 최종 지점은 방금 도착한 하차지
-            // 자신이라 위쪽 폴백을 받지 못한다.
+            // 자신이라 도착 처리 앞의 앞 승하차지 강제 출발(RunArrivalCommandService.departEarlierStops)을 받지 못한다.
             stopDepartureService.forceAllRemaining(run.getId(), run.getAcademyId(), now);
             eventPublisher.publishEvent(new RunEndedEvent(run.getId(), run.getAcademyId(), now, 0));
             return Outcome.NONE;

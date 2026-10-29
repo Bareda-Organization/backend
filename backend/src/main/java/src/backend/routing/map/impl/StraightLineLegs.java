@@ -69,12 +69,21 @@ final class StraightLineLegs {
      */
     static List<RoadLeg> distribute(List<GeoPoint> points, int totalMeters, int totalSeconds) {
         double[] straightLine = straightLineDistances(points);
-        double sum = Arrays.stream(straightLine).sum();
+        double sum = plainSum(straightLine);
         if (sum == 0) {
             sum = straightLine.length;
             Arrays.fill(straightLine, 1d);
         }
         return legsByCumulativeShare(straightLine, sum, totalMeters, totalSeconds);
+    }
+
+    /** 앞에서부터 차례로 더한 합 — 보정 합산({@code DoubleStream#sum})은 마지막 자리가 달라져 구간 배분의 반올림 경계를 옮길 수 있다. */
+    private static double plainSum(double[] values) {
+        double sum = 0;
+        for (double each : values) {
+            sum += each;
+        }
+        return sum;
     }
 
     /** 누적 비율로 반올림한 값의 차이를 구간 값으로 삼는다 — 합이 총합과 정확히 같다. */
