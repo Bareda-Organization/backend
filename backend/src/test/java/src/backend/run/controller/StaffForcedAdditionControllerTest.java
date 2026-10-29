@@ -240,6 +240,33 @@ class StaffForcedAdditionControllerTest {
                 .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
+    /** 신규 학생 이름이 공백이면 요청 검증이 {@code new_student.name} 을 짚어 422 로 거른다. */
+    @Test
+    void 신규_학생_이름이_공백이면_new_student_name_을_짚어_422_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
+
+        강제_추가한다(runId, 학생_추가_본문(null, " ", "테스트로 100"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("new_student.name")));
+    }
+
+    /** {@code student_id} 와 공백 이름의 {@code new_student} 를 함께 보내도 422 다 — 공백 이름은 "없음" 으로 치지 않는다(§5.7). */
+    @Test
+    void 학생_id_와_공백_신규_학생_이름을_함께_보내도_422_이다() throws Exception {
+        long academyId = fixtures().academyWithCoordinates();
+        long busId = fixtures().bus(academyId);
+        long runId = fixtures().idleRunBeforeDeparture(clock, academyId, busId, 31);
+        long studentId = fixtures().student(academyId, "기존학생");
+
+        강제_추가한다(runId, 학생_추가_본문(studentId, "", "테스트로 100"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("new_student.name")));
+    }
+
     /** 기존 학생을 {@code student_id} 로 지정하면 그 학생 id 가 응답에 그대로 실린다. */
     @Test
     void 기존_학생을_강제로_추가할_수_있다() throws Exception {

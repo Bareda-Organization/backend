@@ -79,18 +79,6 @@ public class ProximityFixtures {
 
     private final RunRiderRepository runRiderRepository;
 
-    /** 근접 선점 저장소 없이 만든다 — {@link #observeNear} 를 쓰지 않는 시험용이다. */
-    public ProximityFixtures(AcademyRepository academyRepository, BusRepository busRepository,
-            StopRepository stopRepository, StudentRepository studentRepository, AccountRepository accountRepository,
-            GuardianRepository guardianRepository, GuardianStudentRepository guardianStudentRepository,
-            RunRepository runRepository, ConfirmedRouteRepository confirmedRouteRepository,
-            RouteVersionRepository routeVersionRepository, RunStopRepository runStopRepository,
-            RunRiderRepository runRiderRepository) {
-        this(academyRepository, busRepository, stopRepository, studentRepository, accountRepository,
-                guardianRepository, guardianStudentRepository, runRepository, confirmedRouteRepository,
-                routeVersionRepository, runStopRepository, null, runRiderRepository);
-    }
-
     public ProximityFixtures(AcademyRepository academyRepository, BusRepository busRepository,
             StopRepository stopRepository, StudentRepository studentRepository, AccountRepository accountRepository,
             GuardianRepository guardianRepository, GuardianStudentRepository guardianStudentRepository,
@@ -214,9 +202,6 @@ public class ProximityFixtures {
 
     /** 도착 처리 뒤 100m 안 관측을 기록한다(Ruling 875) — 출발 판정의 선행 조건을 직접 채워 이후 틱이 바로 출발을 판정하게 한다. */
     public void observeNear(long runStopId, OffsetDateTime observedAt) {
-        if (runStopProximityRepository == null) {
-            throw new IllegalStateException("근접 선점 저장소 없이 만든 픽스처는 observeNear 를 쓸 수 없다 — 저장소를 넘기는 생성자를 쓴다");
-        }
         runStopProximityRepository.claimNearObservation(runStopId, observedAt);
     }
 

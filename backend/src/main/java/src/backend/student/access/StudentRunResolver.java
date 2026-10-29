@@ -23,7 +23,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.lookup.RunLookup;
-import src.backend.student.repository.StudentDailyStop;
+import src.backend.student.projection.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**

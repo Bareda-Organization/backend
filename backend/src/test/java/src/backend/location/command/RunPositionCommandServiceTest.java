@@ -8,6 +8,7 @@ import static testsupport.auth.TestTokens.토큰;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -199,17 +200,19 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("BR-243 — recorded_at 이 서버 시각에서 5분 넘게 미래·과거로 어긋나면 204 이고 수신 시각으로 바꿔 저장한다")
     void 단말_시각이_크게_어긋난_위치는_수신_시각으로_저장한다() throws Exception {
-        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
-        long academyId = fixtures.academy();
-        long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = OffsetDateTime.now(clock);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
-                departTime.minusMinutes(30));
-        fixtures.startRun(runId, OffsetDateTime.now(clock));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
-
         List<OffsetDateTime> skewedValues = List.of(OffsetDateTime.now(clock).plusDays(1), OffsetDateTime.now(clock).plusMinutes(6), OffsetDateTime.now(clock).minusMinutes(6));
+        List<Long> runIds = new ArrayList<>();
+        // 같은 시각에 같은 회차로 거듭 보내면 겹친 송신으로 걸러지므로 어긋난 값마다 회차를 따로 둔다
         for (OffsetDateTime skewed : skewedValues) {
+            DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
+            long academyId = fixtures.academy();
+            long busId = fixtures.bus(academyId);
+            OffsetDateTime departTime = OffsetDateTime.now(clock);
+            long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                    departTime.minusMinutes(30));
+            fixtures.startRun(runId, OffsetDateTime.now(clock));
+            long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+            runIds.add(runId);
             mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
                     .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                     .contentType(MediaType.APPLICATION_JSON)
@@ -220,7 +223,8 @@ class RunPositionCommandServiceTest {
         }
 
         List<OffsetDateTime> stored = jdbcTemplate.queryForList(
-                "SELECT recorded_at FROM run_position WHERE run_id = ?", OffsetDateTime.class, runId);
+                "SELECT recorded_at FROM run_position WHERE run_id = ANY(?)", OffsetDateTime.class,
+                (Object) runIds.toArray(new Long[0]));
         assertThat(stored).as("어긋난 시각이어도 위치는 적재돼야 한다").hasSize(skewedValues.size());
         assertThat(stored).as("저장된 recorded_at 은 전부 서버 수신 시각이어야 한다")
                 .allSatisfy(each -> assertThat(each.toInstant()).isEqualTo(OffsetDateTime.now(clock).toInstant()));
@@ -233,17 +237,18 @@ class RunPositionCommandServiceTest {
     @Test
     @DisplayName("BR-243 — recorded_at 이 서버 시각 ±4분 안이면 원래 값을 그대로 저장한다")
     void 단말_시각이_허용_오차_안이면_원래_값을_저장한다() throws Exception {
-        DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
-        long academyId = fixtures.academy();
-        long busId = fixtures.bus(academyId);
-        OffsetDateTime departTime = OffsetDateTime.now(clock);
-        long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
-                departTime.minusMinutes(30));
-        fixtures.startRun(runId, OffsetDateTime.now(clock));
-        long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
-
         List<OffsetDateTime> nearbyValues = List.of(OffsetDateTime.now(clock).plusMinutes(4), OffsetDateTime.now(clock).minusMinutes(4));
+        List<Long> runIds = new ArrayList<>();
         for (OffsetDateTime nearby : nearbyValues) {
+            DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
+            long academyId = fixtures.academy();
+            long busId = fixtures.bus(academyId);
+            OffsetDateTime departTime = OffsetDateTime.now(clock);
+            long runId = fixtures.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime,
+                    departTime.minusMinutes(30));
+            fixtures.startRun(runId, OffsetDateTime.now(clock));
+            long driverAccountId = fixtures.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사", OffsetDateTime.now(clock));
+            runIds.add(runId);
             mockMvc.perform(post("/api/v1/runs/" + runId + "/position")
                     .header("Authorization", 토큰(tokenProvider, driverAccountId, academyId, Role.DRIVER))
                     .contentType(MediaType.APPLICATION_JSON)
@@ -254,7 +259,8 @@ class RunPositionCommandServiceTest {
         }
 
         List<OffsetDateTime> stored = jdbcTemplate.queryForList(
-                "SELECT recorded_at FROM run_position WHERE run_id = ? ORDER BY id", OffsetDateTime.class, runId);
+                "SELECT recorded_at FROM run_position WHERE run_id = ANY(?) ORDER BY run_id", OffsetDateTime.class,
+                (Object) runIds.toArray(new Long[0]));
         assertThat(stored.stream().map(OffsetDateTime::toInstant))
                 .as("허용 오차 안의 단말 시각은 그대로 저장돼야 한다")
                 .containsExactlyElementsOf(nearbyValues.stream().map(OffsetDateTime::toInstant).toList());

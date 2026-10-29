@@ -26,8 +26,8 @@ import src.backend.student.dto.WithdrawalPreviewResponse;
 import src.backend.student.dto.WithdrawalPreviewResponse.RunItem;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentRidingReader;
 import src.backend.student.repository.StudentRepository;
+import src.backend.student.repository.StudentRidingReader;
 
 /**
  * 퇴원 미리보기(STU-04, API_SPEC §5.11 · Ruling 815) — 오늘·내일 미취소·미종료 회차 중 그 학생이 탑승자인 회차를 돌려준다.

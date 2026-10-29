@@ -3,6 +3,9 @@ package src.backend.run.command;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +64,9 @@ public class RunConfirmationPersistence {
 
     private final RunStartWindowPolicy startWindowPolicy;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     /**
      * 회차를 확정하고 4종 산출물({@code confirmed_route}·{@code route_version}·{@code run_stop}·
      * {@code run_rider})을 저장한다. {@code roster.absentStops()} 는 노선 계산에서 뺀 ①구간 OFF 학생으로,
@@ -103,7 +109,13 @@ public class RunConfirmationPersistence {
      * @throws ConfirmationInputsChangedException 명단 입력이 확정 계산 뒤 바뀌었을 때
      */
     private boolean claimIdle(Run run, ProjectedRoster roster, OffsetDateTime confirmedAt) {
-        Run locked = runRepository.findLockedByIdAndAcademyId(run.getId(), run.getAcademyId()).orElse(null);
+        if (runRepository.findLockedByIdAndAcademyId(run.getId(), run.getAcademyId()).isEmpty()) {
+            return false;
+        }
+        // 강제 확정처럼 바깥 트랜잭션이 회차와 명단을 먼저 읽어 두었으면 잠금 조회도 그 낡은 엔티티를 돌려준다 — 비우고 잠근 뒤의 행으로 다시 읽는다
+        entityManager.flush();
+        entityManager.clear();
+        Run locked = runRepository.findByIdAndAcademyId(run.getId(), run.getAcademyId()).orElse(null);
         if (locked == null || locked.isCanceled() || locked.getStatus() != RunStatus.IDLE) {
             return false;
         }

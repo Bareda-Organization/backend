@@ -16,10 +16,9 @@ import src.backend.routing.dto.RouteStopResponse;
 import src.backend.routing.entity.Route;
 import src.backend.routing.entity.RouteStop;
 import src.backend.routing.repository.RouteStopRepository;
+import src.backend.student.access.DailyStopLookup;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
-import src.backend.student.repository.WeeklyAddressRepository.StopRiderCount;
 
 /**
  * 편성 1건을 상세 응답으로 조립한다(API_SPEC §5.9) — 조회·편성·수정·최적화 넷이 같은 형태를 돌려주므로
@@ -38,7 +37,7 @@ public class RouteDetailAssembler {
 
     private final BusRepository busRepository;
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
+    private final DailyStopLookup dailyStopLookup;
 
     /** 편성과 그 정차 순서를 {@code seq} 차례로 담은 상세 응답. */
     public RouteDetailResponse assemble(Route route) {
@@ -60,11 +59,10 @@ public class RouteDetailAssembler {
         Map<Long, Stop> stops = stopRepository.findAllByAcademyIdAndIdIn(route.getAcademyId(),
                         ordered.stream().map(RouteStop::getStopId).toList()).stream()
                 .collect(Collectors.toMap(Stop::getId, Function.identity()));
-        Map<Long, Integer> riderCounts = weeklyAddressRepository
-                .countRidersByStopIds(route.getAcademyId(), stops.keySet(), route.getWeekday(), route.getDirection())
-                .stream().collect(Collectors.toMap(StopRiderCount::getStopId, count -> Math.toIntExact(count.getTotal())));
+        Map<Long, Long> riderCounts = dailyStopLookup.countRidersByStop(route.getAcademyId(), stops.keySet(),
+                route.getWeekday(), route.getDirection());
         return ordered.stream().map(routeStop -> RouteStopResponse.of(routeStop, stops.get(routeStop.getStopId()),
-                        riderCounts.getOrDefault(routeStop.getStopId(), 0)))
+                        Math.toIntExact(riderCounts.getOrDefault(routeStop.getStopId(), 0L))))
                 .toList();
     }
 

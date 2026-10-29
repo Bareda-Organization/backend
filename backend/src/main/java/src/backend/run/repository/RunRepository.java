@@ -38,7 +38,7 @@ public interface RunRepository extends JpaRepository<Run, Long>, MovingRunQuerie
 
     /**
      * 한 학원에서 그 상태인 회차 목록 — 지금은 {@code MOVING} 하나만 호출부(데모 시뮬레이터의 운행 중 버스 판정)가
-     * 넘긴다. 학원 상세의 "운행 중 차량 수" 는 날짜 범위가 필요해 {@link #findBusNosByStatusFromServiceDate} 로 옮겨 갔다(BR-315).
+     * 넘긴다. 학원 상세의 "운행 중 차량 수" 는 날짜 범위가 필요해 {@link RunDashboardRepository#findBusNosByStatusFromServiceDate} 로 옮겨 갔다(BR-315).
      * §6.8 메인 관리자 관제는 <b>이 메서드를 쓰지 않는다</b> — 오늘 회차를 상태 무관 전부 반환하도록
      * 바뀌며(Ruling 315) 날짜 조건이 있는 {@code findAllByAcademyIdAndServiceDateOrderByDepartTimeAsc}
      * 로 옮겨 갔다. 상태 조건을 고정하지 않고 파라미터로 두는 이유는 서비스 계층이 "운행 중" 이라는
@@ -127,7 +127,7 @@ public interface RunRepository extends JpaRepository<Run, Long>, MovingRunQuerie
      * 그 사이에 경쟁자가 끼어들 수 있어 이 보장이 성립하지 않는다.
      *
      * <p><b>{@code REQUIRES_NEW} 를 쓰지 않는다</b> — {@code NotificationLogRepository} 의 조건부
-     * UPDATE 들과 다르게, 이 갱신은 호출자({@code RunConfirmationService.confirmOne})의 트랜잭션에
+     * UPDATE 들과 다르게, 이 갱신은 호출자({@link src.backend.run.command.RunConfirmationPersistence#persist})의 트랜잭션에
      * <b>그대로 참여</b>해야 한다. 확정을 먼저 표시해 두고 그 뒤 노선 계산이 실패하면, 참여한
      * 트랜잭션이 롤백되며 이 UPDATE 도 함께 취소되어 회차가 자동으로 idle 로 되돌아간다 —
      * 별도 트랜잭션이었다면 그 롤백에 묻어가지 못하고 확정 표시만 남는다.

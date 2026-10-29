@@ -49,7 +49,7 @@ import testsupport.location.ProximityJudging;
  * — 이 시험만이 그 경계를 잇는다.
  *
  * <p>{@code @Transactional} 을 쓰지 않는 이유는 {@code RunPositionRedisIntegrationTest} 와 같다 —
- * {@link RunPositionRedisListener} 가 {@code AFTER_COMMIT} 으로 도는데 테스트 트랜잭션이 롤백하면
+ * {@link RunPositionAfterCommitListener} 가 {@code AFTER_COMMIT} 으로 부르는데 테스트 트랜잭션이 롤백하면
  * 커밋 자체가 일어나지 않는다.
  */
 @SpringBootTest

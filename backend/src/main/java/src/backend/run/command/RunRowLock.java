@@ -48,8 +48,8 @@ public class RunRowLock {
     }
 
     /**
-     * 엔티티를 쓰지 않고 행만 잠근다 — 호출 뒤에 영속성 컨텍스트를 비우는 갱신({@code clearAutomatically})이 따라와서 회차를 나중에 읽어야 하는
-     * 경로(도착 처리의 앞 승하차지 강제 출발 · ③구간 미등원)가 쓴다. 없는 회차는 잠글 행이 없으므로 그대로 지나간다.
+     * 엔티티를 쓰지 않고 행만 잠근다 — 회차 id 만 값으로 쥐고 엔티티를 읽기 전에 잠그는
+     * 경로(변경 결정의 대기 요청 잠금 · {@code ChangeRequestDecisionService#lockPendingRequest})가 쓴다. 없는 회차는 잠글 행이 없으므로 그대로 지나간다.
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public void acquire(Long runId, Long academyId) {

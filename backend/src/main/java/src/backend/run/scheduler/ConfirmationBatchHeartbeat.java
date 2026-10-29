@@ -46,7 +46,7 @@ public class ConfirmationBatchHeartbeat {
         this.localLastSuccess = clock.instant();
     }
 
-    /** 틱이 정상 반환한 지금을 기록한다 — 공유 저장소 쓰기가 실패해도 이 인스턴스 안 기록은 남는다. */
+    /** 회차 하나가 끝났거나 틱이 정상 반환한 지금을 기록한다 — 공유 저장소 쓰기가 실패해도 이 인스턴스 안 기록은 남는다. */
     public void markSuccess() {
         Instant now = clock.instant();
         localLastSuccess = now;

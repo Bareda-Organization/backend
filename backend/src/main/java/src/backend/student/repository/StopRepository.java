@@ -47,7 +47,7 @@ public interface StopRepository extends JpaRepository<Stop, Long>, StopMergeLook
 
     /** 여러 학원의 정차지 id 묶음 한 번 조회 — 근접 판정 배치용(DA-1, Ruling 899). */
     @AcademyScopeExempt(reason = "근접 알림 스케줄러가 전 학원의 운행 중 회차에서 얻은 정차 항목의 stop_id 묶음이라 학원 하나로 좁힐 수 없다 — "
-            + "id 는 확정 노선의 run_stop 에서만 나온다(findNextUnarrived 와 같은 근거). 호출부는 ProximityNotificationService 뿐이라는 전제")
+            + "id 는 확정 노선의 run_stop 에서만 나온다(RunStopProximityRepository.findNextUnarrivedOfVersions 와 같은 근거). 호출부는 ProximityNotificationService 뿐이라는 전제")
     @Query("SELECT s FROM Stop s WHERE s.id IN :ids")
     List<Stop> findAllByIdIn(@Param("ids") Collection<Long> ids);
 

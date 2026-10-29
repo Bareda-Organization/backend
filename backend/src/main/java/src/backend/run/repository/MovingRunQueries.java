@@ -37,11 +37,11 @@ public interface MovingRunQueries extends Repository<Run, Long> {
 
     /**
      * 근접 알림 스케줄러(NTF-04)의 조회 대상 — 시각 문턱이 없다는 점이
-     * {@link #findDueForConfirmation} 와 다르다.
+     * {@link RunRepository#findDueForConfirmation} 와 다르다.
      * 근접 판정은 "판정 시각이 지났는가" 가 아니라 "지금 운행 중인가" 만 묻는다({@code RunStatus.MOVING}) —
      * 실제 좌표가 300m 안에 들어왔는지는 이 조회가 아니라 정차 항목별 판정이 담당한다.
      *
-     * <p>{@code canceled_at IS NULL} 을 더한 이유는 {@link #confirmIfIdle} 과 같다 — 조회와 판정
+     * <p>{@code canceled_at IS NULL} 을 더한 이유는 {@link RunRepository#confirmIfIdle} 과 같다 — 조회와 판정
      * 사이에 회차가 취소돼도 {@code status} 는 그대로일 수 있어, 취소 배제를 별도로 걸어야 한다.
      *
      * <p>{@code afterId} 보다 큰 id 만 {@code pageable} 크기씩 읽는다 — 판정 뒤에도 회차는 {@code moving}

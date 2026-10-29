@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -56,19 +57,19 @@ class ApprovalRequestedBroadcastListenerTest {
 
         Student student = mock(Student.class);
         given(student.getName()).willReturn("이서연");
-        given(studentRepository.findById(studentId)).willReturn(Optional.of(student));
+        given(studentRepository.findAllByAcademyIdAndIdIn(academyId, List.of(studentId))).willReturn(List.of(student));
 
         RunRider rider = RunRider.uponConfirmation(runId, studentId, 7L);
         given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.of(rider));
 
         Stop stop = mock(Stop.class);
         given(stop.getName()).willReturn("정문 앞");
-        given(stopRepository.findById(7L)).willReturn(Optional.of(stop));
+        given(stopRepository.findByIdAndAcademyId(7L, academyId)).willReturn(Optional.of(stop));
 
         ChangeRequest changeRequest = mock(ChangeRequest.class);
         OffsetDateTime deadline = requestedAt.plusHours(1);
         given(changeRequest.getDeadlineAt()).willReturn(deadline);
-        given(changeRequestRepository.findById(changeRequestId)).willReturn(Optional.of(changeRequest));
+        given(changeRequestRepository.findByIdAndAcademyId(changeRequestId, academyId)).willReturn(Optional.of(changeRequest));
 
         listener.broadcast(event);
 
@@ -82,6 +83,37 @@ class ApprovalRequestedBroadcastListenerTest {
                 eq(requestedAt), argThat(payload -> {
                     String text = String.valueOf(payload);
                     assertThat(text).contains("이서연").contains("정문 앞").contains(deadline.toString());
+                    return true;
+                }));
+    }
+
+    @Test
+    @DisplayName("이벤트의 학원 밖 행은 읽지 않는다 — 학생 이름 · 정차지 이름 · 마감이 비어 나간다")
+    void 다른_학원의_행은_싣지_않는다() {
+        Long academyId = 1L;
+        Long runId = 10L;
+        Long studentId = 100L;
+        OffsetDateTime requestedAt = OffsetDateTime.now();
+        ApprovalRequestedEvent event = new ApprovalRequestedEvent(1L, academyId, runId, studentId, requestedAt);
+
+        // 학원 조건 없이 id 로만 읽으면 다른 학원의 행이 잡히도록 깔아 둔다
+        Student foreignStudent = mock(Student.class);
+        given(foreignStudent.getName()).willReturn("남의 학원 학생");
+        given(studentRepository.findById(studentId)).willReturn(Optional.of(foreignStudent));
+        given(runRiderRepository.findByRunIdAndStudentId(runId, studentId))
+                .willReturn(Optional.of(RunRider.uponConfirmation(runId, studentId, 7L)));
+        Stop foreignStop = mock(Stop.class);
+        given(foreignStop.getName()).willReturn("남의 학원 정차지");
+        given(stopRepository.findById(7L)).willReturn(Optional.of(foreignStop));
+        ChangeRequest foreignRequest = mock(ChangeRequest.class);
+        given(foreignRequest.getDeadlineAt()).willReturn(requestedAt.plusHours(1));
+        given(changeRequestRepository.findById(1L)).willReturn(Optional.of(foreignRequest));
+
+        listener.broadcast(event);
+
+        verify(gateway).send(eq(WebSocketDestinations.academyLive(academyId)), eq("approval_requested"), eq(runId),
+                eq(requestedAt), argThat(payload -> {
+                    assertThat(String.valueOf(payload)).doesNotContain("남의 학원");
                     return true;
                 }));
     }

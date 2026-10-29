@@ -6,7 +6,7 @@ import src.backend.request.entity.ChangeRequest;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunTransfer;
-import src.backend.student.repository.StudentDailyStop;
+import src.backend.student.projection.StudentDailyStop;
 
 /**
  * 한 회차의 예정 명단을 조립하는 재료({@link RosterAssembler}) — 요일별 주소 학생 · ①구간 탑승 끄기 학생 · 승인된 승하차지 이동 · 강제 추가 · 출발 이동 · 도착 이동.

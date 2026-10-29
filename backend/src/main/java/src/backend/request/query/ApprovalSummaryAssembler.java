@@ -26,8 +26,8 @@ import src.backend.run.entity.Run;
 import src.backend.student.access.DailyStopLookup;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
+import src.backend.student.projection.StudentDailyStop;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentDailyStop;
 import src.backend.student.repository.StudentRepository;
 
 /**

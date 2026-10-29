@@ -116,8 +116,9 @@ public class ChildLinkCommandService {
             return Optional.empty();
         }
         Optional<LinkCode> linkCode = usableCode(guardian, code, now);
+        // 퇴원 트랜잭션과 같은 행 잠금으로 읽는다 — 잠그지 않으면 퇴원이 커밋되기 전의 값으로 연결을 만들어 퇴원한 학생에게 활성 연결이 남는다
         Optional<Student> student = linkCode.flatMap(found -> studentRepository
-                .findByIdAndAcademyIdAndDeletedAtIsNull(found.getStudentId(), guardian.getAcademyId()));
+                .lockActiveByIdAndAcademyId(found.getStudentId(), guardian.getAcademyId()));
         if (student.isEmpty()
                 || linkCodeRepository.markUsedIfUnused(linkCode.get().getId(), guardian.getAcademyId(), now) == 0) {
             return Optional.empty();

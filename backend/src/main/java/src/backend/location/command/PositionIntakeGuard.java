@@ -52,6 +52,11 @@ public class PositionIntakeGuard {
         return !sinceLast.isNegative() && sinceLast.compareTo(MIN_INTERVAL) < 0 ? TOO_FREQUENT : null;
     }
 
+    /** 겹쳐 온 송신이 먼저 적재돼 이 위치를 적재하지 않았다 — 방금 받아들인 위치 직후에 온 위치라 {@code too_frequent} 로 센다. */
+    void countOverlapped() {
+        count(TOO_FREQUENT);
+    }
+
     private boolean count(String reason) {
         meterRegistry.counter(RunPositionStore.DROPPED_METRIC, "reason", reason).increment();
         return true;

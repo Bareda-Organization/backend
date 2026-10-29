@@ -71,9 +71,11 @@ class WeeklyAddressSaveRaceTest {
     @Test
     void 같은_칸을_처음_저장하는_두_요청은_둘_다_성공한다() throws Exception {
         CyclicBarrier bothRead = new CyclicBarrier(2);
-        AtomicInteger reads = new AtomicInteger();
+        // 요청마다 이 조회를 두 번 부른다 — 첫 호출은 트랜잭션 밖의 알려진 주소 읽기, 두 번째가 저장 트랜잭션 안의 기존 행 조회다.
+        // 두 번째 호출 뒤에서만 모여야 두 요청이 모두 "행 없음" 을 읽은 채 겹친다
+        ThreadLocal<AtomicInteger> readsOfThisRequest = ThreadLocal.withInitial(AtomicInteger::new);
         RepositoryReadHooks.afterRead("findAllByStudentIdAndAcademyId", () -> {
-            if (reads.incrementAndGet() <= 2) {
+            if (readsOfThisRequest.get().incrementAndGet() == 2) {
                 모인다(bothRead);
             }
         });

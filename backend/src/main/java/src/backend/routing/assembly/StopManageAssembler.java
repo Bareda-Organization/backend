@@ -14,9 +14,8 @@ import src.backend.routing.dto.StopManageResponse;
 import src.backend.routing.dto.StopManageResponse.RouteRef;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteStopRepository.StopRoute;
+import src.backend.student.access.DailyStopLookup;
 import src.backend.student.entity.Stop;
-import src.backend.student.repository.WeeklyAddressRepository;
-import src.backend.student.repository.WeeklyAddressRepository.StopRiderCount;
 
 /**
  * 승하차지 여럿을 관리 항목으로 조립한다(API_SPEC §5.9 · Ruling 849) — 목록과 수정이 같은 형태를 돌려주므로 조립을 한 곳에 둔다.
@@ -32,7 +31,7 @@ public class StopManageAssembler {
 
     private final BusRepository busRepository;
 
-    private final WeeklyAddressRepository weeklyAddressRepository;
+    private final DailyStopLookup dailyStopLookup;
 
     /** 같은 학원의 승하차지들을 받은 차례 그대로 항목으로 바꾼다. */
     public List<StopManageResponse> assemble(Long academyId, List<Stop> stops) {
@@ -45,8 +44,7 @@ public class StopManageAssembler {
         Map<Long, List<RouteRef>> routesByStop = held.stream().collect(Collectors.groupingBy(StopRoute::getStopId,
                 Collectors.mapping(route -> RouteRef.of(route.getRouteId(), busNos.get(route.getBusId()),
                         route.getWeekday(), route.getDirection(), route.getActive()), Collectors.toList())));
-        Map<Long, Long> studentCounts = weeklyAddressRepository.countStudentsByStopIds(academyId, stopIds).stream()
-                .collect(Collectors.toMap(StopRiderCount::getStopId, StopRiderCount::getTotal));
+        Map<Long, Long> studentCounts = dailyStopLookup.countStudentsByStop(academyId, stopIds);
         return stops.stream()
                 .map(stop -> StopManageResponse.of(stop, routesByStop.getOrDefault(stop.getId(), List.of()),
                         studentCounts.getOrDefault(stop.getId(), 0L)))

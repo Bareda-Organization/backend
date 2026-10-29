@@ -174,6 +174,8 @@ class RunPositionLateCommitTest {
         assertThat(stored).as("끼어드는 값 때문에 끝내 쓰지 못했다").isFalse();
         assertThat(interlopers).as("정해진 횟수만 다시 시도하고 멈춘다").hasValue(5);
         assertThat(버린_횟수("write_contended") - before).as("쓰지 못한 위치는 이유와 함께 세어야 한다").isEqualTo(1.0);
+        // 분당 한 번 제한기는 컨텍스트의 저장소 빈마다 하나라 이 시험의 첫 실패가 항상 기록된다 — 같은 컨텍스트에서 비교 쓰기를 5번 밀리게 하는 시험을
+        // 더하면 이 단언이 빈다
         assertThat(logs.list).as("쓰지 못한 위치는 WARN 으로도 남는다(분당 한 번)")
                 .filteredOn(event -> event.getLevel() == Level.WARN)
                 .singleElement()

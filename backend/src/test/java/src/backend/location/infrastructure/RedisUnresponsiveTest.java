@@ -136,6 +136,10 @@ class RedisUnresponsiveTest {
         int maxActiveWhileWaiting = 0;
         int samplesWhileWaiting = 0;
         CompletableFuture<Void> judging;
+        // 판정의 첫 DB 읽기 · 지연 초기화 비용과 앞 시험이 남긴 비동기 작업의 커넥션을 표본 밖에서 치른다 — 그렇지 않으면 아직 Redis 를 기다리지 않는
+        // 판정 앞 단계나 남의 작업이 쥔 커넥션이 "대기 중 쥔 커넥션" 으로 읽힌다
+        proximityNotificationScheduler.judgeMovingRuns();
+        풀이_한가해질_때까지_기다린다();
         try (RedisFreeze ignored = RedisFreeze.start()) {
             judging = CompletableFuture.runAsync(() -> proximityNotificationScheduler.judgeMovingRuns());
             // 판정이 아직 Redis 를 기다리는 동안(끝나지 않은 동안)에만 표본을 센다. 표본은 명령 시간 상한(500ms)보다 한참 앞인 300ms 까지만
@@ -208,6 +212,16 @@ class RedisUnresponsiveTest {
         } finally {
             jdbcTemplate.update("DELETE FROM run_position WHERE run_id = ? AND lat = ?::numeric", RUN_MOVING_ID,
                     MARKER_LAT);
+        }
+    }
+
+    /** DB 커넥션이 연달아 세 번(50ms 간격) 하나도 쓰이지 않을 때까지 기다린다 — 5초 안에 한가해지지 않으면 그대로 진행해 뒤의 단언이 드러낸다. */
+    private void 풀이_한가해질_때까지_기다린다() throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        int idleStreak = 0;
+        while (idleStreak < 3 && System.nanoTime() < deadline) {
+            idleStreak = hikari().getHikariPoolMXBean().getActiveConnections() == 0 ? idleStreak + 1 : 0;
+            Thread.sleep(50);
         }
     }
 

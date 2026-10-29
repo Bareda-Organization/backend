@@ -21,14 +21,14 @@ import src.backend.global.request.ApiValues;
 import src.backend.global.security.AuthUser;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
-import src.backend.student.access.RouteStopSource;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
+import src.backend.student.access.RouteStopSource;
 import src.backend.student.access.StudentRunResolver;
 import src.backend.student.access.StudentRunsAccess;
 import src.backend.student.dto.StudentRouteResponse;
 import src.backend.student.entity.Student;
-import src.backend.student.repository.StudentDailyStop;
+import src.backend.student.projection.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
@@ -142,7 +142,7 @@ public class StudentRouteQueryService {
         return routeStopSource.confirmedRouteStops(run.getId(), academyId);
     }
 
-    /** 연락처는 이름만 싣는다 — 전화번호는 내지 않는다(§3.10). 배치가 아직 없으면 이름이 {@code null} 이다(§3.10 {@code ◐} 배치가 있을 때만, BR-055). */
+    /** 기사 연락처는 이름만 싣는다 — 전화번호는 내지 않는다(§3.10). 배치가 아직 없으면 이름이 {@code null} 이다(§3.10 {@code ◐} 배치가 있을 때만, BR-055). */
     private StudentRouteResponse.Contact contactOf(Run run, ManagerRole role) {
         return assignmentRepository.findByRunIdAndRole(run.getId(), role)
                 .flatMap(assignment -> managerRepository.findById(assignment.getManagerId()))
@@ -150,6 +150,7 @@ public class StudentRouteQueryService {
                 .orElse(new StudentRouteResponse.Contact(null));
     }
 
+    /** 동승자 연락처는 이름과 전화번호를 함께 싣는다(§3.10). */
     private StudentRouteResponse.EscortContact escortContactOf(Run run) {
         return assignmentRepository.findByRunIdAndRole(run.getId(), ManagerRole.ESCORT)
                 .flatMap(assignment -> managerRepository.findById(assignment.getManagerId()))

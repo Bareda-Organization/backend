@@ -63,7 +63,7 @@ class ManagerRosterAssembler {
         List<RunStop> boardingStops = reader.boardingStopsOf(requester, run);
         Map<Long, Stop> stopsById = reader.stopsByIdOf(requester.academyId(),
                 boardingStops.stream().map(RunStop::getStopId).filter(Objects::nonNull).toList());
-        Academy academy = academyRepository.findById(run.getAcademyId()).orElse(null);
+        Academy academy = academyRepository.findById(requester.academyId()).orElse(null);
         Map<Long, List<RunRider>> ridersByStopId = riders.stream().collect(Collectors.groupingBy(RunRider::getStopId));
         StopGroupLookups lookups = new StopGroupLookups(studentsById, maskedPhonesById,
                 reader.countdownsOf(run.getId(), requester.academyId()), stopsById, ridersByStopId, academy);

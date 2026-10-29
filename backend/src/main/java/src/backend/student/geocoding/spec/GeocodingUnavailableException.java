@@ -15,6 +15,7 @@ public class GeocodingUnavailableException extends RuntimeException {
         super(message);
     }
 
+    /** 어댑터는 쓰지 않는다 — 원인 사슬이 로그로 새지 않는지 확인하는 시험이 원인이 달린 예외를 만들 때만 쓴다. */
     public GeocodingUnavailableException(String message, Throwable cause) {
         super(message, cause);
     }

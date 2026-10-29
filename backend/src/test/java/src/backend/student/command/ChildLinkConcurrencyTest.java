@@ -20,6 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import src.backend.global.common.SeedFixtures;
+import src.backend.student.repository.StudentRepository;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.error.BusinessException;
@@ -81,6 +82,9 @@ class ChildLinkConcurrencyTest {
     private PlatformTransactionManager transactionManager;
 
     @Autowired
+    private StudentRepository studentRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
@@ -91,6 +95,7 @@ class ChildLinkConcurrencyTest {
     /** 이 클래스는 실제 커밋을 남기므로 지우는 것도 직접 한다 — 이 보호자·학생 조합의 행만 지운다. */
     @AfterEach
     void 뒷정리한다() {
+        jdbcTemplate.update("UPDATE student SET deleted_at = NULL WHERE id = ?", STUDENT_A4_ID);
         jdbcTemplate.update("DELETE FROM link_code WHERE student_id = ?", STUDENT_A4_ID);
         jdbcTemplate.update("UPDATE guardian SET link_attempt_count = 0, link_attempt_window_start = NULL "
                 + "WHERE account_id IN (?, ?)", GUARDIAN_SIBLINGS_ACCOUNT, OTHER_GUARDIAN_ACCOUNT);
@@ -206,6 +211,62 @@ class ChildLinkConcurrencyTest {
                 "SELECT count(*) FROM guardian_student WHERE guardian_id = ? AND student_id = ?",
                 Integer.class, 보호자_식별자(), STUDENT_A4_ID))
                 .isEqualTo(0);
+    }
+
+    /**
+     * 퇴원 트랜잭션이 학생 행을 쥔 동안 들어온 연결은 그 커밋을 기다렸다가 퇴원을 보고 거부된다 — 학생 행을 잠그지 않고 읽으면 퇴원 직전의
+     * 값으로 연결을 만들어 퇴원한 학생에게 활성 연결이 남는다.
+     */
+    @Test
+    void 퇴원이_학생_행을_쥔_동안_들어온_연결은_퇴원을_보고_거부된다() throws Exception {
+        String 코드 = 요청하고_코드를_받는다();
+        CountDownLatch 잠갔다 = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        Optional<ErrorCode> 연결_결과;
+        try {
+            Future<?> 퇴원 = pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                studentRepository.lockActiveByIdAndAcademyId(STUDENT_A4_ID, ACADEMY_A);
+                잠갔다.countDown();
+                연결이_끝나거나_잠금을_기다릴_때까지_미룬다();
+                jdbcTemplate.update("UPDATE student SET deleted_at = now() WHERE id = ?", STUDENT_A4_ID);
+            }));
+            Future<Optional<ErrorCode>> 연결 = pool.submit(() -> {
+                잠갔다.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                return 연결한다(보호자(), 코드, null, false);
+            });
+            퇴원.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            연결_결과 = 연결.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+            pool.awaitTermination(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        assertThat(연결_결과).contains(ErrorCode.LINK_CODE_INVALID);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM guardian_student WHERE student_id = ? AND guardian_id IN (?, ?)", Integer.class,
+                STUDENT_A4_ID, 보호자_식별자(), 다른_보호자_식별자())).as("퇴원한 학생에게 연결이 남으면 안 된다").isZero();
+    }
+
+    /** 다른 세션이 행 잠금에서 기다리는 것이 보일 때까지 미룬다 — 기다리는 세션이 없으면(잠그지 않는 구현) 연결이 이미 끝났으므로 상한까지만 기다린다. */
+    private void 연결이_끝나거나_잠금을_기다릴_때까지_미룬다() {
+        long 마감 = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+        while (System.nanoTime() < 마감) {
+            jdbcTemplate.execute("SELECT pg_stat_clear_snapshot()");
+            Integer 대기중 = jdbcTemplate.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE datname = "
+                    + "current_database() AND wait_event_type = 'Lock'", Integer.class);
+            Integer 연결수 = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM guardian_student WHERE student_id = ? AND guardian_id IN (?, ?)", Integer.class,
+                    STUDENT_A4_ID, 보호자_식별자(), 다른_보호자_식별자());
+            if ((대기중 != null && 대기중 > 0) || (연결수 != null && 연결수 > 0)) {
+                return;
+            }
+            try {
+                Thread.sleep(POLL_INTERVAL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     // ── 도우미 ────────────────────────────────────────────────────────────

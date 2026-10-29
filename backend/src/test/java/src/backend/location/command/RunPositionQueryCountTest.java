@@ -148,55 +148,55 @@ class RunPositionQueryCountTest {
     }
 
     /**
-     * Ruling 671 — <b>캐시가 비어 있는</b> 첫 위치 1건의 SQL 은 6건이다: 인증 필터의 계정 상태 확인 1(Ruling 880) · 인가 exists 1 ·
-     * 회차 1 · INSERT 1 · 정차 목록 1 · 커밋 뒤 탑승자 학생 id 1. 두 목록은 이벤트가 커밋될 때만 다시 읽으므로 이어지는 위치는
-     * 아래 RT-5 시험이 3건을 센다.
+     * Ruling 671 — <b>캐시가 비어 있는</b> 첫 위치 1건의 SQL 은 7건이다: 인증 필터의 계정 상태 확인 1(Ruling 880) · 인가 exists 1 ·
+     * 회차 1 · 회차 잠금 1 · INSERT 1 · 정차 목록 1 · 커밋 뒤 탑승자 학생 id 1. 두 목록은 이벤트가 커밋될 때만 다시 읽으므로 이어지는 위치는
+     * 아래 RT-5 시험이 4건을 센다.
      */
     @Test
-    @DisplayName("캐시가 빈 첫 위치 1건의 SQL 은 6건이다(첫 도착 뒤 · 880 포함)")
-    void 첫_도착_뒤_위치_1건의_SQL_은_6건이다() throws Exception {
+    @DisplayName("캐시가 빈 첫 위치 1건의 SQL 은 7건이다(첫 도착 뒤 · 880 포함)")
+    void 첫_도착_뒤_위치_1건의_SQL_은_7건이다() throws Exception {
         Seeded seeded = 회차를_심는다(true);
 
-        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(6);
+        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(7);
     }
 
     @Test
-    @DisplayName("캐시가 빈 첫 위치는 첫 도착 전에도 SQL 6건이다(880 포함)")
-    void 첫_도착_전_위치_1건의_SQL_은_6건이다() throws Exception {
+    @DisplayName("캐시가 빈 첫 위치는 첫 도착 전에도 SQL 7건이다(880 포함)")
+    void 첫_도착_전_위치_1건의_SQL_은_7건이다() throws Exception {
         Seeded seeded = 회차를_심는다(false);
 
-        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(6);
+        assertThat(위치를_보내고_SQL_수를_센다(seeded)).isEqualTo(7);
     }
 
     /**
      * RT-5(Ruling 899 K) — 정차 목록 · 탑승 학생 목록은 도착 · 결석 · 전환 이벤트가 커밋될 때만 다시 읽는다. 인증 필터의 계정 상태 확인(Ruling 880 ·
-     * BE-RT 가 캐시한다)은 이 경로의 몫이 아니라 서비스를 직접 불러 센다. 데워진 위치 1건은 인가 exists 1 + 회차 1 + INSERT 1 = 3건이다.
+     * BE-RT 가 캐시한다)은 이 경로의 몫이 아니라 서비스를 직접 불러 센다. 데워진 위치 1건은 인가 exists 1 + 회차 1 + 회차 잠금 1 + INSERT 1 = 4건이다.
      */
     @Test
-    @DisplayName("RT-5 — 데워진 뒤 위치 1건의 SQL 은 3건 이하다")
-    void 데워진_뒤_위치_1건의_SQL_은_3건_이하다() {
+    @DisplayName("RT-5 — 데워진 뒤 위치 1건의 SQL 은 4건 이하다")
+    void 데워진_뒤_위치_1건의_SQL_은_4건_이하다() {
         Seeded seeded = 회차를_심는다(true);
         직접_보낸다(seeded);
 
         long warm = 직접_보내고_SQL_수를_센다(seeded);
 
-        assertThat(warm).isLessThanOrEqualTo(3);
+        assertThat(warm).isLessThanOrEqualTo(4);
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM run_position WHERE run_id = ?", Integer.class,
                 seeded.runId())).as("버려진 요청은 SQL 이 더 적으므로 두 요청이 모두 적재됐는지 행 수로 본다").isEqualTo(2);
     }
 
     /**
      * 실제 요청 경로(인증 필터 · 컨트롤러 · 서비스 · 커밋 뒤 리스너) 전체의 SQL — 시험 JVM 은 계정 상태 캐시를 0초로 꺼 두므로(다른 시험이 계정 상태를
-     * 바로 바꾼다) 이 시험만 5초로 되돌려, 운영과 같이 인증 필터의 계정 상태 확인이 캐시에서 나오는 상태를 센다. 첫 요청이 캐시를 채운 뒤의 3건이 각각 3건 이하다.
+     * 바로 바꾼다) 이 시험만 5초로 되돌려, 운영과 같이 인증 필터의 계정 상태 확인이 캐시에서 나오는 상태를 센다. 첫 요청이 캐시를 채운 뒤의 3건이 각각 4건 이하다.
      */
     @Test
-    @DisplayName("RT-5 — 실제 요청 경로로 데워진 위치 3건의 SQL 은 각각 3건 이하다(계정 상태 캐시 5초)")
-    void 데워진_실제_요청_3건의_SQL_은_각각_3건_이하다() throws Exception {
+    @DisplayName("RT-5 — 실제 요청 경로로 데워진 위치 3건의 SQL 은 각각 4건 이하다(계정 상태 캐시 5초)")
+    void 데워진_실제_요청_3건의_SQL_은_각각_4건_이하다() throws Exception {
         Seeded seeded = 회차를_심는다(true);
         위치를_보낸다(seeded);
 
         for (int i = 1; i <= 3; i++) {
-            assertThat(위치를_보내고_SQL_수를_센다(seeded)).as("데워진 %d번째 요청", i).isLessThanOrEqualTo(3);
+            assertThat(위치를_보내고_SQL_수를_센다(seeded)).as("데워진 %d번째 요청", i).isLessThanOrEqualTo(4);
         }
 
         // 버려진 요청은 SQL 이 2건이라 위 상한만으로는 통과한다 — 네 요청이 모두 이력으로 적재됐는지 행 수로 본다
@@ -215,13 +215,13 @@ class RunPositionQueryCountTest {
         fx.rider(seeded.runId(), staying, stopId, RiderStatus.WAITING, seeded.now());
         long leavingRiderId = fx.rider(seeded.runId(), leaving, stopId, RiderStatus.WAITING, seeded.now());
         직접_보낸다(seeded);
-        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("데워진 위치").isEqualTo(3);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("데워진 위치").isEqualTo(4);
 
         transactionTemplate.executeWithoutResult(status -> runRiderPersistence
                 .markAbsentBySystem(runRiderRepository.findById(leavingRiderId).orElseThrow(), seeded.now()));
         org.mockito.Mockito.clearInvocations(gateway);
 
-        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("결석 뒤 첫 위치 — 학생 목록 1건 더").isEqualTo(4);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("결석 뒤 첫 위치 — 학생 목록 1건 더").isEqualTo(5);
         // 위치 1건 = 방송 1건 — 그 방송의 목적지 전부에서 결석한 학생 채널만 빠져 있어야 한다
         @SuppressWarnings("unchecked")
         org.mockito.ArgumentCaptor<java.util.List<src.backend.global.websocket.BroadcastDelivery>> deliveries =
@@ -231,7 +231,7 @@ class RunPositionQueryCountTest {
         assertThat(deliveries.getValue()).flatExtracting(src.backend.global.websocket.BroadcastDelivery::destinations)
                 .doesNotContain(WebSocketDestinations.studentRun(leaving))
                 .contains(WebSocketDestinations.studentRun(staying));
-        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("그 다음 위치는 다시 3건").isEqualTo(3);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("그 다음 위치는 다시 4건").isEqualTo(4);
     }
 
     @Test
@@ -239,13 +239,13 @@ class RunPositionQueryCountTest {
     void 도착_뒤_첫_위치에서만_정차_목록을_다시_읽는다() {
         Seeded seeded = 회차를_심는다(false);
         직접_보낸다(seeded);
-        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("데워진 위치").isEqualTo(3);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("데워진 위치").isEqualTo(4);
 
         eventPublisher.publishEvent(new StopArrivedEvent(seeded.runId(), seeded.academyId(), 1L, 1, "정류장",
                 seeded.now(), null));
 
-        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("도착 뒤 첫 위치 — 정차 목록 1건 더").isEqualTo(4);
-        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("그 다음 위치는 다시 3건").isEqualTo(3);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("도착 뒤 첫 위치 — 정차 목록 1건 더").isEqualTo(5);
+        assertThat(직접_보내고_SQL_수를_센다(seeded)).as("그 다음 위치는 다시 4건").isEqualTo(4);
     }
 
     /** 위치 방송 수신자 조회가 absent 를 빼고 학생 id 만 돌려준다(엔티티 목록 대신 투영). 거르는 일은 조회가 한다. */

@@ -11,7 +11,7 @@ import java.util.List;
  *
  * <p>{@code raisedAt} 은 {@code emergency_alert.received_at} 이다 — {@code occurred_at}(클라이언트가
  * 신고했다고 주장하는 시각, 조작 가능)이 아니라 서버가 실제로 접수한 시각을 쓴다. {@link
- * src.backend.exception.command.EmergencyCommandService#assertWithinCancelWindow} 가 같은 이유로
+ * src.backend.exception.command.EmergencyCancelStep#assertWithinCancelWindow} 가 같은 이유로
  * {@code receivedAt} 을 취소 창 기준으로 삼는 것과 같은 원칙이다. 단말이 누른 시각 {@code occurredAt} 은
  * 정렬·판정에 쓰지 않는 <b>참고값</b>으로 따로 싣는다(Ruling 744). 오프라인 큐로 늦게 도착한 비상(Ruling 616)에서 접수 시각과 벌어진 값을 관계자가 보게 하려는 것이다.
  *

@@ -101,7 +101,7 @@ class RunStopDepartureSelectionTest {
         OffsetDateTime now = OffsetDateTime.now();
         ProximityFixtures fx = new ProximityFixtures(academyRepository, busRepository, stopRepository,
                 studentRepository, accountRepository, guardianRepository, guardianStudentRepository, runRepository,
-                confirmedRouteRepository, routeVersionRepository, runStopRepository, runRiderRepository);
+                confirmedRouteRepository, routeVersionRepository, runStopRepository, runStopProximityRepository, runRiderRepository);
         long academyId = fx.academy();
         long busId = fx.bus(academyId);
         long runId = fx.movingRun(academyId, busId, Direction.FROM_ACADEMY, now.plusHours(1), now, now);
