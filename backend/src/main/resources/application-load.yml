@@ -19,6 +19,9 @@ spring:
       leak-detection-threshold: 5000
   flyway:
     locations: classpath:db/migration,classpath:db/fixture
+    # load 는 기동마다 DB 를 비우지 않아 schoolbus_load 가 시드(V800~V802)를 적용한 채 이어진다 — 뒤늦게 생기는 db/migration 의 V2… 가
+    # 순서를 거슬러 적용되게 한다. 끄면 그 기동은 "Detected resolved migration not applied" 검증 실패로 끝난다.
+    out-of-order: true
     placeholders:
       # db/fixture/V800__seed_data.sql 의 계정 시드가 요구하는 placeholder — local 프로파일과
       # 동일한 값(BCryptPasswordEncoder strength 10, 평문 "password")을 그대로 복제한다. k6 스크립트가
