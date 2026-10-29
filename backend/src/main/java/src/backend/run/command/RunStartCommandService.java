@@ -92,8 +92,12 @@ public class RunStartCommandService {
             throw new BusinessException(ErrorCode.START_WINDOW_CLOSED);
         }
 
-        run.start(now);
+        // 자동 거절의 갱신 쿼리는 영속성 컨텍스트를 비우므로(clearAutomatically) 먼저 돌리고, 비워진 뒤 다시 읽은 회차에 시작을 쓴다 —
+        // 회차를 먼저 바꿔 두면 그 뒤에 회차에 더하는 변경이 분리된 엔티티에 얹혀 커밋되지 않는다.
         changeRequestAutoRejectionService.terminateForRun(requester.academyId(), runId, now);
+        run = runRepository.findByIdAndAcademyId(runId, requester.academyId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
+        run.start(now);
 
         Integer autoBoardedCount = null;
         if (run.getDirection() == Direction.FROM_ACADEMY) {
