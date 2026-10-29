@@ -131,7 +131,7 @@ class AccountRecoveryFlowTest {
     void setUp() {
         smsSender.clear();
         int suffix = ThreadLocalRandom.current().nextInt(10_000_000, 100_000_000);
-        phone = "010-" + suffix;
+        phone = "010-%04d-%04d".formatted(suffix / 10_000, suffix % 10_000);
         loginId = "r46rec" + suffix;
         academyId = academyRepository.save(Academy.register("R46R" + suffix, "복구시험학원" + suffix, "서울", null, null))
                 .getId();
@@ -394,8 +394,9 @@ class AccountRecoveryFlowTest {
         // 위는 계정이 아직 없던 번호 — 이어서 같은 번호에 계정을 만들고 다른 번호로 같은 요청을 보내 비교한다
         smsSender.clear();
         String unregisteredPhone = phone;
-        phone = "010-" + ThreadLocalRandom.current().nextInt(10_000_000, 100_000_000);
-        loginId = "r46recb" + phone.substring(4);
+        int other = ThreadLocalRandom.current().nextInt(10_000_000, 100_000_000);
+        phone = "010-%04d-%04d".formatted(other / 10_000, other % 10_000);
+        loginId = "r46recb" + other;
         createAccount(Role.PARENT);
 
         String body = recover("password", null).andExpect(status().isOk()).andReturn().getResponse()

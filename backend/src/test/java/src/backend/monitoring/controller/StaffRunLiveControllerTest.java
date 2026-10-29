@@ -214,6 +214,32 @@ class StaffRunLiveControllerTest {
                 .andExpect(jsonPath("$.data.runs[0].last_seen_at").exists());
     }
 
+    /** 수신 후 2분이 지나지 않았으면 위치를 싣고 {@code last_seen_at} 은 싣지 않는다 — 유실 기준(2분)의 안쪽 경계 시험이다. */
+    @Test
+    @DisplayName("2분 안에 수신한 위치는 position 으로 나가고 last_seen_at 은 없다")
+    void 유실_기준_안의_위치는_position_으로_나간다() throws Exception {
+        DriverRunFixtures fx = DriverRunFixtures.of(applicationContext);
+        long academyId = fx.academy();
+        academyIds.add(academyId);
+        long busId = fx.bus(academyId);
+        OffsetDateTime departTime = OffsetDateTime.now(clock);
+        long runId = fx.confirmedRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
+        runIdsForRedisCleanup.add(runId);
+        fx.startRun(runId, OffsetDateTime.now(clock));
+        fx.assignedManager(academyId, runId, ManagerRole.DRIVER, "기사1", OffsetDateTime.now(clock));
+        long staffAccountId = fx.staffAccount(academyId, "관계자1");
+
+        OffsetDateTime receivedAt = OffsetDateTime.now(clock).minusSeconds(90);
+        String value = JSON_MAPPER.writeValueAsString(new src.backend.location.dto.RunPositionRedisValue(
+                new BigDecimal("37.500000"), new BigDecimal("127.000000"), receivedAt, receivedAt, null));
+        stringRedisTemplate.opsForValue().set("run:" + runId + ":position", value);
+
+        mockMvc.perform(get("/api/v1/staff/runs/live").header("Authorization", 토큰(tokenProvider, staffAccountId, academyId, Role.STAFF)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].position").exists())
+                .andExpect(jsonPath("$.data.runs[0].last_seen_at").doesNotExist());
+    }
+
     /**
      * BR-002(Ruling 327) — 마지막 승차지에 도착한 등원 회차는 다음 정차가 학원 항목이다. 그 항목은
      * 승하차지도 경유 지점도 아니라, 이름을 두 갈래로만 찾으면 관제 조회 전체가 실패한다.

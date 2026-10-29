@@ -113,7 +113,7 @@ class PasswordHashingOutsideTransactionTest {
     /** FK 순서: refresh_token → academy_staff → account → academy (감사 행은 계정·학원에 FK 가 없어 학원 id 로 지운다). */
     @AfterEach
     void 뒷정리한다() {
-        jdbcTemplate.update("DELETE FROM verification_code WHERE phone LIKE ?", "010-" + suffix + "%");
+        jdbcTemplate.update("DELETE FROM verification_code WHERE phone LIKE ?", phoneOf());
         jdbcTemplate.update("DELETE FROM refresh_token WHERE account_id IN (SELECT id FROM account WHERE academy_id = ?)",
                 academyId);
         jdbcTemplate.update("DELETE FROM audit_log WHERE academy_id = ?", academyId);
@@ -127,7 +127,7 @@ class PasswordHashingOutsideTransactionTest {
     @DisplayName("가입 — BCrypt 인코딩이 트랜잭션 밖에서 돈다")
     void 가입은_BCrypt_인코딩이_트랜잭션_밖에서_돈다() {
         signupCommandService.signup(new SignupRequestPayload("parent", "r46s" + suffix, "new-password-1234!", "가입시험",
-                "010-" + suffix, String.valueOf(academyId)));
+                phoneOf(), String.valueOf(academyId)));
 
         assertOutside("가입");
         assertThat(accountRepository.existsByLoginId("r46s" + suffix)).as("가입 계정이 실제로 저장돼야 한다").isTrue();
@@ -136,7 +136,7 @@ class PasswordHashingOutsideTransactionTest {
     @Test
     @DisplayName("비밀번호 변경 — 현재 비밀번호 대조와 새 해시 인코딩이 트랜잭션 밖에서 돈다")
     void 비밀번호_변경은_대조와_인코딩이_트랜잭션_밖에서_돈다() {
-        Account account = createAccount("r46c" + suffix, Role.PARENT, "010-" + suffix);
+        Account account = createAccount("r46c" + suffix, Role.PARENT, phoneOf());
 
         passwordChangeCommandService.changePassword(account.getId(), OLD_PASSWORD, "changed-password-1234!");
 
@@ -147,7 +147,7 @@ class PasswordHashingOutsideTransactionTest {
     @Test
     @DisplayName("비밀번호 변경 — 대조 뒤 잠금 전에 해시가 바뀌었으면 잠근 행 기준으로 다시 대조해 거절한다")
     void 비밀번호_변경은_대조_뒤_해시가_바뀌었으면_거절한다() {
-        Account account = createAccount("r46r" + suffix, Role.PARENT, "010-" + suffix);
+        Account account = createAccount("r46r" + suffix, Role.PARENT, phoneOf());
         String racedHash = new BCryptPasswordEncoder().encode("raced-password-1234!");
         AtomicBoolean raced = new AtomicBoolean();
         // 첫 대조가 끝난 직후 다른 요청이 비밀번호를 바꾼 상황 — 잠금 밖 대조 결과는 옛 해시 기준이라 믿을 수 없다
@@ -171,7 +171,7 @@ class PasswordHashingOutsideTransactionTest {
     @DisplayName("관리자 비밀번호 초기화 — 임시 비밀번호 인코딩이 트랜잭션 밖에서 돈다")
     void 관리자_초기화는_인코딩이_트랜잭션_밖에서_돈다() {
         Account actor = createAccount("r46a" + suffix, Role.STAFF, "010-1" + suffix);
-        Account target = createAccount("r46t" + suffix, Role.PARENT, "010-" + suffix);
+        Account target = createAccount("r46t" + suffix, Role.PARENT, phoneOf());
 
         accountPasswordResetCommandService.reset(new AuthUser(actor.getId(), academyId, Role.STAFF, AccountStatus.ACTIVE,
                 false), target.getId());
@@ -184,7 +184,7 @@ class PasswordHashingOutsideTransactionTest {
     @Test
     @DisplayName("관계자 계정 수정(비밀번호 초기화) — 임시 비밀번호 인코딩이 트랜잭션 밖에서 돈다")
     void 관계자_계정_수정은_인코딩이_트랜잭션_밖에서_돈다() {
-        Account staff = createAccount("r46f" + suffix, Role.STAFF, "010-" + suffix);
+        Account staff = createAccount("r46f" + suffix, Role.STAFF, phoneOf());
         academyStaffRepository.save(AcademyStaff.uponApproval(academyId, staff.getId()));
 
         staffAccountCommandService.update(staff.getId(), new StaffAccountUpdateRequest(null, null, null, true, null));
@@ -197,7 +197,7 @@ class PasswordHashingOutsideTransactionTest {
     @Test
     @DisplayName("전화번호 복구 — 임시 비밀번호 인코딩이 트랜잭션 밖에서 돈다")
     void 복구는_인코딩이_트랜잭션_밖에서_돈다() {
-        String phone = "010-" + suffix;
+        String phone = phoneOf();
         Account account = createAccount("r46v" + suffix, Role.PARENT, phone);
 
         accountRecoveryCommandService.recover("password", phone, null);
@@ -213,7 +213,7 @@ class PasswordHashingOutsideTransactionTest {
     @Test
     @DisplayName("전화번호 복구 — 틀린 코드로는 임시 비밀번호 BCrypt 를 만들지 않는다")
     void 복구는_틀린_코드로는_BCrypt_를_만들지_않는다() {
-        String phone = "010-" + suffix;
+        String phone = phoneOf();
         createAccount("r46w" + suffix, Role.PARENT, phone);
         accountRecoveryCommandService.recover("password", phone, null);
         observed.clear();
@@ -251,5 +251,10 @@ class PasswordHashingOutsideTransactionTest {
         boolean holdsNothing() {
             return !transactionActive && resources.isEmpty();
         }
+    }
+
+    /** 연락처 표준형({@code 010-NNNN-NNNN}) — 복구가 번호를 이 형태로 바꿔 코드 행을 쌓는다. */
+    private String phoneOf() {
+        return "010-%s-%s".formatted(suffix.substring(0, 4), suffix.substring(4));
     }
 }

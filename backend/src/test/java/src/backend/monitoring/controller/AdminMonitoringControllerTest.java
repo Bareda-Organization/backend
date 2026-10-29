@@ -240,6 +240,27 @@ class AdminMonitoringControllerTest {
                 .isEqualTo(received);
     }
 
+    /** 수신 후 2분이 지나지 않았으면 위치를 싣고 {@code last_seen_at} 은 싣지 않는다 — 유실 기준(2분)의 안쪽 경계 시험이다. */
+    @Test
+    void 마지막_수신이_2분_안이면_position_이_나가고_last_seen_at_은_없다() throws Exception {
+        AdminMonitoringFixtures f = AdminMonitoringFixtures.of(applicationContext);
+        long academyId = f.academy();
+        long busId = f.bus(academyId);
+        OffsetDateTime departTime = OffsetDateTime.now(clock).minusMinutes(20);
+        long runId = f.movingRun(academyId, busId, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30),
+                OffsetDateTime.now(clock).minusMinutes(15), 30);
+        위치를_기록한다(runId, OffsetDateTime.now(clock).minusSeconds(90));
+
+        long adminAccountId = f.systemAdminAccount("메인관리자");
+
+        mockMvc.perform(get(LIVE.formatted(academyId)).header("Authorization",
+                        메인관리자_토큰(tokenProvider, adminAccountId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.runs[0].run_id").value(runId))
+                .andExpect(jsonPath("$.data.runs[0].position").exists())
+                .andExpect(jsonPath("$.data.runs[0].last_seen_at").doesNotExist());
+    }
+
     /** 도착 처리된 정차는 {@code eta} 가 {@code null} 이다. */
     @Test
     void 도착_처리된_정차는_eta가_null이다() throws Exception {

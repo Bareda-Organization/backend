@@ -59,7 +59,7 @@ class AuditLogEntitySchemaValidationTest extends MigratedPostgresTestBase {
     void auditLog_는_FK_가_없어_최소_상태로_저장되고_category_action_enum_이_왕복한다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
 
-        AuditLog log = AuditLog.forOccurrence(AuditCategory.LOGIN, AuditAction.LOGIN_SUCCESS, now);
+        AuditLog log = AuditLog.forLoginSuccess(null, null, "schema.test", null, now);
         entityManager.persist(log);
         entityManager.flush();
         entityManager.clear();
@@ -77,7 +77,7 @@ class AuditLogEntitySchemaValidationTest extends MigratedPostgresTestBase {
     void auditLog_의_detail_jsonb_컬럼이_Map_으로_왕복한다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
 
-        AuditLog log = AuditLog.forOccurrence(AuditCategory.DATA_ACCESS, AuditAction.READ, now);
+        AuditLog log = AuditLog.forDataAccessRead(null, null, "schema.test", "student", 1L, null, null, now);
         entityManager.persist(log);
         entityManager.flush();
         entityManager.clear();
@@ -100,7 +100,7 @@ class AuditLogEntitySchemaValidationTest extends MigratedPostgresTestBase {
     void auditLog_의_ip_inet_컬럼이_실제_값으로_왕복한다() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.of("+09:00"));
 
-        AuditLog log = AuditLog.forOccurrence(AuditCategory.LOGIN, AuditAction.LOGIN_SUCCESS, now);
+        AuditLog log = AuditLog.forLoginSuccess(null, null, "schema.test", null, now);
         entityManager.persist(log);
         entityManager.flush();
         entityManager.clear();
