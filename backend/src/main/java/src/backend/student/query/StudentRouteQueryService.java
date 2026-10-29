@@ -28,7 +28,7 @@ import src.backend.student.access.StudentRunResolver;
 import src.backend.student.access.StudentRunsAccess;
 import src.backend.student.dto.StudentRouteResponse;
 import src.backend.student.entity.Student;
-import src.backend.student.repository.StudentDailyStop;
+import src.backend.student.access.StudentDailyStop;
 import src.backend.student.repository.WeeklyAddressRepository;
 
 /**

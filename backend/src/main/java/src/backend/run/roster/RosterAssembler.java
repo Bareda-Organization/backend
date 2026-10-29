@@ -13,7 +13,7 @@ import src.backend.request.entity.ChangeRequest;
 import src.backend.run.entity.RunForcedAddition;
 import src.backend.run.entity.RunTransfer;
 import src.backend.run.roster.ProjectedRoster.StagedRows;
-import src.backend.student.repository.StudentDailyStop;
+import src.backend.student.access.StudentDailyStop;
 
 /**
  * 읽어 둔 재료({@link RosterSources})로 한 회차의 예정 명단을 조립한다 — 규칙은 {@link ProjectedRosterReader} 클래스 자바독의 한 곳뿐이다. 조립 한 번마다 새로 만든다.

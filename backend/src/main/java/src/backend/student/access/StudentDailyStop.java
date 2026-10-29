@@ -1,4 +1,4 @@
-package src.backend.student.repository;
+package src.backend.student.access;
 
 /**
  * 그날 그 학생이 서는 승하차지 1행 — 노선 계산 ①단계(좌표 해석)가 읽는 조회 전용 투영이다

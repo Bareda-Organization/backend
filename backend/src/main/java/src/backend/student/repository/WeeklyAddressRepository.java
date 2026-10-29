@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.access.AcademyScopeExempt;
+import src.backend.student.access.StudentDailyStop;
 import src.backend.student.entity.WeeklyAddress;
 
 /** {@link WeeklyAddress} 영속성 접근. */

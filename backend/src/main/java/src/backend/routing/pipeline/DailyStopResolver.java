@@ -15,7 +15,7 @@ import src.backend.routing.engine.spec.OrderableStop;
 import src.backend.student.access.DailyStopLookup;
 import src.backend.student.entity.Stop;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.StudentDailyStop;
+import src.backend.student.access.StudentDailyStop;
 
 /**
  * 노선 계산 ①단계 — 그날의 승하차지를 좌표로 바꾸고 얻지 못한 학생을 분리한다
