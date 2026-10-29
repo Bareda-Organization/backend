@@ -246,7 +246,7 @@ class RunRouteControllerTest {
     @Test
     void 제거된_경유지는_건너뛰고_좌표_있는_다음_정차지가_next_stop_이다() throws Exception {
         // C-null 대상 2(§4.3 next_stop.lat·lng) 음성 대조용 — 배포 후 제거된 강제 경유지가 다음 차례로
-        // 올라오면(RunRouteQueryService#hasResolvedTarget 이 없으면) next_stop 이 좌표 전부 null 인
+        // 올라오면(RunRouteStopLookup#hasResolvedTarget 이 없으면) next_stop 이 좌표 전부 null 인
         // 경유지 행을 그대로 내보낸다. 그 필터를 되돌리면 이 시험만 실패해야 한다.
         Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();

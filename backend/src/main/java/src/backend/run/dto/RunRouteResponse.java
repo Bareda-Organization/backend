@@ -16,7 +16,7 @@ import src.backend.global.location.GeoPoint;
  *         {@code lat}·{@code lng} 는 외부 내비게이션 앱 콜백용이라 필수다 — 이 레코드 자체는
  *         {@link RouteStop} 을 재사용하지만, {@link RouteStop} 일반은 좌표가 없을 수 있다(배포 후
  *         제거된 경유 지점이 {@code stops[]} 전체 목록엔 그대로 남는다, API_SPEC §1.13). {@code
- *         next_stop} 만은 {@code RunRouteQueryService#hasResolvedTarget} 이 좌표 없는 항목을
+ *         next_stop} 만은 {@code RunRouteStopLookup#hasResolvedTarget} 이 좌표 없는 항목을
  *         건너뛰어 이 필드의 필수 약속을 지킨다
  * @param skippedNotice 다음에 지나칠 미경유 승하차지 안내 한 줄("○○ 승하차지는 오늘 미경유")
  * @param roadPath 확정 노선의 도로 경로 좌표(순서 있음) — 기사 운행 화면 지도가 그린다(Ruling 365).
