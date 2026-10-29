@@ -21,14 +21,15 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * {@code infra/scripts/deploy.sh} 1단계(SSM → {@code .env})를 가짜 {@code aws} 로 실제 실행해 본다.
+ * {@code infra/scripts/deploy.sh} 를 가짜 {@code aws} · {@code docker} 로 실제 실행해 본다.
  *
- * <p>텍스트만 읽는 {@code DeploymentConfigGuardTest} 로는 "값이 비면 스크립트가 멈춘다" 를 볼 수 없다. 여기서 막는
+ * <p>스크립트 글자만 읽어서는 "값이 비면 스크립트가 멈춘다" 도 "새 이미지가 안 뜨면 직전 태그로 되돌린다" 도 볼 수 없다. 여기서 막는
  * 사고는 전부 조용히 성공하는 종류다 — 프로파일 값이 빠진 배포가 가짜 시드로 뜨고, Directions 경로만 바꾼 배포가
- * 문서 밖 동작(Ruling 361)에 기대고, 해시가 아닌 값의 첫 관리자가 로그인 불가로 뜬다.
+ * 문서 밖 동작(Ruling 361)에 기대고, 해시가 아닌 값의 첫 관리자가 로그인 불가로 뜨고, 안 뜨는 이미지가 배포된 채 남는다.
  *
- * <p>스크립트는 1단계에서 실패하면 Docker 에 닿기 전에 끝난다. 통과한 경우에도 가짜 {@code APP_DIR} 에 compose
- * 파일이 없어 다음 단계에서 멈추므로 실제 컨테이너는 건드리지 않는다 — {@code .env} 내용만 본다.
+ * <p>1단계(SSM → {@code .env})만 보는 시험은 가짜 {@code docker} 없이 돈다 — 1단계에서 실패하면 Docker 에 닿기 전에 끝나고, 통과해도 가짜
+ * {@code APP_DIR} 에 compose 파일이 없어 다음 단계에서 멈추므로 실제 컨테이너는 건드리지 않는다. 롤백 시험은 가짜 {@code docker} 가 호출 인자와
+ * 그 순간의 {@code .env} 태그를 기록하고, 지정한 태그에서만 실패하거나 헬스체크에 응하지 않는다.
  */
 class DeployScriptGuardTest {
 
@@ -195,10 +196,106 @@ class DeployScriptGuardTest {
         assertThat(script).contains("aws logs put-retention-policy").contains("LOG_RETENTION_DAYS=7");
     }
 
+    // ── 롤백 ──
+
+    @Test
+    @DisplayName("새 이미지가 스모크 테스트를 통과하지 못하면 직전 태그로 다시 띄우고 .env 도 직전 태그로 되돌리되 배포는 실패로 끝낸다")
+    void failedSmokeTestRedeploysThePreviousTag(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_BAD_TAG", NEW_TAG));
+
+        assertThat(run.exitCode()).as("되돌려도 새 태그 배포는 실패다 — 출력:\n%s", run.output()).isNotZero();
+        assertThat(run.dockerTagsOf("up -d")).as("기동 호출이 본 .env 태그: 새 태그 → 직전 태그").containsExactly(NEW_TAG, "oldtag");
+        assertThat(run.dockerTagsOf("pull backend")).as("직전 이미지는 이미 지워졌을 수 있어 다시 받는다").containsExactly(NEW_TAG, "oldtag");
+        assertThat(run.envFile()).contains("IMAGE_TAG='oldtag'").doesNotContain(NEW_TAG);
+        assertThat(run.output()).contains("oldtag");
+    }
+
+    @Test
+    @DisplayName("직전 태그로 되돌린 뒤에도 백엔드가 안 뜨면 그 사실을 알리고 실패로 끝낸다")
+    void rollbackThatDoesNotComeUpIsReported(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_BAD_TAG", NEW_TAG + ",oldtag"));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.output()).contains("되돌린 태그(oldtag)도");
+    }
+
+    @Test
+    @DisplayName("스모크 테스트를 통과한 배포는 되돌리지 않는다 — 기동은 한 번이고 .env 는 새 태그다")
+    void healthyDeployIsNotRolledBack(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of());
+
+        assertThat(run.exitCode()).as("출력:\n%s", run.output()).isZero();
+        assertThat(run.dockerTagsOf("up -d")).containsExactly(NEW_TAG);
+        assertThat(run.envFile()).contains("IMAGE_TAG='" + NEW_TAG + "'");
+    }
+
+    @Test
+    @DisplayName("기동 단계(up -d)에서 새 이미지가 실패해도 직전 태그로 다시 띄운다")
+    void failedStartRedeploysThePreviousTag(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_UP_FAIL_TAG", NEW_TAG));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.dockerTagsOf("up -d")).containsExactly(NEW_TAG, "oldtag");
+        assertThat(run.envFile()).contains("IMAGE_TAG='oldtag'");
+    }
+
+    @Test
+    @DisplayName("이미지 수신이 실패하면 컨테이너를 건드리지 않고 .env 만 직전 태그로 되돌린다")
+    void failedPullKeepsThePreviousTagInEnv(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, "oldtag", Map.of("FAKE_PULL_FAIL_TAG", NEW_TAG));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.dockerTagsOf("up -d")).as("받지 못한 이미지로 컨테이너를 만들지 않는다").isEmpty();
+        assertThat(run.envFile()).contains("IMAGE_TAG='oldtag'").doesNotContain(NEW_TAG);
+    }
+
+    @Test
+    @DisplayName("직전 태그가 없는 첫 배포가 실패하면 되돌릴 곳이 없다고 알린다")
+    void firstDeployFailureSaysThereIsNothingToRollBackTo(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, null, Map.of("FAKE_BAD_TAG", NEW_TAG));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.dockerTagsOf("up -d")).containsExactly(NEW_TAG);
+        assertThat(run.output()).contains("되돌릴 직전 이미지 태그가 없다");
+    }
+
+    @Test
+    @DisplayName("같은 태그를 다시 배포하다 실패하면 자기 자신으로 되돌리지 않는다")
+    void redeployOfTheSameTagIsNotRolledBackToItself(@TempDir Path tmp) throws Exception {
+        Run run = runFullDeploy(tmp, NEW_TAG, Map.of("FAKE_BAD_TAG", NEW_TAG));
+
+        assertThat(run.exitCode()).isNotZero();
+        assertThat(run.dockerTagsOf("up -d")).containsExactly(NEW_TAG);
+    }
+
     // ── 실행 도구 ──
+
+    private static final String NEW_TAG = "0123456789abcdef";
 
     private Run runDeploy(Path tmp, Map<String, String> ssmParams) throws Exception {
         return runDeploy(tmp, ssmParams, Map.of());
+    }
+
+    /** 가짜 aws · docker · sleep 으로 deploy.sh 를 끝까지 돌린다. {@code previousTag} 가 있으면 직전 배포가 남긴 {@code .env} 를 먼저 둔다. */
+    private Run runFullDeploy(Path tmp, String previousTag, Map<String, String> fakeDockerEnv) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("app"));
+        Files.writeString(app.resolve("docker-compose.prod.yml"), """
+                services:
+                  postgres:
+                    environment:
+                      POSTGRES_DB: schoolbus
+                      POSTGRES_USER: schoolbus
+                """);
+        if (previousTag != null) {
+            Files.writeString(app.resolve(".env"), "IMAGE_TAG='" + previousTag + "'\n");
+        }
+        Path bin = Files.createDirectories(tmp.resolve("bin"));
+        writeExecutable(bin.resolve("docker"), FAKE_DOCKER);
+        writeExecutable(bin.resolve("sleep"), "#!/bin/sh\nexit 0\n");
+        Map<String, String> env = new HashMap<>(fakeDockerEnv);
+        env.put("FAKE_DOCKER_LOG", tmp.resolve("docker.log").toString());
+        env.put("FAKE_RENDERED_HASH", BCRYPT_HASH.replace("$", "$$"));
+        return runDeploy(tmp, requiredParams(), env);
     }
 
     private Run runDeploy(Path tmp, Map<String, String> ssmParams, Map<String, String> extraEnv) throws Exception {
@@ -210,7 +307,7 @@ class DeployScriptGuardTest {
             Files.writeString(ssm.resolve(param.getKey()), param.getValue());
         }
 
-        ProcessBuilder builder = new ProcessBuilder(List.of("bash", DEPLOY_SH.toString(), "0123456789abcdef"));
+        ProcessBuilder builder = new ProcessBuilder(List.of("bash", DEPLOY_SH.toString(), NEW_TAG));
         builder.redirectErrorStream(true);
         builder.environment().put("PATH", bin + ":" + System.getenv("PATH"));
         builder.environment().put("APP_DIR", app.toString());
@@ -224,8 +321,10 @@ class DeployScriptGuardTest {
         }
         Path env = app.resolve(".env");
         Path alertmanager = app.resolve("alertmanager").resolve("alertmanager.yml");
+        Path dockerLog = tmp.resolve("docker.log");
         return new Run(process.exitValue(), output, Files.exists(env) ? Files.readString(env) : null,
-                Files.exists(alertmanager) ? Files.readString(alertmanager) : null);
+                Files.exists(alertmanager) ? Files.readString(alertmanager) : null,
+                Files.exists(dockerLog) ? Files.readAllLines(dockerLog) : List.of());
     }
 
     private static void writeExecutable(Path file, String content) throws IOException {
@@ -233,9 +332,38 @@ class DeployScriptGuardTest {
         file.toFile().setExecutable(true);
     }
 
-    /** 실행 결과 — {@code envFile}·{@code alertmanagerYml} 은 만들어지지 않았으면 {@code null}. */
-    private record Run(int exitCode, String output, String envFile, String alertmanagerYml) {
+    /**
+     * 실행 결과 — {@code envFile}·{@code alertmanagerYml} 은 만들어지지 않았으면 {@code null}. {@code dockerCalls} 는 가짜 docker 가 받은
+     * 호출마다 한 줄 {@code tag=<그 순간 .env 의 IMAGE_TAG> <인자…>}.
+     */
+    private record Run(int exitCode, String output, String envFile, String alertmanagerYml, List<String> dockerCalls) {
+
+        /** 인자에 {@code command} 가 든 docker 호출들이 호출 순간 본 {@code .env} 태그를 호출 순서대로. */
+        List<String> dockerTagsOf(String command) {
+            return dockerCalls.stream().filter(call -> call.endsWith(" " + command))
+                    .map(call -> call.substring("tag=".length(), call.indexOf(' '))).toList();
+        }
     }
+
+    /**
+     * docker 호출을 기록하고({@code FAKE_DOCKER_LOG}) 환경변수가 가리키는 태그에서만 실패한다. 태그 목록은 쉼표로 잇는다 —
+     * {@code FAKE_PULL_FAIL_TAG}(이미지 수신) · {@code FAKE_UP_FAIL_TAG}(기동) · {@code FAKE_BAD_TAG}(헬스체크 무응답).
+     * 그 밖의 호출은 성공이고, compose 설정 출력은 {@code FAKE_RENDERED_HASH} 를 시드 해시로 보여 준다.
+     */
+    private static final String FAKE_DOCKER = """
+            #!/usr/bin/env bash
+            tag="$(sed -n "s/^IMAGE_TAG='\\\\(.*\\\\)'$/\\\\1/p" "$APP_DIR/.env" 2>/dev/null | head -n 1)"
+            echo "tag=$tag $*" >> "$FAKE_DOCKER_LOG"
+            listed() { [ -n "$2" ] && case ",$1," in *",$2,"*) return 0;; esac; return 1; }
+            case "$*" in
+              login*) cat > /dev/null ;;
+              *" config") printf '      SEED_PASSWORD_HASH: %s\\n' "$FAKE_RENDERED_HASH" ;;
+              *" pull backend") listed "${FAKE_PULL_FAIL_TAG:-}" "$tag" && exit 1 ;;
+              *" up -d") listed "${FAKE_UP_FAIL_TAG:-}" "$tag" && exit 1 ;;
+              *" exec -T backend curl"*) listed "${FAKE_BAD_TAG:-}" "$tag" && exit 1; echo '{"status":"UP"}' ;;
+            esac
+            exit 0
+            """;
 
     /**
      * SSM 조회는 {@code $FAKE_SSM_DIR/<이름>} 파일에서 읽고(없으면 진짜와 같은 ParameterNotFound), 그 밖의 호출은
