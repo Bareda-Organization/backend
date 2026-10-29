@@ -20,7 +20,7 @@ spring:
   flyway:
     locations: classpath:db/migration,classpath:db/fixture
     placeholders:
-      # db/fixture/V2__seed_data.sql 의 계정 시드가 요구하는 placeholder — local 프로파일과
+      # db/fixture/V800__seed_data.sql 의 계정 시드가 요구하는 placeholder — local 프로파일과
       # 동일한 값(BCryptPasswordEncoder strength 10, 평문 "password")을 그대로 복제한다. k6 스크립트가
       # 이 시드 계정(staffA 등)으로 로그인해 access_token 을 얻는다.
       seedPasswordHash: "$2a$10$Noeszx0nzJUfNo4ubCD03eNfMVfMD9feMo04y/8DHiFLUBF.JZ/Fq"

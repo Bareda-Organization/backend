@@ -1,13 +1,13 @@
 -- PREVIEW_STALE(§5.6) 재현을 위해 시드에 없던 from_academy 노선을 추가한다.
 --
 -- 근거: 대기(pending) change_request(approval_id=1)가 run_id=2(academy 1, bus 1,
--- direction='from_academy')에 붙어 있는데, V2 시드의 유일한 route 행은
+-- direction='from_academy')에 붙어 있는데, V800 시드의 유일한 route 행은
 -- direction='to_academy' 뿐이다. ApprovalQueryService.detail() 의
 -- (academy, bus, weekday, direction) 4중 일치 관문이 이 행을 찾지 못해
 -- 422 ROUTE_NOT_CONFIGURED_FOR_RUN 으로 막히고, preview_token 발급 단계
 -- (ApprovalPreviewResolver.resolvePreview())에 도달하지 못한다(Ruling 299).
 --
--- V2__seed_data.sql 은 이미 두 DB(schoolbus·schoolbus_load)에 체크섬 고정으로
+-- V800__seed_data.sql 은 이미 두 DB(schoolbus·schoolbus_load)에 체크섬 고정으로
 -- 적용돼 있어 고칠 수 없다 — 그래서 새 버전 파일로 공백을 메운다.
 -- 기존 to_academy 행은 UPDATE 하지 않는다(다른 검사가 그 값에 기댄다) — 새
 -- from_academy 행만 INSERT 로 더한다. uk_route_bus_weekday_direction 은
