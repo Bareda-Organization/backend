@@ -46,13 +46,6 @@ import src.backend.student.entity.Student;
 @RequiredArgsConstructor
 public class StudentBusPositionQueryService {
 
-    /**
-     * Ruling 208 — 마지막 수신(§3.11 {@code received_at}) 후 이 이상 지나면 신호 유실로 본다.
-     *
-     * <p>값은 {@link PolicyConstants#POSITION_STALE_THRESHOLD} 한 곳에 있다 — 관제 판정 · 유실 집계가 같은 값을 쥐어야 한다.
-     */
-    public static final Duration STALE_THRESHOLD = PolicyConstants.POSITION_STALE_THRESHOLD;
-
     private final StudentRunsAccess studentRunsAccess;
 
     private final StudentRunResolver studentRunResolver;
@@ -99,7 +92,7 @@ public class StudentBusPositionQueryService {
                 run.getFinishedAt(), delay);
     }
 
-    /** 좌표를 싣는다 — 마지막 수신이 {@link #STALE_THRESHOLD} 를 넘었으면 좌표 대신 마지막 수신 시각만 싣는다(신호 유실). */
+    /** 좌표를 싣는다 — 마지막 수신이 {@link PolicyConstants#POSITION_STALE_THRESHOLD} 를 넘었으면 좌표 대신 마지막 수신 시각만 싣는다(신호 유실). */
     private StudentBusPositionResponse withPosition(Run run, String busNo, StudentBusPositionResponse.Delay delay,
             RunPositionRedisValue position) {
         OffsetDateTime stopArrivedAt = lastArrivedAtOf(run);
@@ -144,6 +137,6 @@ public class StudentBusPositionQueryService {
         if (receivedAt == null) {
             return true;
         }
-        return Duration.between(receivedAt, OffsetDateTime.now(clock)).compareTo(STALE_THRESHOLD) >= 0;
+        return Duration.between(receivedAt, OffsetDateTime.now(clock)).compareTo(PolicyConstants.POSITION_STALE_THRESHOLD) >= 0;
     }
 }

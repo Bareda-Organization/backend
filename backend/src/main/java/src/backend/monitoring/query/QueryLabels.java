@@ -1,8 +1,8 @@
 package src.backend.monitoring.query;
 
 import java.util.List;
-import java.util.Locale;
 
+import src.backend.global.common.LowerCaseFormatter;
 import src.backend.global.common.enums.ManagerRole;
 import src.backend.manager.dto.StaffAssignmentAckView;
 
@@ -15,9 +15,9 @@ final class QueryLabels {
     private QueryLabels() {
     }
 
-    /** 열거형 이름을 응답용 소문자로 — 로케일에 따라 달라지지 않는다. */
+    /** 열거형 이름을 응답용 소문자로 — 로케일에 따라 달라지지 않는다({@link LowerCaseFormatter}). */
     static String lower(String value) {
-        return value.toLowerCase(Locale.ROOT);
+        return LowerCaseFormatter.lower(value);
     }
 
     /** 그 역할의 배치된 매니저 이름 — 배치가 없으면 {@code null}. */

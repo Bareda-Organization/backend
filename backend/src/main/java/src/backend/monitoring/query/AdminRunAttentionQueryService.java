@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -73,7 +72,7 @@ public class AdminRunAttentionQueryService {
                 counts.getOrDefault(RunStatus.MOVING, 0L), counts.getOrDefault(RunStatus.FINISHED, 0L));
         long runCount = byStatus.idle() + byStatus.confirmed() + byStatus.moving() + byStatus.finished();
         return new AdminRunAttentionResponse.Today(academy.getId(), academy.getName(),
-                academy.getStatus().name().toLowerCase(Locale.ROOT), runCount, byStatus, delayedRuns,
+                QueryLabels.lower(academy.getStatus().name()), runCount, byStatus, delayedRuns,
                 confirmFailedRuns);
     }
 
