@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.1.1'
+    id 'org.springframework.boot' version '4.1.2'
     id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -47,7 +47,7 @@ dependencies {
     // 실시간 위치 수신 채널(STOMP over WebSocket) — 연결 상태(heartbeat)를 프로토콜 차원에서 감지
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     // API 문서·테스트용 Swagger UI — 3.x 대가 Spring Boot 4(Jackson 3) 지원 최초 라인
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
     // 배포 검증·컨테이너 healthcheck 용 헬스 엔드포인트.
     // ⚠️ 기본 health 가 보는 것은 DataSource·Redis·디스크·ping 이다. 그 밖의 외부 의존(지도 API 등)
     //    장애는 이걸로 감지되지 않으므로 CloudWatch 로그로 확인한다.
@@ -56,7 +56,7 @@ dependencies {
     // 이 의존성 하나로 HTTP 요청·JVM·HikariCP·Tomcat 지표가 자동 등록된다.
     implementation 'io.micrometer:micrometer-registry-prometheus'
     // 학생 사진 WebP 를 읽는 JDK ImageIO 플러그인(읽기 전용 · 순수 Java) — JDK 는 WebP 를 못 읽어 원본(최대 5MB)이 그대로 저장됐다(R47 Ruling 745).
-    implementation 'com.twelvemonkeys.imageio:imageio-webp:3.15.2'
+    implementation 'com.twelvemonkeys.imageio:imageio-webp:3.15.3'
     // @Scheduled 를 감싸 계측하기 위한 AOP.
     // 계측 호출을 도메인 메서드 안에 넣지 않으려고 쓴다 — observability 가 도메인을 참조할 뿐,
     // 도메인은 observability 를 모른다(설계 문서 §5.3).
