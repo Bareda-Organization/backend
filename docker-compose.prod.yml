@@ -65,7 +65,7 @@ services:
     logging: *cloudwatch
 
   redis:
-    image: redis:8.10.1
+    image: redis:8.10.2
     restart: unless-stopped
     # 위치 캐시(TTL 9초) 전용이라 영속화가 불필요하다 — 유실돼도 다음 tick 에 복구된다.
     # 대신 메모리 상한을 걸어 Spring 의 몫을 침범하지 않게 한다.
@@ -184,7 +184,7 @@ services:
   # 엣지 프록시 — 인터넷에서 닿는 유일한 지점. TLS 를 여기서 종단한다.
   # `/`(화면) 라우팅이 없다 — 이 서버는 백엔드 API 전용이다.
   proxy:
-    image: nginx:1.31.6-alpine
+    image: nginx:1.31.7-alpine
     restart: unless-stopped
     ports:
       - "80:80"    # ACME 챌린지 + HTTPS 리다이렉트 전용
@@ -218,7 +218,7 @@ services:
   # 최초 발급은 이 컨테이너가 아니라 infra/certbot/init-cert.sh 로 한 번 수행한다 —
   # 인증서가 없는 상태에서는 nginx 의 443 블록이 기동에 실패해 순환 의존이 생기기 때문이다.
   certbot:
-    image: certbot/certbot:v5.8.0
+    image: certbot/certbot:v5.9.0
     restart: unless-stopped
     volumes:
       - certbot-conf:/etc/letsencrypt
@@ -234,7 +234,7 @@ services:
   # 운영에서 다른 점: 보존 15일 · 메모리 한도 · 컨테이너 로그도 CloudWatch · 호스트 포트는 loopback 만.
   # Prometheus 는 backend 가 healthy 가 아니어도 떠야 한다 — 그때가 관측이 가장 필요한 때라 depends_on 을 걸지 않는다.
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     restart: unless-stopped
     mem_limit: 512m
     command:
@@ -257,7 +257,7 @@ services:
   # 값이 없으면 수신자 없이 뜬다(알림이 어디로도 가지 않는다). 파일 하나가 아니라 폴더를 마운트한다 — 파일 마운트는 파일이
   # 새로 만들어질 때 컨테이너가 옛 파일을 계속 본다. 절차: docs/backend/infra/DEPLOYMENT.md §11.3
   alertmanager:
-    image: prom/alertmanager:v0.34.1
+    image: prom/alertmanager:v0.34.2
     restart: unless-stopped
     mem_limit: 96m
     command:
@@ -294,7 +294,7 @@ services:
   # SSM 포트 포워딩으로 접근한다(DEPLOYMENT.md §11). 초기 관리자 비밀번호는 SSM(GRAFANA_ADMIN_PASSWORD).
   # 볼륨이 없어 컨테이너를 다시 만들 때마다 SSM 값으로 초기화된다 — 저장할 사용자·설정이 없다.
   grafana:
-    image: grafana/grafana:13.2.2
+    image: grafana/grafana:13.3.0
     restart: unless-stopped
     mem_limit: 256m
     environment:
