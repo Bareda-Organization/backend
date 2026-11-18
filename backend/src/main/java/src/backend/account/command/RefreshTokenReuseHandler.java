@@ -22,7 +22,8 @@ import src.backend.global.request.ClientIp;
 
 /**
  * 회전으로 폐기된 refresh 토큰이 다시 제시됐을 때의 처리(API_SPEC §2.6) — 회전 10초 뒤의 제시는 훔친 토큰의 재사용으로 보고 그 계정의
- * refresh 토큰을 전부 폐기하며 감사 행 1건을 남긴다. 10초 안의 제시는 같은 토큰을 동시에 보낸 경합이라 아무것도 하지 않는다(BR-061).
+ * refresh 토큰을 전부 폐기하며 감사 행 1건을 남긴다. 폐기할 토큰이 하나도 없으면(같은 토큰의 이전 제시가 이미 전부 폐기했다)
+ * 감사 행을 더하지 않아 탐지 한 번에 1건이다. 10초 안의 제시는 같은 토큰을 동시에 보낸 경합이라 아무것도 하지 않는다(BR-061).
  * 로그아웃 · 비밀번호 변경 · 차단 같은 다른 폐기는 {@code rotated_at} 이 비어 있어 재사용으로 보지 않는다.
  *
  * <p>호출한 재발급 요청은 이어서 {@code 401} 을 던져 롤백되므로, 폐기와 감사 행은 {@code REQUIRES_NEW} 로 따로 커밋한다.
@@ -49,7 +50,9 @@ public class RefreshTokenReuseHandler {
             return;
         }
         Long accountId = revoked.getAccountId();
-        refreshTokenRepository.revokeAllValidByAccountId(accountId, now);
+        if (refreshTokenRepository.revokeAllValidByAccountId(accountId, now) == 0) {
+            return;
+        }
         Account account = accountRepository.findById(accountId).orElseThrow();
         auditRecorder.record(AuditLog.forDataAccessChange(AuditAction.UPDATE, account.getAcademyId(), accountId,
                 account.getLoginId(), "account", accountId, Map.of("action", AUDIT_ACTION),
