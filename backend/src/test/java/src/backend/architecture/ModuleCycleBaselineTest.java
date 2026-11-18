@@ -31,7 +31,7 @@ class ModuleCycleBaselineTest {
             "exception→academy", "exception→account", "exception→boarding", "exception→location", "exception→manager", "exception→run", "exception→student",
             "location→routing", "location→run", "location→student",
             "manager→run",
-            "request→academy", "request→account", "request→boarding", "request→manager", "request→routing", "request→run", "request→student",
+            "request→academy", "request→account", "request→audit", "request→boarding", "request→manager", "request→routing", "request→run", "request→student",
             "routing→academy", "routing→boarding", "routing→manager", "routing→request", "routing→run", "routing→student",
             "run→academy", "run→account", "run→audit", "run→boarding", "run→manager", "run→request", "run→routing", "run→student",
             "student→academy", "student→account", "student→audit", "student→boarding", "student→location", "student→manager", "student→request", "student→run");
