@@ -251,12 +251,41 @@ class PartialIndexQueryPlanTest {
                     () -> idempotencyKeyExpiry.expire(OffsetDateTime.now(), 10));
             String update = sql.substring(sql.toLowerCase().indexOf("update " + target[0])).replaceAll("\\]$", "");
 
-            String plan = 맞춤_계획을_본다(update, List.of("now() - interval '1 day'", "10"), List.of());
+            String plan = 맞춤_계획을_본다(update, List.of("now() - interval '1 day'", "10"), List.of(), 멱등_키_분포_SQL);
 
             softly.assertThat(plan).as("%s%n%s", update, plan).contains(target[1]);
         }
         softly.assertAll();
     }
+
+    /**
+     * 밤마다 도는 멱등 키 비우기가 보는 분포 — 이력 표는 크고(탑승자 2만 행에 이력 6만 건 · 미승차 연락 4만 건), 키가 남은 행은 1% 뿐이며,
+     * 회차는 대부분 오래전에 끝났다(위 {@code 운영_분포_SQL} 의 끝난 회차). 계획이 앞서 돈 시험 클래스가 남긴 행의 통계에 기대지 않도록 이 트랜잭션에서
+     * 이 분포를 직접 적재하고 {@code ANALYZE} 한다(롤백으로 사라진다).
+     */
+    private static final List<String> 멱등_키_분포_SQL = List.of("""
+            INSERT INTO run_rider (academy_id, run_id, student_id, stop_id, status)
+            SELECT r.academy_id, r.id, (SELECT min(s.id) FROM student s WHERE s.academy_id = r.academy_id),
+                   (SELECT min(st.id) FROM stop st WHERE st.academy_id = r.academy_id), 'waiting'
+            FROM (SELECT * FROM run WHERE status = 'finished' ORDER BY id DESC LIMIT 20000) r
+            ON CONFLICT (run_id, student_id) DO NOTHING
+            """, """
+            INSERT INTO rider_status_history (run_rider_id, to_status, changed_at, actor_type, client_key)
+            SELECT rr.id, 'boarded', now(), 'system', CASE WHEN g % 100 = 0 THEN gen_random_uuid() END
+            FROM generate_series(1, 60000) g
+            JOIN (SELECT id, row_number() OVER (ORDER BY id) AS n FROM run_rider) rr
+              ON rr.n = (g % (SELECT count(*) FROM run_rider)) + 1
+            """, """
+            INSERT INTO no_show_case (run_rider_id, started_at, expires_at)
+            SELECT id, now(), now() FROM run_rider ORDER BY id LIMIT 5000
+            ON CONFLICT (run_rider_id) DO NOTHING
+            """, """
+            INSERT INTO no_show_contact (no_show_case_id, attempt_type, result, attempted_at, attempted_by, client_key)
+            SELECT c.id, 'call', 'no_answer', now(), 1, CASE WHEN g % 100 = 0 THEN gen_random_uuid() END
+            FROM generate_series(1, 40000) g
+            JOIN (SELECT id, row_number() OVER (ORDER BY id) AS n FROM no_show_case) c
+              ON c.n = (g % (SELECT count(*) FROM no_show_case)) + 1
+            """, "ANALYZE run_rider", "ANALYZE rider_status_history", "ANALYZE no_show_case", "ANALYZE no_show_contact");
 
     /** 저장소 메서드를 부르는 동안 Hibernate 가 낸 SQL 중 패턴에 맞는 첫 문장 — 없으면 시험이 아니라 쿼리 경로의 문제다. */
     /**
