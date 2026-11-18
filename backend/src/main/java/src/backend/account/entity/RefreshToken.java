@@ -35,7 +35,7 @@ public class RefreshToken {
     @Column(name = "account_id", nullable = false)
     private Long accountId;
 
-    @Column(name = "token_hash", length = 255, nullable = false)
+    @Column(name = "token_hash", length = 64, nullable = false)
     private String tokenHash;
 
     @Column(name = "issued_at", nullable = false)
@@ -46,6 +46,10 @@ public class RefreshToken {
 
     @Column(name = "revoked_at")
     private OffsetDateTime revokedAt;
+
+    /** 재발급 회전으로 폐기된 시각 — 로그아웃·차단 같은 다른 폐기에서는 비어 있다. */
+    @Column(name = "rotated_at")
+    private OffsetDateTime rotatedAt;
 
     @Column(name = "device_label", length = 100)
     private String deviceLabel;

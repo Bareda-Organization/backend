@@ -71,6 +71,20 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     int revokeByTokenHash(@Param("tokenHash") String tokenHash, @Param("revokedAt") OffsetDateTime revokedAt);
 
     /**
+     * 재발급 회전으로 토큰 1건을 폐기한다(API_SPEC §2.6) — {@code revoked_at} 과 함께 {@code rotated_at} 을 채워 회전 폐기를 로그아웃 같은
+     * 다른 폐기와 가른다. 이미 폐기된 행은 건드리지 않아 동시 요청 중 폐기에 성공한 한 건만 1 을 돌려받는다(BR-061).
+     *
+     * @return 실제로 폐기된 행 수
+     */
+    @AcademyScopeExempt(reason = "§2.6 재발급 — 토큰 해시만 들고 시작해 소속 학원이 미상(findByTokenHash 와 같은 근거). "
+            + "해시가 token_hash UNIQUE 로 행 1건을 특정하므로 학원 조건을 더해도 좁혀지는 것이 부재")
+    @Transactional
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE RefreshToken t SET t.revokedAt = :rotatedAt, t.rotatedAt = :rotatedAt "
+            + "WHERE t.tokenHash = :tokenHash AND t.revokedAt IS NULL")
+    int revokeByRotation(@Param("tokenHash") String tokenHash, @Param("rotatedAt") OffsetDateTime rotatedAt);
+
+    /**
      * 보존 정리 배치 후보 id — 만료되거나 폐기된 뒤 유예 기간이 지난 토큰이
      * 대상이다({@link src.backend.global.retention.RetentionPolicy#refreshTokenCutoff} 잠정값).
      *

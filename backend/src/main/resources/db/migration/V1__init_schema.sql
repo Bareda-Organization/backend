@@ -136,13 +136,15 @@ CREATE TABLE system_admin (
 );
 
 -- 장기 토큰. 로그아웃·차단·비밀번호 변경 시 무효화를 판정하려면 서버가 발급분을 보관해야 한다.
+-- rotated_at 은 재발급 회전으로 폐기된 시각이다(그 밖의 폐기는 revoked_at 만 채운다) — 회전된 토큰의 재사용을 가르는 데 쓴다.
 CREATE TABLE refresh_token (
     id           bigint       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     account_id   bigint       NOT NULL,
-    token_hash   varchar(255) NOT NULL,
+    token_hash   varchar(64)  NOT NULL,
     issued_at    timestamptz  NOT NULL,
     expires_at   timestamptz  NOT NULL,
     revoked_at   timestamptz,
+    rotated_at   timestamptz,
     device_label varchar(100),
     CONSTRAINT uk_refresh_token_hash UNIQUE (token_hash),
     CONSTRAINT fk_refresh_token_account FOREIGN KEY (account_id) REFERENCES account (id) ON DELETE CASCADE

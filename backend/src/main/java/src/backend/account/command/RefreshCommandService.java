@@ -34,13 +34,15 @@ public class RefreshCommandService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final AccountStanding accountStanding;
+    private final RefreshTokenReuseHandler reuseHandler;
     private final Clock clock;
     @Value("${jwt.refresh-token-validity-seconds}")
     private final long refreshValiditySeconds;
 
     /**
      * refresh 토큰을 회전한다 — 서명·만료(JWT 자체) 검증에 실패하거나, DB 상 이미 무효화된
-     * 토큰이면 전부 {@code 401 TOKEN_EXPIRED} 하나로 응답한다(API_SPEC §2.6) — 원인을 세분화해
+     * 토큰이면 전부 {@code 401 TOKEN_EXPIRED} 하나로 응답한다(API_SPEC §2.6). 회전으로 폐기된 토큰이 회전 10초 뒤에 다시 오면 계정의 refresh 토큰을
+     * 전부 폐기하고 감사 행을 남긴다({@link RefreshTokenReuseHandler}) — 원인을 세분화해
      * 알려주면 공격자가 "이 토큰은 서명이 깨졌다"와 "이 토큰은 로그아웃으로 무효화됐다"를 구별할
      * 단서를 얻는다.
      *
@@ -63,7 +65,11 @@ public class RefreshCommandService {
         Claims claims = parseRefreshClaims(rawRefreshToken);
         Long accountId = Long.valueOf(claims.getSubject());
 
-        RefreshToken stored = findValidStoredToken(rawRefreshToken);
+        RefreshToken stored = findStoredToken(rawRefreshToken);
+        if (stored.getRevokedAt() != null) {
+            reuseHandler.onRevokedTokenPresented(stored);
+            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
+        }
 
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
@@ -75,11 +81,10 @@ public class RefreshCommandService {
         return issueRotated(account, now);
     }
 
-    /** 원문 해시로 저장된 토큰을 찾는다 — 없거나 이미 무효화됐으면 {@code TOKEN_EXPIRED}. */
-    private RefreshToken findValidStoredToken(String rawRefreshToken) {
+    /** 원문 해시로 저장된 토큰을 찾는다 — 없으면 {@code TOKEN_EXPIRED}. 폐기 여부는 호출부가 본다. */
+    private RefreshToken findStoredToken(String rawRefreshToken) {
         String tokenHash = RefreshTokenHasher.sha256Hex(rawRefreshToken);
         return refreshTokenRepository.findByTokenHash(tokenHash)
-                .filter(t -> t.getRevokedAt() == null)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_EXPIRED));
     }
 
@@ -95,7 +100,7 @@ public class RefreshCommandService {
     private void revokeStored(RefreshToken stored, OffsetDateTime now) {
         // 조건부 무효화의 결과로 선점을 판정한다(BR-061) — 동시 요청이 둘 다 "미해지" 를 읽어도 무효화에 성공한
         // 한 건만 새 토큰을 받는다. 결과를 버리면 세션 사슬이 두 갈래로 갈린다.
-        if (refreshTokenRepository.revokeByTokenHash(stored.getTokenHash(), now) != 1) {
+        if (refreshTokenRepository.revokeByRotation(stored.getTokenHash(), now) != 1) {
             throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         }
     }
