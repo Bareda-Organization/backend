@@ -1,5 +1,9 @@
 package src.backend.request.query;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +33,18 @@ public class BoardingIntentReadQueryService {
                 .orElse(new Intent(true, true));
     }
 
+    /** 한 학생의 여러 회차 탑승 의사를 한 번의 질의로 읽는다 — 행이 없는 회차는 키가 없고 호출부가 {@link Intent#DEFAULT} 로 채운다. */
+    public Map<Long, Intent> findIntents(Long academyId, Long studentId, Collection<Long> runIds) {
+        Map<Long, Intent> intents = new HashMap<>();
+        boardingIntentRepository.findAllByAcademyIdAndStudentIdAndRunIdIn(academyId, studentId, runIds).forEach(
+                intent -> intents.put(intent.getRunId(), new Intent(intent.isRiding(), intent.hasChangeQuota())));
+        return intents;
+    }
+
     /** 탑승 의사(ON/OFF) · 이번 회차 변경 한도가 남았는가. */
     public record Intent(boolean riding, boolean hasChangeQuota) {
+
+        /** 행이 없을 때의 기본값 — 탑승 ON · 한도 미사용. */
+        public static final Intent DEFAULT = new Intent(true, true);
     }
 }

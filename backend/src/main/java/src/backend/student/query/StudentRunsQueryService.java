@@ -17,8 +17,6 @@ import lombok.RequiredArgsConstructor;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.rider.RunRiderReader;
 import src.backend.bus.entity.Bus;
-import src.backend.bus.repository.BusRepository;
-import src.backend.global.common.enums.Weekday;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ApiValues;
@@ -32,9 +30,7 @@ import src.backend.student.access.StudentRunsAccess;
 import src.backend.student.dto.StudentRunsResponse;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
-import src.backend.student.projection.StudentDailyStop;
 import src.backend.student.repository.StopRepository;
-import src.backend.student.repository.WeeklyAddressRepository;
 
 /**
  * 자녀·본인 당일 회차 목록 조회(API_SPEC §3.5, P-04 · S-01).
@@ -59,17 +55,11 @@ public class StudentRunsQueryService {
 
     private final StudentRunResolver studentRunResolver;
 
-    private final RunRiderReader runRiderReader;
+    private final StudentRunLookups studentRunLookups;
 
     private final RouteStopSource routeStopSource;
 
-    private final BoardingIntentReadQueryService boardingIntentReadQueryService;
-
-    private final WeeklyAddressRepository weeklyAddressRepository;
-
     private final StopRepository stopRepository;
-
-    private final BusRepository busRepository;
 
     private final Clock clock;
 
@@ -79,7 +69,8 @@ public class StudentRunsQueryService {
         LocalDate date = rawDate == null ? LocalDate.now(clock) : ApiValues.date(rawDate);
         List<Run> runList = studentRunResolver.resolveAllByDate(student.getAcademyId(), student.getId(), date);
 
-        List<RunContext> contexts = runList.stream().map(run -> toContext(run, student.getId())).toList();
+        StudentRunLookups.Lookups lookups = studentRunLookups.read(student, runList);
+        List<RunContext> contexts = runList.stream().map(run -> toContext(run, student.getId(), lookups)).toList();
         Map<Long, Stop> stopsById = stopRepository
                 .findAllByAcademyIdAndIdIn(student.getAcademyId(),
                         contexts.stream().map(RunContext::stopId).toList())
@@ -87,7 +78,7 @@ public class StudentRunsQueryService {
 
         List<StudentRunsResponse.Item> items = new ArrayList<>();
         for (RunContext context : contexts) {
-            items.add(toItem(context, stopsById));
+            items.add(toItem(context, stopsById, lookups));
         }
         return new StudentRunsResponse(items);
     }
@@ -96,26 +87,24 @@ public class StudentRunsQueryService {
     private record RunContext(Run run, Long studentId, Long stopId, Optional<RunRiderReader.Entry> rider) {
     }
 
-    private RunContext toContext(Run run, Long studentId) {
+    private RunContext toContext(Run run, Long studentId, StudentRunLookups.Lookups lookups) {
         if (run.getStatus() == RunStatus.IDLE) {
-            Weekday weekday = Weekday.of(run.getServiceDate());
-            Long stopId = weeklyAddressRepository
-                    .findDailyStops(run.getAcademyId(), List.of(studentId), weekday, run.getDirection()).stream()
-                    .findFirst().map(StudentDailyStop::getStopId)
+            Long stopId = Optional.ofNullable(lookups.idleStopByDirection().get(run.getDirection()))
                     .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
             return new RunContext(run, studentId, stopId, Optional.empty());
         }
-        RunRiderReader.Entry rider = runRiderReader.findRider(run.getId(), studentId)
+        RunRiderReader.Entry rider = Optional.ofNullable(lookups.riders().get(run.getId()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
         return new RunContext(run, studentId, rider.stopId(), Optional.of(rider));
     }
 
-    private StudentRunsResponse.Item toItem(RunContext context, Map<Long, Stop> stopsById) {
+    private StudentRunsResponse.Item toItem(RunContext context, Map<Long, Stop> stopsById,
+            StudentRunLookups.Lookups lookups) {
         Run run = context.run();
-        String busNo = busRepository.findByIdAndAcademyId(run.getBusId(), run.getAcademyId()).map(Bus::getBusNo)
+        String busNo = Optional.ofNullable(lookups.buses().get(run.getBusId())).map(Bus::getBusNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RUN_NOT_FOUND));
-        BoardingIntentReadQueryService.Intent intent = boardingIntentReadQueryService.findIntent(run.getId(),
-                context.studentId());
+        BoardingIntentReadQueryService.Intent intent = lookups.intents().getOrDefault(run.getId(),
+                BoardingIntentReadQueryService.Intent.DEFAULT);
         boolean riding = intent.riding();
         int changeQuotaLeft = intent.hasChangeQuota() ? 1 : 0;
         String riderStatus = context.rider().map(r -> statusNameOf(parentFacingStatus(run, r)))
