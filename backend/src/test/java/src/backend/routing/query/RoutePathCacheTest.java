@@ -119,7 +119,7 @@ class RoutePathCacheTest {
     }
 
     @Test
-    void Redis_가_안_되어도_경로를_지도로_계산해_답한다() throws Exception {
+    void Redis_가_안_되어도_경로를_지도로_계산해_답하고_같은_경로의_다음_조회는_지도를_다시_부르지_않는다() throws Exception {
         long routeId = 편성한다("wed", "[1,2]");
         doAnswer(invocation -> {
             if (Arrays.stream(Thread.currentThread().getStackTrace())
@@ -133,7 +133,7 @@ class RoutePathCacheTest {
         경로를_조회한다(routeId);
 
         assertThat(JsonPath.<Integer>read(first, "$.data.distance_m")).isEqualTo(1200);
-        verify(mapRouteClient, times(2)).route(any());
+        verify(mapRouteClient, times(1)).route(any());
     }
 
     private String 경로를_조회한다(long routeId) throws Exception {
