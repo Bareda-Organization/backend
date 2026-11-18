@@ -79,10 +79,7 @@ class RunConfirmationConcurrencyTest {
 
     @AfterEach
     void 뒷정리한다() {
-        String academyIds = "(SELECT id FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "')";
-        jdbcTemplate.update("DELETE FROM run WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM bus WHERE academy_id IN " + academyIds);
-        jdbcTemplate.update("DELETE FROM academy WHERE name = '" + RunConfirmationFixtures.ACADEMY_NAME + "'");
+        RunConfirmationFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
     /**

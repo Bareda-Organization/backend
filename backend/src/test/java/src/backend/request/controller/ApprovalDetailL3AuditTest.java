@@ -70,8 +70,11 @@ class ApprovalDetailL3AuditTest {
     private ChangeRequestRepository changeRequestRepository;
 
     @AfterEach
-    void 감사_행을_지운다() {
+    void 시험이_커밋한_행을_지운다() {
         jdbcTemplate.update("delete from audit_log where actor_account_id = ?", ACTOR);
+        jdbcTemplate.update("delete from change_request where academy_id in (select id from academy where name = ?)",
+                RunConfirmationFixtures.ACADEMY_NAME);
+        RunConfirmationFixtures.cleanUpMarkedRows(jdbcTemplate);
     }
 
     @Test
