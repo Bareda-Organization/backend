@@ -48,7 +48,7 @@ import testsupport.clock.FixedClock20310801Config;
 @AutoConfigureMockMvc
 @Transactional
 @Import(FixedClock20310801Config.class)
-class Phase9CrossSeatWiringTest {
+class RunFlowWiringTest {
 
     @Autowired
     private ApplicationContext applicationContext;

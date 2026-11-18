@@ -42,6 +42,7 @@ import src.backend.routing.repository.RouteStopRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Guardian;
 import src.backend.student.entity.GuardianStudent;
@@ -236,8 +237,8 @@ public class BoardingIntentFixtures {
 
     /** 임의의 3구간 판정에 쓸 회차 — {@code departTime}·{@code confirmAt} 은 호출자가 고정 시계 기준으로 계산해 넘긴다. */
     public long run(long academyId, long busId, OffsetDateTime departTime, OffsetDateTime confirmAt) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
-                confirmAt, "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
+                confirmAt, "출발지", "도착지", null));
         return runRepository.save(run).getId();
     }
 

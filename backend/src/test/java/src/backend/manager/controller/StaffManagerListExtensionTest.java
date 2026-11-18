@@ -38,7 +38,7 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.repository.RunRepository;
@@ -126,7 +126,7 @@ class StaffManagerListExtensionTest {
      * 0 보다 클 때만 삭제가 {@code 409} 인 것까지 같은 시험에서 확인한다(두 판정이 갈리지 않는다).
      */
     private World 세계를_만든다() {
-        Phase9RosterFixtures fx = new Phase9RosterFixtures(
+        RunRosterFixtures fx = new RunRosterFixtures(
                 new RunConfirmationFixtures(academyRepository, busRepository, routeRepository, routeStopRepository,
                         stopRepository, studentRepository, weeklyAddressRepository, runRepository),
                 managerRepository, accountRepository, assignmentRepository, guardianRepository,

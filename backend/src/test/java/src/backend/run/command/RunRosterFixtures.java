@@ -30,7 +30,7 @@ import src.backend.student.repository.GuardianStudentRepository;
  * <p>{@code public} 인 이유는 {@link RunConfirmationFixtures} 와 같다 — {@code run.controller} ·
  * {@code boarding.controller} 네 시험 클래스가 패키지를 넘어 재사용한다.
  */
-public class Phase9RosterFixtures {
+public class RunRosterFixtures {
 
     /** 이 헬퍼가 만드는 계정의 로그인 아이디 접두어 — 실행마다 달라 다른 시험과 겹치지 않는다. */
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
@@ -49,7 +49,7 @@ public class Phase9RosterFixtures {
 
     private final RunConfirmationService confirmationService;
 
-    public Phase9RosterFixtures(RunConfirmationFixtures base, ManagerRepository managerRepository,
+    public RunRosterFixtures(RunConfirmationFixtures base, ManagerRepository managerRepository,
             AccountRepository accountRepository, AssignmentRepository assignmentRepository,
             GuardianRepository guardianRepository, GuardianStudentRepository guardianStudentRepository,
             RunConfirmationService confirmationService) {
@@ -62,9 +62,9 @@ public class Phase9RosterFixtures {
         this.confirmationService = confirmationService;
     }
 
-    /** 시험 컨텍스트의 빈으로 Phase9RosterFixtures 를 만든다 — 생성 호출의 단일 정의. */
-    public static Phase9RosterFixtures of(ApplicationContext context) {
-        return new Phase9RosterFixtures(
+    /** 시험 컨텍스트의 빈으로 RunRosterFixtures 를 만든다 — 생성 호출의 단일 정의. */
+    public static RunRosterFixtures of(ApplicationContext context) {
+        return new RunRosterFixtures(
                 RunConfirmationFixtures.of(context),
                 context.getBean(ManagerRepository.class),
                 context.getBean(AccountRepository.class),

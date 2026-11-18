@@ -39,6 +39,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Guardian;
 import src.backend.student.entity.GuardianStudent;
@@ -223,8 +224,8 @@ public class BoardingCommandFixtures {
 
     /** 임의의 회차 — 초기 상태는 {@code idle} 이다({@link Run#forSchedule}). */
     public long run(long academyId, long busId, OffsetDateTime departTime, OffsetDateTime confirmAt) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
-                confirmAt, "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
+                confirmAt, "출발지", "도착지", null));
         return runRepository.save(run).getId();
     }
 

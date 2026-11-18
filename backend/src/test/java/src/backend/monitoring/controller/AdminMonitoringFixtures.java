@@ -36,6 +36,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Guardian;
 import src.backend.student.entity.GuardianStudent;
@@ -51,7 +52,7 @@ import java.util.Map;
 
 /**
  * §6.8·§6.9 관제 컨트롤러 시험이 공통으로 쓰는 실제 행 — {@code ProximityFixtures}(회차·노선·정차)와
- * {@code Phase9RosterFixtures}(매니저 배치)·{@code EmergencyFixtures}(메인관리자·직원 계정)가 각각
+ * {@code RunRosterFixtures}(매니저 배치)·{@code EmergencyFixtures}(메인관리자·직원 계정)가 각각
  * 다른 패키지에 흩어져 있어 이 컨트롤러 시험에 필요한 조합(운행중 회차 + 배치된 기사·보호 인력 +
  * 학생 원문 연락처 + 메인관리자·직원 계정)을 한 번에 주는 것이 없다 — 그래서 이 패키지 전용으로
  * 새로 쌓는다({@code ProximityFixtures} 자바독과 같은 근거).
@@ -168,8 +169,8 @@ public class AdminMonitoringFixtures {
     /** {@code moving} 상태 회차 1건 — {@code confirmIfIdle} 로 확정한 뒤 {@code run.start} 로 전이한다. */
     public long movingRun(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt, OffsetDateTime startedAt, Integer estDurationMin) {
-        Run run = Run.forSchedule(academyId, busId, null, SERVICE_DATE, direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", estDurationMin);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, SERVICE_DATE, direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", estDurationMin));
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, confirmedAt);
         Run moving = runRepository.findById(runId).orElseThrow();
@@ -191,8 +192,8 @@ public class AdminMonitoringFixtures {
      */
     public long confirmedRunOn(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt, LocalDate serviceDate) {
-        Run run = Run.forSchedule(academyId, busId, null, serviceDate, direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, serviceDate, direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, confirmedAt);
         return runId;
@@ -200,8 +201,8 @@ public class AdminMonitoringFixtures {
 
     /** {@code idle}(확정 전) 상태로 남겨 두는 회차 — 노선도 위치도 없는 가장 이른 단계. */
     public long idleRun(long academyId, long busId, Direction direction, OffsetDateTime departTime) {
-        Run run = Run.forSchedule(academyId, busId, null, SERVICE_DATE, direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, SERVICE_DATE, direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         return runRepository.save(run).getId();
     }
 
@@ -239,7 +240,7 @@ public class AdminMonitoringFixtures {
         return runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId)).getId();
     }
 
-    /** 계정까지 연결된 매니저 1명 — {@code Phase9RosterFixtures#manager} 와 같은 형태. */
+    /** 계정까지 연결된 매니저 1명 — {@code RunRosterFixtures#manager} 와 같은 형태. */
     public ManagerAccount manager(long academyId, ManagerRole role, String name) {
         String phone = "010-1000-" + String.format("%04d", SEQUENCE.incrementAndGet() % 10000);
         Manager manager = managerRepository

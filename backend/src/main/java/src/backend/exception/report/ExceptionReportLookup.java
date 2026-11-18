@@ -1,4 +1,4 @@
-package src.backend.exception.query;
+package src.backend.exception.report;
 
 import java.util.Map;
 

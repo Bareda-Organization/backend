@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.List;
 
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.query.CurrentRunStopResolver;
+import src.backend.routing.stops.CurrentRunStopResolver;
 import src.backend.run.entity.Run;
 
 /**

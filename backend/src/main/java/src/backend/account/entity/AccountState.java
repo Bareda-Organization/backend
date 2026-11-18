@@ -12,6 +12,7 @@ import src.backend.global.common.BaseTimeEntity;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.policy.PolicyConstants;
 
 /**
  * {@link Account} 의 상태 · 로그인 보안 · 차단 이력 컬럼과 그 전이 규칙 — 가입 승인 상태, 로그인 실패 카운터(C-11), 차단과 해제 이력,
@@ -23,16 +24,18 @@ import src.backend.global.error.ErrorCode;
 public abstract class AccountState extends BaseTimeEntity {
 
     /**
-     * 로그인 실패 상한(C-11) — 도달하면 계정을 차단한다. {@code ck_account_failed_attempts} CHECK(0~5)와
-     * 같은 값이다.
-     *
-     * <p>{@code public} 인 이유는 이 상한을 검증하는 테스트가 회차 수를 여기서 끌어 써야 하기
-     * 때문이다 — 테스트에 5 를 박아 두면 상한을 바꿨을 때 테스트가 옛 값을 조용히 요구한다.
+     * 로그인 실패 상한(C-11) — 도달하면 계정을 차단한다. 정의처는 {@link PolicyConstants#MAX_FAILED_LOGIN_ATTEMPTS} 이고, {@code public} 인
+     * 이유는 이 상한을 검증하는 테스트가 회차 수를 여기서 끌어 써야 하기 때문이다(테스트에 5 를 박으면 상한이 바뀔 때 옛 값을 조용히 요구한다).
      */
-    public static final int MAX_FAILED_ATTEMPTS = 5;
+    public static final int MAX_FAILED_ATTEMPTS = PolicyConstants.MAX_FAILED_LOGIN_ATTEMPTS;
 
     /** 퇴원 보존 기간 익명화가 {@code blocked} 로 옮기며 남기는 차단 사유 — 로그인 실패 차단과 가르는 표지다. */
     public static final String RETENTION_BLOCK_REASON = "퇴원 90일 경과 개인정보 파기";
+
+    /** 퇴원 보존 기간 익명화로 막힌 계정인가 — 차단 사유 문자열을 호출부가 직접 비교하지 않고 이 메서드로 가른다. */
+    public boolean isRetentionBlock() {
+        return status == AccountStatus.BLOCKED && RETENTION_BLOCK_REASON.equals(blockReason);
+    }
 
     /**
      * 첫 실패 뒤 남는 시도 횟수 — 미등록 {@code login_id} 의 실패 응답이 실어야 하는 값이다
@@ -170,7 +173,7 @@ public abstract class AccountState extends BaseTimeEntity {
      * @param actorAccountId 해제를 실행한 메인 관리자 계정({@code unblocked_by})
      */
     public void unblock(Long actorAccountId, OffsetDateTime now) {
-        if (status != AccountStatus.BLOCKED || RETENTION_BLOCK_REASON.equals(blockReason)) {
+        if (status != AccountStatus.BLOCKED || isRetentionBlock()) {
             throw new BusinessException(ErrorCode.ACCOUNT_NOT_BLOCKED);
         }
         this.status = statusBeforeBlock;

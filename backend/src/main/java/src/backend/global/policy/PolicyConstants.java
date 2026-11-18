@@ -1,6 +1,7 @@
 package src.backend.global.policy;
 
 import java.time.Duration;
+import java.time.ZoneId;
 
 /**
  * 전역 정책 상수의 <b>유일한 정의 지점</b>(FEATURE_SPEC §2.1, IMPLEMENTATION_PLAN §7 규칙 10) — 학원이 바꿀 수 없는 값을 여기 두고,
@@ -38,6 +39,27 @@ public final class PolicyConstants {
      * 한 곳에 둔다 — 값이 갈리면 "관제엔 경고, 학부모 화면은 정상" 구간이 생긴다.
      */
     public static final Duration POSITION_STALE_THRESHOLD = Duration.ofMinutes(2);
+
+    /** 로그인 실패 상한(C-11) — 이 횟수에 닿으면 계정을 차단한다. DB {@code ck_account_failed_attempts} CHECK(0~5)와 <b>같은 값이어야 한다</b>. */
+    public static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
+
+    /** 자녀 연결 코드의 유효 시간이자 보호자의 입력 횟수를 세는 창 — 코드 하나가 살아 있는 동안 추측 기회가 {@link #LINK_CODE_ATTEMPTS_PER_WINDOW} 번으로 묶인다(P-02, API_SPEC §3.4). */
+    public static final Duration LINK_CODE_VALIDITY = Duration.ofMinutes(10);
+
+    /** 보호자 한 명이 {@link #LINK_CODE_VALIDITY} 창 안에 연결 코드를 넣을 수 있는 횟수 — 넘으면 맞는 코드도 거부한다(BR-024). */
+    public static final int LINK_CODE_ATTEMPTS_PER_WINDOW = 5;
+
+    /** 학원당 재직 관계자 상한(API_SPEC §6.5 "학원당 1명 유지") — DB 조건부 UNIQUE {@code uk_academy_staff_academy_active} 와 같은 규칙이다. */
+    public static final int MAX_ACTIVE_STAFF_PER_ACADEMY = 1;
+
+    /** 비상 알림을 발신 뒤 취소할 수 있는 창(EXC-04, §4.14) — 경계값을 포함한다. */
+    public static final Duration EMERGENCY_CANCEL_WINDOW = Duration.ofMinutes(1);
+
+    /** 서비스 시간대 이름 — 운행일과 스케줄러 cron 이 이 시간대의 날짜 경계를 쓴다. 애너테이션 속성이 상수 문자열을 요구해 이름과 {@link #SERVICE_ZONE} 둘 다 둔다. */
+    public static final String SERVICE_ZONE_NAME = "Asia/Seoul";
+
+    /** 서비스 시간대 — 시계({@code ClockConfig})와 날짜 경계를 쓰는 곳이 같은 값을 읽는다. */
+    public static final ZoneId SERVICE_ZONE = ZoneId.of(SERVICE_ZONE_NAME);
 
     private PolicyConstants() {
     }

@@ -13,6 +13,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.policy.PolicyConstants;
+
 /**
  * {@code run_position} 일 단위 범위 파티션의 <b>미리 만들기</b>와 <b>만료 DROP</b>을 맡는다(Ruling 670 · ERD §7.3). 파티션 이름은 {@code run_position_pYYYYMMDD}(한국 시간 날짜), 범위는 그날 0시 이상 다음날 0시 미만이다.
  *
@@ -35,7 +37,7 @@ public class RunPositionPartitionManager {
     private static final String NAME_PREFIX = "run_position_p";
 
     /** 파티션 경계는 서비스 기준 시간대(ERD §2)의 자정이다 — 이름의 날짜와 경계가 같은 시계를 본다. */
-    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
+    private static final ZoneId SERVICE_ZONE = PolicyConstants.SERVICE_ZONE;
 
     private static final DateTimeFormatter NAME_DATE = DateTimeFormatter.BASIC_ISO_DATE;
 

@@ -40,7 +40,7 @@ import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
@@ -97,7 +97,7 @@ class RunRosterControllerTest {
 
     @Test
     void 보호자_연락처는_마스킹돼_내려간다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -108,7 +108,7 @@ class RunRosterControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         MvcResult result = mockMvc
@@ -134,7 +134,7 @@ class RunRosterControllerTest {
     @Test
     void BR_002_등원_명단의_마지막_항목은_학생_없는_학원_항목이다() throws Exception {
         // 매니저 앱의 "다음 도착 처리" 버튼이 이 목록에서 나온다 — 학원 항목이 없으면 등원 운행을 끝낼 수단이 없다.
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -144,7 +144,7 @@ class RunRosterControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         MvcResult result = mockMvc
@@ -164,7 +164,7 @@ class RunRosterControllerTest {
 
     @Test
     void 결석_학생은_명단에서_빠지고_집계에만_남는다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -177,7 +177,7 @@ class RunRosterControllerTest {
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
         결석_처리한다(academyId, runId, student2);
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
         fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
 
         MvcResult result = mockMvc
@@ -197,7 +197,7 @@ class RunRosterControllerTest {
 
     @Test
     void 버스_간_이동으로_빠진_학생은_removed_로_보이고_미등원에_세지_않는다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -213,7 +213,7 @@ class RunRosterControllerTest {
         jdbcTemplate.update("UPDATE run_rider SET status = 'absent', change = 'removed' WHERE run_id = ? "
                 + "AND student_id = ?", runId, student2);
         entityManager.clear();
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
         fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
 
         MvcResult result = mockMvc
@@ -232,7 +232,7 @@ class RunRosterControllerTest {
 
     @Test
     void 확정_전_회차는_409_RUN_NOT_CONFIRMED_다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -240,7 +240,7 @@ class RunRosterControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
         long runId = fx.idleRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
@@ -251,7 +251,7 @@ class RunRosterControllerTest {
 
     @Test
     void 배치는_남아도_탈퇴한_매니저의_토큰은_401_TOKEN_EXPIRED_다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -259,7 +259,7 @@ class RunRosterControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "탈퇴기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "탈퇴기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
         fx.softDeleteManager(manager.managerId());
 
@@ -271,7 +271,7 @@ class RunRosterControllerTest {
 
     @Test
     void 배치되지_않은_매니저는_403이다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -279,7 +279,7 @@ class RunRosterControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "미배치기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "미배치기사");
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
                 토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
@@ -293,7 +293,7 @@ class RunRosterControllerTest {
      */
     @Test
     void 미승차_학생은_열린_케이스의_카운트다운을_함께_싣는다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -312,7 +312,7 @@ class RunRosterControllerTest {
         runRiderRepository.save(noShowRider);
         long caseId = noShowCaseRepository.save(NoShowCase.forRunRider(noShowRider.getId(), startedAt,
                 startedAt.plusMinutes(3), startedAt)).getId();
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
         fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
 
         String body = 본문(mockMvc.perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
@@ -339,7 +339,7 @@ class RunRosterControllerTest {
      */
     @Test
     void 미승차_케이스의_연락_이력은_시각순으로_contacts_에_실리고_다른_케이스와_섞이지_않는다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -354,7 +354,7 @@ class RunRosterControllerTest {
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
         OffsetDateTime startedAt = departTime.plusMinutes(5);
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
         fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
 
         long caseWithContacts = 미승차_케이스(academyId, runId, student1, startedAt);

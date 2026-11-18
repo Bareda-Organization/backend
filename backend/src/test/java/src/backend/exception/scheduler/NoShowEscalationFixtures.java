@@ -21,6 +21,7 @@ import src.backend.exception.repository.NoShowCaseRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
@@ -99,8 +100,8 @@ public class NoShowEscalationFixtures {
 
     /** 임의의 회차 — 스케줄러는 회차 상태를 보지 않으므로 초기 상태(idle) 그대로 쓴다. */
     public long run(long academyId, long busId, OffsetDateTime departTime) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         return runRepository.save(run).getId();
     }
 

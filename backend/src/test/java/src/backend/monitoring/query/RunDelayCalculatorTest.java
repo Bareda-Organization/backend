@@ -8,10 +8,13 @@ import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import src.backend.global.common.enums.Direction;
 import src.backend.routing.entity.RunStop;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
+import src.backend.run.entity.RunStatus;
 
 /** 지연 분 계산(Ruling 232 §3.1) 단독 시험 — §5.18·§5.3·§6.8·§6.18 이 같은 값을 쓴다는 근거다. */
 class RunDelayCalculatorTest {
@@ -19,8 +22,9 @@ class RunDelayCalculatorTest {
     private static final OffsetDateTime DEPART = OffsetDateTime.parse("2030-04-01T08:00:00+09:00");
 
     private static Run movingRun(OffsetDateTime startedAt) {
-        Run run = Run.forSchedule(1L, 1L, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, DEPART,
-                DEPART.minusMinutes(30), "출발지", "도착지", 40);
+        Run run = Run.forSchedule(new RunPlan(1L, 1L, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, DEPART,
+                DEPART.minusMinutes(30), "출발지", "도착지", 40));
+        ReflectionTestUtils.setField(run, "status", RunStatus.CONFIRMED);
         run.start(startedAt);
         return run;
     }
@@ -65,8 +69,8 @@ class RunDelayCalculatorTest {
     void 일찍_출발이나_미출발은_0이다() {
         assertThat(RunDelayCalculator.minutesOf(movingRun(DEPART.minusMinutes(3)), List.of())).isZero();
 
-        Run notStarted = Run.forSchedule(1L, 1L, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, DEPART,
-                DEPART.minusMinutes(30), "출발지", "도착지", 40);
+        Run notStarted = Run.forSchedule(new RunPlan(1L, 1L, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, DEPART,
+                DEPART.minusMinutes(30), "출발지", "도착지", 40));
         assertThat(RunDelayCalculator.minutesOf(notStarted, List.of())).isZero();
     }
 }

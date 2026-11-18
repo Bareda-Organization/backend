@@ -12,6 +12,7 @@ import src.backend.academy.repository.AcademyStaffRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.global.persistence.ConstraintViolations;
+import src.backend.global.policy.PolicyConstants;
 
 /**
  * 학원당 재직 관계자 1명 정원을 판정하는 <b>유일한 지점</b>(C-01 · ACAD-05·06).
@@ -30,7 +31,7 @@ import src.backend.global.persistence.ConstraintViolations;
 public class AcademyStaffQuota {
 
     /** 학원당 재직 관계자 상한(API_SPEC §6.5 "학원당 1명 유지"). */
-    public static final int MAX_ACTIVE_STAFF_PER_ACADEMY = 1;
+    public static final int MAX_ACTIVE_STAFF_PER_ACADEMY = PolicyConstants.MAX_ACTIVE_STAFF_PER_ACADEMY;
 
     /**
      * 정원을 강제하는 조건부 UNIQUE 인덱스 이름({@code V1__init_schema.sql}).

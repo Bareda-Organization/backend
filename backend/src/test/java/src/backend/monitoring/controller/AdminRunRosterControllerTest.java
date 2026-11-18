@@ -28,7 +28,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.monitoring.query.AdminRunRosterQueryService;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
@@ -72,7 +72,7 @@ class AdminRunRosterControllerTest {
      */
     @Test
     void 보호자가_연결되지_않은_학생은_guardian_phone_이_null_이다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -94,7 +94,7 @@ class AdminRunRosterControllerTest {
      */
     @Test
     void 학생이_실린_조회는_요청자를_행위자로_감사_행을_남긴다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -119,7 +119,7 @@ class AdminRunRosterControllerTest {
     /** 서비스는 요청자를 인자로 받는다 — 인증 컨텍스트가 비어 있어도 그 인자가 감사 행의 행위자가 된다. */
     @Test
     void 요청자는_인증_컨텍스트가_아니라_인자로_받아_감사_행위자가_된다() {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");

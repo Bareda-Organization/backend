@@ -24,12 +24,12 @@ import src.backend.audit.repository.AuditLogRepository;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
  * {@link src.backend.monitoring.query.AdminRunRosterQueryService#roster}
- * 의 감사 호출에 전담 단언을 둔다. {@link RosterAuditIntegrationTest} 와 같은 {@link Phase9RosterFixtures} 로 확정
+ * 의 감사 호출에 전담 단언을 둔다. {@link RosterAuditIntegrationTest} 와 같은 {@link RunRosterFixtures} 로 확정
  * 회차·명단을 구성하되, 호출 경로는 메인 관리자 콘솔({@code /admin/runs/{runId}/roster})이다 —
  * {@code AdminRunRosterQueryService} 는 요청자를 파라미터가 아니라 {@code SecurityContextHolder}
  * 에서 읽으므로, 이 테스트는 반드시 실제 HTTP 인증 경로를 태워야 그 경로까지 함께 검증한다.
@@ -57,7 +57,7 @@ class AdminRunRosterAuditIntegrationTest {
 
     @Test
     void 관리자_회차_명단_조회는_감사_로그_1건을_남기고_run_roster_필드_목록을_담는다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");

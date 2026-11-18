@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.global.security.AuthUser;
 import src.backend.student.access.GuardianChildAccess;
 import src.backend.student.dto.ChildLinkedResponse;
@@ -48,7 +49,7 @@ public class ChildLinkCommandService {
      * <p>코드는 <b>화면에 떠 있는 자격 증명</b>이라 노출 창이 곧 위험 구간이다. 폭을 넓게 주면
      * 학생이 화면을 켜 둔 채 자리를 비운 동안 옆사람이 그대로 읽어 갈 수 있다.
      */
-    private static final long CODE_VALIDITY_MINUTES = 10;
+    private static final long CODE_VALIDITY_MINUTES = PolicyConstants.LINK_CODE_VALIDITY.toMinutes();
 
     /**
      * 보호자 한 명이 {@link #CODE_VALIDITY_MINUTES} 창 안에 코드를 넣을 수 있는 횟수(BR-024).
@@ -56,7 +57,7 @@ public class ChildLinkCommandService {
      * <p>창을 코드 수명과 같게 두어, 코드 하나가 살아 있는 동안 한 보호자의 추측 기회가 5번으로 묶인다.
      * 5 는 로그인 차단(C-11)·복구 코드 대조 상한과 같은 값이다.
      */
-    private static final int MAX_ATTEMPTS_PER_WINDOW = 5;
+    private static final int MAX_ATTEMPTS_PER_WINDOW = PolicyConstants.LINK_CODE_ATTEMPTS_PER_WINDOW;
 
     private final GuardianChildAccess guardianChildAccess;
 

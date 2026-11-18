@@ -17,7 +17,7 @@ import src.backend.global.location.GeoPoint;
 import src.backend.routing.entity.ConfirmedRoute;
 import src.backend.routing.entity.RouteVersion;
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.query.CurrentRunStopResolver;
+import src.backend.routing.stops.CurrentRunStopResolver;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;

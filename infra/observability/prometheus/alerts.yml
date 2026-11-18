@@ -63,6 +63,15 @@ groups:
           severity: critical
         annotations:
           summary: 확정 시각을 5분 넘긴 미확정 회차가 있다 — 기사가 노선을 받지 못했다
+      # 확정됐는데 시작 가능 시간창(출발 시각 + 10분)이 닫히도록 시작하지 않은 회차 ≥ 1. 확정 뒤에는 어떤 배치도 그 회차를 다시 집지 않아
+      # 노선을 받은 기사가 출발하지 않아도 이 신호 말고는 드러나지 않는다. 게이지는 30초마다 갱신되니 for 1m 이면 두 번 연속 관측 뒤 발화한다.
+      - alert: RunConfirmedNotStarted
+        expr: schoolbus_run_confirmed_not_started > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 확정된 회차가 시작 가능 시간창이 닫히도록 시작되지 않았다 — 기사에게 연락해 출발 여부를 확인해야 한다
       # "알림 발송 실패율 임계 초과 — 경고"(§13.4 5행). 지표는 재시도를 전부 소진해 failed 로 굳은 건수뿐이고 분모(시도 수)
       # 지표가 없어 율이 아니라 건수로 본다. 임계는 실제 운영 값을 본 뒤 조정한다 — 앱에 Firebase 가 없으면(조사 C #14) 모든
       # 발송이 실패로 굳어 이 경보가 계속 발화하고, 그것이 맞는 신호다.

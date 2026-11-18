@@ -26,8 +26,8 @@ class RunTransitionTest {
     private static final OffsetDateTime NOW = DEPART.minusMinutes(2);
 
     private static Run runIn(RunStatus status) {
-        Run run = Run.forSchedule(1L, 1L, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, DEPART,
-                DEPART.minusMinutes(30), "출발지", "도착지", 40);
+        Run run = Run.forSchedule(new RunPlan(1L, 1L, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, DEPART,
+                DEPART.minusMinutes(30), "출발지", "도착지", 40));
         ReflectionTestUtils.setField(run, "status", status);
         return run;
     }

@@ -38,7 +38,7 @@ import testsupport.clock.FixedClock20300401Config;
  * 시작 처리가 상태 전이를 빠뜨려도 위 시험은 여전히 통과한다.
  *
  * <p>그래서 이 시험은 <b>실제 {@code POST .../start} 호출로 전이시킨 뒤</b> 같은 회차에 변경 신청을
- * 넣는다 — 두 실제 HTTP 경로를 한 시험 안에서 잇는다는 점에서 {@code Phase9CrossSeatWiringTest} 와
+ * 넣는다 — 두 실제 HTTP 경로를 한 시험 안에서 잇는다는 점에서 {@code RunFlowWiringTest} 와
  * 같은 종류의 시험이다.
  */
 @SpringBootTest

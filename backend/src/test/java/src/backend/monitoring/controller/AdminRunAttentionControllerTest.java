@@ -30,6 +30,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 
 import testsupport.clock.FixedClock20300401Config;
@@ -213,8 +214,8 @@ class AdminRunAttentionControllerTest {
             String status, boolean canceled) {
         long busId = fixtures.bus(academyId);
         OffsetDateTime departTime = serviceDate.atTime(9, 0).atOffset(java.time.ZoneOffset.ofHours(9));
-        long runId = runRepository.save(Run.forSchedule(academyId, busId, null, serviceDate, Direction.TO_ACADEMY,
-                departTime, departTime.minusMinutes(30), "출발지", "도착지", null)).getId();
+        long runId = runRepository.save(Run.forSchedule(new RunPlan(academyId, busId, null, serviceDate, Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30), "출발지", "도착지", null))).getId();
         jdbcTemplate.update("UPDATE run SET status = ?, consecutive_failures = ? WHERE id = ?", status,
                 consecutiveFailures, runId);
         if (canceled) {

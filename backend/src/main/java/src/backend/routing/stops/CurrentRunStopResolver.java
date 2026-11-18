@@ -1,4 +1,4 @@
-package src.backend.routing.query;
+package src.backend.routing.stops;
 
 import java.time.OffsetDateTime;
 import java.util.Comparator;

@@ -45,6 +45,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.run.scheduler.ConfirmationBatchHeartbeat;
 import src.backend.student.repository.GuardianRepository;
@@ -160,8 +161,8 @@ class AdminDashboardControllerTest {
     private long 회차(long academyId, LocalDate date, String status, OffsetDateTime startedAt, boolean canceled) {
         long busId = f().bus(academyId);
         OffsetDateTime depart = date.atTime(8, 0).atOffset(KST);
-        long runId = runRepository.save(Run.forSchedule(academyId, busId, null, date, Direction.TO_ACADEMY, depart,
-                depart.minusMinutes(30), "출발지", "도착지", 40)).getId();
+        long runId = runRepository.save(Run.forSchedule(new RunPlan(academyId, busId, null, date, Direction.TO_ACADEMY, depart,
+                depart.minusMinutes(30), "출발지", "도착지", 40))).getId();
         jdbcTemplate.update("UPDATE run SET status = ?, confirmed_at = ?, started_at = ?, finished_at = ? WHERE id = ?",
                 status, "idle".equals(status) ? null : depart.minusMinutes(30), startedAt,
                 "finished".equals(status) ? depart.plusHours(1) : null, runId);

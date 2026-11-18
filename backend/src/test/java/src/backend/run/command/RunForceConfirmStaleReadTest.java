@@ -87,7 +87,7 @@ class RunForceConfirmStaleReadTest {
     void 명단을_읽은_뒤_강제_추가_행의_승하차지가_제자리에서_바뀌면_회차가_idle_이어도_RUN_CONFIRM_INPUTS_CHANGED_로_답한다()
             throws Exception {
         long[] ids = 확정_대상_회차를_만든다();
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long firstStop = fx.stop(ids[2], "37.570000", "126.980000");
         long secondStop = fx.stop(ids[2], "37.580000", "126.990000");
         long added = fx.student(ids[2], "추가학생");
@@ -106,7 +106,7 @@ class RunForceConfirmStaleReadTest {
 
     /** 회차 id · 학생 id · 학원 id 를 돌려준다. */
     private long[] 확정_대상_회차를_만든다() {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.560000", "126.970000");

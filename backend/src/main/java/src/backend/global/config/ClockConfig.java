@@ -2,10 +2,11 @@ package src.backend.global.config;
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.ZoneId;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import src.backend.global.policy.PolicyConstants;
 
 /**
  * 시각이 필요한 모든 곳이 시스템 시계 대신 주입받는 기준 Clock — 기준 시간대는 Asia/Seoul(ERD §2).
@@ -17,7 +18,7 @@ public class ClockConfig {
     /** Asia/Seoul 기준 시스템 Clock 빈(마이크로초 단위) — 테스트는 이 빈을 고정 Clock 으로 교체해 대체한다. */
     @Bean
     public Clock clock() {
-        return toDbPrecision(Clock.system(ZoneId.of("Asia/Seoul")));
+        return toDbPrecision(Clock.system(PolicyConstants.SERVICE_ZONE));
     }
 
     /**

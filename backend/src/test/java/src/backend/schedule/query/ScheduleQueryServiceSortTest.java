@@ -21,6 +21,7 @@ import src.backend.global.common.enums.Role;
 import src.backend.global.request.PageSortRequest;
 import src.backend.global.security.AuthUser;
 import src.backend.schedule.repository.ScheduleRepository;
+import src.backend.schedule.routestop.ScheduleRouteStopCounter;
 
 /**
  * Ruling 887 ⑦ — 목록 정렬의 마지막 보조 키는 {@code id} 오름차순이다. 같은 요일·같은 출발 시각 행의 차례를

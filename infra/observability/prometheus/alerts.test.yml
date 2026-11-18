@@ -710,3 +710,27 @@ tests:
       - eval_time: 8m
         alertname: RedisFallbackActive
         exp_alerts: []
+
+  # 확정 뒤 미시작 회차: 게이지가 0 을 넘은 채 1분(for) 이어질 때만 발화한다. 0 이면 조용하고, 1 분이 못 되게 잠깐 오른 값도 조용하다.
+  - interval: 30s
+    input_series:
+      - series: 'schoolbus_run_confirmed_not_started{job="backend",application="school-bus"}'
+        values: '0x4 2x10'
+      - series: 'schoolbus_run_confirmed_not_started{job="backend2",application="school-bus"}'
+        values: '0x4 1x1 0x20'
+    alert_rule_test:
+      - eval_time: 2m   # 아직 0
+        alertname: RunConfirmedNotStarted
+        exp_alerts: []
+      - eval_time: 3m   # 2분 지점에 2 로 올랐지만 for 1m 을 못 채운 시각 — 짧게 오른 시리즈는 끝까지 조용하다
+        alertname: RunConfirmedNotStarted
+        exp_alerts: []
+      - eval_time: 4m   # 2 가 1분 넘게 이어졌다
+        alertname: RunConfirmedNotStarted
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+              application: school-bus
+            exp_annotations:
+              summary: 확정된 회차가 시작 가능 시간창이 닫히도록 시작되지 않았다 — 기사에게 연락해 출발 여부를 확인해야 한다

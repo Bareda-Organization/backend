@@ -17,7 +17,9 @@ import org.junit.jupiter.api.Test;
 class ClassSizeConventionTest {
 
     /** {@code "<경로> *"} 형태 — 항목마다 이유를 둔다. */
-    private static final Set<String> BASELINE = Set.of();
+    private static final Set<String> BASELINE = Set.of(
+            // 한 열거형이 오류 코드 카탈로그 전체라 ErrorCodeSpecParityTest 가 한 파일로 읽는다 — 나누면 모든 호출부의 이름이 바뀐다
+            "global/error/ErrorCode.java *");
 
     @Test
     @DisplayName("200 줄을 넘는 메인 소스 파일은 기준선과 같다")

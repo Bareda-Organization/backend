@@ -1,4 +1,4 @@
-package src.backend.schedule.query;
+package src.backend.schedule.routestop;
 
 import java.util.Collection;
 import java.util.HashMap;

@@ -5,29 +5,21 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
-import src.backend.boarding.entity.RunRider;
-import src.backend.account.entity.Account;
-import src.backend.bus.entity.Bus;
-import src.backend.exception.dto.StaffReportItemResponse;
 import src.backend.exception.dto.StaffReportListResponse;
 import src.backend.exception.entity.ExceptionReport;
 import src.backend.exception.entity.ExceptionReportType;
+import src.backend.exception.report.ExceptionReportItems;
 import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.exception.repository.ReportHandledCounts;
-import src.backend.global.error.BusinessException;
-import src.backend.global.error.ErrorCode;
 import src.backend.global.request.ApiValues;
 import src.backend.global.request.PageParams;
 import src.backend.global.security.AuthUser;
-import src.backend.manager.entity.Manager;
-import src.backend.run.entity.Run;
 
 /**
  * 관계자용 예외 보고 조회(API_SPEC §5.20) — 목록·상세 둘 다 학원 범위로 좁힌다.
@@ -47,7 +39,7 @@ public class ExceptionReportQueryService {
 
     private final ExceptionReportRepository exceptionReportRepository;
 
-    private final ExceptionReportLookupLoader lookupLoader;
+    private final ExceptionReportItems reportItems;
 
     private final Clock clock;
 
@@ -82,61 +74,7 @@ public class ExceptionReportQueryService {
                 from, to, parsedHandled, Limit.of(PageParams.UNPAGED_LIST_MAX));
         ReportHandledCounts counts = exceptionReportRepository.countByHandled(requester.academyId(), parsedType,
                 runId, from, to);
-        return StaffReportListResponse.of(toItems(reports, requester.academyId()),
+        return StaffReportListResponse.of(reportItems.itemsOf(reports, requester.academyId()),
                 new StaffReportListResponse.Counts(counts.getHandled(), counts.getUnhandled()));
-    }
-
-    /** 처리 표시 응답(§5.20) — 보고 1건을 목록 항목 모양으로 조립한다. 남의 학원·없는 보고는 {@code 404 REPORT_NOT_FOUND}. */
-    public StaffReportItemResponse item(Long academyId, Long reportId) {
-        ExceptionReport report = exceptionReportRepository.findByIdAndAcademyId(reportId, academyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
-        return toItems(List.of(report), academyId).get(0);
-    }
-
-    /**
-     * 보고 목록을 항목으로 조립한다 — 회차·버스·보고자·탑승자·학생을 한 번에 읽어 쿼리 수가 보고 수에 비례하지
-     * 않게 한다(BR-228, {@code EmergencyStaffQueryService#list} 와 같은 형태).
-     */
-    private List<StaffReportItemResponse> toItems(List<ExceptionReport> reports, Long academyId) {
-        ExceptionReportLookup lookup = lookupLoader.load(reports, academyId);
-        return reports.stream().map(report -> toItem(report, lookup)).toList();
-    }
-
-    private StaffReportItemResponse toItem(ExceptionReport report, ExceptionReportLookup lookup) {
-        Run run = required(lookup.runsById().get(report.getRunId()),
-                "예외 보고의 회차가 없다 — runId=" + report.getRunId());
-        Bus bus = required(lookup.busesById().get(run.getBusId()), "예외 보고의 버스가 없다 — busId=" + run.getBusId());
-        Manager reporter = required(lookup.reportersByAccountId().get(report.getReportedBy()),
-                "예외 보고자가 없다 — accountId=" + report.getReportedBy());
-        String studentName = report.getType() == ExceptionReportType.GUARDIAN_ABSENT
-                ? studentNameOf(report.getRunRiderId(), lookup)
-                : null;
-
-        Account handler = report.isHandled() ? lookup.handlersById().get(report.getHandledBy()) : null;
-
-        return new StaffReportItemResponse(report.getId(), lower(report.getType()), report.getMemo(),
-                report.getRunId(), bus.getBusNo(), studentName, reporter.getName(),
-                reporter.getRole().name().toLowerCase(Locale.ROOT), report.getReportedAt(), report.isHandled(),
-                report.getHandledAt(), handler == null ? null : handler.getName());
-    }
-
-    /** {@code guardian_absent} 보고의 대상 학생 이름 — {@code run_rider} → {@code student} 순서로 조인한다. */
-    private String studentNameOf(Long runRiderId, ExceptionReportLookup lookup) {
-        RunRider runRider = required(lookup.ridersById().get(runRiderId),
-                "보호자 부재 보고의 탑승자가 없다 — runRiderId=" + runRiderId);
-        return required(lookup.studentsById().get(runRider.getStudentId()),
-                "보호자 부재 보고의 학생이 없다 — studentId=" + runRider.getStudentId()).getName();
-    }
-
-    private static <T> T required(T value, String message) {
-        if (value == null) {
-            throw new IllegalStateException(message);
-        }
-        return value;
-    }
-
-    /** enum → 소문자 문자열({@code ApprovalSummaryResponse} 의 {@code lower(Enum)} 관례와 같은 형태). */
-    private static String lower(ExceptionReportType type) {
-        return type.name().toLowerCase(Locale.ROOT);
     }
 }

@@ -21,8 +21,46 @@ class GlobalModuleImportBaselineTest {
         return !imported.startsWith("src.backend.global.");
     }
 
-    /** 항목마다 이유를 둔다 — 비어 있으면 {@code global} 은 도메인 모듈을 모른다. */
-    private static final Set<String> BASELINE = Set.of();
+    /** 항목마다 위 주석으로 이유를 둔다 — 새 항목은 이유와 함께 더하고, 코드에서 사라진 항목은 지운다. */
+    private static final Set<String> BASELINE = Set.of(
+        // 개발용 초기화가 모듈 상태(위치 · 미리보기 · 회차 생성)를 비운다 — 운영 경로가 아닌 개발 전용 서비스다
+        "global/dev/DevResetService.java -> src.backend.location.infrastructure.RunPositionStore",
+        "global/dev/DevResetService.java -> src.backend.request.preview.spec.ApprovalPreviewCache",
+        "global/dev/DevResetService.java -> src.backend.schedule.command.RunGenerationService",
+        // 지도 장애 예외를 응답으로 옮기는 전역 처리기가 그 예외 타입을 안다
+        "global/error/GlobalExceptionHandler.java -> src.backend.routing.map.spec.MapRouteUnavailableException",
+        // 요청 값 변환이 모듈의 enum 값 이름을 읽는다 — 값 이름의 정의처가 각 모듈 enum 이다
+        "global/request/ApiValues.java -> src.backend.exception.entity.ExceptionReportType",
+        "global/request/ApiValues.java -> src.backend.notification.entity.NotificationType",
+        "global/request/ApiValues.java -> src.backend.request.entity.ChangeRequestStatus",
+        // 보존 정리 배치가 모듈별 만료 데이터를 직접 지운다 — 삭제 대상을 아는 쪽이 각 모듈 저장소라 이 배치가 모듈을 안다
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.account.repository.RefreshTokenRepository",
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.account.repository.VerificationCodeRepository",
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.audit.entity.AuditCategory",
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.audit.repository.AuditLogRepository",
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.location.infrastructure.RunPositionPartitionManager",
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.notification.repository.NotificationLogRepository",
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.observability.metrics.RefreshTokenRowsMetrics",
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.run.repository.DelayNoticeRepository",
+        "global/retention/RetentionCleanupScheduler.java -> src.backend.student.repository.LinkCodeRepository",
+        "global/retention/StudentAnonymizationService.java -> src.backend.account.repository.AccountRepository",
+        "global/retention/StudentAnonymizationService.java -> src.backend.account.repository.RefreshTokenRepository",
+        "global/retention/StudentAnonymizationService.java -> src.backend.audit.entity.AuditAction",
+        "global/retention/StudentAnonymizationService.java -> src.backend.audit.entity.AuditLog",
+        "global/retention/StudentAnonymizationService.java -> src.backend.audit.service.AuditRecorder",
+        "global/retention/StudentAnonymizationService.java -> src.backend.notification.repository.DeviceTokenRepository",
+        "global/retention/StudentAnonymizationService.java -> src.backend.request.repository.ChangeRequestRepository",
+        "global/retention/StudentAnonymizationService.java -> src.backend.student.entity.Student",
+        "global/retention/StudentAnonymizationService.java -> src.backend.student.photo.spec.PhotoStorage",
+        "global/retention/StudentAnonymizationService.java -> src.backend.student.repository.GuardianStudentRepository",
+        "global/retention/StudentAnonymizationService.java -> src.backend.student.repository.LinkCodeRepository",
+        "global/retention/StudentAnonymizationService.java -> src.backend.student.repository.StudentRepository",
+        "global/retention/StudentAnonymizationService.java -> src.backend.student.repository.WeeklyAddressRepository",
+        "global/retention/WithdrawnStudentAnonymizer.java -> src.backend.student.repository.StudentRepository",
+        // 방송 게이트웨이가 발행 지표 홀더(observability.metrics)를 직접 갱신한다
+        "global/websocket/LocalBroadcastDelivery.java -> src.backend.observability.metrics.WebSocketPublishMetrics",
+        "global/websocket/WebSocketBroadcastGateway.java -> src.backend.observability.metrics.WebSocketPublishMetrics"
+    );
 
     @Test
     @DisplayName("global 이 도메인 모듈을 import 하는 줄은 기준선과 같다")

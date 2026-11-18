@@ -33,7 +33,7 @@ import src.backend.notification.repository.NotificationLogRepository;
  *
  * <p>왜 별도 클래스인가 — 두 기능을 한 시험에서 잇는 일은 <b>한 기능 담당이 만들 수 없다.</b>
  * 그래서 통합 검증 쪽 몫으로 둔다
- * (Ruling 222). {@code Phase9CrossSeatWiringTest} 와 같은 자리다.
+ * (Ruling 222). {@code RunFlowWiringTest} 와 같은 자리다.
  *
  * <p>🔴 <b>이 시험이 실제로 결함을 잡았다.</b> 쓰는 쪽은 중요 통지 3종에만
  * {@code acked} 를 남기는데 세는 쪽은 <b>전 종류</b>를 세고 있었다 — 승하차·도착 알림은 영원히
