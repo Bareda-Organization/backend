@@ -128,7 +128,8 @@ public class Phase9RosterFixtures {
 
     /** 그 매니저를 그 회차에 배치한다({@code role_in_run} 이 이 값이 된다). */
     public void assign(long runId, long managerId, ManagerRole role) {
-        assignmentRepository.save(Assignment.uponAssignment(runId, managerId, role, OffsetDateTime.now(), managerId));
+        long academyId = managerRepository.findById(managerId).orElseThrow().getAcademyId();
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, managerId, role, OffsetDateTime.now(), managerId));
     }
 
     /** 배치는 남긴 채로 매니저만 소프트 삭제한다(탈퇴 매니저의 옛 토큰이 막히는지). */
@@ -144,7 +145,7 @@ public class Phase9RosterFixtures {
                 + System.nanoTime(), "{noop}password", "보호자" + SEQUENCE.get(), rawPhone, null, Role.PARENT));
         Guardian guardian = guardianRepository.save(Guardian.forSignup(academyId, account.getId(), account.getName(),
                 rawPhone));
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getId(), studentId, OffsetDateTime.now()));
+        guardianStudentRepository.save(GuardianStudent.uponLink(academyId, guardian.getId(), studentId, OffsetDateTime.now()));
     }
 
     /** {@link #manager} 가 돌려주는 두 id — 매니저 레코드 id 와 로그인 토큰을 발급할 계정 id. */

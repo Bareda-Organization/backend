@@ -136,7 +136,7 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.flush();
 
         OffsetDateTime linkedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        GuardianStudent link = GuardianStudent.uponLink(guardian.getId(), student.getId(), linkedAt);
+        GuardianStudent link = GuardianStudent.uponLink(academyId, guardian.getId(), student.getId(), linkedAt);
         entityManager.persist(link);
         entityManager.flush();
         entityManager.clear();
@@ -177,7 +177,7 @@ class StudentEntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.flush();
 
         OffsetDateTime updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
-        WeeklyAddress address = WeeklyAddress.register(student.getId(), Weekday.MON, Direction.TO_ACADEMY,
+        WeeklyAddress address = WeeklyAddress.register(academyId, student.getId(), Weekday.MON, Direction.TO_ACADEMY,
                 "서울시 강남구 테헤란로 1", "3층", updatedAt);
         entityManager.persist(address);
         entityManager.flush();

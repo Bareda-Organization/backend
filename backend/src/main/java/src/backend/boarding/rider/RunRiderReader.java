@@ -1,6 +1,8 @@
 package src.backend.boarding.rider;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -36,6 +38,14 @@ public class RunRiderReader {
      * 그 회차들 중 이 학생이 명단에 있는(버스 간 이동으로 빠지지 않은) 회차 id — 학생 회차 판정이
      * 회차마다 명단을 따로 묻지 않게 한 번에 모은다(BR-058).
      */
+    /** 한 학생의 여러 회차 탑승자를 한 번의 질의로 읽는다 — 회차 번호별로 담아 돌려주고 탑승자 행이 없는 회차는 키가 없다. */
+    public Map<Long, Entry> findRiders(Long academyId, Long studentId, Collection<Long> runIds) {
+        Map<Long, Entry> riders = new HashMap<>();
+        runRiderRepository.findAllByAcademyIdAndStudentIdAndRunIdIn(academyId, studentId, runIds).forEach(
+                rider -> riders.put(rider.getRunId(), new Entry(rider.getStopId(), rider.getStatus(), rider.getChange())));
+        return riders;
+    }
+
     public Set<Long> runIdsExcludingRemoved(Long academyId, Long studentId, Collection<Long> runIds) {
         return Set.copyOf(runRiderRepository.findRunIdsByAcademyIdAndStudentIdAndRunIdIn(academyId, studentId,
                 runIds, ChangeType.REMOVED));

@@ -37,7 +37,7 @@ class StopArrivedBroadcastListenerTest {
         OffsetDateTime arrivedAt = OffsetDateTime.now();
         StopArrivedEvent event = new StopArrivedEvent(runId, academyId, 7L, 2, "정문 앞", arrivedAt, 8L);
 
-        RunRider riderA = RunRider.uponConfirmation(runId, 100L, 7L);
+        RunRider riderA = RunRider.uponConfirmation(academyId, runId, 100L, 7L);
         given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(riderA));
 
         listener.broadcast(event);
@@ -75,8 +75,8 @@ class StopArrivedBroadcastListenerTest {
     void absent_학생_채널에는_보내지_않는다() {
         Long runId = 10L;
         OffsetDateTime arrivedAt = OffsetDateTime.now();
-        RunRider rider = RunRider.uponConfirmation(runId, 100L, 7L);
-        RunRider moved = RunRider.uponConfirmation(runId, 200L, 7L);
+        RunRider rider = RunRider.uponConfirmation(1L, runId, 100L, 7L);
+        RunRider moved = RunRider.uponConfirmation(1L, runId, 200L, 7L);
         moved.markRemoved(arrivedAt);
         given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(rider, moved));
 

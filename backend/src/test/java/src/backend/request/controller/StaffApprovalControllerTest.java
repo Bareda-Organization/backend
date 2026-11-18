@@ -492,7 +492,7 @@ class StaffApprovalControllerTest {
         verify(pipeline, times(1)).compute(any());
 
         long 넷째학생 = fixtures().student(s.academyId, "학생4");
-        runRiderRepository.save(RunRider.uponConfirmation(s.runId, 넷째학생, s.midStopId));
+        runRiderRepository.save(RunRider.uponConfirmation(s.academyId, s.runId, 넷째학생, s.midStopId));
 
         String 두번째토큰 = 상세_조회(관계자_토큰(tokenProvider, s.academyId), s.approvalId)
                 .andExpect(status().isOk())
@@ -646,7 +646,7 @@ class StaffApprovalControllerTest {
     private void 인력을_배치한다(long academyId, long runId, ManagerRole role, String name) {
         Manager manager = managerRepository
                 .save(Manager.register(academyId, new ManagerProfile(name, "010-0000-0000", role, null)));
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, OffsetDateTime.now(), null));
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, OffsetDateTime.now(), null));
     }
 
     private long 결정된_건을_저장한다(시나리오 s, long 학생, java.util.function.Consumer<ChangeRequest> 결정) {

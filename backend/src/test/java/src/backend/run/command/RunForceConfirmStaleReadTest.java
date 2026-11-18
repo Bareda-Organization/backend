@@ -91,7 +91,7 @@ class RunForceConfirmStaleReadTest {
         long firstStop = fx.stop(ids[2], "37.570000", "126.980000");
         long secondStop = fx.stop(ids[2], "37.580000", "126.990000");
         long added = fx.student(ids[2], "추가학생");
-        forcedAdditionRepository.saveAndFlush(RunForcedAddition.forRun(ids[0], added, firstStop, 1L,
+        forcedAdditionRepository.saveAndFlush(RunForcedAddition.forRun(ids[2], ids[0], added, firstStop, 1L,
                 OffsetDateTime.now(clock), null));
 
         // 강제 확정 트랜잭션이 이미 읽어 둔 강제 추가 행을 다른 트랜잭션이 제자리에서 고친다 — 회차는 idle 그대로다
@@ -123,7 +123,7 @@ class RunForceConfirmStaleReadTest {
         읽은_직후에(() -> {
             runChange.run();
             OffsetDateTime now = OffsetDateTime.now(clock);
-            BoardingIntent intent = BoardingIntent.forRun(ids[0], ids[1], now);
+            BoardingIntent intent = BoardingIntent.forRun(ids[2], ids[0], ids[1], now);
             intent.applyRiding(false, ChangeWindow.IMMEDIATE, now, null);
             boardingIntentRepository.saveAndFlush(intent);
         });

@@ -194,14 +194,14 @@ public class DriverRunFixtures {
                 name, "010-0000-0000", null, Role.PARENT));
         Guardian guardian = guardianRepository.save(Guardian.forSignup(academyId, account.getId(), name,
                 "010-0000-0000"));
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getId(), studentId, linkedAt));
+        guardianStudentRepository.save(GuardianStudent.uponLink(academyId, guardian.getId(), studentId, linkedAt));
         return account.getId();
     }
 
     /** 이미 있는 보호자 계정에 자녀 1명을 더 잇는다(형제 — 보호자 1명이 학생 2명을 가진다). 보호자 행은 계정당 1개다. */
     public void siblingOf(long guardianAccountId, long studentId, OffsetDateTime linkedAt) {
-        long guardianId = guardianRepository.findByAccountId(guardianAccountId).orElseThrow().getId();
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardianId, studentId, linkedAt));
+        Guardian guardian = guardianRepository.findByAccountId(guardianAccountId).orElseThrow();
+        guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getAcademyId(), guardian.getId(), studentId, linkedAt));
     }
 
     /** confirmed 상태 회차 1건 — {@code RunRepository#confirmIfIdle} 로 정상 경로(조건부 UPDATE)를 그대로 탄다. */
@@ -259,7 +259,7 @@ public class DriverRunFixtures {
                 name, "010-0000-0000", null, accountRole));
         manager.linkAccount(account.getId());
         managerRepository.save(manager);
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, assignedAt, null));
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, assignedAt, null));
         return account.getId();
     }
 
@@ -297,17 +297,23 @@ public class DriverRunFixtures {
 
     /** 그 배포 버전의 정차 항목 1건(학생 승하차지) — 넘긴 {@code seq} 순번을 그대로 매긴다. */
     public long runStopForStop(long routeVersionId, long stopId, int seq, OffsetDateTime eta) {
-        return runStopRepository.save(RunStop.forStop(routeVersionId, stopId, seq, eta)).getId();
+        return runStopRepository.save(RunStop.forStop(academyOfVersion(routeVersionId), routeVersionId, stopId, seq, eta)).getId();
     }
 
     /** 그 배포 버전의 도착지(학원) 항목 — 등원 회차의 마지막 순번(Ruling 327). */
     public long runStopForDestination(long routeVersionId, int seq) {
-        return runStopRepository.save(RunStop.forDestination(routeVersionId, seq)).getId();
+        return runStopRepository.save(RunStop.forDestination(academyOfVersion(routeVersionId), routeVersionId, seq)).getId();
     }
 
     /** 그 배포 버전의 경유 지점 항목 — 경유 지점 행을 만들고 넘긴 {@code seq} 에 싣는다. */
     public long runStopForWaypoint(long routeVersionId, long waypointId, int seq) {
-        return runStopRepository.save(RunStop.forWaypoint(routeVersionId, waypointId, seq, null)).getId();
+        return runStopRepository.save(RunStop.forWaypoint(academyOfVersion(routeVersionId), routeVersionId, waypointId, seq, null)).getId();
+    }
+
+    /** 배포 버전이 속한 회차의 학원 — 버전 행에는 학원 열이 없어 확정 회차(run)에서 읽는다. */
+    private long academyOfVersion(long routeVersionId) {
+        long runId = routeVersionRepository.findById(routeVersionId).orElseThrow().getConfirmedRouteId();
+        return runRepository.findById(runId).orElseThrow().getAcademyId();
     }
 
     /**
@@ -315,7 +321,7 @@ public class DriverRunFixtures {
      * {@code ABSENT} 면 결석 처리까지 마친다(회귀 시험이 종료 판정에서 무시돼야 함을 검사할 때 씀).
      */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
-        RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
+        RunRider rider = RunRider.uponConfirmation(runRepository.findById(runId).orElseThrow().getAcademyId(), runId, studentId, stopId);
         switch (status) {
             case BOARDED -> rider.board(timestamp);
             case ABSENT -> rider.markAbsent(timestamp);

@@ -134,7 +134,7 @@ class BroadcastRelayPublishCountTest {
 
         RunRiderLookup(List<Long> studentIds) {
             org.mockito.BDDMockito.given(repository.findAllByRunId(10L)).willReturn(studentIds.stream()
-                    .map(id -> src.backend.boarding.entity.RunRider.uponConfirmation(10L, id, 1L)).toList());
+                    .map(id -> src.backend.boarding.entity.RunRider.uponConfirmation(1L, 10L, id, 1L)).toList());
         }
     }
 }

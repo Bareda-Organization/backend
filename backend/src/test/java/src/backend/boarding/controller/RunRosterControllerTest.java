@@ -210,7 +210,7 @@ class RunRosterControllerTest {
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
         // 확정 배치가 출발 이동 학생에게 남기는 행 — status=absent · change=removed(BR-016)
-        jdbcTemplate.update("UPDATE run_rider SET status = 'absent', change = 'removed' WHERE run_id = ? "
+        jdbcTemplate.update("UPDATE run_rider SET status = 'absent', change = 'removed', changed_at = now() WHERE run_id = ? "
                 + "AND student_id = ?", runId, student2);
         entityManager.clear();
         Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");

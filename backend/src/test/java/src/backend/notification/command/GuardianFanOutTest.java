@@ -71,7 +71,7 @@ class GuardianFanOutTest {
         RunRiderRepository runRiderRepository = mock(RunRiderRepository.class);
         RunRepository runRepository = mock(RunRepository.class);
         given(runRiderRepository.findAllByRunIdAndAcademyId(RUN_ID, ACADEMY_ID))
-                .willReturn(List.of(RunRider.uponConfirmation(RUN_ID, STUDENT_ID, 1L)));
+                .willReturn(List.of(RunRider.uponConfirmation(ACADEMY_ID, RUN_ID, STUDENT_ID, 1L)));
         given(runRepository.findByIdAndAcademyId(anyLong(), anyLong())).willReturn(Optional.empty());
 
         new RunStartedNotificationListener(mock(AcademyStaffRepository.class), runRiderRepository,

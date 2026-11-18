@@ -31,6 +31,9 @@ public class GuardianStudent {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "academy_id", nullable = false)
+    private Long academyId;
+
     @Column(name = "guardian_id", nullable = false)
     private Long guardianId;
 
@@ -43,15 +46,17 @@ public class GuardianStudent {
     @Column(name = "unlinked_at")
     private OffsetDateTime unlinkedAt;
 
-    private GuardianStudent(Long guardianId, Long studentId, OffsetDateTime linkedAt) {
+    private GuardianStudent(Long academyId, Long guardianId, Long studentId, OffsetDateTime linkedAt) {
+        this.academyId = academyId;
         this.guardianId = guardianId;
         this.studentId = studentId;
         this.linkedAt = linkedAt;
     }
 
     /** 인증 코드 대조가 끝나 자녀 연결이 성립하는 시점에 생성한다(P-02, Ruling 324 이후 코드 단일 경로). */
-    public static GuardianStudent uponLink(Long guardianId, Long studentId, OffsetDateTime linkedAt) {
-        return new GuardianStudent(guardianId, studentId, linkedAt);
+    public static GuardianStudent uponLink(Long academyId, Long guardianId, Long studentId,
+            OffsetDateTime linkedAt) {
+        return new GuardianStudent(academyId, guardianId, studentId, linkedAt);
     }
 
     /**

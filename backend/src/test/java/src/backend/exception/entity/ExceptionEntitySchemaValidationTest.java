@@ -89,8 +89,9 @@ class ExceptionEntitySchemaValidationTest extends MigratedPostgresTestBase {
                 .setParameter("academyId", academyId)
                 .getSingleResult();
         Number runRiderId = (Number) entityManager.createNativeQuery(
-                        "INSERT INTO run_rider (run_id, student_id, stop_id, status) "
-                                + "VALUES (:runId, :studentId, :stopId, 'waiting') RETURNING id")
+                        "INSERT INTO run_rider (run_id, student_id, stop_id, status, academy_id) "
+                                + "VALUES (:runId, :studentId, :stopId, 'waiting', "
+                                + "(SELECT academy_id FROM run WHERE id = :runId)) RETURNING id")
                 .setParameter("runId", runId)
                 .setParameter("studentId", studentId)
                 .setParameter("stopId", stopId)

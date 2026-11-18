@@ -151,7 +151,7 @@ class ChangeRequestApprovalStep {
      * 읽어 끈다(영속 컨텍스트가 배포 중 비워져 이전 인스턴스는 쓸 수 없다).
      */
     private void turnRidingOff(ChangeRequest cr, OffsetDateTime decidedAt, Long decidedBy) {
-        boardingIntentRepository.insertIfAbsent(cr.getRunId(), cr.getStudentId(), decidedAt);
+        boardingIntentRepository.insertIfAbsent(cr.getAcademyId(), cr.getRunId(), cr.getStudentId(), decidedAt);
         BoardingIntent intent = boardingIntentRepository.findByRunIdAndStudentId(cr.getRunId(), cr.getStudentId())
                 .orElseThrow();
         intent.applyRiding(false, ChangeWindow.APPROVAL_REQUIRED, decidedAt, decidedBy);

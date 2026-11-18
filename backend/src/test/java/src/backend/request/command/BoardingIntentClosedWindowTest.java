@@ -208,7 +208,7 @@ class BoardingIntentClosedWindowTest {
         if (firstOnStop) {
             fixtures.confirmedSingleRiderStop(run.runId(), studentId, run.stopId(), now.minusHours(1));
         } else {
-            runRiderRepository.save(RunRider.uponConfirmation(run.runId(), studentId, run.stopId()));
+            runRiderRepository.save(RunRider.uponConfirmation(run.academyId(), run.runId(), studentId, run.stopId()));
         }
         return guardian;
     }
@@ -229,7 +229,7 @@ class BoardingIntentClosedWindowTest {
             Future<?> 승차 = pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
                 jdbcTemplate.queryForObject("SELECT id FROM run_rider WHERE run_id = ? AND student_id = ? FOR UPDATE",
                         Long.class, run.runId(), studentId);
-                jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE run_id = ? AND student_id = ?",
+                jdbcTemplate.update("UPDATE run_rider SET status = 'boarded', changed_at = now() WHERE run_id = ? AND student_id = ?",
                         run.runId(), studentId);
                 승차가_행을_잡았다.countDown();
                 상대가_대기할_때까지_커밋을_미룬다();
@@ -260,8 +260,8 @@ class BoardingIntentClosedWindowTest {
         BoardingIntentFixtures.GuardianAccount guardian = rider(run, waitingStudent, now, true);
         long noShowStudent = fixtures.student(run.academyId(), "미승차학생");
         long noShowRiderId = runRiderRepository
-                .save(RunRider.uponConfirmation(run.runId(), noShowStudent, run.stopId())).getId();
-        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE id = ?", noShowRiderId);
+                .save(RunRider.uponConfirmation(run.academyId(), run.runId(), noShowStudent, run.stopId())).getId();
+        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show', changed_at = now() WHERE id = ?", noShowRiderId);
 
         toggleOff(new AuthUser(guardian.accountId(), run.academyId(), Role.PARENT, AccountStatus.ACTIVE),
                 waitingStudent, run.runId());
@@ -349,7 +349,7 @@ class BoardingIntentClosedWindowTest {
         long studentId = fixtures.student(run.academyId(), "자동거절겹침학생");
         BoardingIntentFixtures.GuardianAccount guardian = rider(run, studentId, now, true);
         // ②구간 취소 신청이 한도를 쓴 채 대기 중이다 — 출발 시각이 지나 자동 거절 대상이 됐다
-        BoardingIntent intent = BoardingIntent.forRun(run.runId(), studentId, now.minusHours(1));
+        BoardingIntent intent = BoardingIntent.forRun(run.academyId(), run.runId(), studentId, now.minusHours(1));
         intent.consumeChangeQuota();
         boardingIntentRepository.save(intent);
         ChangeRequest request = ChangeRequest.forRequest(run.academyId(), run.runId(), studentId,

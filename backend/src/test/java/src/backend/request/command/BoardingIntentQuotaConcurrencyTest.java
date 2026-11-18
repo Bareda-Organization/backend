@@ -184,7 +184,7 @@ class BoardingIntentQuotaConcurrencyTest {
         long stopId = fixtures.stop(academyId, "37.563000", "126.973000");
         fixtures.enrol(academyId, busId, studentId, stopId);
         fixtures.confirmedSingleRiderStop(runId, studentId, stopId, now.minusMinutes(10));
-        boardingIntentRepository.save(BoardingIntent.forRun(runId, studentId, now));
+        boardingIntentRepository.save(BoardingIntent.forRun(academyId, runId, studentId, now));
 
         // 두 요청 모두 한도를 판정한 뒤(승인 요청 알림 직전) 서로를 기다린다 — 옛 코드는 둘 다
         // change_used_count=0 을 본 채 여기 도착한다. 조건부 UPDATE 면 뒤 요청은 행 잠금에서 멈춰 도착하지
@@ -252,7 +252,8 @@ class BoardingIntentQuotaConcurrencyTest {
         try {
             Future<?> 먼저 = pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
                 jdbcTemplate.update("INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, "
-                        + "created_at) VALUES (?, ?, true, 0, now())", runId, studentId);
+                        + "created_at, academy_id) VALUES (?, ?, true, 0, now(), (SELECT academy_id FROM run WHERE id = ?))",
+                        runId, studentId, runId);
                 먼저_넣었다.countDown();
                 상대가_대기할_때까지_커밋을_미룬다();
             }));
@@ -362,7 +363,7 @@ class BoardingIntentQuotaConcurrencyTest {
         fixtures.linkChild(mother.guardianId(), studentId, now.minusDays(1));
         long runId = fixtures.run(academyId, busId, now.plusHours(2), now.plusMinutes(90));
         fixtures.enrol(academyId, busId, studentId, fixtures.stop(academyId, lat, lng));
-        boardingIntentRepository.save(BoardingIntent.forRun(runId, studentId, now));
+        boardingIntentRepository.save(BoardingIntent.forRun(academyId, runId, studentId, now));
         return new 겹침_준비(runId, studentId,
                 new AuthUser(mother.accountId(), academyId, Role.PARENT, AccountStatus.ACTIVE));
     }

@@ -91,9 +91,8 @@ public class ChildLinkCommandService {
         // 앞선 코드를 무효로 만들어 학생 한 명의 살아 있는 코드를 1개로 묶는다 — 반복 발급으로 학원의 6자리 공간을
         // 채워 다른 학생의 코드를 충돌시키는 길을 막는다(BR-215).
         linkCodeRepository.expireLiveCodes(student.getId(), student.getAcademyId(), now, now.minusSeconds(1));
-        LinkCode saved = linkCodeRepository.save(LinkCode.forStudent(student.getId(),
-                codeGenerator.unusedCode(student.getAcademyId(), now), now.plusMinutes(CODE_VALIDITY_MINUTES), now));
-        return LinkCodeIssueResponse.from(saved);
+        OffsetDateTime expiresAt = now.plusMinutes(CODE_VALIDITY_MINUTES);
+        return new LinkCodeIssueResponse(codeGenerator.issue(student.getId(), expiresAt, now), expiresAt);
     }
 
     /**

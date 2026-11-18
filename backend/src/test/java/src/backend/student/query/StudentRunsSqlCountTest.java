@@ -62,10 +62,11 @@ class StudentRunsSqlCountTest {
 
         jdbc.update("""
                 INSERT INTO run (academy_id, bus_id, schedule_id, service_date, direction, depart_time, confirm_at,
-                                 status, origin_name, destination_name)
+                                 status, origin_name, destination_name, started_at, finished_at)
                 SELECT academy_id, bus_id, schedule_id, service_date, direction,
                        depart_time + n * INTERVAL '1 minute', confirm_at + n * INTERVAL '1 minute',
-                       'finished', origin_name, destination_name
+                       'finished', origin_name, destination_name, depart_time + n * INTERVAL '1 minute',
+                       depart_time + n * INTERVAL '1 minute'
                 FROM run, generate_series(1, ?) n WHERE id = 3
                 """, EXTRA_RUNS);
         long after = 호출하고_SQL_수를_센다(statistics);

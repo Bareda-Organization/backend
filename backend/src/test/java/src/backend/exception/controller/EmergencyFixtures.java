@@ -124,7 +124,7 @@ public class EmergencyFixtures {
                 name, "010-0000-0000", null, accountRole));
         manager.linkAccount(account.getId());
         managerRepository.save(manager);
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, assignedAt, null));
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, assignedAt, null));
         return account.getId();
     }
 

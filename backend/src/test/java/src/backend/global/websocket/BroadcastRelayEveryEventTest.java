@@ -105,7 +105,7 @@ class BroadcastRelayEveryEventTest extends RedisTestContainerBase {
         Node node = newNode(ALL_CHANNELS);
         awaitSubscribed(node);
         RunRiderRepository riders = mock(RunRiderRepository.class);
-        given(riders.findAllByRunId(RUN)).willReturn(List.of(RunRider.uponConfirmation(RUN, 100L, 1L)));
+        given(riders.findAllByRunId(RUN)).willReturn(List.of(RunRider.uponConfirmation(ACADEMY, RUN, 100L, 1L)));
         RunRiderDirectory directory = mock(RunRiderDirectory.class);
         given(directory.studentIdsExcludingAbsent(RUN)).willReturn(List.of(100L));
 
@@ -136,7 +136,7 @@ class BroadcastRelayEveryEventTest extends RedisTestContainerBase {
         given(student.getName()).willReturn("이서연");
         given(students.findById(100L)).willReturn(Optional.of(student));
         RunRiderRepository approvalRiders = mock(RunRiderRepository.class);
-        given(approvalRiders.findByRunIdAndStudentId(RUN, 100L)).willReturn(Optional.of(RunRider.uponConfirmation(RUN, 100L, 7L)));
+        given(approvalRiders.findByRunIdAndStudentId(RUN, 100L)).willReturn(Optional.of(RunRider.uponConfirmation(ACADEMY, RUN, 100L, 7L)));
         StopRepository stops = mock(StopRepository.class);
         Stop stop = mock(Stop.class);
         given(stop.getName()).willReturn("정문 앞");

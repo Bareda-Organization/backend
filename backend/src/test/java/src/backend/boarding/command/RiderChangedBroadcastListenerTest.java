@@ -81,7 +81,7 @@ class RiderChangedBroadcastListenerTest {
         given(student.getName()).willReturn("김민성");
         given(studentRepository.findAllByAcademyIdAndIdIn(1L, List.of(studentId))).willReturn(List.of(student));
 
-        RunRider rider = RunRider.uponConfirmation(runId, studentId, 55L);
+        RunRider rider = RunRider.uponConfirmation(1L, runId, studentId, 55L);
         given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.of(rider));
         given(runRiderRepository.countByRunIdAndStatus(eq(runId), any(RiderStatus.class))).willReturn(0L);
 

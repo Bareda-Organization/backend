@@ -225,7 +225,9 @@ public class AdminMonitoringFixtures {
     }
 
     public long runStopForStop(long routeVersionId, long stopId, int seq, OffsetDateTime eta) {
-        return runStopRepository.save(RunStop.forStop(routeVersionId, stopId, seq, eta)).getId();
+        long confirmedRouteId = routeVersionRepository.findById(routeVersionId).orElseThrow().getConfirmedRouteId();
+        long academyId = runRepository.findById(confirmedRouteId).orElseThrow().getAcademyId();
+        return runStopRepository.save(RunStop.forStop(academyId, routeVersionId, stopId, seq, eta)).getId();
     }
 
     /** 그 정차 항목을 도착 처리한다(도착 처리된 정차는 {@code eta=null}). */
@@ -236,7 +238,8 @@ public class AdminMonitoringFixtures {
     }
 
     public long rider(long runId, long studentId, long stopId) {
-        return runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId)).getId();
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        return runRiderRepository.save(RunRider.uponConfirmation(academyId, runId, studentId, stopId)).getId();
     }
 
     /** 계정까지 연결된 매니저 1명 — {@code Phase9RosterFixtures#manager} 와 같은 형태. */
@@ -253,7 +256,8 @@ public class AdminMonitoringFixtures {
     }
 
     public void assign(long runId, long managerId, ManagerRole role) {
-        assignmentRepository.save(Assignment.uponAssignment(runId, managerId, role, OffsetDateTime.now(), managerId));
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, managerId, role, OffsetDateTime.now(), managerId));
     }
 
     /** 그 학생에 보호자 1명을 잇고 원문 연락처를 준다({@code guardian_phone} 원문 단언용). */
@@ -263,7 +267,7 @@ public class AdminMonitoringFixtures {
                 null, Role.PARENT));
         Guardian guardian = guardianRepository.save(Guardian.forSignup(academyId, account.getId(),
                 account.getName(), rawPhone));
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getId(), studentId, OffsetDateTime.now()));
+        guardianStudentRepository.save(GuardianStudent.uponLink(academyId, guardian.getId(), studentId, OffsetDateTime.now()));
     }
 
     public long systemAdminAccount(String name) {

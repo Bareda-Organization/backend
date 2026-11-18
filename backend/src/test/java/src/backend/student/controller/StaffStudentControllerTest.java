@@ -789,8 +789,8 @@ class StaffStudentControllerTest {
      * 동시 연결 시나리오가 성립하지 않는다. 값은 테스트가 정한 리터럴뿐이라 외부 입력이 부재하다.
      */
     private void 연결한다(long studentId, long guardianId, String linkedAtExpression) {
-        jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at) VALUES (?, ?, %s)"
-                .formatted(linkedAtExpression), guardianId, studentId);
+        jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at, academy_id) VALUES (?, ?, %s, "
+                .formatted(linkedAtExpression) + "(SELECT academy_id FROM guardian WHERE id = ?))", guardianId, studentId, guardianId);
     }
 
     private String 시드_학생_이름(long studentId) {

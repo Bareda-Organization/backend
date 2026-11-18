@@ -76,8 +76,8 @@ public class TransferStore {
         assertRoomFor(toRun, student.getId());
         Long stopId = point != null ? stopMatcher.matchOrCreate(toRun.getAcademyId(), point).getId()
                 : request.stopId();
-        RunTransfer transfer = RunTransfer.stage(student.getId(), fromRun.getId(), toRun.getId(), stopId,
-                request.note(), requestedByAccountId, now);
+        RunTransfer transfer = RunTransfer.stage(fromRun.getAcademyId(), student.getId(), fromRun.getId(), toRun.getId(),
+                stopId, request.note(), requestedByAccountId, now);
         try {
             return runTransferRepository.saveAndFlush(transfer);
         } catch (DataIntegrityViolationException e) {

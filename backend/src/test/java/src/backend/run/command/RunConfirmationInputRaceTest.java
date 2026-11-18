@@ -77,7 +77,7 @@ class RunConfirmationInputRaceTest {
         assertThat(stale.contains(f.studentId)).isTrue();
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        BoardingIntent intent = BoardingIntent.forRun(f.run.getId(), f.studentId, now);
+        BoardingIntent intent = BoardingIntent.forRun(f.run.getAcademyId(), f.run.getId(), f.studentId, now);
         intent.applyRiding(false, ChangeWindow.IMMEDIATE, now, f.requesterAccountId);
         boardingIntentRepository.saveAndFlush(intent);
 
@@ -124,7 +124,7 @@ class RunConfirmationInputRaceTest {
             doAnswer(invocation -> {
                 Object roster = invocation.callRealMethod();
                 if (toggled.compareAndSet(false, true)) { // 첫 읽기(확정 계산 입력) 직후 학부모의 탑승 끄기가 커밋된다
-                    BoardingIntent intent = BoardingIntent.forRun(runId, studentId, OffsetDateTime.now(clock));
+                    BoardingIntent intent = BoardingIntent.forRun(academyId, runId, studentId, OffsetDateTime.now(clock));
                     intent.applyRiding(false, ChangeWindow.IMMEDIATE, OffsetDateTime.now(clock), null);
                     boardingIntentRepository.saveAndFlush(intent);
                 }

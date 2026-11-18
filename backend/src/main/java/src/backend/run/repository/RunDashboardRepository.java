@@ -105,7 +105,7 @@ public interface RunDashboardRepository extends Repository<Run, Long> {
     List<AcademyRunCount> countDelayedByAcademy(@Param("today") LocalDate today);
 
     /**
-     * 학원·운행일별 회차 집계(§6.18, Ruling 801~802) — 미취소 회차 수 · 취소 수 · 시작한 수 · 정시 출발 수(Ruling 802: 실제 시작이 출발 예정 + 5분 이내,
+     * 학원·운행일별 회차 집계(§6.18, Ruling 801~802) — 미취소 회차 수 · 취소 수 · 시작한 수 · 정시 출발 수(Ruling 802: 실제 시작이 출발 예정 + {@code PolicyConstants.DELAY_UNIT_MINUTES}분 이내,
      * 정확히 +5분은 정시) · 지연 알림이 나간 회차 수(알림이 여러 건이어도 회차는 한 번)를 한 번에 센다. 학원 조건이 {@code academy_id IN} 으로 걸려
      * {@code ix_run_academy_date_depart} 를 탄다 — 30일 범위에서도 전 행 스캔이 아니다.
      */
@@ -117,7 +117,7 @@ public interface RunDashboardRepository extends Repository<Run, Long> {
                    COUNT(*) FILTER (WHERE r.canceled_at IS NOT NULL) AS "canceledCount",
                    COUNT(*) FILTER (WHERE r.canceled_at IS NULL AND r.started_at IS NOT NULL) AS "startedCount",
                    COUNT(*) FILTER (WHERE r.canceled_at IS NULL AND r.started_at IS NOT NULL
-                                    AND r.started_at <= r.depart_time + interval '5 minutes') AS "onTimeCount",
+                                    AND r.started_at <= r.depart_time + make_interval(mins => :#{T(src.backend.global.policy.PolicyConstants).DELAY_UNIT_MINUTES})) AS "onTimeCount",
                    COUNT(*) FILTER (WHERE r.canceled_at IS NULL
                                     AND EXISTS (SELECT 1 FROM delay_notice d WHERE d.run_id = r.id)) AS "delayedCount"
               FROM run r

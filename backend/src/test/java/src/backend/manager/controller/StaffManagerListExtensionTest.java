@@ -144,8 +144,8 @@ class StaffManagerListExtensionTest {
         long tomorrow = fx.idleRun(academyId, busId, TODAY.plusDays(1), Direction.TO_ACADEMY, at(TODAY.plusDays(1), 8),
                 at(TODAY.plusDays(1), 8).minusMinutes(30));
         jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = ?", canceled);
-        jdbcTemplate.update("UPDATE run SET status = 'finished' WHERE id = ?", finishedPast);
-        jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", movingPast);
+        jdbcTemplate.update("UPDATE run SET status = 'finished', started_at = now(), finished_at = now() WHERE id = ?", finishedPast);
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", movingPast);
 
         Map<String, Long> managers = new java.util.LinkedHashMap<>();
         String[][] cases = {{"오늘배치", "today"}, {"취소배치", "canceled"}, {"종료배치", "finished"}, {"미래배치", "future"},

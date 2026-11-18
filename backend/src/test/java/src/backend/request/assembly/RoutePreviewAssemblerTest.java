@@ -37,8 +37,8 @@ class RoutePreviewAssemblerTest {
         given(studentRepository.findAllByAcademyIdAndIdIn(any(), any())).willReturn(List.of(a, b));
         given(studentRepository.findById(2L)).willReturn(Optional.of(a));
         given(studentRepository.findById(3L)).willReturn(Optional.of(b));
-        List<RunRider> riders = List.of(RunRider.uponConfirmation(10L, 2L, 100L), RunRider.uponConfirmation(10L, 3L,
-                101L));
+        List<RunRider> riders = List.of(RunRider.uponConfirmation(1L, 10L, 2L, 100L),
+                RunRider.uponConfirmation(1L, 10L, 3L, 101L));
 
         List<AffectedStudentResponse> affected = assembler.affectedStudentsOf(1L, 1L, "대상", riders,
                 Map.of(100L, 1, 101L, 2), Map.of(100L, 2, 101L, 1));

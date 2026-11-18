@@ -84,10 +84,12 @@ class StudentRunResolverTransferTest {
         long toRunId = fixtures.idleRun(academyId, fixtures.bus(academyId), SERVICE_DATE, Direction.TO_ACADEMY,
                 depart, depart.minusMinutes(30));
         jdbcTemplate.update("UPDATE run SET status = 'confirmed' WHERE id IN (?, ?)", fromRunId, toRunId);
-        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, change) "
-                + "VALUES (?, ?, ?, 'absent', 'removed')", fromRunId, studentId, stopId);
-        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, change) "
-                + "VALUES (?, ?, ?, 'waiting', 'added')", toRunId, studentId, stopId);
+        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, change, changed_at, academy_id) "
+                + "VALUES (?, ?, ?, 'absent', 'removed', now(), (SELECT academy_id FROM run WHERE id = ?))",
+                fromRunId, studentId, stopId, fromRunId);
+        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, change, academy_id) "
+                + "VALUES (?, ?, ?, 'waiting', 'added', (SELECT academy_id FROM run WHERE id = ?))",
+                toRunId, studentId, stopId, toRunId);
         entityManager.clear();
 
         assertThat(resolver.resolveAllByDate(academyId, studentId, SERVICE_DATE)).extracting(Run::getId)

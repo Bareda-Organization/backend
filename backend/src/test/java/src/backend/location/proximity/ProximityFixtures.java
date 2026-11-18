@@ -157,7 +157,7 @@ public class ProximityFixtures {
                 name, "010-0000-0000", null, Role.PARENT));
         Guardian guardian = guardianRepository.save(Guardian.forSignup(academyId, account.getId(), name,
                 "010-0000-0000"));
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getId(), studentId, linkedAt));
+        guardianStudentRepository.save(GuardianStudent.uponLink(academyId, guardian.getId(), studentId, linkedAt));
         return account.getId();
     }
 
@@ -190,7 +190,9 @@ public class ProximityFixtures {
 
     /** 그 배포 버전의 정차 항목 1건(학생 승하차지) — 넘긴 {@code seq} 순번을 그대로 매긴다. */
     public long runStopForStop(long routeVersionId, long stopId, int seq, OffsetDateTime eta) {
-        return runStopRepository.save(RunStop.forStop(routeVersionId, stopId, seq, eta)).getId();
+        long runId = routeVersionRepository.findById(routeVersionId).orElseThrow().getConfirmedRouteId();
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        return runStopRepository.save(RunStop.forStop(academyId, routeVersionId, stopId, seq, eta)).getId();
     }
 
     /** 정차 항목을 도착 처리한다(출발 판정 재료, Ruling 307) — 기사의 도착 버튼(RUN-04)을 직접 흉내낸다. */
@@ -207,7 +209,8 @@ public class ProximityFixtures {
 
     /** 그 회차의 라이더 1건 — {@code ABSENT} 면 결석 처리까지 마친다(C-02 배제 시험용). */
     public long rider(long runId, long studentId, long stopId, RiderStatus status, OffsetDateTime timestamp) {
-        RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        RunRider rider = RunRider.uponConfirmation(academyId, runId, studentId, stopId);
         switch (status) {
             case ABSENT -> rider.markAbsent(timestamp);
             case BOARDED -> rider.board(timestamp);

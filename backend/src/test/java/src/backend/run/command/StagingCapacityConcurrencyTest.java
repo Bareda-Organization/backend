@@ -285,7 +285,7 @@ class StagingCapacityConcurrencyTest {
         AuthUser staff = new AuthUser(STAFF_ACCOUNT_ID, academyId, Role.STAFF, AccountStatus.ACTIVE);
         // 주소 검증은 선검사와 저장 사이에 있다 — 그 자리에서 다른 요청이 강제 추가를 끝낸 상황을 만든다.
         doAnswer(invocation -> {
-            runForcedAdditionRepository.save(RunForcedAddition.forRun(toRunId, studentId, stopId, STAFF_ACCOUNT_ID,
+            runForcedAdditionRepository.save(RunForcedAddition.forRun(academyId, toRunId, studentId, stopId, STAFF_ACCOUNT_ID,
                     OffsetDateTime.now(clock), null));
             return invocation.callRealMethod();
         }).when(addressVerification).verifySingle(anyString());

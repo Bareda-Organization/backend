@@ -45,8 +45,8 @@ class RunEndedBroadcastListenerTest {
         OffsetDateTime finishedAt = OffsetDateTime.now();
         RunEndedEvent event = new RunEndedEvent(runId, academyId, finishedAt, 5L);
 
-        RunRider riderA = RunRider.uponConfirmation(runId, 100L, 1L);
-        RunRider riderB = RunRider.uponConfirmation(runId, 200L, 2L);
+        RunRider riderA = RunRider.uponConfirmation(academyId, runId, 100L, 1L);
+        RunRider riderB = RunRider.uponConfirmation(academyId, runId, 200L, 2L);
         given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(riderA, riderB));
 
         listener.broadcast(event);
@@ -65,8 +65,8 @@ class RunEndedBroadcastListenerTest {
     void absent_학생_채널에는_보내지_않는다() {
         Long runId = 10L;
         OffsetDateTime finishedAt = OffsetDateTime.now();
-        RunRider rider = RunRider.uponConfirmation(runId, 100L, 1L);
-        RunRider moved = RunRider.uponConfirmation(runId, 200L, 2L);
+        RunRider rider = RunRider.uponConfirmation(1L, runId, 100L, 1L);
+        RunRider moved = RunRider.uponConfirmation(1L, runId, 200L, 2L);
         moved.markRemoved(finishedAt);
         given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(rider, moved));
 

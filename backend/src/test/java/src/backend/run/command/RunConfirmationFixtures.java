@@ -131,7 +131,7 @@ public class RunConfirmationFixtures {
                 .save(Route.register(academyId, new RoutePlan(busId, weekday, direction, "본선", true)));
         int seq = 1;
         for (long stopId : stopIds) {
-            routeStopRepository.save(RouteStop.forRoute(route.getId(), stopId, seq++));
+            routeStopRepository.save(RouteStop.forRoute(academyId, route.getId(), stopId, seq++));
         }
         return route.getId();
     }
@@ -147,7 +147,8 @@ public class RunConfirmationFixtures {
         VerifiedAddressEntry entry = new VerifiedAddressEntry(new VerifiedAddressEntry.AddressSlot(weekday,
                 direction), new VerifiedAddressEntry.AddressText("서울시 어딘가 " + lat, null),
                 new GeocodedPoint(new BigDecimal(lat), new BigDecimal(lng), "서울시 어딘가"));
-        weeklyAddressRepository.save(WeeklyAddress.verified(studentId, entry, stopId, OffsetDateTime.now()));
+        long academyId = studentRepository.findById(studentId).orElseThrow().getAcademyId();
+        weeklyAddressRepository.save(WeeklyAddress.verified(academyId, studentId, entry, stopId, OffsetDateTime.now()));
     }
 
     /**

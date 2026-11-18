@@ -58,9 +58,9 @@ public class RunRiderPersistence {
      * 따로 내 확정 트랜잭션이 연결을 오래 쥐었다. 만든 행의 키는 호출부가 쓰지 않아 돌려주지 않는다.
      */
     @Transactional
-    public void confirmRiders(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
+    public void confirmRiders(Long academyId, Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
             OffsetDateTime confirmedAt) {
-        List<RunRider> riders = ridersOf(runId, roster, unresolvedStudentIds, confirmedAt);
+        List<RunRider> riders = ridersOf(academyId, runId, roster, unresolvedStudentIds, confirmedAt);
         eventPublisher.publishEvent(new RunRidersChangedEvent(runId));
         for (int from = 0; from < riders.size(); from += INSERT_CHUNK) {
             insertRows(riders.subList(from, Math.min(from + INSERT_CHUNK, riders.size())));
@@ -68,9 +68,10 @@ public class RunRiderPersistence {
     }
 
     private void insertRows(List<RunRider> riders) {
-        String values = String.join(", ", java.util.Collections.nCopies(riders.size(), "(?, ?, ?, ?, ?, ?)"));
+        String values = String.join(", ", java.util.Collections.nCopies(riders.size(), "(?, ?, ?, ?, ?, ?, ?)"));
         List<Object> args = new ArrayList<>();
         for (RunRider rider : riders) {
+            args.add(rider.getAcademyId());
             args.add(rider.getRunId());
             args.add(rider.getStudentId());
             args.add(rider.getStopId());
@@ -78,7 +79,7 @@ public class RunRiderPersistence {
             args.add(CHANGE_DB.convertToDatabaseColumn(rider.getChange()));
             args.add(rider.getChangedAt());
         }
-        jdbc.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, change, changed_at) VALUES " + values,
+        jdbc.update("INSERT INTO run_rider (academy_id, run_id, student_id, stop_id, status, change, changed_at) VALUES " + values,
                 args.toArray());
     }
 
@@ -126,22 +127,22 @@ public class RunRiderPersistence {
                 RiderStatusHistory.forTransition(rider.getId(), from, to, ActorType.SYSTEM, changedAt));
     }
 
-    private static List<RunRider> ridersOf(Long runId, ProjectedRoster roster, List<Long> unresolvedStudentIds,
-            OffsetDateTime confirmedAt) {
+    private static List<RunRider> ridersOf(Long academyId, Long runId, ProjectedRoster roster,
+            List<Long> unresolvedStudentIds, OffsetDateTime confirmedAt) {
         List<RunRider> riders = new ArrayList<>();
         for (Map.Entry<Long, Long> entry : roster.studentStops().entrySet()) {
             Long studentId = entry.getKey();
             if (!unresolvedStudentIds.contains(studentId)) {
-                riders.add(waitingRider(runId, studentId, entry.getValue(), roster));
+                riders.add(waitingRider(academyId, runId, studentId, entry.getValue(), roster));
             }
         }
         for (Map.Entry<Long, Long> entry : roster.absentStops().entrySet()) {
-            RunRider rider = RunRider.uponConfirmation(runId, entry.getKey(), entry.getValue());
+            RunRider rider = RunRider.uponConfirmation(academyId, runId, entry.getKey(), entry.getValue());
             rider.markAbsent(confirmedAt);
             riders.add(rider);
         }
         for (Map.Entry<Long, Long> entry : roster.removedStops().entrySet()) {
-            RunRider rider = RunRider.uponConfirmation(runId, entry.getKey(), entry.getValue());
+            RunRider rider = RunRider.uponConfirmation(academyId, runId, entry.getKey(), entry.getValue());
             rider.markRemoved(confirmedAt);
             riders.add(rider);
         }
@@ -149,8 +150,9 @@ public class RunRiderPersistence {
     }
 
     /** 대기 상태로 시작하는 탑승자 — 당일 추가 학생이면 {@code added} 로 표시한다. */
-    private static RunRider waitingRider(Long runId, Long studentId, Long stopId, ProjectedRoster roster) {
-        RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
+    private static RunRider waitingRider(Long academyId, Long runId, Long studentId, Long stopId,
+            ProjectedRoster roster) {
+        RunRider rider = RunRider.uponConfirmation(academyId, runId, studentId, stopId);
         if (roster.addedStudentIds().contains(studentId)) {
             rider.markAdded();
         }

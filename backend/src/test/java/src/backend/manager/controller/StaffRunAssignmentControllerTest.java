@@ -32,6 +32,7 @@ import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
 import src.backend.manager.event.AssignmentChangedEvent;
+import testsupport.db.ForeignKeysOff;
 
 /**
  * §5.14 {@code PATCH /staff/runs/{runId}/assignment} — MGR-05 배치 · MGR-06 충돌 <b>경고</b>
@@ -589,8 +590,8 @@ class StaffRunAssignmentControllerTest {
 
     /** 쓰기 경로가 막는 <b>학원을 넘는 배치</b>를 심는다 — 저장소의 학원 조건을 재려면 이 수밖에 없다. */
     private void 타_학원_매니저를_SQL_로_배치한다(long runId, long managerId) {
-        jdbcTemplate.update("INSERT INTO assignment (run_id, manager_id, role, assigned_at) "
-                + "VALUES (?, ?, 'driver', now())", runId, managerId);
+        ForeignKeysOff.update(jdbcTemplate, "INSERT INTO assignment (run_id, manager_id, role, assigned_at, academy_id) "
+                + "VALUES (?, ?, 'driver', now(), (SELECT academy_id FROM run WHERE id = ?))", runId, managerId, runId);
     }
 
     private long 회차를_만든다(long busId, String departTime) throws Exception {

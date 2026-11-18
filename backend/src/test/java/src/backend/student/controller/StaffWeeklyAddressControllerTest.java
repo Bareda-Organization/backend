@@ -111,7 +111,8 @@ class StaffWeeklyAddressControllerTest {
                 "insert into student (academy_id, name, deleted_at) values (?, '퇴원시험학생', now()) returning id",
                 Long.class, ACADEMY_A);
         jdbcTemplate.update("insert into weekly_address (student_id, weekday, direction, address, lat, lng, verified, "
-                + "updated_at) values (?, 'mon', 'to_academy', '서울시 퇴원 1', 37.5, 127.0, true, now())", withdrawnId);
+                + "updated_at, academy_id) values (?, 'mon', 'to_academy', '서울시 퇴원 1', 37.5, 127.0, true, now(), "
+                + "(SELECT academy_id FROM student WHERE id = ?))", withdrawnId, withdrawnId);
         try {
             mockMvc.perform(get(url(String.valueOf(withdrawnId))).header("Authorization", 토큰(tokenProvider, ACTOR_5, ACADEMY_A, Role.STAFF)))
                     .andExpect(status().isNotFound())

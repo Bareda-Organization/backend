@@ -237,7 +237,7 @@ class BoardingLockOrderConcurrencyTest {
 
     private long rider(Stage stage, String name, String status) {
         long riderId = fixtures.runRider(stage.runId(), fixtures.student(stage.academyId(), name), stage.stopId());
-        jdbcTemplate.update("UPDATE run_rider SET status = ? WHERE id = ?", status, riderId);
+        jdbcTemplate.update("UPDATE run_rider SET status = ?, changed_at = now() WHERE id = ?", status, riderId);
         entityManager.clear();
         return riderId;
     }
@@ -442,7 +442,7 @@ class BoardingLockOrderConcurrencyTest {
         BoardingCommandFixtures.GuardianAccount guardian = fixtures.guardian(stage.academyId(), "되돌리기경합보호자");
         fixtures.linkChild(guardian.guardianId(), studentId, OffsetDateTime.now(clock).minusDays(1));
         long riderId = fixtures.runRider(stage.runId(), studentId, stage.stopId());
-        jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", riderId);
+        jdbcTemplate.update("UPDATE run_rider SET status = 'boarded', changed_at = now() WHERE id = ?", riderId);
         entityManager.clear();
         CountDownLatch revertChecked = new CountDownLatch(1);
         AtomicBoolean fired = new AtomicBoolean();

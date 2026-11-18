@@ -49,7 +49,7 @@ public class ChangeRequestFixtures {
     public long parentLinkedTo(long academyId, long studentId) {
         long accountId = account(academyId, Role.PARENT, "학부모");
         Guardian guardian = guardianRepository.save(Guardian.forSignup(academyId, accountId, "학부모", "01000000000"));
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getId(), studentId, OffsetDateTime.now()));
+        guardianStudentRepository.save(GuardianStudent.uponLink(academyId, guardian.getId(), studentId, OffsetDateTime.now()));
         return accountId;
     }
 

@@ -215,8 +215,10 @@ class AdminRunAttentionControllerTest {
         OffsetDateTime departTime = serviceDate.atTime(9, 0).atOffset(java.time.ZoneOffset.ofHours(9));
         long runId = runRepository.save(Run.forSchedule(academyId, busId, null, serviceDate, Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30), "출발지", "도착지", null)).getId();
-        jdbcTemplate.update("UPDATE run SET status = ?, consecutive_failures = ? WHERE id = ?", status,
-                consecutiveFailures, runId);
+        jdbcTemplate.update("UPDATE run SET status = ?, consecutive_failures = ?, "
+                + "started_at = CASE WHEN ? IN ('moving', 'finished') THEN now() END, "
+                + "finished_at = CASE WHEN ? = 'finished' THEN now() END WHERE id = ?", status, consecutiveFailures,
+                status, status, runId);
         if (canceled) {
             jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = ?", runId);
         }

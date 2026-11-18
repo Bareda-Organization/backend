@@ -70,14 +70,14 @@ new_route AS (
     RETURNING id AS route_id, bus_id
 ),
 new_route_stop_1 AS (
-    INSERT INTO route_stop (route_id, stop_id, seq)
-    SELECT new_route.route_id, stop1.stop_id, 1
+    INSERT INTO route_stop (academy_id, route_id, stop_id, seq)
+    SELECT :academy_id, new_route.route_id, stop1.stop_id, 1
     FROM new_route, stop1
     RETURNING route_id
 ),
 new_route_stop_2 AS (
-    INSERT INTO route_stop (route_id, stop_id, seq)
-    SELECT new_route.route_id, stop2.stop_id, 2
+    INSERT INTO route_stop (academy_id, route_id, stop_id, seq)
+    SELECT :academy_id, new_route.route_id, stop2.stop_id, 2
     FROM new_route, stop2
     RETURNING route_id
 ),
@@ -134,28 +134,28 @@ update_confirmed_route AS (
     RETURNING confirmed_route.run_id
 ),
 new_run_stop_1 AS (
-    INSERT INTO run_stop (route_version_id, stop_id, seq, eta)
-    SELECT new_route_version.version_id, stop1.stop_id, 1, now() + interval '10 minutes'
+    INSERT INTO run_stop (academy_id, route_version_id, stop_id, seq, eta)
+    SELECT :academy_id, new_route_version.version_id, stop1.stop_id, 1, now() + interval '10 minutes'
     FROM new_route_version, stop1
     RETURNING route_version_id
 ),
 new_run_stop_2 AS (
-    INSERT INTO run_stop (route_version_id, stop_id, seq, eta)
-    SELECT new_route_version.version_id, stop2.stop_id, 2, now() + interval '20 minutes'
+    INSERT INTO run_stop (academy_id, route_version_id, stop_id, seq, eta)
+    SELECT :academy_id, new_route_version.version_id, stop2.stop_id, 2, now() + interval '20 minutes'
     FROM new_route_version, stop2
     RETURNING route_version_id
 ),
 new_run_rider_cancel AS (
-    INSERT INTO run_rider (run_id, student_id, stop_id, status)
-    SELECT new_run.run_id, new_student_cancel.student_id, stop1.stop_id, 'waiting'
+    INSERT INTO run_rider (academy_id, run_id, student_id, stop_id, status)
+    SELECT :academy_id, new_run.run_id, new_student_cancel.student_id, stop1.stop_id, 'waiting'
     FROM new_run
     JOIN new_student_cancel ON new_student_cancel.bus_id = new_run.bus_id
     CROSS JOIN stop1
     RETURNING run_id
 ),
 new_run_rider_stay AS (
-    INSERT INTO run_rider (run_id, student_id, stop_id, status)
-    SELECT new_run.run_id, new_student_stay.student_id, stop2.stop_id, 'waiting'
+    INSERT INTO run_rider (academy_id, run_id, student_id, stop_id, status)
+    SELECT :academy_id, new_run.run_id, new_student_stay.student_id, stop2.stop_id, 'waiting'
     FROM new_run
     JOIN new_student_stay ON new_student_stay.bus_id = new_run.bus_id
     CROSS JOIN stop2

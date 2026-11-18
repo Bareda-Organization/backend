@@ -77,7 +77,7 @@ class RunStartedChildNameTest {
         given(staffRepository.findActiveAccountsByAcademyId(ACADEMY_ID))
                 .willReturn(List.of(new AcademyStaffAccountView(31L, "관계자")));
         given(runRiderRepository.findAllByRunIdAndAcademyId(RUN_ID, ACADEMY_ID)).willReturn(
-                List.of(RunRider.uponConfirmation(RUN_ID, 50L, 1L), RunRider.uponConfirmation(RUN_ID, 51L, 1L)));
+                List.of(RunRider.uponConfirmation(ACADEMY_ID, RUN_ID, 50L, 1L), RunRider.uponConfirmation(ACADEMY_ID, RUN_ID, 51L, 1L)));
         given(guardianStudentRepository.findGuardianAccountsByAcademyId(ACADEMY_ID, List.of(50L, 51L)))
                 .willReturn(List.of(guardian(50L, "첫째"), guardian(51L, "둘째")));
         Student 첫째 = Student.register(ACADEMY_ID, new StudentProfile("첫째", null, null, null, null, null, null, null, null));

@@ -116,9 +116,9 @@ class StaffRunRouteTransactionTest {
         long stopId = fx.stop(academyId, "37.510000", "127.010000");
         Route route = routeRepository
                 .save(Route.register(academyId, new RoutePlan(busId, Weekday.MON, Direction.TO_ACADEMY, "본선", true)));
-        routeStopRepository.save(RouteStop.forRoute(route.getId(), stopId, 1));
+        routeStopRepository.save(RouteStop.forRoute(academyId, route.getId(), stopId, 1));
         long studentId = fx.student(academyId, "학생1");
-        weeklyAddressRepository.save(WeeklyAddress.verified(studentId, new VerifiedAddressEntry(
+        weeklyAddressRepository.save(WeeklyAddress.verified(academyId, studentId, new VerifiedAddressEntry(
                 new VerifiedAddressEntry.AddressSlot(Weekday.MON, Direction.TO_ACADEMY),
                 new VerifiedAddressEntry.AddressText("서울시 어딘가 37.51", null),
                 new GeocodedPoint(new BigDecimal("37.510000"), new BigDecimal("127.010000"), "서울시 어딘가")),

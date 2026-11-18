@@ -61,8 +61,8 @@ class AttendantAutoAssignment {
         if (result.managerId() == null) {
             return;
         }
-        assignmentRepository.save(Assignment.uponAssignment(run.getId(), result.managerId(), ManagerRole.ESCORT, now,
-                null));
+        assignmentRepository.save(Assignment.uponAssignment(run.getAcademyId(), run.getId(), result.managerId(),
+                ManagerRole.ESCORT, now, null));
         eventPublisher.publishEvent(new AssignmentChangedEvent(run.getId(), run.getAcademyId(), result.managerId(),
                 ManagerRole.ESCORT, now));
     }

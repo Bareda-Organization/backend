@@ -222,7 +222,7 @@ class StaffTransferCancelControllerTest {
         long toRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures.student(academyId, "이동학생");
-        runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, studentId,
+        runForcedAdditionRepository.save(RunForcedAddition.forRun(academyId, fromRunId, studentId,
                 fixtures.stop(academyId, "37.561000", "126.971000"), STAFF_ACCOUNT_ID, OffsetDateTime.now(clock),
                 null));
         Scene draft = new Scene(academyId, fromRunId, toRunId, stopId, studentId, 0L);
@@ -245,7 +245,9 @@ class StaffTransferCancelControllerTest {
 
     private void 회차_상태를_바꾼다(long runId, RunStatus runStatus) {
         동기화한다();
-        jdbcTemplate.update("UPDATE run SET status = ? WHERE id = ?", runStatus.name().toLowerCase(), runId);
+        String status = runStatus.name().toLowerCase();
+        jdbcTemplate.update("UPDATE run SET status = ?, started_at = CASE WHEN ? IN ('moving', 'finished') THEN now() END, "
+                + "finished_at = CASE WHEN ? = 'finished' THEN now() END WHERE id = ?", status, status, status, runId);
     }
 
     private long 이동_행_수(long transferId) {

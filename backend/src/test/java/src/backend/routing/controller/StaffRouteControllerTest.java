@@ -33,6 +33,7 @@ import jakarta.persistence.PersistenceContext;
 import src.backend.global.common.enums.AccountStatus;
 import src.backend.global.common.enums.Role;
 import src.backend.global.security.JwtTokenProvider;
+import testsupport.db.ForeignKeysOff;
 
 /**
  * §5.9 {@code /staff/routes} — RTE-01 · RTE-09 · A-08 (Ruling 180 이 {@code [조정 중]} 을 부분 해제한 경로).
@@ -420,8 +421,9 @@ class StaffRouteControllerTest {
      */
     @Test
     void 요일이_같은_노선은_sort_를_줘도_id_순으로_나온다() throws Exception {
-        이름을_주어_편성한다("TIE-A", 1L, "wed", "from_academy");
-        이름을_주어_편성한다("TIE-B", 2L, "wed", "from_academy");
+        // 시드 편성이 오늘 요일의 1호차 노선을 이미 가지므로 겹치지 않는 차량으로 편성한다
+        이름을_주어_편성한다("TIE-A", 2L, "wed", "from_academy");
+        이름을_주어_편성한다("TIE-B", 2L, "wed", "to_academy");
         entityManager.flush();
         long first = jdbcTemplate.queryForObject("SELECT id FROM route WHERE name = 'TIE-A'", Long.class);
         jdbcTemplate.update("UPDATE route SET name = name WHERE id = ?", first);
@@ -539,8 +541,8 @@ class StaffRouteControllerTest {
     @Test
     void 좌표를_못_찾는_정차지가_섞여도_500이_아니라_나머지로_응답한다() throws Exception {
         long routeId = 편성된_노선_id(관계자A_토큰(), BUS_A_ID, "thu", "to_academy", List.of(1L));
-        jdbcTemplate.update("INSERT INTO route_stop (route_id, stop_id, seq) VALUES (?, ?, 2)", routeId,
-                STOP_OF_B);
+        ForeignKeysOff.update(jdbcTemplate, "INSERT INTO route_stop (route_id, stop_id, seq, academy_id) VALUES (?, ?, 2, "
+                + "(SELECT academy_id FROM route WHERE id = ?))", routeId, STOP_OF_B, routeId);
         entityManager.flush();
         entityManager.clear();
 
@@ -595,8 +597,8 @@ class StaffRouteControllerTest {
         long studentId = jdbcTemplate.queryForObject(
                 "INSERT INTO student (academy_id, name, deleted_at) VALUES (?, ?, ?) RETURNING id", Long.class,
                 ACADEMY_A_ID, name, 퇴원 ? java.time.OffsetDateTime.now() : null);
-        jdbcTemplate.update("INSERT INTO weekly_address (student_id, weekday, direction, address, verified, stop_id) "
-                + "VALUES (?, ?, ?, '테스트 주소', true, ?)", studentId, weekday, direction, stopId);
+        jdbcTemplate.update("INSERT INTO weekly_address (student_id, weekday, direction, address, verified, stop_id, lat, lng, academy_id) "
+                + "VALUES (?, ?, ?, '테스트 주소', true, ?, 37.5, 127.0, (SELECT academy_id FROM student WHERE id = ?))", studentId, weekday, direction, stopId, studentId);
     }
 
     // ── 픽스처 · 호출 도우미 ──────────────────────────────────────────────
@@ -868,7 +870,7 @@ class StaffRouteControllerTest {
 
     /** 시드의 운행 중 회차(R3)를 끝낸다 — 승하차지 좌표 수정이 운행 중 잠금(BR-052)에 걸리지 않는 상태를 만든다. */
     private void 운행_중_회차를_끝낸다() {
-        jdbcTemplate.update("UPDATE run SET status = 'finished', finished_at = now() WHERE status = 'moving'");
+        jdbcTemplate.update("UPDATE run SET status = 'finished', finished_at = now(), started_at = COALESCE(started_at, now()) WHERE status = 'moving'");
     }
 
     private ResultActions 승하차지를_저장한다(String token, long routeId, String body) throws Exception {

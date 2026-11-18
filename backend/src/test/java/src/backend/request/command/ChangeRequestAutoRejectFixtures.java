@@ -119,7 +119,8 @@ public class ChangeRequestAutoRejectFixtures {
 
     /** 한도를 이미 소진한 탑승 의사 — 자동 거절이 이 값을 0으로 되돌리는지가 핵심이다. */
     public long spentBoardingIntent(long runId, long studentId, OffsetDateTime createdAt) {
-        BoardingIntent intent = BoardingIntent.forRun(runId, studentId, createdAt);
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        BoardingIntent intent = BoardingIntent.forRun(academyId, runId, studentId, createdAt);
         intent.consumeChangeQuota();
         return boardingIntentRepository.save(intent).getId();
     }

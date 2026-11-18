@@ -15,8 +15,8 @@ cap AS (
            count(*) OVER (PARTITION BY academy_id) AS per_academy
     FROM bus WHERE bus_no LIKE 'LOADCAP-%'
 )
-INSERT INTO run_rider (run_id, student_id, stop_id, status)
-SELECT lp.run_id, s.id, st.id, 'waiting'
+INSERT INTO run_rider (academy_id, run_id, student_id, stop_id, status)
+SELECT lp.academy_id, lp.run_id, s.id, st.id, 'waiting'
 FROM lp
 JOIN cap ON cap.academy_id = lp.academy_id AND cap.rn = ((lp.n - 1) % cap.per_academy) + 1
 JOIN academy a ON a.id = lp.academy_id

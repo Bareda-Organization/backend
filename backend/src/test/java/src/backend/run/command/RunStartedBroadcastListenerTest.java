@@ -55,9 +55,9 @@ class RunStartedBroadcastListenerTest {
         RunStartedEvent event = new RunStartedEvent(runId, academyId, startedAt, 3);
 
         // 같은 studentId 가 두 정차지에 걸쳐 두 행으로 있어도(예: 경유 중 재승차 이력) distinct 여야 한다.
-        RunRider riderA = RunRider.uponConfirmation(runId, 100L, 1L);
-        RunRider riderB = RunRider.uponConfirmation(runId, 200L, 2L);
-        RunRider riderADuplicate = RunRider.uponConfirmation(runId, 100L, 3L);
+        RunRider riderA = RunRider.uponConfirmation(academyId, runId, 100L, 1L);
+        RunRider riderB = RunRider.uponConfirmation(academyId, runId, 200L, 2L);
+        RunRider riderADuplicate = RunRider.uponConfirmation(academyId, runId, 100L, 3L);
         given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(riderA, riderB, riderADuplicate));
 
         listener.broadcast(event);
@@ -89,8 +89,8 @@ class RunStartedBroadcastListenerTest {
     void absent_학생_채널에는_보내지_않는다() {
         Long runId = 10L;
         OffsetDateTime startedAt = OffsetDateTime.now();
-        RunRider rider = RunRider.uponConfirmation(runId, 100L, 1L);
-        RunRider moved = RunRider.uponConfirmation(runId, 200L, 2L);
+        RunRider rider = RunRider.uponConfirmation(1L, runId, 100L, 1L);
+        RunRider moved = RunRider.uponConfirmation(1L, runId, 200L, 2L);
         moved.markRemoved(startedAt);
         given(runRiderRepository.findAllByRunId(runId)).willReturn(List.of(rider, moved));
 

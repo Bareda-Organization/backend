@@ -262,15 +262,15 @@ class ChildLinkControllerTest {
     /**
      * 코드는 멀쩡한데 이미 연결된 자녀면 {@code 409 ALREADY_LINKED}(§3.4).
      *
-     * <p>코드 두 건을 각각 받아 두고 첫 코드로 연결한 뒤 <b>둘째 코드</b>를 넣는다 — 그래야
+     * <p>첫 코드로 연결한 뒤 새 코드를 받아 <b>그 코드</b>를 넣는다 — 그래야
      * 재사용({@code 403})과 갈린 자리가 실제로 검사된다.
      */
     @Test
     void 코드는_유효한데_이미_연결된_자녀면_409_ALREADY_LINKED_이다() throws Exception {
         String first = 코드를_받는다();
-        String second = 코드를_받는다();
-
         코드_입력(GUARDIAN_SIBLINGS_ACCOUNT, first).andExpect(status().isCreated());
+        // 다시 발급하면 앞선 코드는 만료되므로, 연결한 뒤에 둘째 코드를 받아야 둘 다 쓸 수 있는 상태에서 판정된다
+        String second = 코드를_받는다();
 
         코드_입력(GUARDIAN_SIBLINGS_ACCOUNT, second)
                 .andExpect(status().isConflict())
@@ -286,6 +286,8 @@ class ChildLinkControllerTest {
     @Test
     void 같은_값의_살아_있는_코드가_둘이면_403_LINK_CODE_INVALID_이다() throws Exception {
         String code = 코드를_받는다();
+        // 유일 인덱스가 겹친 코드를 막으므로 이 시험 트랜잭션 안에서만 지워(롤백으로 되돌아온다) 입력 쪽의 방어를 따로 본다
+        jdbcTemplate.execute("DROP INDEX uk_link_code_unused_code");
         jdbcTemplate.update("INSERT INTO link_code (student_id, code, expires_at, created_at) VALUES (?, ?, ?, ?)",
                 UNLINKED_STUDENT_ID, code, Timestamp.from(OffsetDateTime.now(clock).plusMinutes(10).toInstant()),
                 Timestamp.from(OffsetDateTime.now(clock).plusSeconds(1).toInstant()));

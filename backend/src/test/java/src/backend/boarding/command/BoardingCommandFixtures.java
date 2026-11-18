@@ -167,7 +167,8 @@ public class BoardingCommandFixtures {
     }
 
     public void linkChild(long guardianId, long studentId, OffsetDateTime linkedAt) {
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardianId, studentId, linkedAt));
+        long academyId = guardianRepository.findById(guardianId).orElseThrow().getAcademyId();
+        guardianStudentRepository.save(GuardianStudent.uponLink(academyId, guardianId, studentId, linkedAt));
     }
 
     /** 관계자 통지 수신 대상 — {@code AcademyStaff} 승인 행까지 함께 만든다. */
@@ -217,7 +218,7 @@ public class BoardingCommandFixtures {
                         accountRole));
         manager.linkAccount(account.getId());
         managerRepository.save(manager);
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, assignedAt, null));
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, assignedAt, null));
         return account.getId();
     }
 
@@ -246,7 +247,7 @@ public class BoardingCommandFixtures {
      * {@link EntityManager#clear()} 로 비워야 서비스가 실제로 갱신된 값을 다시 읽는다.
      */
     public void startRun(long runId) {
-        int updated = jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
+        int updated = jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", runId);
         if (updated != 1) {
             throw new IllegalStateException("회차를 moving 으로 전이하지 못했다: runId=" + runId);
         }
@@ -261,7 +262,8 @@ public class BoardingCommandFixtures {
 
     /** {@code waiting} 상태의 탑승자 1명 — {@link RunRider#uponConfirmation} 이 초기값을 보장한다. */
     public long runRider(long runId, long studentId, long stopId) {
-        return runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId)).getId();
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        return runRiderRepository.save(RunRider.uponConfirmation(academyId, runId, studentId, stopId)).getId();
     }
 
     /**
@@ -278,7 +280,8 @@ public class BoardingCommandFixtures {
                 false, List.of(), null, confirmedAt));
         confirmedRouteRepository.assignCurrentVersion(runId, version.getId());
 
-        RunStop runStop = runStopRepository.save(RunStop.forStop(version.getId(), stopId, 1, confirmedAt));
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        RunStop runStop = runStopRepository.save(RunStop.forStop(academyId, version.getId(), stopId, 1, confirmedAt));
         return runStop.getId();
     }
 
@@ -290,7 +293,8 @@ public class BoardingCommandFixtures {
     public void addRunStop(long runId, long stopId, int seq, OffsetDateTime eta) {
         Long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
                 .orElseThrow();
-        runStopRepository.save(RunStop.forStop(versionId, stopId, seq, eta));
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        runStopRepository.save(RunStop.forStop(academyId, versionId, stopId, seq, eta));
     }
 
     /**
@@ -308,7 +312,7 @@ public class BoardingCommandFixtures {
 
     /** 잔여 판정의 함정을 걸기 위해 이미 부재 처리된 탑승자를 직접 만든다 — {@code markAbsent} 는 회차 진행 중 경로가 없다. */
     public void markAbsent(long riderId) {
-        int updated = jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE id = ?", riderId);
+        int updated = jdbcTemplate.update("UPDATE run_rider SET status = 'absent', changed_at = now() WHERE id = ?", riderId);
         if (updated != 1) {
             throw new IllegalStateException("탑승자를 absent 로 전이하지 못했다: riderId=" + riderId);
         }

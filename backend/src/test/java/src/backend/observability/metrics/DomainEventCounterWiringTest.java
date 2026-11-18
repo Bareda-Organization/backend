@@ -216,7 +216,7 @@ class DomainEventCounterWiringTest {
         // 시드의 유일한 pending 행(id=1)의 deadline_at 이 실제 벽시계 기준 곧 지난다(실측 확인,
         // db_now 대비 +6분) — 이 시험의 고정 시계(2033년)는 그보다 훨씬 뒤라 함께 걸린다.
         // status 를 잠시 승인 처리해 폴링 대상에서 빼고, 시험이 끝나면 대기중으로 되돌린다.
-        jdbcTemplate.update("UPDATE change_request SET status = 'approved' WHERE id = ?", 시드_대기중_변경요청);
+        jdbcTemplate.update("UPDATE change_request SET status = 'approved', decided_at = now() WHERE id = ?", 시드_대기중_변경요청);
         try {
             OffsetDateTime now = OffsetDateTime.now(clock);
             long academyId = changeRequestFixtures.academy();
@@ -237,7 +237,7 @@ class DomainEventCounterWiringTest {
                     .as("마감이 지난 대기 요청은 auto_rejected 로 넘어가야 한다")
                     .isEqualTo(ChangeRequestStatus.AUTO_REJECTED);
         } finally {
-            jdbcTemplate.update("UPDATE change_request SET status = 'pending' WHERE id = ?", 시드_대기중_변경요청);
+            jdbcTemplate.update("UPDATE change_request SET status = 'pending', decided_at = NULL WHERE id = ?", 시드_대기중_변경요청);
         }
     }
 

@@ -355,7 +355,7 @@ class RetentionCleanupSchedulerTest {
     private long insertLinkCode(long studentId, OffsetDateTime expiresAt) {
         long id = jdbcTemplate.queryForObject("""
                 INSERT INTO link_code (student_id, code, expires_at)
-                VALUES (?, '123456', ?)
+                VALUES (?, substr(md5(random()::text), 1, 8), ?)
                 RETURNING id
                 """, Long.class, studentId, expiresAt);
         linkCodeIds.add(id);

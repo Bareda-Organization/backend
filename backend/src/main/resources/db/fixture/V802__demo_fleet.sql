@@ -72,8 +72,9 @@ FROM stop s WHERE s.id BETWEEN 100 AND 129;
 
 -- 요일별 주소 — 확정 배치가 "오늘 이 학생이 어느 승하차지인가" 를 이 표에서 읽는다.
 -- 요일을 안 가리고 7일 전부 채운다(데모를 아무 날에나 띄울 수 있어야 한다).
-INSERT INTO weekly_address (student_id, weekday, direction, address, lat, lng, verified, stop_id, updated_at)
-SELECT s.id, w.d, dir.d, s.address, s.lat, s.lng, true, s.id, now()
+INSERT INTO weekly_address (student_id, weekday, direction, address, lat, lng, verified, stop_id, updated_at,
+                            academy_id)
+SELECT s.id, w.d, dir.d, s.address, s.lat, s.lng, true, s.id, now(), s.academy_id
 FROM stop s
 CROSS JOIN unnest(ARRAY['mon','tue','wed','thu','fri','sat','sun']) AS w(d)
 CROSS JOIN unnest(ARRAY['to_academy','from_academy']) AS dir(d)
@@ -88,8 +89,8 @@ SELECT 100 + b.ord, 1, b.bus_id,
        'to_academy', b.bus_no || ' 본선(등원)', true, now(), now()
 FROM (VALUES (0, 10, '3호차'), (1, 11, '4호차'), (2, 12, '5호차')) AS b(ord, bus_id, bus_no);
 
-INSERT INTO route_stop (route_id, stop_id, seq)
-SELECT 100 + b.ord, 100 + b.ord * 10 + i - 1, i
+INSERT INTO route_stop (route_id, stop_id, seq, academy_id)
+SELECT 100 + b.ord, 100 + b.ord * 10 + i - 1, i, (SELECT academy_id FROM route WHERE id = 100 + b.ord)
 FROM (VALUES (0), (1), (2)) AS b(ord)
 CROSS JOIN generate_series(1, 10) AS i;
 
@@ -114,10 +115,12 @@ SELECT 100 + b.ord, 1, b.bus_id, 100 + b.ord,
 FROM (VALUES (0, 10, '3호차'), (1, 11, '4호차'), (2, 12, '5호차')) AS b(ord, bus_id, bus_no);
 
 -- 기사·동승자 배치 — 기사가 없으면 시뮬레이터가 운행을 시작하지 못한다(배치 기사만 시작 가능).
-INSERT INTO assignment (run_id, manager_id, role, assigned_at, assigned_by)
-SELECT 100 + b.ord, 100 + b.ord, 'driver', now(), 2 FROM (VALUES (0), (1), (2)) AS b(ord)
+INSERT INTO assignment (run_id, manager_id, role, assigned_at, assigned_by, academy_id)
+SELECT 100 + b.ord, 100 + b.ord, 'driver', now(), 2, (SELECT academy_id FROM run WHERE id = 100 + b.ord)
+FROM (VALUES (0), (1), (2)) AS b(ord)
 UNION ALL
-SELECT 100 + b.ord, 103 + b.ord, 'escort', now(), 2 FROM (VALUES (0), (1), (2)) AS b(ord);
+SELECT 100 + b.ord, 103 + b.ord, 'escort', now(), 2, (SELECT academy_id FROM run WHERE id = 100 + b.ord)
+FROM (VALUES (0), (1), (2)) AS b(ord);
 
 SELECT setval(pg_get_serial_sequence('account', 'id'), (SELECT COALESCE(MAX(id), 1) FROM account));
 SELECT setval(pg_get_serial_sequence('manager', 'id'), (SELECT COALESCE(MAX(id), 1) FROM manager));

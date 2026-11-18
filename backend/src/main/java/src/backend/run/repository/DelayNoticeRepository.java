@@ -15,7 +15,7 @@ import src.backend.run.entity.DelayNotice;
 public interface DelayNoticeRepository extends JpaRepository<DelayNotice, Long> {
 
     /**
-     * 그 회차의 직전 발신 1건(Ruling 253 중복·갱신 판정의 대조 대상) — {@code idx_delay_notice_run_sent_at}
+     * 그 회차의 직전 발신 1건(Ruling 253 중복·갱신 판정의 대조 대상) — {@code ix_delay_notice_run_sent_at}
      * ({@code run_id}, {@code sent_at DESC})이 이 조회를 받친다.
      *
      * <p>{@code runId} 는 호출부(지연 알림 커맨드 서비스)가 {@code RunAssignmentAccess

@@ -202,7 +202,7 @@ class RunConfirmationServiceTest {
                 departTime.minusMinutes(30));
 
         runForcedAdditionRepository.save(
-                RunForcedAddition.forRun(runId, forcedStudent, forcedStop, 1L, OffsetDateTime.now(clock), null));
+                RunForcedAddition.forRun(academyId, runId, forcedStudent, forcedStop, 1L, OffsetDateTime.now(clock), null));
 
         confirmationService.confirmOne(runId);
 
@@ -266,7 +266,7 @@ class RunConfirmationServiceTest {
         long toRunId = fixtures().idleRun(academyId, toBusId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
 
-        RunTransfer transfer = runTransferRepository.save(RunTransfer.stage(transferringStudent, fromRunId, toRunId,
+        RunTransfer transfer = runTransferRepository.save(RunTransfer.stage(academyId, transferringStudent, fromRunId, toRunId,
                 destinationStop, null, 1L, OffsetDateTime.now(clock)));
 
         confirmationService.confirmOne(fromRunId);
@@ -348,8 +348,8 @@ class RunConfirmationServiceTest {
                 departTime.minusMinutes(30));
 
         runForcedAdditionRepository.save(
-                RunForcedAddition.forRun(fromRunId, student, forcedStop, 1L, OffsetDateTime.now(clock), null));
-        runTransferRepository.save(RunTransfer.stage(student, fromRunId, toRunId, destinationStop, null, 1L,
+                RunForcedAddition.forRun(academyId, fromRunId, student, forcedStop, 1L, OffsetDateTime.now(clock), null));
+        runTransferRepository.save(RunTransfer.stage(academyId, student, fromRunId, toRunId, destinationStop, null, 1L,
                 OffsetDateTime.now(clock)));
 
         confirmationService.confirmOne(fromRunId);

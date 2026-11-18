@@ -32,6 +32,9 @@ public class RunRider extends BaseTimeEntity {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "academy_id", nullable = false)
+    private Long academyId;
+
     @Column(name = "run_id", nullable = false)
     private Long runId;
 
@@ -53,7 +56,8 @@ public class RunRider extends BaseTimeEntity {
     @Column(name = "changed_at")
     private OffsetDateTime changedAt;
 
-    private RunRider(Long runId, Long studentId, Long stopId) {
+    private RunRider(Long academyId, Long runId, Long studentId, Long stopId) {
+        this.academyId = academyId;
         this.runId = runId;
         this.studentId = studentId;
         this.stopId = stopId;
@@ -61,8 +65,8 @@ public class RunRider extends BaseTimeEntity {
     }
 
     /** 확정 배치가 boarding_intent·weekly_address 를 반영해 회차별 명단 행을 만들 때 생성한다 — 초기 상태는 대기 중이다. */
-    public static RunRider uponConfirmation(Long runId, Long studentId, Long stopId) {
-        return new RunRider(runId, studentId, stopId);
+    public static RunRider uponConfirmation(Long academyId, Long runId, Long studentId, Long stopId) {
+        return new RunRider(academyId, runId, studentId, stopId);
     }
 
     /** 확정 배치가 당일 추가(강제 추가·도착 이동)로 올린 행을 표시한다(FEATURE_SPEC §3.5 {@code added}, RTE-08). */

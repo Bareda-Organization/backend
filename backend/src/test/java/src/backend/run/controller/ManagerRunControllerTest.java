@@ -139,7 +139,7 @@ class ManagerRunControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-01T08:00:00+09:00");
         long confirmedRunId = fx.confirmedRun(academyId, busId, serviceDate, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE run_id = ? AND student_id = ?",
+        jdbcTemplate.update("UPDATE run_rider SET status = 'absent', changed_at = now() WHERE run_id = ? AND student_id = ?",
                 confirmedRunId, studentC);
         entityManager.clear(); // 확정이 이미 올려 둔 명단 엔티티가 방금 바꾼 상태를 가리지 않게
 

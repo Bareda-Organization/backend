@@ -101,7 +101,7 @@ public class WeeklyAddressStore {
             found.reviseTo(entry, stopId, now);
             return found;
         }
-        return weeklyAddressRepository.save(WeeklyAddress.verified(studentId, entry, stopId, now));
+        return weeklyAddressRepository.save(WeeklyAddress.verified(academyId, studentId, entry, stopId, now));
     }
 
     private Map<AddressSlot, WeeklyAddress> existingBySlot(Long studentId, Long academyId) {

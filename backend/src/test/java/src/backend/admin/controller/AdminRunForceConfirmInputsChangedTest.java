@@ -76,7 +76,7 @@ class AdminRunForceConfirmInputsChangedTest {
             Object roster = invocation.callRealMethod();
             if (toggled.compareAndSet(false, true)) { // 첫 읽기(확정 계산 입력) 직후 학부모의 탑승 끄기가 커밋된다
                 OffsetDateTime now = OffsetDateTime.now(clock);
-                BoardingIntent intent = BoardingIntent.forRun(runId, studentId, now);
+                BoardingIntent intent = BoardingIntent.forRun(academyId, runId, studentId, now);
                 intent.applyRiding(false, ChangeWindow.IMMEDIATE, now, null);
                 boardingIntentRepository.saveAndFlush(intent);
             }

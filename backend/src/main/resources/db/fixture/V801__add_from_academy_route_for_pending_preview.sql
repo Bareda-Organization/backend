@@ -30,9 +30,9 @@ WITH new_route AS (
         now(),
         now()
     )
-    RETURNING id
+    RETURNING id, academy_id
 )
-INSERT INTO route_stop (route_id, stop_id, seq)
-SELECT id, stop_id, seq
+INSERT INTO route_stop (route_id, stop_id, seq, academy_id)
+SELECT id, stop_id, seq, academy_id
 FROM new_route
 CROSS JOIN (VALUES (1, 1), (2, 2)) AS s(stop_id, seq);

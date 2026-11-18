@@ -217,7 +217,7 @@ class RunCancelTransferCleanupTest {
                 tomorrow.atTime(7, 30).atZone(clock.getZone()).toOffsetDateTime());
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures.student(academyId, "이동학생");
-        runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, studentId,
+        runForcedAdditionRepository.save(RunForcedAddition.forRun(academyId, fromRunId, studentId,
                 fixtures.stop(academyId, "37.561000", "126.971000"), STAFF_ACCOUNT_ID, OffsetDateTime.now(clock), null));
         이동_등록한다(new Scene(academyId, fromRunId, toRunId, stopId, studentId, 0L)).andExpect(status().isCreated());
         entityManager.flush();
@@ -233,7 +233,7 @@ class RunCancelTransferCleanupTest {
         long toRunId = fixtures.idleRunBeforeDeparture(clock, academyId, fixtures.bus(academyId), 31);
         long stopId = fixtures.stop(academyId, "37.560000", "126.970000");
         long studentId = fixtures.student(academyId, "이동학생");
-        runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, studentId,
+        runForcedAdditionRepository.save(RunForcedAddition.forRun(academyId, fromRunId, studentId,
                 fixtures.stop(academyId, "37.561000", "126.971000"), STAFF_ACCOUNT_ID, OffsetDateTime.now(clock), null));
         이동_등록한다(new Scene(academyId, fromRunId, toRunId, stopId, studentId, 0L)).andExpect(status().isCreated());
         동기화한다();

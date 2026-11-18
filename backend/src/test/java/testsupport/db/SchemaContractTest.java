@@ -371,8 +371,8 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             long academyId = SchemaCheckFixtures.insertAcademy(connection);
             long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
             long studentId = SchemaCheckFixtures.insertStudent(connection, academyId);
-            execute(connection, "INSERT INTO boarding_intent (run_id, student_id, applied_segment) VALUES (%d, %d, 0)"
-                    .formatted(runId, studentId));
+            execute(connection, "INSERT INTO boarding_intent (run_id, student_id, applied_segment, academy_id) VALUES (%d, %d, 0, (SELECT academy_id FROM run WHERE id = %d))"
+                    .formatted(runId, studentId, runId));
         });
     }
 
@@ -383,10 +383,10 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             long academyId = SchemaCheckFixtures.insertAcademy(connection);
             long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
             long routeVersionId = SchemaCheckFixtures.insertRouteVersion(connection, runId);
-            execute(connection, "INSERT INTO run_stop (route_version_id, destination, seq) VALUES (%d, true, 1)"
-                    .formatted(routeVersionId));
-            execute(connection, "INSERT INTO run_stop (route_version_id, destination, seq) VALUES (%d, true, 2)"
-                    .formatted(routeVersionId));
+            execute(connection, "INSERT INTO run_stop (route_version_id, destination, seq, academy_id) VALUES (%d, true, 1, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = %d))"
+                    .formatted(routeVersionId, routeVersionId));
+            execute(connection, "INSERT INTO run_stop (route_version_id, destination, seq, academy_id) VALUES (%d, true, 2, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = %d))"
+                    .formatted(routeVersionId, routeVersionId));
         });
     }
 
@@ -398,14 +398,14 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             long runId = SchemaCheckFixtures.insertRun(connection, academyId, SchemaCheckFixtures.insertBus(connection, academyId));
             long studentId = SchemaCheckFixtures.insertStudent(connection, academyId);
             String insert = """
-                    INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id)
-                    VALUES (%d, %d, %d, '%s', 1)
+                    INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id, academy_id)
+                    VALUES (%d, %d, %d, '%s', 1, (SELECT academy_id FROM student WHERE id = %d))
                     """;
-            execute(connection, insert.formatted(studentId, runId, runId, "staged"));
+            execute(connection, insert.formatted(studentId, runId, runId, "staged", studentId));
             // 이미 반영된(applied) 이동은 몇 건이든 남는다 — 막는 것은 대기 중복뿐이다.
-            execute(connection, insert.formatted(studentId, runId, runId, "applied"));
-            execute(connection, insert.formatted(studentId, runId, runId, "applied"));
-            execute(connection, insert.formatted(studentId, runId, runId, "staged"));
+            execute(connection, insert.formatted(studentId, runId, runId, "applied", studentId));
+            execute(connection, insert.formatted(studentId, runId, runId, "applied", studentId));
+            execute(connection, insert.formatted(studentId, runId, runId, "staged", studentId));
         });
     }
 
@@ -489,7 +489,17 @@ class SchemaContractTest extends MigratedPostgresTestBase {
             Map.entry("ix_student_retention_cutoff",
                     List.of("(deleted_at)", "deleted_at IS NOT NULL", "anonymized_at IS NULL")),
             Map.entry("ix_rider_status_history_client_key", List.of("(id)", "client_key IS NOT NULL")),
-            Map.entry("ix_no_show_contact_client_key", List.of("(id)", "client_key IS NOT NULL")));
+            Map.entry("ix_no_show_contact_client_key", List.of("(id)", "client_key IS NOT NULL")),
+            Map.entry("uk_signup_request_account_pending",
+                    List.of("UNIQUE", "(account_id)", "(status)::text = 'pending'::text")),
+            Map.entry("uk_link_code_unused_code", List.of("UNIQUE", "(code)", "used_at IS NULL")),
+            Map.entry("ix_run_service_date_academy", List.of("(service_date, academy_id, status)", "canceled_at IS NULL")),
+            Map.entry("ix_change_request_new_stop_id", List.of("(new_stop_id)", "new_stop_id IS NOT NULL")),
+            Map.entry("ix_change_request_applied_route_version_id",
+                    List.of("(applied_route_version_id)", "applied_route_version_id IS NOT NULL")),
+            Map.entry("ix_assignment_acked_route_version_id",
+                    List.of("(acked_route_version_id)", "acked_route_version_id IS NOT NULL")),
+            Map.entry("ix_run_transfer_stop_id", List.of("(stop_id)", "stop_id IS NOT NULL")));
 
     @Test
     void 부분_인덱스_전수의_정의가_표와_일치한다() throws SQLException {
@@ -745,8 +755,8 @@ class SchemaContractTest extends MigratedPostgresTestBase {
                 ? values.formatted(SchemaCheckFixtures.insertStop(connection, academyId),
                         SchemaCheckFixtures.insertWaypoint(connection, runId))
                 : values;
-        return "INSERT INTO run_stop (route_version_id, %s, seq) VALUES (%d, %s, 1)"
-                .formatted(columns, routeVersionId, resolved);
+        return "INSERT INTO run_stop (route_version_id, %s, seq, academy_id) VALUES (%d, %s, 1, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = %d))"
+                .formatted(columns, routeVersionId, resolved, routeVersionId);
     }
 
     private static void 위반_INSERT_가_제약_이름과_함께_거부되는지_확인한다(

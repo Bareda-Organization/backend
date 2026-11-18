@@ -72,7 +72,7 @@ class NotificationDedupKeySpaceTest {
         given(staffRepository.findActiveAccountsByAcademyId(ACADEMY_ID))
                 .willReturn(List.of(new AcademyStaffAccountView(COLLIDING_ID, "관계자")));
         given(runRiderRepository.findAllByRunIdAndAcademyId(RUN_ID, ACADEMY_ID))
-                .willReturn(List.of(RunRider.uponConfirmation(RUN_ID, COLLIDING_ID, 1L)));
+                .willReturn(List.of(RunRider.uponConfirmation(ACADEMY_ID, RUN_ID, COLLIDING_ID, 1L)));
         given(guardianStudentRepository.findGuardianAccountsByAcademyId(ACADEMY_ID, List.of(COLLIDING_ID)))
                 .willReturn(List.of(guardian(COLLIDING_ID, 9L)));
         given(runRepository.findByIdAndAcademyId(anyLong(), anyLong())).willReturn(Optional.empty());

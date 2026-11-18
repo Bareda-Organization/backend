@@ -281,10 +281,11 @@ class ChangeRequestControllerTest {
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", runId);
         // 확정 이후 회차의 대상 판정은 명단으로 한다(BR-084) — 확정 배치가 만들었을 명단 행을 둔다.
-        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, created_at, updated_at) "
-                + "VALUES (?, ?, ?, 'waiting', now(), now())", runId, studentId, stopId);
+        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, created_at, updated_at, academy_id) "
+                + "VALUES (?, ?, ?, 'waiting', now(), now(), (SELECT academy_id FROM run WHERE id = ?))",
+                runId, studentId, stopId, runId);
         // JDBC 로 상태를 직접 바꾼 뒤 같은 트랜잭션에서 JPA 로 다시 읽으면, 이미 이 트랜잭션이
         // 관리 중인 Run 인스턴스를 1차 캐시가 그대로 돌려줘(신선한 SELECT 결과를 무시) status 가
         // 여전히 idle 로 보인다. clear() 로 영속성 컨텍스트를 비워 다음 조회가 DB 를 다시 읽게 한다.
@@ -310,10 +311,11 @@ class ChangeRequestControllerTest {
         OffsetDateTime departTime = OffsetDateTime.now(clock).plusHours(1);
         long runId = fixtures().idleRun(academyId, busId, SERVICE_DATE, Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", runId);
         // 확정 이후 회차의 대상 판정은 명단으로 한다(BR-084) — 확정 배치가 만들었을 명단 행을 둔다.
-        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, created_at, updated_at) "
-                + "VALUES (?, ?, ?, 'waiting', now(), now())", runId, studentId, stopId);
+        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, created_at, updated_at, academy_id) "
+                + "VALUES (?, ?, ?, 'waiting', now(), now(), (SELECT academy_id FROM run WHERE id = ?))",
+                runId, studentId, stopId, runId);
         entityManager.clear(); // 위 테스트와 같은 이유 — 1차 캐시의 idle 스냅샷을 비운다.
 
         // ③구간 판정은 relocate 상세(주소 검증)를 보기 전에 이뤄진다 — new_address 없이도 막혀야 한다.

@@ -521,7 +521,7 @@ class StaffDashboardControllerTest {
     private void 배치(long academyId, long runId, ManagerRole role, String name, String phone) {
         Manager manager = managerRepository.save(Manager.register(academyId,
                 new src.backend.manager.entity.ManagerProfile(name, phone, role, null)));
-        assignmentRepository.save(src.backend.manager.entity.Assignment.uponAssignment(runId, manager.getId(), role,
+        assignmentRepository.save(src.backend.manager.entity.Assignment.uponAssignment(academyId, runId, manager.getId(), role,
                 OffsetDateTime.now(clock), null));
     }
 

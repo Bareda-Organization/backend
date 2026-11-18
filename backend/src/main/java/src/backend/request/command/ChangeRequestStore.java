@@ -96,7 +96,7 @@ public class ChangeRequestStore {
      */
     private Optional<ChangeRequest> alreadyCanceled(Student student, Run run, OffsetDateTime now) {
         // BR-361 — 행 잠금으로 읽는다: 겹친 두 번째 신청은 첫 신청이 커밋한 뒤의 값(꺼짐)과 승인 행을 본다
-        boolean off = !findOrCreateIntent(run.getId(), student.getId(), now).isRiding();
+        boolean off = !findOrCreateIntent(run.getAcademyId(), run.getId(), student.getId(), now).isRiding();
         if (!off) {
             return Optional.empty();
         }
@@ -159,7 +159,7 @@ public class ChangeRequestStore {
             OffsetDateTime now) {
         changeRequest.approve(null, now, null, null);
         if (changeRequest.getType() == ChangeRequestType.CANCEL) {
-            BoardingIntent boardingIntent = findOrCreateIntent(run.getId(), student.getId(), now);
+            BoardingIntent boardingIntent = findOrCreateIntent(run.getAcademyId(), run.getId(), student.getId(), now);
             boardingIntent.applyRiding(false, ChangeWindow.IMMEDIATE, now, requestedBy);
             boardingIntentRepository.save(boardingIntent);
             // 관계자 통지(§9.7 absent) — 이 경로엔 intent_changed 가 없다(BR-110)
@@ -173,14 +173,14 @@ public class ChangeRequestStore {
      * 한도를 공유한다 — 실제 반영은 관리자 승인 이후다.
      */
     private void applyApprovalRequired(ChangeRequest changeRequest, Student student, Run run, OffsetDateTime now) {
-        BoardingIntent boardingIntent = findOrCreateIntent(run.getId(), student.getId(), now);
+        BoardingIntent boardingIntent = findOrCreateIntent(run.getAcademyId(), run.getId(), student.getId(), now);
         consumeChangeQuota(boardingIntentRepository, boardingIntent);
         changeRequest.assignDeadline(ChangeWindowPolicy.deadlineOf(run));
     }
 
     /** 탑승 의사 행을 없으면 만들고 <b>행 잠금</b>으로 읽는다(BR-361) — 같은 학생·회차의 겹친 신청이 이 행에서 직렬화된다. */
-    private BoardingIntent findOrCreateIntent(Long runId, Long studentId, OffsetDateTime now) {
-        boardingIntentRepository.insertIfAbsent(runId, studentId, now);
+    private BoardingIntent findOrCreateIntent(Long academyId, Long runId, Long studentId, OffsetDateTime now) {
+        boardingIntentRepository.insertIfAbsent(academyId, runId, studentId, now);
         return boardingIntentRepository.findLockedByRunIdAndStudentId(runId, studentId).orElseThrow();
     }
 

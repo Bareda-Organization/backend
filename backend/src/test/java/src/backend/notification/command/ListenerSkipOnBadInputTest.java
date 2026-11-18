@@ -111,9 +111,9 @@ class ListenerSkipOnBadInputTest {
 
     @Test
     void 예상하지_못한_탑승_상태는_그_학생의_초안만_건너뛰고_출발_처리는_계속된다() {
-        RunRider waiting = RunRider.uponConfirmation(RUN_ID, 101L, STOP_ID);
+        RunRider waiting = RunRider.uponConfirmation(ACADEMY_ID, RUN_ID, 101L, STOP_ID);
         ReflectionTestUtils.setField(waiting, "id", 1L);
-        RunRider boarded = RunRider.uponConfirmation(RUN_ID, 102L, STOP_ID);
+        RunRider boarded = RunRider.uponConfirmation(ACADEMY_ID, RUN_ID, 102L, STOP_ID);
         boarded.board(AT);
         ReflectionTestUtils.setField(boarded, "id", 2L);
         given(runRiderRepository.findFinalizedByRunIdAndStopId(RUN_ID, STOP_ID)).willReturn(List.of(waiting, boarded));

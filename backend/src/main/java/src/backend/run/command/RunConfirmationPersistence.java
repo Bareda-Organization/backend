@@ -131,7 +131,7 @@ public class RunConfirmationPersistence {
         String fingerprint = RunConfirmationFingerprint.of(run.getAcademyId(), weekday, run.getDirection(),
                 run.getDepartTime(), endpoints.origin(), endpoints.destination(), roster.studentStops(), List.of());
         routeVersionDeploymentService.confirmInitial(run, computation, fingerprint, confirmedAt);
-        runRiderPersistence.confirmRiders(run.getId(), roster, computation.unresolvedStudentIds(), confirmedAt);
+        runRiderPersistence.confirmRiders(run.getAcademyId(), run.getId(), roster, computation.unresolvedStudentIds(), confirmedAt);
         if (!roster.incomingTransfers().isEmpty()) {
             runTransferRepository.markApplied(roster.incomingTransfers().stream().map(RunTransfer::getId).toList(),
                     confirmedAt, RunTransferStatus.APPLIED);

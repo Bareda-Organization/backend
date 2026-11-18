@@ -118,7 +118,7 @@ class StaffAcademySettingPolicyTest {
         assertThat(judge.isWithinThreshold(북쪽으로(stop, meters - 5), stop)).as("기준 안쪽 5m").isTrue();
         assertThat(judge.isWithinThreshold(북쪽으로(stop, meters + 5), stop)).as("기준 바깥 5m").isFalse();
 
-        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, depart);
+        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, 1L, depart);
         long quota = 정수(body, "change_quota_per_run");
         for (long used = 0; used < quota; used++) {
             assertThat(intent.hasChangeQuota()).as("한도 안에서는 변경이 남아 있다").isTrue();

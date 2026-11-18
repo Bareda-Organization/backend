@@ -36,6 +36,9 @@ public class RunTransfer {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "academy_id", nullable = false)
+    private Long academyId;
+
     @Column(name = "student_id", nullable = false)
     private Long studentId;
 
@@ -64,8 +67,9 @@ public class RunTransfer {
     @Column(name = "applied_at")
     private OffsetDateTime appliedAt;
 
-    private RunTransfer(Long studentId, Long fromRunId, Long toRunId, Long stopId, String note,
+    private RunTransfer(Long academyId, Long studentId, Long fromRunId, Long toRunId, Long stopId, String note,
             Long requestedByAccountId, OffsetDateTime createdAt) {
+        this.academyId = academyId;
         this.studentId = studentId;
         this.fromRunId = fromRunId;
         this.toRunId = toRunId;
@@ -77,8 +81,9 @@ public class RunTransfer {
     }
 
     /** 관계자가 학생을 다른 회차로 이동 신청할 때 생성한다(RTE-07). */
-    public static RunTransfer stage(Long studentId, Long fromRunId, Long toRunId, Long stopId, String note,
-            Long requestedByAccountId, OffsetDateTime createdAt) {
-        return new RunTransfer(studentId, fromRunId, toRunId, stopId, note, requestedByAccountId, createdAt);
+    public static RunTransfer stage(Long academyId, Long studentId, Long fromRunId, Long toRunId, Long stopId,
+            String note, Long requestedByAccountId, OffsetDateTime createdAt) {
+        return new RunTransfer(academyId, studentId, fromRunId, toRunId, stopId, note, requestedByAccountId,
+                createdAt);
     }
 }

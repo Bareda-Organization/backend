@@ -3,6 +3,7 @@ package src.backend.student.repository;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -41,6 +42,18 @@ public interface LinkCodeRepository extends JpaRepository<LinkCode, Long> {
             ORDER BY lc.createdAt DESC, lc.id DESC
             """)
     List<LinkCode> findByCodeForAcademy(@Param("code") String code, @Param("academyId") Long academyId);
+
+    /**
+     * 같은 번호의 쓰지 않은 코드가 없을 때만 저장하고 새 행의 id 를 돌려준다 — 이미 있으면 빈 값이다. {@code uk_link_code_unused_code} 가
+     * 충돌을 알려 주므로 동시 발급 둘이 같은 번호를 저장할 수 없고, 충돌해도 트랜잭션이 깨지지 않아 호출부가 같은 트랜잭션에서 다시 뽑는다.
+     */
+    @AcademyScopeExempt(reason = "studentId 는 호출부(ChildLinkCommandService.issueCode)가 요청자의 학생 행에서 읽은 값이다 — "
+            + "새 행의 학원은 그 학생이 정하고, 번호 유일성은 학원과 무관하게 전체에서 지킨다(uk_link_code_unused_code)")
+    @Query(value = "INSERT INTO link_code (student_id, code, expires_at, created_at) "
+            + "VALUES (:studentId, :code, :expiresAt, :createdAt) "
+            + "ON CONFLICT (code) WHERE used_at IS NULL DO NOTHING RETURNING id", nativeQuery = true)
+    Optional<Long> insertIfCodeFree(@Param("studentId") Long studentId, @Param("code") String code,
+            @Param("expiresAt") OffsetDateTime expiresAt, @Param("createdAt") OffsetDateTime createdAt);
 
     /**
      * 아직 안 쓴 코드만 사용 처리한다 — 갱신 행 0 이면 다른 요청이 먼저 썼다(ERD {@code used_at} · BR-085).

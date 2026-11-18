@@ -52,7 +52,7 @@ class GuardianLinkWriter {
     void save(Guardian guardian, Student student, OffsetDateTime now) {
         assertNotLinked(guardian, student.getId());
         try {
-            guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getId(), student.getId(), now));
+            guardianStudentRepository.save(GuardianStudent.uponLink(guardian.getAcademyId(), guardian.getId(), student.getId(), now));
             guardianStudentRepository.flush();
         } catch (DataIntegrityViolationException e) {
             if (isDuplicateLink(e)) {

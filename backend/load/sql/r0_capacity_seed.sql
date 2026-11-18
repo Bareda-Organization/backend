@@ -75,8 +75,8 @@ FROM bus b
 CROSS JOIN (VALUES ('to_academy'), ('from_academy')) AS d(direction)
 WHERE b.bus_no LIKE 'LOADCAP-%';
 
-INSERT INTO route_stop (route_id, stop_id, seq)
-SELECT r.id, st.id, s
+INSERT INTO route_stop (academy_id, route_id, stop_id, seq)
+SELECT b.academy_id, r.id, st.id, s
 FROM route r
 JOIN bus b ON b.id = r.bus_id
 CROSS JOIN generate_series(1, :stops_per_route) AS s
@@ -117,8 +117,8 @@ WHERE b.bus_no LIKE 'LOADCAP-%';
 
 -- ⑧ 요일별 주소 4,000행(학생 × 방향 2). verified=true · stop_id NOT NULL 이 아니면 명단 조회가
 --    이 학생을 아예 못 본다(위 저장소 JPQL 의 WHERE 절).
-INSERT INTO weekly_address (student_id, weekday, direction, address, lat, lng, verified, stop_id)
-SELECT s.id,
+INSERT INTO weekly_address (academy_id, student_id, weekday, direction, address, lat, lng, verified, stop_id)
+SELECT s.academy_id, s.id,
        (ARRAY['mon','tue','wed','thu','fri','sat','sun'])[extract(isodow FROM current_date)::int],
        d.direction, st.name || ' 주소', st.lat, st.lng, true, st.id
 FROM student s
@@ -138,8 +138,8 @@ FROM bus b
 CROSS JOIN (VALUES ('to_academy', interval '6 hours'), ('from_academy', interval '8 hours')) AS d(direction, offs)
 WHERE b.bus_no LIKE 'LOADCAP-%';
 
-INSERT INTO assignment (run_id, manager_id, role, assigned_at)
-SELECT r.id, m.id, 'driver', now()
+INSERT INTO assignment (academy_id, run_id, manager_id, role, assigned_at)
+SELECT r.academy_id, r.id, m.id, 'driver', now()
 FROM run r
 JOIN bus b ON b.id = r.bus_id
 JOIN manager m ON m.name = b.bus_no || '-DRV'

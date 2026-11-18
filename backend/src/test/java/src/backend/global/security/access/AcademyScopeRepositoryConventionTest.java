@@ -20,8 +20,7 @@ import org.junit.jupiter.api.Test;
  * 그대로 샌다. 특히 목록 조회는 조건이 빠져도 동작해서 기능 테스트를 통과한다(ARCHITECTURE §6.1).
  * 그래서 "격리를 넣었는가" 가 아니라 <b>"넣지 않은 곳이 있는가"</b> 를 기계가 세게 한다.
  *
- * <p><b>검사 대상은 ERD §6.1 에 등재된 39개 테이블 전부</b>다 — 직접 보유 17 + 부모 경유 22
- * (Ruling 324 로 link_request 삭제 — 40개→39개).
+ * <p><b>검사 대상은 ERD §6.1 에 등재된 39개 테이블 전부</b>다 — 직접 보유 26 + 부모 경유 13.
  * 부모 경유 테이블은 {@code academy_id} 컬럼이 부재해 조건을 붙일 자리가 부모 조인뿐이고, 그 사실이
  * 곧 빠뜨리기 쉬운 이유다. 그래서 두 분류의 저장소 조회를 같은 규칙으로 묶는다 — 아래 셋 중 하나.
  * <ol>
@@ -62,7 +61,7 @@ import org.junit.jupiter.api.Test;
 class AcademyScopeRepositoryConventionTest {
 
     /**
-     * ERD §6.1 의 <b>직접 보유</b> 표를 그대로 옮긴 테이블 목록(17개) — 코드에서 유도하지 않고 손으로 적는다.
+     * ERD §6.1 의 <b>직접 보유</b> 표를 그대로 옮긴 테이블 목록(26개) — 코드에서 유도하지 않고 손으로 적는다.
      * 코드에서 유도하면 엔티티에 {@code academyId} 를 빠뜨리는 실수와 함께 틀려 아무것도 못 잡는다
      * ({@code PublicEndpoints} ↔ {@code EXPECTED_PUBLIC_ENDPOINTS} 와 같은 이유의 독립 축이다).
      */
@@ -71,27 +70,24 @@ class AcademyScopeRepositoryConventionTest {
             "student", "guardian", "manager", "bus", "stop",
             "schedule", "route", "run",
             "change_request", "notification_log",
-            "audit_log", "exception_report", "emergency_alert");
+            "audit_log", "exception_report", "emergency_alert",
+            "run_rider", "route_stop", "run_stop", "assignment", "guardian_student",
+            "weekly_address", "run_forced_addition", "boarding_intent", "run_transfer");
 
     /**
-     * ERD §6.1 의 <b>부모 경유</b> 표를 그대로 옮긴 테이블 목록(22개, ERD §6.2 소계와 일치, Ruling 324
-     * 로 link_request 삭제 — 23개→22개) — 학원 범위 자원이지만
+     * ERD §6.1 의 <b>부모 경유</b> 표를 그대로 옮긴 테이블 목록(13개, ERD §6.2 소계와 일치) — 학원 범위 자원이지만
      * {@code academy_id} 컬럼이 부재해 부모를 조인해야만 학원이 결정된다.
      *
-     * <p>이 목록이 위 17개와 <b>같은 규칙을 받는다</b> — 컬럼이 없다는 것은 격리가 면제된다는 뜻이
+     * <p>이 목록이 위 26개와 <b>같은 규칙을 받는다</b> — 컬럼이 없다는 것은 격리가 면제된다는 뜻이
      * 아니라 조건을 붙일 자리가 부모 조인뿐이라는 뜻이다. 자식 단독 조회 경로를 만들면 조건을 붙일
      * 자리가 사라진다(ERD §6.2).
      *
-     * <p>{@code run_transfer} 1개가 있다(RTE-07, API_SPEC §5.8) — {@code from_run_id}·
-     * {@code to_run_id} 둘 다 {@code run} 이라 부모 경유로 분류된다(ERD §6.1).
      */
     private static final Set<String> ERD_PARENT_ACADEMY_TABLES = Set.of(
             "verification_code", "device_token",
-            "weekly_address", "guardian_student", "link_code",
-            "route_stop",
-            "confirmed_route", "route_version", "run_stop", "run_rider",
-            "assignment", "waypoint", "boarding_intent", "run_position", "run_forced_addition",
-            "delay_notice", "run_transfer",
+            "link_code",
+            "confirmed_route", "route_version", "waypoint", "run_position",
+            "delay_notice",
             "no_show_case", "no_show_contact", "rider_status_history",
             "notification_setting", "refresh_token");
 
@@ -101,7 +97,7 @@ class AcademyScopeRepositoryConventionTest {
      *
      * <p>{@code academy} 는 테넌트 루트 자신이라 자기 자신으로 좁힌다는 말이 성립하지 않고,
      * {@code system_admin} 은 학원 소속이 부재한 전 학원 범위 계정이라 좁힐 학원 자체가 없다.
-     * {@code system_admin} 을 부모 경유로 세면 부모 경유가 23개가 되어 <b>ERD §6.2 의 소계 22 와
+     * {@code system_admin} 을 부모 경유로 세면 부모 경유가 14개가 되어 <b>ERD §6.2 의 소계 13 과
      * 어긋난다</b> — 문서도 그 근거를 서두에 함께 적고 있다.
      *
      * <p>이 집합을 명시해 두는 이유는 <b>ERD 표에 없는 새 테이블의 저장소가 조용히 검사 대상 밖으로
@@ -141,7 +137,7 @@ class AcademyScopeRepositoryConventionTest {
      *
      * <p>{@link AcademyScopeScan#repositoryInterfaces()} 가 {@code repository} 라는 <b>패키지 이름</b>에
      * 결합돼 있어, 저장소를 {@code persistence} 같은 다른 이름에 두면 수집이 통째로 공집합이 된다.
-     * 엔티티 쪽은 17·20 이라는 정수 하한이 있으나 저장소 쪽에는 부재해, 개별 검사의
+     * 엔티티 쪽은 26·20 이라는 정수 하한이 있으나 저장소 쪽에는 부재해, 개별 검사의
      * {@code isNotEmpty()} 만으로는 <b>9개 중 8개가 사라지는</b> 형태를 못 잡는다.
      *
      * <p>하한을 등호 아닌 <b>이상</b>으로 둔 것은 저장소를 더할 때 이 단언이 먼저 깨지는
@@ -159,7 +155,7 @@ class AcademyScopeRepositoryConventionTest {
      * 이 축이 없으면 아래 저장소 검사가 "대상을 못 찾아서" 조용히 통과할 수 있다.
      */
     @Test
-    void academy_id_직접_보유_엔티티가_ERD_6_1_의_17개와_일치한다() {
+    void academy_id_직접_보유_엔티티가_ERD_6_1_의_26개와_일치한다() {
         Set<String> actual = new LinkedHashSet<>();
         for (Class<?> entity : AcademyScopeScan.entityClasses()) {
             if (AcademyScopeScan.hasAcademyIdField(entity)) {
@@ -170,24 +166,24 @@ class AcademyScopeRepositoryConventionTest {
         assertThat(actual)
                 .as("ERD §6.1 직접 보유 표와 어긋난다 — 문서와 코드 중 어느 쪽이 틀렸는지 판정하고 나서 이 목록을 고친다")
                 .containsExactlyInAnyOrderElementsOf(ERD_DIRECT_ACADEMY_TABLES);
-        assertThat(actual).hasSize(17);
+        assertThat(actual).hasSize(26);
     }
 
     /**
-     * 부모 경유 분류의 정의처를 고정한다 — 22개 테이블이 전부 엔티티로 실재하고, 그 엔티티가
+     * 부모 경유 분류의 정의처를 고정한다 — 13개 테이블이 전부 엔티티로 실재하고, 그 엔티티가
      * {@code academyId} 를 <b>갖지 않는</b> 것까지 본다.
      *
      * <p>컬럼이 생기면 그 테이블은 직접 보유로 분류가 바뀐 것이라 ERD §6.1 과 §5.3 선행 인덱스가 함께
      * 달라져야 한다. 코드만 바뀌고 문서가 남으면 다음 사람이 조인 조건을 계속 붙인다.
      */
     @Test
-    void 부모_경유_22개_테이블이_전부_엔티티로_존재하고_academy_id_를_보유하지_않는다() {
+    void 부모_경유_13개_테이블이_전부_엔티티로_존재하고_academy_id_를_보유하지_않는다() {
         Map<String, Class<?>> byTable = AcademyScopeScan.entitiesByTable();
 
         assertThat(byTable.keySet())
                 .as("ERD §6.1 부모 경유 표에 있는데 엔티티가 부재한 테이블 — 표와 코드 중 어느 쪽이 틀렸는지 판정한다")
                 .containsAll(ERD_PARENT_ACADEMY_TABLES);
-        assertThat(ERD_PARENT_ACADEMY_TABLES).hasSize(22);
+        assertThat(ERD_PARENT_ACADEMY_TABLES).hasSize(13);
 
         List<String> nowDirect = ERD_PARENT_ACADEMY_TABLES.stream()
                 .filter(table -> AcademyScopeScan.hasAcademyIdField(byTable.get(table)))
@@ -321,7 +317,7 @@ class AcademyScopeRepositoryConventionTest {
     // ── 검사 대상 수집 ─────────────────────────────────────────────────────
 
 
-    /** ERD §6.1 에 등재된 테이블(직접 보유 17 + 부모 경유 22)의 저장소 — 두 분류가 같은 규칙을 받는다. */
+    /** ERD §6.1 에 등재된 테이블(직접 보유 26 + 부모 경유 13)의 저장소 — 두 분류가 같은 규칙을 받는다. */
     private static List<Class<?>> scopeGovernedRepositories() {
         return AcademyScopeScan.repositoryInterfaces().stream()
                 .filter(repository -> {

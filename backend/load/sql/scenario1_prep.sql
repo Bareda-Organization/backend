@@ -58,8 +58,8 @@ new_route AS (
     RETURNING id AS route_id, bus_id
 ),
 new_route_stop AS (
-    INSERT INTO route_stop (route_id, stop_id, seq)
-    SELECT new_route.route_id, target_stop.stop_id, 1
+    INSERT INTO route_stop (academy_id, route_id, stop_id, seq)
+    SELECT :academy_id, new_route.route_id, target_stop.stop_id, 1
     FROM new_route, target_stop
     RETURNING route_id
 ),

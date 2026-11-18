@@ -17,8 +17,8 @@ import src.backend.global.security.access.AcademyScopeExempt;
 import src.backend.request.entity.BoardingIntent;
 
 /**
- * {@link BoardingIntent} 영속성 접근 — {@code boarding_intent} 는 {@code academy_id} 컬럼이 부재한
- * <b>부모 경유</b> 자원이다(ERD §6.1).
+ * {@link BoardingIntent} 영속성 접근 — {@code boarding_intent} 는 {@code academy_id} 를 가지며 회차·학생을 같은 학원의 것만
+ * 가리키는 복합 FK 로 건다(ERD §4.1 · §6.1).
  */
 public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, Long> {
 
@@ -30,15 +30,13 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
      * 의사 토글({@code BoardingIntentCommandService.toggle})은 이 조회에 닿기 전에
      * {@code RunRepository.findByIdAndAcademyId} 로 회차를 학원 범위에 좁혀 얻는다(SCHEDULE_NOT_FOUND·
      * ROUTE_NOT_FOUND 와 같은 {@code {id}} 지목 관례 — 다른 학원의 회차를 지목해도 미존재와 같은
-     * {@code 404 RUN_NOT_FOUND} 로 답한다, Ruling 153·180). {@code boarding_intent} 는
-     * {@code academy_id} 컬럼이 부재해 부모({@code run}) 조인 없이는 여기서 재확인할 수도 없다 —
-     * 조인해 재확인하려면 이 조회 하나를 위해 {@code run} 을 매번 함께 읽어야 해, 호출부가 이미 한
-     * 검증을 한 번 더 반복하는 셈이다.
+     * {@code 404 RUN_NOT_FOUND} 로 답한다, Ruling 153·180). 이 조회는 학원을 다시
+     * 확인하지 않는다 — 학원 칸으로 다시 좁히면 호출부가 이미 한 검증을 한 번 더 반복하는 셈이다.
      */
     @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
             + "회차의 식별자라는 전제다 — 다른 학원의 회차는 그 조회 단계에서 이미 404 RUN_NOT_FOUND 로 걸러져 "
             + "이 자리에 닿지 못한다(SCHEDULE_NOT_FOUND·ROUTE_NOT_FOUND 와 같은 {id} 지목 관례, Ruling 153·180). "
-            + "boarding_intent 는 academy_id 컬럼이 부재해 부모(run) 조인 없이는 이 조회 하나를 위해 재확인할 수도 없다")
+            + "boarding_intent 의 학원은 회차와 같다(복합 FK) — 이 조회 하나를 위해 학원을 다시 확인하지 않는다")
     Optional<BoardingIntent> findByRunIdAndStudentId(Long runId, Long studentId);
 
     /**
@@ -47,7 +45,7 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
      * 트랜잭션 안에서만 부른다.
      */
     @AcademyScopeExempt(reason = "findByRunIdAndStudentId 와 같은 근거 — 호출부가 학원 범위로 좁힌 회차의 식별자만 넘긴다는 전제"
-            + "이고 boarding_intent 는 academy_id 컬럼이 부재하다")
+            + "이고 boarding_intent 의 학원은 회차와 같다(복합 FK)")
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<BoardingIntent> findLockedByRunIdAndStudentId(Long runId, Long studentId);
 
@@ -57,8 +55,12 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
      * 옛 값(켜짐)이 그대로 남는다.
      */
     @AcademyScopeExempt(reason = "findByRunIdAndStudentId 와 같은 근거 — 호출부가 학원 범위로 좁힌 회차의 식별자만 넘긴다는 전제"
-            + "이고 boarding_intent 는 academy_id 컬럼이 부재하다")
+            + "이고 boarding_intent 의 학원은 회차와 같다(복합 FK)")
     boolean existsByRunIdAndStudentIdAndRidingFalse(Long runId, Long studentId);
+
+    /** 한 학생의 여러 회차 탑승 의사를 한 번에 읽는다 — 학원 칸으로 좁힌다. */
+    List<BoardingIntent> findAllByAcademyIdAndStudentIdAndRunIdIn(Long academyId, Long studentId,
+            Collection<Long> runIds);
 
     /**
      * (회차, 학생) 행이 없을 때만 기본값(탑승 ON·한도 미사용)으로 만든다 — {@code ON CONFLICT DO NOTHING}
@@ -66,20 +68,20 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
      * 실패하지 않고 앞 요청의 커밋을 기다렸다가 그 행을 쓴다(BR-027).
      */
     @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
-            + "회차의 식별자다(findByRunIdAndStudentId 와 같은 전제). boarding_intent 는 academy_id 컬럼이 부재하다")
+            + "회차의 식별자다(findByRunIdAndStudentId 와 같은 전제). boarding_intent 의 학원은 회차와 같다(복합 FK)")
     @Modifying
-    @Query(value = "INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, created_at) "
-            + "VALUES (:runId, :studentId, true, 0, :createdAt) ON CONFLICT (run_id, student_id) DO NOTHING",
-            nativeQuery = true)
-    int insertIfAbsent(@Param("runId") Long runId, @Param("studentId") Long studentId,
-            @Param("createdAt") OffsetDateTime createdAt);
+    @Query(value = "INSERT INTO boarding_intent (academy_id, run_id, student_id, riding, change_used_count, created_at) "
+            + "VALUES (:academyId, :runId, :studentId, true, 0, :createdAt) "
+            + "ON CONFLICT (run_id, student_id) DO NOTHING", nativeQuery = true)
+    int insertIfAbsent(@Param("academyId") Long academyId, @Param("runId") Long runId,
+            @Param("studentId") Long studentId, @Param("createdAt") OffsetDateTime createdAt);
 
     /**
      * ②구간 변경 한도 1회를 조건부 UPDATE 로 소비한다(C-04 회차당 1회) — 읽고-판단하고-쓰면 동시 요청 두
      * 건이 모두 {@code change_used_count=0} 을 읽고 통과한다(BR-027). 0 이면 이미 소진됐다.
      */
     @AcademyScopeExempt(reason = "id 는 호출부가 학원 범위에 좁혀 얻은 회차의 boarding_intent 행에서 읽은 값이다 — "
-            + "boarding_intent 는 academy_id 컬럼이 부재하다")
+            + "boarding_intent 의 학원은 회차와 같다(복합 FK)")
     @Modifying(flushAutomatically = true)
     @Query("UPDATE BoardingIntent b SET b.changeUsedCount = 1 WHERE b.id = :id AND b.changeUsedCount = 0")
     int claimChangeQuota(@Param("id") Long id);
@@ -96,7 +98,7 @@ public interface BoardingIntentRepository extends JpaRepository<BoardingIntent, 
      */
     @AcademyScopeExempt(reason = "runId 는 확정 배치 스케줄러가 내부적으로 순회하는 식별자다 — 외부 요청이 닿는 "
             + "경로가 아니라 사용자 학원 범위를 확인할 지점 자체가 없다(RunRepository 의 배치 전용 조회와 같은 근거). "
-            + "boarding_intent 는 academy_id 컬럼이 부재해 조인 없이는 재확인할 수도 없다")
+            + "boarding_intent 의 학원은 회차와 같다(복합 FK)")
     @Query("SELECT b.studentId FROM BoardingIntent b WHERE b.runId = :runId AND b.riding = false")
     List<Long> findStudentIdsByRunIdAndRidingFalse(@Param("runId") Long runId);
 

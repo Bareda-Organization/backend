@@ -210,6 +210,7 @@ CREATE TABLE guardian (
     link_attempt_window_start timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT uk_guardian_id_academy UNIQUE (id, academy_id),
     CONSTRAINT fk_guardian_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
     -- account_id 가 NN 이라 SET NULL 을 걸면 계정 삭제 시 NOT NULL 위반으로 실패한다 (ERD §4.1 정정, 2026-08-25).
     CONSTRAINT fk_guardian_account FOREIGN KEY (account_id, academy_id) REFERENCES account (id, academy_id) ON DELETE RESTRICT
@@ -218,13 +219,15 @@ CREATE TABLE guardian (
 -- 보호자 ↔ 학생 연결. 다자녀를 재가입 없이 연결 추가로 처리하는 유일 경로.
 CREATE TABLE guardian_student (
     id          bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id  bigint      NOT NULL,
     guardian_id bigint      NOT NULL,
     student_id  bigint      NOT NULL,
     linked_at   timestamptz NOT NULL,
     unlinked_at timestamptz,
     CONSTRAINT uk_guardian_student UNIQUE (guardian_id, student_id),
-    CONSTRAINT fk_guardian_student_guardian FOREIGN KEY (guardian_id) REFERENCES guardian (id) ON DELETE CASCADE,
-    CONSTRAINT fk_guardian_student_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT
+    -- 보호자와 학생이 같은 학원이어야 한다 — 두 부모 모두 (id, academy_id) 쌍으로 가리킨다(Ruling 938 A).
+    CONSTRAINT fk_guardian_student_guardian FOREIGN KEY (guardian_id, academy_id) REFERENCES guardian (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_guardian_student_student FOREIGN KEY (student_id, academy_id) REFERENCES student (id, academy_id) ON DELETE RESTRICT
 );
 
 -- 아이디·비밀번호 복구 인증 코드. 만료·불일치를 서버가 판정하려면 발급분을 보관해야 한다.
@@ -255,6 +258,7 @@ CREATE TABLE link_code (
 -- 요일별 등하원 주소. 기본 주소 개념이 부재하고 요일 × 방향이 노선 산출의 유일한 기준이다.
 CREATE TABLE weekly_address (
     id             bigint       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id     bigint       NOT NULL,
     student_id     bigint       NOT NULL,
     weekday        varchar(3)   NOT NULL,
     direction      varchar(20)  NOT NULL,
@@ -266,10 +270,16 @@ CREATE TABLE weekly_address (
     stop_id        bigint,
     updated_at     timestamptz  NOT NULL DEFAULT now(),
     CONSTRAINT uk_weekly_address_student_weekday_direction UNIQUE (student_id, weekday, direction),
-    CONSTRAINT fk_weekly_address_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE CASCADE,
-    CONSTRAINT fk_weekly_address_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE SET NULL,
+    CONSTRAINT fk_weekly_address_student FOREIGN KEY (student_id, academy_id) REFERENCES student (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_weekly_address_stop FOREIGN KEY (stop_id, academy_id) REFERENCES stop (id, academy_id) ON DELETE SET NULL (stop_id),
     CONSTRAINT ck_weekly_address_weekday CHECK (weekday IN ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')),
-    CONSTRAINT ck_weekly_address_direction CHECK (direction IN ('to_academy', 'from_academy'))
+    CONSTRAINT ck_weekly_address_direction CHECK (direction IN ('to_academy', 'from_academy')),
+    CONSTRAINT ck_weekly_address_lat CHECK (lat BETWEEN -90 AND 90),
+    CONSTRAINT ck_weekly_address_lng CHECK (lng BETWEEN -180 AND 180),
+    -- 한쪽만 채워지면 좌표가 성립하지 않는다 — 둘 다 NULL 이거나 둘 다 NOT NULL 만 허용.
+    CONSTRAINT ck_weekly_address_coords_paired CHECK ((lat IS NULL) = (lng IS NULL)),
+    -- 검증된 주소는 좌표를 가진다 — 좌표 없는 주소가 승하차지 매칭에 쓰이지 않게 한다.
+    CONSTRAINT ck_weekly_address_verified CHECK (NOT verified OR lat IS NOT NULL)
 );
 
 
@@ -310,6 +320,7 @@ CREATE TABLE manager (
     deleted_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT uk_manager_id_academy UNIQUE (id, academy_id),
     CONSTRAINT fk_manager_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
     CONSTRAINT fk_manager_account FOREIGN KEY (account_id, academy_id) REFERENCES account (id, academy_id) ON DELETE SET NULL (account_id),
     CONSTRAINT ck_manager_role CHECK (role IN ('driver', 'escort'))
@@ -349,6 +360,7 @@ CREATE TABLE route (
     active     boolean      NOT NULL DEFAULT true,
     created_at timestamptz  NOT NULL DEFAULT now(),
     updated_at timestamptz  NOT NULL DEFAULT now(),
+    CONSTRAINT uk_route_id_academy UNIQUE (id, academy_id),
     CONSTRAINT uk_route_bus_weekday_direction UNIQUE (bus_id, weekday, direction),
     CONSTRAINT fk_route_academy FOREIGN KEY (academy_id) REFERENCES academy (id) ON DELETE RESTRICT,
     CONSTRAINT fk_route_bus FOREIGN KEY (bus_id, academy_id) REFERENCES bus (id, academy_id) ON DELETE RESTRICT,
@@ -358,13 +370,14 @@ CREATE TABLE route (
 
 -- 고정 노선의 정차 순서. 확정 노선의 정차 목록(run_stop)과 수명 주기가 달라 별도 테이블이다.
 CREATE TABLE route_stop (
-    id       bigint  GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    route_id bigint  NOT NULL,
-    stop_id  bigint  NOT NULL,
-    seq      integer NOT NULL,
+    id         bigint  GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id bigint  NOT NULL,
+    route_id   bigint  NOT NULL,
+    stop_id    bigint  NOT NULL,
+    seq        integer NOT NULL,
     CONSTRAINT uk_route_stop_route_seq UNIQUE (route_id, seq),
-    CONSTRAINT fk_route_stop_route FOREIGN KEY (route_id) REFERENCES route (id) ON DELETE CASCADE,
-    CONSTRAINT fk_route_stop_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT
+    CONSTRAINT fk_route_stop_route FOREIGN KEY (route_id, academy_id) REFERENCES route (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_route_stop_stop FOREIGN KEY (stop_id, academy_id) REFERENCES stop (id, academy_id) ON DELETE RESTRICT
 );
 
 -- 일일 운행 회차. 3구간 판정·확정 배치·명단·위치·알림이 전부 매달리는 중심 축.
@@ -407,7 +420,10 @@ CREATE TABLE run (
     CONSTRAINT ck_run_direction CHECK (direction IN ('to_academy', 'from_academy')),
     CONSTRAINT ck_run_status CHECK (status IN ('idle', 'confirmed', 'moving', 'finished')),
     CONSTRAINT ck_run_cancel_source CHECK (cancel_source IN ('staff', 'schedule')),
-    CONSTRAINT ck_run_confirm_at CHECK (confirm_at = depart_time - interval '30 minutes')
+    CONSTRAINT ck_run_confirm_at CHECK (confirm_at = depart_time - interval '30 minutes'),
+    -- 운행 중·종료 상태는 시작 시각을, 종료 상태는 종료 시각을 가진다 — 시각 없는 상태가 지연·정시 집계에서 조용히 빠지지 않게 한다.
+    CONSTRAINT ck_run_started_at CHECK (status NOT IN ('moving', 'finished') OR started_at IS NOT NULL),
+    CONSTRAINT ck_run_finished_at CHECK (status <> 'finished' OR finished_at IS NOT NULL)
 );
 
 -- 강제 경유 지점. 학생 주소로 표현되지 않는 경유 요구를 담으며 탑승자 없이 경유만 필요한 경우가 대상.
@@ -434,6 +450,7 @@ CREATE TABLE waypoint (
 -- 새로 올리는" 이 동작과 의미가 다르기 때문이다(Ruling 197).
 CREATE TABLE run_forced_addition (
     id         bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id bigint      NOT NULL,
     run_id     bigint      NOT NULL,
     student_id bigint      NOT NULL,
     stop_id    bigint      NOT NULL,
@@ -441,9 +458,9 @@ CREATE TABLE run_forced_addition (
     added_at   timestamptz NOT NULL DEFAULT now(),
     note       text,
     CONSTRAINT uk_run_forced_addition_run_student UNIQUE (run_id, student_id),
-    CONSTRAINT fk_run_forced_addition_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
-    CONSTRAINT fk_run_forced_addition_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_run_forced_addition_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT
+    CONSTRAINT fk_run_forced_addition_run FOREIGN KEY (run_id, academy_id) REFERENCES run (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_run_forced_addition_student FOREIGN KEY (student_id, academy_id) REFERENCES student (id, academy_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_run_forced_addition_stop FOREIGN KEY (stop_id, academy_id) REFERENCES stop (id, academy_id) ON DELETE RESTRICT
 );
 
 -- 회차별 확정 노선. 회차와 버전 목록을 잇는 자리이자 "지금 유효한 버전"의 단일 지시자.
@@ -487,6 +504,7 @@ ALTER TABLE confirmed_route
 -- 회차 노선의 정차 항목. 순번·변경 구분·도착 시각은 버전마다 달라져 승하차지 마스터에 보관할 수 없다.
 CREATE TABLE run_stop (
     id               bigint       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id       bigint       NOT NULL,
     route_version_id bigint       NOT NULL,
     stop_id          bigint,
     waypoint_id      bigint,
@@ -506,7 +524,8 @@ CREATE TABLE run_stop (
     near_observed_at timestamptz,
     CONSTRAINT uk_run_stop_version_seq UNIQUE (route_version_id, seq),
     CONSTRAINT fk_run_stop_route_version FOREIGN KEY (route_version_id) REFERENCES route_version (id) ON DELETE CASCADE,
-    CONSTRAINT fk_run_stop_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT,
+    -- route_version · waypoint 에는 학원 칸이 없어 승하차지만 쌍으로 가리킨다 — 경유지·도착지 항목(stop_id NULL)의 학원은 적재하는 쪽이 정한다.
+    CONSTRAINT fk_run_stop_stop FOREIGN KEY (stop_id, academy_id) REFERENCES stop (id, academy_id) ON DELETE RESTRICT,
     CONSTRAINT fk_run_stop_waypoint FOREIGN KEY (waypoint_id) REFERENCES waypoint (id) ON DELETE RESTRICT,
     CONSTRAINT ck_run_stop_target_exclusive CHECK (num_nonnulls(stop_id, waypoint_id, NULLIF(destination, false)) = 1),
     CONSTRAINT ck_run_stop_change CHECK (change IN ('added', 'skipped'))
@@ -515,6 +534,7 @@ CREATE TABLE run_stop (
 -- 회차별 탑승자. 탑승 상태 5종이 학부모 푸시·관계자 현황·알림 로그에 동시 반영되는 값의 저장처.
 CREATE TABLE run_rider (
     id          bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id  bigint      NOT NULL,
     run_id      bigint      NOT NULL,
     student_id  bigint      NOT NULL,
     stop_id     bigint      NOT NULL,
@@ -525,16 +545,19 @@ CREATE TABLE run_rider (
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT uk_run_rider_run_student UNIQUE (run_id, student_id),
-    CONSTRAINT fk_run_rider_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
-    CONSTRAINT fk_run_rider_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_run_rider_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_run_rider_run FOREIGN KEY (run_id, academy_id) REFERENCES run (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_run_rider_student FOREIGN KEY (student_id, academy_id) REFERENCES student (id, academy_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_run_rider_stop FOREIGN KEY (stop_id, academy_id) REFERENCES stop (id, academy_id) ON DELETE RESTRICT,
     CONSTRAINT ck_run_rider_status CHECK (status IN ('waiting', 'boarded', 'alighted', 'absent', 'no_show')),
-    CONSTRAINT ck_run_rider_change CHECK (change IN ('added', 'removed'))
+    CONSTRAINT ck_run_rider_change CHECK (change IN ('added', 'removed')),
+    -- 대기가 아닌 상태는 바뀐 시각을 가진다 — 모든 상태 전이가 changed_at 을 함께 쓴다.
+    CONSTRAINT ck_run_rider_changed_at CHECK (status = 'waiting' OR changed_at IS NOT NULL)
 );
 
 -- 회차별 매니저 배치. 확인 응답을 버전과 함께 기록하지 않으면 재배포 후에도 확인 완료로 남는 오판이 생긴다.
 CREATE TABLE assignment (
     id                     bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id             bigint      NOT NULL,
     run_id                 bigint      NOT NULL,
     manager_id             bigint      NOT NULL,
     role                   varchar(10) NOT NULL,
@@ -543,8 +566,8 @@ CREATE TABLE assignment (
     acked_route_version_id bigint,
     acked_at               timestamptz,
     CONSTRAINT uk_assignment_run_role UNIQUE (run_id, role),
-    CONSTRAINT fk_assignment_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
-    CONSTRAINT fk_assignment_manager FOREIGN KEY (manager_id) REFERENCES manager (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_assignment_run FOREIGN KEY (run_id, academy_id) REFERENCES run (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_assignment_manager FOREIGN KEY (manager_id, academy_id) REFERENCES manager (id, academy_id) ON DELETE RESTRICT,
     CONSTRAINT fk_assignment_acked_route_version FOREIGN KEY (acked_route_version_id)
         REFERENCES route_version (id) ON DELETE SET NULL,
     CONSTRAINT ck_assignment_role CHECK (role IN ('driver', 'escort'))
@@ -571,6 +594,7 @@ CREATE TABLE delay_notice (
 -- 않고 항상 재계산하므로(자기 치유) staged/applied 는 재시도 정합 조건이 아니라 조회 편의를 위한 기록이다.
 CREATE TABLE run_transfer (
     id                      bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id              bigint      NOT NULL,
     student_id              bigint      NOT NULL,
     from_run_id             bigint      NOT NULL,
     to_run_id               bigint      NOT NULL,
@@ -580,10 +604,10 @@ CREATE TABLE run_transfer (
     requested_by_account_id bigint      NOT NULL,
     created_at              timestamptz NOT NULL DEFAULT now(),
     applied_at              timestamptz,
-    CONSTRAINT fk_run_transfer_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_run_transfer_from_run FOREIGN KEY (from_run_id) REFERENCES run (id) ON DELETE CASCADE,
-    CONSTRAINT fk_run_transfer_to_run FOREIGN KEY (to_run_id) REFERENCES run (id) ON DELETE CASCADE,
-    CONSTRAINT fk_run_transfer_stop FOREIGN KEY (stop_id) REFERENCES stop (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_run_transfer_student FOREIGN KEY (student_id, academy_id) REFERENCES student (id, academy_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_run_transfer_from_run FOREIGN KEY (from_run_id, academy_id) REFERENCES run (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_run_transfer_to_run FOREIGN KEY (to_run_id, academy_id) REFERENCES run (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_run_transfer_stop FOREIGN KEY (stop_id, academy_id) REFERENCES stop (id, academy_id) ON DELETE RESTRICT,
     CONSTRAINT ck_run_transfer_status CHECK (status IN ('staged', 'applied'))
 );
 
@@ -595,6 +619,7 @@ CREATE TABLE run_transfer (
 -- 회차별 탑승 의사. 확정 배치가 읽는 입력 두 축 중 하나이며 ②구간 한도 카운터를 함께 들고 있다.
 CREATE TABLE boarding_intent (
     id                bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    academy_id        bigint      NOT NULL,
     run_id            bigint      NOT NULL,
     student_id        bigint      NOT NULL,
     riding            boolean     NOT NULL DEFAULT true,
@@ -604,8 +629,8 @@ CREATE TABLE boarding_intent (
     changed_by        bigint,
     created_at        timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT uk_boarding_intent_run_student UNIQUE (run_id, student_id),
-    CONSTRAINT fk_boarding_intent_run FOREIGN KEY (run_id) REFERENCES run (id) ON DELETE CASCADE,
-    CONSTRAINT fk_boarding_intent_student FOREIGN KEY (student_id) REFERENCES student (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_boarding_intent_run FOREIGN KEY (run_id, academy_id) REFERENCES run (id, academy_id) ON DELETE CASCADE,
+    CONSTRAINT fk_boarding_intent_student FOREIGN KEY (student_id, academy_id) REFERENCES student (id, academy_id) ON DELETE RESTRICT,
     CONSTRAINT ck_boarding_intent_change_used_count CHECK (change_used_count BETWEEN 0 AND 1),
     -- 구간 코드 — ChangeWindow(1 즉시 · 2 승인 필요 · 3 마감). NULL 은 구간을 거치지 않은 행이다(R46 A-5).
     CONSTRAINT ck_boarding_intent_applied_segment CHECK (applied_segment BETWEEN 1 AND 3)
@@ -645,7 +670,12 @@ CREATE TABLE change_request (
     CONSTRAINT ck_change_request_status CHECK (status IN ('pending', 'approved', 'rejected', 'auto_rejected')),
     CONSTRAINT ck_change_request_window_segment CHECK (window_segment BETWEEN 1 AND 3),
     CONSTRAINT ck_change_request_reject_reason CHECK (status <> 'rejected' OR reject_reason IS NOT NULL),
-    CONSTRAINT ck_change_request_new_address CHECK (type <> 'relocate' OR new_address IS NOT NULL)
+    CONSTRAINT ck_change_request_new_address CHECK (type <> 'relocate' OR new_address IS NOT NULL),
+    CONSTRAINT ck_change_request_new_lat CHECK (new_lat BETWEEN -90 AND 90),
+    CONSTRAINT ck_change_request_new_lng CHECK (new_lng BETWEEN -180 AND 180),
+    CONSTRAINT ck_change_request_new_coords_paired CHECK ((new_lat IS NULL) = (new_lng IS NULL)),
+    -- 결정 시각은 대기가 끝난 요청에만 있다 — 승인 · 거절 · 자동 거절은 모두 decided_at 을 함께 쓴다.
+    CONSTRAINT ck_change_request_decided CHECK ((status = 'pending') = (decided_at IS NULL))
 );
 
 -- 승하차 상태 변경 이력. 되돌리기가 이력 보존 전제이며 오프라인 큐의 멱등키 보관처이기도 하다.
@@ -735,7 +765,12 @@ CREATE TABLE emergency_alert (
     -- 비상 알림을 올리는 쪽은 회차에 배치된 기사·동승자뿐이다(ManagerRole · R46 A-5).
     CONSTRAINT ck_emergency_alert_raised_by_role CHECK (raised_by_role IN ('driver', 'escort')),
     CONSTRAINT ck_emergency_alert_type CHECK (type IN ('accident', 'vehicle_fault', 'student_emergency', 'etc')),
-    CONSTRAINT ck_emergency_alert_memo CHECK (type <> 'etc' OR memo IS NOT NULL)
+    CONSTRAINT ck_emergency_alert_memo CHECK (type <> 'etc' OR memo IS NOT NULL),
+    CONSTRAINT ck_emergency_alert_lat CHECK (lat BETWEEN -90 AND 90),
+    CONSTRAINT ck_emergency_alert_lng CHECK (lng BETWEEN -180 AND 180),
+    CONSTRAINT ck_emergency_alert_coords_paired CHECK ((lat IS NULL) = (lng IS NULL)),
+    -- 확인 시각과 확인한 계정은 함께 채워진다.
+    CONSTRAINT ck_emergency_alert_acked CHECK ((acked_at IS NULL) = (acked_by IS NULL))
 );
 
 -- 예외 보고. 보호자 부재·현장 상황을 관계자에게 통지하고 사후 확인 가능한 형태로 남긴다.
@@ -926,9 +961,13 @@ CREATE INDEX ix_run_schedule ON run (schedule_id);
 -- ix_run_academy_date_depart 를 비선두 열로 전체 훑는다. 미완료·미취소만 담아 오늘·내일 분량만 색인한다(R46-LATERBE, Ruling 673).
 CREATE INDEX ix_run_open_service_date ON run (service_date) WHERE canceled_at IS NULL AND status <> 'finished';
 CREATE INDEX ix_run_moving ON run (status) WHERE status = 'moving';
+-- 전체 관제의 "학원·상태별 그날 회차 수"는 끝난 회차까지 센다 — 끝나지 않은 회차만 담은 위 부분 인덱스로는 풀리지 않고 학원이 앞에 오는 인덱스는 날짜
+-- 조건만으로는 쓸 수 없다. 운행일을 앞세워 하루 분량만 읽게 하고, 집계 칸(학원 · 상태)을 색인에 함께 둔다. 취소 조건은 쿼리가 리터럴로 준다.
+CREATE INDEX ix_run_service_date_academy ON run (service_date, academy_id, status) WHERE canceled_at IS NULL;
 
 CREATE INDEX ix_run_rider_run_status ON run_rider (run_id, status);
 CREATE INDEX ix_run_rider_student_run ON run_rider (student_id, run_id);
+CREATE INDEX ix_run_rider_stop_id ON run_rider (stop_id);
 CREATE INDEX ix_run_stop_stop ON run_stop (stop_id);
 -- 경유지 후보 삭제(RESTRICT 검사)가 무기한 보존인 run_stop 을 훑지 않게 한다 — 경유지 정차는 소수라 NULL 을 뺀다(R46 I-08).
 CREATE INDEX ix_run_stop_waypoint ON run_stop (waypoint_id) WHERE waypoint_id IS NOT NULL;
@@ -938,6 +977,18 @@ CREATE INDEX ix_change_request_run_status ON change_request (run_id, status);
 -- 자동 거절 폴링이 30초마다 마감 도래분을 전역 조회한다 — run_id 선행 인덱스로는 지원 불가.
 CREATE INDEX ix_change_request_status_deadline ON change_request (status, deadline_at);
 CREATE INDEX ix_change_request_student_requested ON change_request (student_id, requested_at DESC);
+
+-- 외래 키 칸의 인덱스 — 부모 행을 지우거나 키를 바꿀 때 자식 표를 훑지 않게 한다(ForeignKeyIndexCatalogTest). 비어 있을 수 있는 칸은 NULL 을 뺀다.
+CREATE INDEX ix_route_stop_stop_id ON route_stop (stop_id);
+CREATE INDEX ix_run_forced_addition_student_id ON run_forced_addition (student_id);
+CREATE INDEX ix_run_forced_addition_stop_id ON run_forced_addition (stop_id);
+CREATE INDEX ix_boarding_intent_student_id ON boarding_intent (student_id);
+CREATE INDEX ix_change_request_new_stop_id ON change_request (new_stop_id) WHERE new_stop_id IS NOT NULL;
+CREATE INDEX ix_change_request_applied_route_version_id ON change_request (applied_route_version_id) WHERE applied_route_version_id IS NOT NULL;
+CREATE INDEX ix_assignment_acked_route_version_id ON assignment (acked_route_version_id) WHERE acked_route_version_id IS NOT NULL;
+CREATE INDEX ix_run_transfer_stop_id ON run_transfer (stop_id) WHERE stop_id IS NOT NULL;
+CREATE INDEX ix_delay_notice_sent_by_account_id ON delay_notice (sent_by_account_id);
+CREATE INDEX ix_no_show_contact_no_show_case_id ON no_show_contact (no_show_case_id);
 
 -- 미승차 에스컬레이션 폴링. 부분 인덱스라 종결된 케이스는 색인 대상 밖이다.
 CREATE INDEX ix_no_show_case_expires ON no_show_case (expires_at) WHERE escalated_at IS NULL;
@@ -980,9 +1031,14 @@ CREATE INDEX ix_verification_code_phone_created ON verification_code (phone, cre
 CREATE INDEX ix_weekly_address_stop ON weekly_address (stop_id) WHERE stop_id IS NOT NULL;
 -- 회차의 경유 지점 목록.
 CREATE INDEX ix_waypoint_run ON waypoint (run_id);
--- 자녀 연결 코드 조회(연결 코드는 앱이 유일하게 뽑는다 — UNIQUE 를 걸지 않고 조회만 빠르게 한다).
+-- 자녀 연결 코드 조회 — 쓴 코드까지 읽어 "이미 사용된 코드" 를 가린다.
 CREATE INDEX ix_link_code_code ON link_code (code);
+-- 아직 쓰지 않은 코드는 번호가 겹치지 않는다 — 두 학생이 동시에 같은 번호를 받는 것을 DB 가 막고, 발급 쪽은 충돌하면 다시 뽑는다.
+-- 만료 여부는 시각 비교라 인덱스 조건에 쓸 수 없어, 만료됐지만 쓰지 않은 코드도 정리 배치가 지울 때까지 번호를 점유한다.
+CREATE UNIQUE INDEX uk_link_code_unused_code ON link_code (code) WHERE used_at IS NULL;
 
+-- 계정 하나의 대기 요청은 하나다 — 승인 대기 중 다시 보낸 신청이 두 번째 대기 행으로 쌓이지 않게 한다. 끝난 요청은 재신청 이력이라 몇 건이든 남는다.
+CREATE UNIQUE INDEX uk_signup_request_account_pending ON signup_request (account_id) WHERE status = 'pending';
 CREATE INDEX ix_signup_request_academy_status_requested ON signup_request (academy_id, status, requested_at);
 -- 계정별 최근 신청 1건(가입 상태 조회·재신청) — 계정 FK 삭제 검사도 이 컬럼을 훑는다(BR-258).
 CREATE INDEX ix_signup_request_account_requested ON signup_request (account_id, requested_at DESC);
@@ -1024,13 +1080,13 @@ CREATE INDEX ix_rider_status_history_client_key ON rider_status_history (id) WHE
 CREATE INDEX ix_no_show_contact_client_key ON no_show_contact (id) WHERE client_key IS NOT NULL;
 
 -- 지연 알림 — 같은 회차의 "직전 발신" 을 sent_at 내림차순 1건으로 찾는다(DelayNoticeRepository).
-CREATE INDEX idx_delay_notice_run_sent_at ON delay_notice (run_id, sent_at DESC);
+CREATE INDEX ix_delay_notice_run_sent_at ON delay_notice (run_id, sent_at DESC);
 
 -- 버스 간 이동 — 출발 회차 확정 배치는 "빠져나갈 학생", 도착 회차 확정 배치는 "들어올 학생" 을 찾는다.
-CREATE INDEX idx_run_transfer_from_run ON run_transfer (from_run_id);
-CREATE INDEX idx_run_transfer_to_run ON run_transfer (to_run_id);
+CREATE INDEX ix_run_transfer_from_run ON run_transfer (from_run_id);
+CREATE INDEX ix_run_transfer_to_run ON run_transfer (to_run_id);
 -- 같은 학생의 처리 대기 이동 건 선검사(TRANSFER_ALREADY_STAGED).
-CREATE INDEX idx_run_transfer_student_status ON run_transfer (student_id, status);
+CREATE INDEX ix_run_transfer_student_status ON run_transfer (student_id, status);
 -- 같은 학생의 대기(staged) 이동은 DB 가 하나만 받는다(R46 A-1) — 선검사는 잠금 밖이라 동시 요청 둘이 모두 통과해 staged 행이
 -- 둘 생겼다. 위반은 409 TRANSFER_ALREADY_STAGED 로 옮긴다. 반영된(applied) 이동은 학생당 몇 건이든 남는다.
 CREATE UNIQUE INDEX uk_run_transfer_student_staged ON run_transfer (student_id) WHERE status = 'staged';
