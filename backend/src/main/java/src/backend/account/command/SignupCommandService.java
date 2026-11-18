@@ -38,6 +38,9 @@ public class SignupCommandService {
     /** V1__init_schema.sql 의 UNIQUE 제약명 — TOCTOU 충돌을 이 제약으로만 좁혀 잡는 데 쓴다. */
     private static final String LOGIN_ID_UNIQUE_CONSTRAINT = "uk_account_login_id";
 
+    /** 계정당 대기 가입 요청 하나를 지키는 부분 UNIQUE 인덱스 이름 — 대기 요청이 남은 계정의 재신청을 이 위반으로 알아챈다. */
+    private static final String PENDING_REQUEST_UNIQUE_INDEX = "uk_signup_request_account_pending";
+
     private final AccountRepository accountRepository;
     private final SignupRequestRepository signupRequestRepository;
     private final AcademyRepository academyRepository;
@@ -93,7 +96,12 @@ public class SignupCommandService {
         return SignupResponse.of(account.getStatus(), requestedAt, approverType);
     }
 
-    /** 거절 후 재신청(AUTH-03) — 학원을 다시 선택하고, 새 승인 요청 행을 쌓는다(이력 보존). */
+    /**
+     * 거절 후 재신청(AUTH-03) — 학원을 다시 선택하고, 새 승인 요청 행을 쌓는다(이력 보존).
+     *
+     * <p>이미 대기 요청이 남은 계정은 {@code uk_signup_request_account_pending} 에 부딪힌다 — 대기 중이면 재신청할 수 없다는 기존 답
+     * ({@code 409 REAPPLY_NOT_ALLOWED})과 같은 오류로 옮긴다. 옮기지 않으면 전역 예외 처리기의 catch-all 로 떨어져 500 이 된다.
+     */
     @Transactional
     public ReapplyResponse reapply(Long accountId, ReapplyRequestPayload payload) {
         Account account = accountRepository.findByIdForUpdate(accountId)
@@ -104,8 +112,15 @@ public class SignupCommandService {
 
         OffsetDateTime requestedAt = OffsetDateTime.now(clock);
         ApproverType approverType = approverTypeFor(account.getRole());
-        signupRequestRepository.save(SignupRequest.uponSubmission(academy.getId(), account.getId(),
-                account.getRole(), approverType, requestedAt));
+        try {
+            signupRequestRepository.saveAndFlush(SignupRequest.uponSubmission(academy.getId(), account.getId(),
+                    account.getRole(), approverType, requestedAt));
+        } catch (DataIntegrityViolationException e) {
+            if (!ConstraintViolations.isViolationOf(e, PENDING_REQUEST_UNIQUE_INDEX)) {
+                throw e;
+            }
+            throw new BusinessException(ErrorCode.REAPPLY_NOT_ALLOWED);
+        }
 
         return new ReapplyResponse(account.getStatus().name().toLowerCase(Locale.ROOT), requestedAt);
     }
