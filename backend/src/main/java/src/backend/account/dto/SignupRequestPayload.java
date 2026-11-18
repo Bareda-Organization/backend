@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import src.backend.account.entity.LoginIdFormat;
+import src.backend.account.entity.PasswordRule;
 import src.backend.account.entity.PhoneNumber;
 
 /**
@@ -18,7 +19,7 @@ import src.backend.account.entity.PhoneNumber;
 public record SignupRequestPayload(
         @NotBlank @Pattern(regexp = "parent|student|driver|escort|staff") String role,
         @NotBlank @Pattern(regexp = LoginIdFormat.PATTERN) String loginId,
-        @NotBlank String password,
+        @NotBlank @Size(min = PasswordRule.MIN_LENGTH, message = PasswordRule.MIN_LENGTH_MESSAGE) String password,
         @NotBlank @Size(max = 50) String name,
         @NotBlank @Pattern(regexp = PhoneNumber.PATTERN) String phone,
         @NotBlank String academyId) {
