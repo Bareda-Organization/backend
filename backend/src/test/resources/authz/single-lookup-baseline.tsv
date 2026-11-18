@@ -1,1 +1,48 @@
 # file	method	call	verdict	why
+account/command/AccountPasswordResetCommandService.java	issue	accountRepository.findById(requester.accountId())	keyed-from-scoped	처리자 계정 id 는 인증된 요청자(AuthUser)에서 나온 값이다
+account/command/AccountUnblockCommandService.java	unblock	accountRepository.findById(actorAccountId)	keyed-from-scoped	처리자 계정 id 는 인증된 요청자(AuthUser)에서 나온 값이다
+account/command/PasswordChangeCommandService.java	changePassword	accountRepository.findById(accountId)	keyed-from-scoped	토큰으로 인증된 요청자 본인의 계정 id 다
+account/command/RefreshCommandService.java	refresh	accountRepository.findById(accountId)	keyed-from-scoped	서명 검증을 거친 refresh 토큰의 subject 이고 그 계정의 보관 토큰 행이 먼저 확인된다
+account/query/MeQueryService.java	getMe	accountRepository.findById(accountId)	keyed-from-scoped	토큰으로 인증된 요청자 본인의 계정 id 다
+account/query/SignupStatusQueryService.java	getStatus	accountRepository.findById(accountId)	keyed-from-scoped	토큰으로 인증된 요청자 본인의 계정 id 다
+admin/command/RunForceConfirmCommandService.java	confirmWithFallbackOrThrow	runRepository.findById(runId)	platform-scope	/admin 경로의 메인 관리자 전용 조회라 학원을 가로지르는 것이 의도다
+admin/command/RunForceConfirmCommandService.java	loadDueIdleRun	runRepository.findById(runId)	platform-scope	/admin 경로의 메인 관리자 전용 조회라 학원을 가로지르는 것이 의도다
+admin/command/RunForceConfirmCommandService.java	recordAudit	accountRepository.findById(confirmation.actorAccountId())	keyed-from-scoped	처리자 계정 id 는 인증된 요청자(AuthUser)에서 나온 값이다
+admin/command/RunForceFinishCommandService.java	forceFinish	accountRepository.findById(actorAccountId)	keyed-from-scoped	처리자 계정 id 는 인증된 요청자(AuthUser)에서 나온 값이다
+admin/command/RunForceFinishCommandService.java	forceFinish	runRepository.findById(runId)	platform-scope	/admin 경로의 메인 관리자 전용 조회라 학원을 가로지르는 것이 의도다
+admin/command/RunForceFinishCommandService.java	rejectionOf	runRepository.findById(runId)	platform-scope	/admin 경로의 메인 관리자 전용 조회라 학원을 가로지르는 것이 의도다
+audit/query/AuditLogQueryService.java	validateFilters	accountRepository.existsById(accountId)	platform-scope	/admin 경로의 메인 관리자 전용 조회라 학원을 가로지르는 것이 의도다
+audit/query/LoginHistoryQueryService.java	validateFilters	accountRepository.existsById(accountId)	platform-scope	/admin 경로의 메인 관리자 전용 조회라 학원을 가로지르는 것이 의도다
+audit/service/AuditRecorder.java	writeRows	accountRepository.findById(actorAccountId)	keyed-from-scoped	처리자 계정 id 는 인증된 요청자(AuthUser)에서 나온 값이다
+boarding/command/NoShowStep.java	openNoShowCase	academySettingRepository.findById(run.getAcademyId())	keyed-from-scoped	id 는 이미 읽은 회차의 학원 id 다
+boarding/query/RosterQueryService.java	assembleStaffRoster	runRepository.findById(runId)	scoped-after	읽은 직후 AcademyScope.assertAccessible 로 회차의 학원을 확인한다
+demo/DemoRunSimulator.java	driverOf	managerRepository::findById	platform-scope	local 프로파일 전용 시뮬레이터라 운영에 실리지 않는다
+exception/command/EmergencyAckStep.java	ack	accountRepository.findById(requester.accountId())	keyed-from-scoped	처리자 계정 id 는 인증된 요청자(AuthUser)에서 나온 값이다
+exception/command/NoShowEscalationPersistence.java	escalateOne	runRepository.findById(rider.getRunId())	platform-scope	요청 주체가 없는 스케줄러 경로라 학원을 가로지르는 것이 의도다
+exception/command/NoShowEscalationPersistence.java	escalateOne	runRiderRepository.findById(noShowCase.getRunRiderId())	platform-scope	요청 주체가 없는 스케줄러 경로라 학원을 가로지르는 것이 의도다
+manager/access/ManagerRunAccess.java	requireAssignedRun	runRepository.findById(runId)	keyed-from-scoped	요청자 매니저 id 로 배치 행을 먼저 찾았고 그 행의 회차 id 다
+manager/command/AssignmentCommandService.java	revokeReplacedSessions	managerRepository.findById(previousManagerId)	keyed-from-scoped	이전 매니저 id 는 학원 범위로 읽은 배치 행에서 나온다
+monitoring/query/AdminRunRosterQueryService.java	roster	runRepository.findById(runId)	platform-scope	/admin 경로의 메인 관리자 전용 조회라 학원을 가로지르는 것이 의도다
+notification/command/BoardingNotificationListener.java	appendToStaff	studentRepository.findById(event.studentId())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/ChangeRequestAutoRejectedNotificationListener.java	appendChangeDecided	accountRepository.findById(event.requestedBy())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/ChangeRequestAutoRejectedNotificationListener.java	appendChangeDecided	studentRepository.findById(event.studentId())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/ChangeRequestDecidedNotificationListener.java	appendChangeDecided	accountRepository.findById(event.requestedBy())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/ChangeRequestDecidedNotificationListener.java	appendChangeDecided	studentRepository.findById(event.studentId())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/IntentNotificationListener.java	appendAbsent	studentRepository.findById(event.studentId())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/IntentNotificationListener.java	appendApprovalRequested	studentRepository.findById(event.studentId())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/IntentNotificationListener.java	appendIntentChanged	studentRepository.findById(event.studentId())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/NoShowEscalationNotificationListener.java	appendNoShowEscalated	studentRepository.findById(event.studentId())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/command/NotificationDispatcher.java	dispatch	notificationLogRepository.findById(notificationId)	platform-scope	요청 주체가 없는 스케줄러 경로라 학원을 가로지르는 것이 의도다
+notification/command/NotificationReadCommandService.java	markRead	notificationLogRepository.findById(notificationId)	scoped-after	수신자 본인 대조 뒤 AcademyScope.assertAccessible 로 학원을 확인한다
+notification/command/RunApproachingStopNotificationListener.java	appendRunApproachingStop	studentRepository.findById(event.studentId())	keyed-from-scoped	id 는 학원 범위 안에서 끝난 명령이 발행한 이벤트에서 나온다
+notification/scheduler/NotificationOutboxWorker.java	dispatchAndObserve	notificationLogRepository.findById(candidate.getId())	platform-scope	요청 주체가 없는 스케줄러 경로라 학원을 가로지르는 것이 의도다
+request/command/ChangeRequestAutoRejectionPersistence.java	autoRejectOne	changeRequestRepository.findById(changeRequestId)	platform-scope	요청 주체가 없는 스케줄러 경로라 학원을 가로지르는 것이 의도다
+run/command/RunConfirmationService.java	confirmOne	runRepository.findById(runId)	platform-scope	요청 주체가 없는 스케줄러 경로라 학원을 가로지르는 것이 의도다
+run/command/RunStopLabels.java	nameOf	stopRepository.findById(stop.getStopId())	keyed-from-scoped	정차지 id 는 학원 범위로 읽은 회차의 정차 행에서 나온다
+run/command/RunTransferRemoval.java	removeStaged	accountRepository.findById(actorAccountId)	keyed-from-scoped	처리자 계정 id 는 인증된 요청자(AuthUser)에서 나온 값이다
+run/command/TransferPreconditions.java	findRuns	runRepository.findById(request.toRunId())	scoped-after	읽은 직후 AcademyScope.assertAccessible 로 회차의 학원을 확인한다
+run/query/StaffRunRouteQueryService.java	route	runRepository.findById(runId)	scoped-after	읽은 직후 AcademyScope.assertAccessible 로 회차의 학원을 확인한다
+student/command/StudentCommandService.java	recordChange	accountRepository.findById(requester.accountId())	keyed-from-scoped	처리자 계정 id 는 인증된 요청자(AuthUser)에서 나온 값이다
+student/query/StudentRouteQueryService.java	contactOf	managerRepository.findById(assignment.getManagerId())	keyed-from-scoped	매니저 id 는 학원 범위로 읽은 회차의 배치 행에서 나온다
+student/query/StudentRouteQueryService.java	escortContactOf	managerRepository.findById(assignment.getManagerId())	keyed-from-scoped	매니저 id 는 학원 범위로 읽은 회차의 배치 행에서 나온다
+account/command/RefreshTokenReuseHandler.java	onRevokedTokenPresented	accountRepository.findById(accountId)	keyed-from-scoped	서명 검증을 거친 refresh 토큰의 보관 행이 가리키는 계정 id 다
