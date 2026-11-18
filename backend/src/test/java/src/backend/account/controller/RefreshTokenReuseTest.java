@@ -69,6 +69,20 @@ class RefreshTokenReuseTest {
     }
 
     @Test
+    void 같은_회전_토큰을_세_번_내밀어도_감사_행은_탐지_한_번의_1건이다() throws Exception {
+        String original = 로그인해_refresh_토큰을_받는다();
+        재발급해_새_refresh_토큰을_받는다(original);
+        회전_시각을_과거로_민다(original, 11);
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+            재발급한다(original).andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error.code").value("TOKEN_EXPIRED"));
+        }
+
+        assertThat(재사용_감사_행_수()).as("첫 제시가 전부 폐기했고 이후 제시는 폐기할 토큰이 없어 행을 더하지 않는다").isEqualTo(1);
+    }
+
+    @Test
     void 회전_10초_뒤_재사용하면_계정의_refresh_토큰을_전부_폐기하고_감사_행_1건을_남긴다() throws Exception {
         String original = 로그인해_refresh_토큰을_받는다();
         String rotated = 재발급해_새_refresh_토큰을_받는다(original);
