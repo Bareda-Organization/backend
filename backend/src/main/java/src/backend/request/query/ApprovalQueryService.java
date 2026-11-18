@@ -1,6 +1,8 @@
 package src.backend.request.query;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -8,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.audit.service.AuditRecorder;
 import src.backend.boarding.entity.RiderStatus;
 import src.backend.boarding.entity.RunRider;
 import src.backend.boarding.repository.RunRiderRepository;
@@ -65,6 +68,8 @@ public class ApprovalQueryService {
     private final ApprovalDecisionReader decisionReader;
 
     private final ApprovalPendingDetailAssembler pendingDetailAssembler;
+
+    private final AuditRecorder auditRecorder;
 
     /**
      * 승인 대기 목록(§5.5 목록) — 재최적화를 실행하지 않는다. 저장된 값과 단순 집계만 반환한다.
@@ -130,8 +135,18 @@ public class ApprovalQueryService {
             return decidedDetailOf(summary, run, riders, bus, decision);
         }
         assertRunConfirmed(run);
-        return pendingDetailAssembler.pendingDetailOf(approvalId,
+        ApprovalDetailResponse response = pendingDetailAssembler.pendingDetailOf(approvalId,
                 new ApprovalPendingDetailAssembler.Subject(cr, run, riders, bus, summary, decision));
+        auditCoordinatesRead(requester, academyId, response);
+        return response;
+    }
+
+    /** 결정 대기 상세는 신청 학생과 영향 학생을 노선 전·후 정차 좌표와 함께 싣는다(L3) — 실린 학생마다 조회 감사 1행을 남긴다. */
+    private void auditCoordinatesRead(AuthUser requester, Long academyId, ApprovalDetailResponse response) {
+        Map<Long, Map<String, Object>> byStudent = new LinkedHashMap<>();
+        response.affectedStudents().forEach(student -> byStudent.put(student.studentId(),
+                Map.of("student_ids", List.of(String.valueOf(student.studentId())), "fields", List.of("coordinates"))));
+        auditRecorder.recordDataAccessReads(academyId, requester.accountId(), "student", byStudent);
     }
 
     /** {@code PENDING} 건의 회차가 아직 {@code idle} 이면 {@code 409 RUN_NOT_CONFIRMED} 로 막는다. */
