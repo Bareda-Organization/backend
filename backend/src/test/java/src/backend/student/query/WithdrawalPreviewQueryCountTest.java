@@ -31,7 +31,7 @@ import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 import src.backend.run.command.RunConfirmationService;
 import src.backend.run.repository.RunRepository;
@@ -88,7 +88,7 @@ class WithdrawalPreviewQueryCountTest {
     @Test
     @DisplayName("DA-7 — 확정 전 회차가 4개일 때와 40개일 때 SQL 수가 같고 탑승 회차는 모두 실린다")
     void 확정_전_회차_수와_무관하게_SQL_수가_같다() {
-        Phase9RosterFixtures fx = new Phase9RosterFixtures(new RunConfirmationFixtures(academyRepository,
+        RunRosterFixtures fx = new RunRosterFixtures(new RunConfirmationFixtures(academyRepository,
                 busRepository, routeRepository, routeStopRepository, stopRepository, studentRepository,
                 weeklyAddressRepository, runRepository), managerRepository, accountRepository, assignmentRepository,
                 guardianRepository, guardianStudentRepository, confirmationService);
@@ -112,7 +112,7 @@ class WithdrawalPreviewQueryCountTest {
         assertThat(withForty).as("4개 %d건 · 40개 %d건", withFour, withForty).isEqualTo(withFour);
     }
 
-    private void idleRun(Phase9RosterFixtures fx, long busId, int index) {
+    private void idleRun(RunRosterFixtures fx, long busId, int index) {
         OffsetDateTime departTime = OffsetDateTime.of(TOMORROW, LocalTime.of(6 + index / 6, (index % 6) * 10), ZoneOffset.ofHours(9));
         fx.idleRun(academyId, busId, TOMORROW, Direction.TO_ACADEMY, departTime, departTime.minusMinutes(30));
     }

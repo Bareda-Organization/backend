@@ -223,6 +223,7 @@ tasks.withType(Test).configureEach {
     // 먼저 에스컬레이션해 건수 단언이 실행 순서에 따라 갈린다. 누락 재발은
     // SchedulerLockConventionTest 가 "모든 @Scheduled 는 테스트 JVM 에서 미뤄져 있다" 로 잡는다.
     systemProperty 'app.observability.run-unconfirmed.initial-delay-ms', '86400000'
+    systemProperty 'app.observability.run-confirmed-not-started.initial-delay-ms', '86400000'
     systemProperty 'app.exception.noshow-escalation.initial-delay-ms', '86400000'
     // 유실 회차 게이지(RunPositionLostGaugeScheduler, BR-064)도 같은 이유로 미룬다.
     systemProperty 'app.observability.run-position-lost.initial-delay-ms', '86400000'

@@ -35,7 +35,7 @@ import src.backend.routing.entity.Waypoint;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.routing.repository.WaypointRepository;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
@@ -73,7 +73,7 @@ class RunRouteControllerTest {
 
     @Test
     void 결번_정차지는_건너뛰고_다음_실제_정차지가_next_stop_이다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -87,7 +87,7 @@ class RunRouteControllerTest {
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
         결번_처리한다(academyId, runId, stop1, "1번 정차지 결번 — 학생 하차 예정 없음");
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         MvcResult result = mockMvc
@@ -107,7 +107,7 @@ class RunRouteControllerTest {
         // 결번 시험은 next_stop·skipped_notice 만 보고 stops[] 자체의
         // 값은 확인하지 않는다. 결번 없이 정차지 2곳을 그대로 태워 stops[0] 이 첫 정차지를 가리키고
         // 개수가 심은 만큼인지 본다.
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -120,7 +120,7 @@ class RunRouteControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         // BR-002(Ruling 327) — 등원은 정차 목록 맨 뒤에 학원 항목이 있고, stop_id 는 run_stop.id 다.
@@ -141,7 +141,7 @@ class RunRouteControllerTest {
         // 기사 운행 화면 가운데 지도가 도로 경로를 그리려면 §4.3 에도 §5.19 와 같은
         // road_path·fallback_used 가 있어야 한다. 없으면 앱이 정차지를 직선으로 잇게 되고, 직선은
         // 건물·강을 가로질러 기사가 실제 경로로 오인한다.
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -154,7 +154,7 @@ class RunRouteControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
@@ -170,7 +170,7 @@ class RunRouteControllerTest {
     @Test
     void BR_015_지나간_경유_지점은_next_stop_에_남지_않는다() throws Exception {
         // 경유 지점은 도착 처리 대상이 아니다 — 그 뒤 승하차지에 도착했으면 경유 지점도 지난 것이다.
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -180,7 +180,7 @@ class RunRouteControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T16:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.FROM_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
         long stop2 = fx.stop(academyId, "37.510000", "127.010000");
         long stop3 = fx.stop(academyId, "37.520000", "127.020000");
@@ -212,7 +212,7 @@ class RunRouteControllerTest {
     void R39_Ruling_400_is_waypoint_는_경유_지점_항목만_true_이고_승하차지와_학원은_false_다() throws Exception {
         // 지도가 경유 지점을 승하차지와 다른 모양으로 그리려면 구분할 필드가 필요하다 — 두 항목 모두
         // stop_id 는 run_stop.id 라 그 값으로는 못 가른다. §4.3·§5.19 가 같은 조립을 공유한다.
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -222,7 +222,7 @@ class RunRouteControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
         Long versionId = confirmedRouteRepository.findById(runId).map(ConfirmedRoute::getCurrentVersionId)
                 .orElseThrow();
@@ -248,7 +248,7 @@ class RunRouteControllerTest {
         // C-null 대상 2(§4.3 next_stop.lat·lng) 음성 대조용 — 배포 후 제거된 강제 경유지가 다음 차례로
         // 올라오면(RunRouteStopLookup#hasResolvedTarget 이 없으면) next_stop 이 좌표 전부 null 인
         // 경유지 행을 그대로 내보낸다. 그 필터를 되돌리면 이 시험만 실패해야 한다.
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stop1 = fx.stop(academyId, "37.500000", "127.000000");
@@ -258,7 +258,7 @@ class RunRouteControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.FROM_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         // 회차 확정 이후 별도로 배정·배포·제거되는 강제 경유지(RTE-10, §5.15) — 노선 설계 단계
@@ -295,7 +295,7 @@ class RunRouteControllerTest {
 
     @Test
     void 확정_전_회차는_409_RUN_NOT_CONFIRMED_다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -303,7 +303,7 @@ class RunRouteControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-04T08:00:00+09:00");
         long runId = fx.idleRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",

@@ -20,6 +20,7 @@ import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
 import src.backend.run.controller.DriverRunFixtures;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import testsupport.clock.FixedClock20300401Config;
 
@@ -71,8 +72,8 @@ class StagingRunGuardWindowTest {
         DriverRunFixtures fixtures = DriverRunFixtures.of(applicationContext);
         long academyId = fixtures.academy();
         long busId = fixtures.bus(academyId);
-        Run created = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY,
-                confirmAt.plusMinutes(30), confirmAt, "출발지", "도착지", null);
+        Run created = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY,
+                confirmAt.plusMinutes(30), confirmAt, "출발지", "도착지", null));
         return runRepository.saveAndFlush(created);
     }
 }

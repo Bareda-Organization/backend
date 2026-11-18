@@ -6,14 +6,18 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import src.backend.global.common.logging.RateLimitedWarn;
@@ -40,7 +44,6 @@ import src.backend.run.repository.RunRepository;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RunConfirmationScheduler {
 
     /**
@@ -70,6 +73,35 @@ public class RunConfirmationScheduler {
     private final ConfirmationBatchHeartbeat heartbeat;
 
     /**
+     * 한 틱이 회차들의 확정을 기다리는 한도 — 스케줄러 잠금({@code lockAtMostFor} 5분)보다 짧아야 한다. 확정 하나가 돌아오지 않으면 잠금이
+     * 풀린 뒤에도 이 틱이 매달려 다음 인스턴스의 틱과 겹치기 때문이다. 한도에 닿으면 기다림만 끝내고 늦은 확정은 풀 안에서 계속 돈다.
+     */
+    private final Duration waitBound;
+
+    /** 기다림 한도의 기본값 — 지도 호출이 느린 한 틱(최대 50회차)을 마칠 만큼 길고 잠금 5분보다 1분 짧다. */
+    static final Duration DEFAULT_WAIT_BOUND = Duration.ofMinutes(4);
+
+    public RunConfirmationScheduler(RunRepository runRepository, RunConfirmationService confirmationService,
+            ExecutorService runConfirmationExecutor, Clock clock, RunConfirmationMetrics metrics,
+            ConfirmationBatchHeartbeat heartbeat) {
+        this(runRepository, confirmationService, runConfirmationExecutor, clock, metrics, heartbeat, DEFAULT_WAIT_BOUND);
+    }
+
+    @Autowired
+    public RunConfirmationScheduler(RunRepository runRepository, RunConfirmationService confirmationService,
+            ExecutorService runConfirmationExecutor, Clock clock, RunConfirmationMetrics metrics,
+            ConfirmationBatchHeartbeat heartbeat,
+            @Value("${app.run.confirmation.wait-bound:PT4M}") Duration waitBound) {
+        this.runRepository = runRepository;
+        this.confirmationService = confirmationService;
+        this.runConfirmationExecutor = runConfirmationExecutor;
+        this.clock = clock;
+        this.metrics = metrics;
+        this.heartbeat = heartbeat;
+        this.waitBound = waitBound;
+    }
+
+    /**
      * 판정 시각이 지난 idle 회차를 확정한다.
      *
      * <p>폴링 주기를 설정으로 받는 이유는 <b>테스트에서 배경 실행을 미루기 위함</b>이다 — 배경
@@ -77,7 +109,7 @@ public class RunConfirmationScheduler {
      * ({@code build.gradle} 이 {@code initial-delay-ms} 를 하루로 늦춘다, {@code NotificationOutboxWorker}
      * 와 같은 형태).
      *
-     * <p>한 틱 안에서 모든 확정을 {@link CompletableFuture#join()} 으로 기다린 뒤 반환한다 — 그래야
+     * <p>한 틱 안에서 모든 확정을 {@link CompletableFuture#join()} 으로(최대 {@code waitBound}) 기다린 뒤 반환한다 — 그래야
      * 이 메서드를 직접 호출하는 테스트가 완료를 동기적으로 관측할 수 있고, {@code fixedDelay} 특성상
      * 다음 실행도 이 완료 시점부터 계산된다(밀린 틱이 겹쳐 돌지 않는다).
      *
@@ -99,8 +131,24 @@ public class RunConfirmationScheduler {
                     heartbeat.markSuccess();
                 }, runConfirmationExecutor))
                 .toList();
-        CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
-        heartbeat.markSuccess();
+        if (finishedWithinBound(tasks)) {
+            heartbeat.markSuccess();
+        }
+    }
+
+    /** 모든 확정이 한도 안에 끝났는지 — 한도에 닿으면 경고를 남기고 기다림을 끝낸다(틱을 정상 종료로 표시하지 않는다). */
+    private boolean finishedWithinBound(List<CompletableFuture<Void>> tasks) {
+        try {
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new))
+                    .orTimeout(waitBound.toMillis(), TimeUnit.MILLISECONDS).join();
+            return true;
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                log.warn("확정 배치가 {} 안에 끝나지 않아 기다림을 끝낸다 — 늦은 확정은 풀 안에서 계속 돌고 틱은 정상 종료로 표시하지 않는다", waitBound);
+                return false;
+            }
+            throw e;
+        }
     }
 
     /**

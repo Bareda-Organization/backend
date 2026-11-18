@@ -25,7 +25,7 @@ import src.backend.global.common.enums.Direction;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.AuthUser;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.student.dto.WithdrawalPreviewResponse;
 import testsupport.clock.FixedClock20300401Config;
 import testsupport.db.ConnectionCountingConfig;
@@ -69,7 +69,7 @@ class WithdrawalPreviewRiderLoadTest {
 
     @Test
     void 학원의_학생_수와_무관하게_그_학생의_승차_행만_읽는다() {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(context);
+        RunRosterFixtures fx = RunRosterFixtures.of(context);
         academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");

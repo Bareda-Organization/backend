@@ -32,7 +32,7 @@ import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 import testsupport.auth.TestTokens;
 
@@ -74,7 +74,7 @@ class RiderGuardianPhoneControllerTest {
 
     /** 한 학원의 확정 회차 1건 — 학생 1명(보호자 연결)이 탑승자로 올라 있고 매니저 1명이 배치돼 있다. */
     private Scene scene(boolean withGuardian) {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -87,7 +87,7 @@ class RiderGuardianPhoneControllerTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-07-02T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY, departTime,
                 departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
         fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
         long riderId = runRiderRepository.findAllByRunIdAndAcademyId(runId, academyId).get(0).getId();
         return new Scene(fx, academyId, busId, stopId, studentId, runId, riderId, manager);
@@ -145,7 +145,7 @@ class RiderGuardianPhoneControllerTest {
     @Test
     void 배정되지_않은_회차는_403이고_감사_행이_없다() throws Exception {
         Scene scene = scene(true);
-        Phase9RosterFixtures.ManagerAccount other = scene.fx().manager(scene.academyId(), ManagerRole.DRIVER, "다른기사");
+        RunRosterFixtures.ManagerAccount other = scene.fx().manager(scene.academyId(), ManagerRole.DRIVER, "다른기사");
 
         mockMvc.perform(get(path(scene.runId(), scene.riderId()))
                 .header("Authorization", TestTokens.토큰(tokenProvider, other.accountId(), scene.academyId(), Role.DRIVER)))
@@ -159,7 +159,7 @@ class RiderGuardianPhoneControllerTest {
     void 다른_학원_매니저는_403이다() throws Exception {
         Scene scene = scene(true);
         long otherAcademyId = scene.fx().academyWithCoordinates();
-        Phase9RosterFixtures.ManagerAccount outsider = scene.fx().manager(otherAcademyId, ManagerRole.ESCORT, "타학원");
+        RunRosterFixtures.ManagerAccount outsider = scene.fx().manager(otherAcademyId, ManagerRole.ESCORT, "타학원");
 
         mockMvc.perform(get(path(scene.runId(), scene.riderId()))
                 .header("Authorization", 토큰(outsider.accountId(), otherAcademyId)))
@@ -239,7 +239,7 @@ class RiderGuardianPhoneControllerTest {
         return TestTokens.토큰(tokenProvider, accountId, academyId, Role.ESCORT);
     }
 
-    private record Scene(Phase9RosterFixtures fx, long academyId, long busId, long stopId, long studentId, long runId,
-            long riderId, Phase9RosterFixtures.ManagerAccount manager) {
+    private record Scene(RunRosterFixtures fx, long academyId, long busId, long stopId, long studentId, long runId,
+            long riderId, RunRosterFixtures.ManagerAccount manager) {
     }
 }

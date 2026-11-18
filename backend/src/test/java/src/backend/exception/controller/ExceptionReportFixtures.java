@@ -30,6 +30,7 @@ import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Stop;
 import src.backend.student.entity.Student;
@@ -128,8 +129,8 @@ public class ExceptionReportFixtures {
     /** confirmed 상태 회차 1건 — {@code DriverRunFixtures#confirmedRun} 과 같은 형태. */
     public long confirmedRun(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, confirmedAt);
         return runId;

@@ -23,7 +23,8 @@ import src.backend.run.entity.Run;
 import src.backend.run.entity.RunStatus;
 
 /** {@link Run} 영속성 접근 — 조회는 전부 학원으로 좁혀져 호출부가 조건을 빼먹을 자리가 부재하다. */
-public interface RunRepository extends JpaRepository<Run, Long>, MovingRunQueries, RunScheduleQueries {
+public interface RunRepository extends JpaRepository<Run, Long>, MovingRunQueries, RunScheduleQueries,
+        ConfirmedRunQueries {
 
     /**
      * 한 학원의 <b>그 날짜</b> 회차 목록(SCH-02 결과 조회, §5.10 {@code GET /staff/runs}).

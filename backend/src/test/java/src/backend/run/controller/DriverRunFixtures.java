@@ -43,6 +43,7 @@ import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Guardian;
 import src.backend.student.entity.GuardianStudent;
@@ -207,8 +208,8 @@ public class DriverRunFixtures {
     /** confirmed 상태 회차 1건 — {@code RunRepository#confirmIfIdle} 로 정상 경로(조건부 UPDATE)를 그대로 탄다. */
     public long confirmedRun(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, confirmedAt);
         return runId;
@@ -222,8 +223,8 @@ public class DriverRunFixtures {
      */
     public long confirmedRunWithDuration(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt, int estDurationMin) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", estDurationMin);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", estDurationMin));
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, confirmedAt);
         return runId;
@@ -231,8 +232,8 @@ public class DriverRunFixtures {
 
     /** {@code idle} 상태 회차 — 확정을 거치지 않은 그대로(ackChanges 의 {@code RUN_NOT_CONFIRMED} 분기 시험용). */
     public long idleRun(long academyId, long busId, Direction direction, OffsetDateTime departTime) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         return runRepository.save(run).getId();
     }
 

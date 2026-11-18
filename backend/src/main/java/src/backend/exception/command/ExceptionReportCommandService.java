@@ -21,7 +21,7 @@ import src.backend.exception.dto.StaffReportItemResponse;
 import src.backend.exception.entity.ExceptionReport;
 import src.backend.exception.entity.ExceptionReportType;
 import src.backend.exception.event.ExceptionReportedEvent;
-import src.backend.exception.query.ExceptionReportQueryService;
+import src.backend.exception.report.ExceptionReportItems;
 import src.backend.exception.repository.ExceptionReportRepository;
 import src.backend.global.error.BusinessException;
 import src.backend.global.error.ErrorCode;
@@ -62,7 +62,7 @@ public class ExceptionReportCommandService {
 
     private final ApplicationEventPublisher eventPublisher;
 
-    private final ExceptionReportQueryService exceptionReportQueryService;
+    private final ExceptionReportItems exceptionReportItems;
 
     private final Clock clock;
 
@@ -141,6 +141,6 @@ public class ExceptionReportCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.REPORT_NOT_FOUND));
         exceptionReportRepository.handleIfUnhandled(reportId, requester.academyId(), requester.accountId(),
                 OffsetDateTime.now(clock));
-        return exceptionReportQueryService.item(requester.academyId(), reportId);
+        return exceptionReportItems.item(requester.academyId(), reportId);
     }
 }

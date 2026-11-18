@@ -28,6 +28,7 @@ import src.backend.run.dto.RunResponse;
 import src.backend.run.entity.Run;
 import src.backend.run.entity.RunCancelSource;
 import src.backend.run.entity.RunDraft;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
@@ -58,7 +59,6 @@ public class RunCommandService {
     private final BusRepository busRepository;
 
     private final RunCancellation runCancellation;
-
     private final Clock clock;
 
     /**
@@ -97,9 +97,9 @@ public class RunCommandService {
                 draft.academyId(), draft.busId(), draft.serviceDate(), draft.direction(), departAt)) {
             throw new BusinessException(ErrorCode.DUPLICATE_RUN);
         }
-        Run run = Run.forSchedule(draft.academyId(), draft.busId(), draft.scheduleId(), draft.serviceDate(),
+        Run run = Run.forSchedule(new RunPlan(draft.academyId(), draft.busId(), draft.scheduleId(), draft.serviceDate(),
                 draft.direction(), departAt, RunConfirmationPolicy.confirmAtOf(departAt), draft.originName(),
-                draft.destinationName(), draft.estDurationMin());
+                draft.destinationName(), draft.estDurationMin()));
         try {
             return runRepository.saveAndFlush(run);
         } catch (DataIntegrityViolationException e) {

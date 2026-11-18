@@ -15,7 +15,7 @@ import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.location.entity.RunPosition;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.routing.dto.RunStopNameView;
-import src.backend.routing.query.CurrentRunStopResolver;
+import src.backend.routing.stops.CurrentRunStopResolver;
 import src.backend.routing.repository.RunStopRepository;
 
 /**

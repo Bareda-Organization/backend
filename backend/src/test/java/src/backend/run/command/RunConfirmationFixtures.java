@@ -21,6 +21,7 @@ import src.backend.routing.entity.RouteStop;
 import src.backend.routing.repository.RouteRepository;
 import src.backend.routing.repository.RouteStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.domain.VerifiedAddressEntry;
 import src.backend.student.entity.Stop;
@@ -157,8 +158,8 @@ public class RunConfirmationFixtures {
      */
     public long idleRun(long academyId, long busId, java.time.LocalDate serviceDate, Direction direction,
             OffsetDateTime departTime, OffsetDateTime confirmAt) {
-        Run run = Run.forSchedule(academyId, busId, null, serviceDate, direction, departTime, confirmAt, "출발지",
-                "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, serviceDate, direction, departTime, confirmAt, "출발지",
+                "도착지", null));
         return runRepository.save(run).getId();
     }
 

@@ -45,6 +45,7 @@ import src.backend.location.infrastructure.RunPositionStore;
 import src.backend.location.proximity.ProximityFixtures;
 import src.backend.location.proximity.ProximityNotificationService;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.entity.RunStatus;
 import src.backend.run.repository.RunRepository;
 
@@ -163,8 +164,8 @@ class ProximityNotificationSchedulerTest {
      * {@code judgeMovingRuns()} 가 이 회차를 대상으로 삼지 않아야 한다(MOVING 필터).
      */
     private long confirmedNotMovingRun(long academyId, long busId, OffsetDateTime departTime) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.FROM_ACADEMY,
-                departTime, departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.FROM_ACADEMY,
+                departTime, departTime.minusMinutes(30), "출발지", "도착지", null));
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, departTime.minusMinutes(30));
         return runId;

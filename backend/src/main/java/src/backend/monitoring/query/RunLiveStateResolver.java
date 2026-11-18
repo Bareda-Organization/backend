@@ -14,7 +14,7 @@ import src.backend.global.common.enums.ChangeType;
 import src.backend.global.policy.PolicyConstants;
 import src.backend.location.dto.RunPositionRedisValue;
 import src.backend.routing.entity.RunStop;
-import src.backend.routing.query.CurrentRunStopResolver;
+import src.backend.routing.stops.CurrentRunStopResolver;
 
 /**
  * 회차 1건의 "지금" 상태 판정 — §5.18({@code GET /staff/runs/live})과 §6.8이 공유하는 세 판정을

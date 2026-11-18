@@ -22,10 +22,6 @@ import src.backend.global.common.enums.Direction;
  * (ERD §3.3 · SCH-02 · RTE-02 · RUN-02·04·05 · C-04 · C-15). 소유 모듈은 {@code run} 이다
  * (`ARCHITECTURE §3.3` — {@code schedule} 이 생성 원본을 두고 {@code routing} 이 확정 전이하지만
  * 소유는 {@code run}).
- *
- * <p>{@code confirmAt} 은 {@code depart_time - 30분} 이라는 DB CHECK({@code ck_run_confirm_at})의
- * 대상이지만, 그 계산은 확정 배치 쪽 몫이라 팩토리는 호출자가 미리 계산해 넘긴 값을
- * 그대로 저장한다 — 정책값 {@code 30} 을 이 코드에 박아 넣지 않기 위함이다.
  */
 @Entity
 @Table(name = "run")
@@ -115,23 +111,18 @@ public class Run extends RunConfirmationState {
      * 일일 회차 생성 배치가 스케줄로부터 만들거나, 관리자가 임시 회차를 추가할 때({@code scheduleId}
      * 가 {@code null}) 생성한다(SCH-02·03) — 확정 전 대기 상태({@link RunStatus#IDLE})로 시작한다.
      */
-    public static Run forSchedule(Long academyId, Long busId, Long scheduleId, LocalDate serviceDate,
-            Direction direction, OffsetDateTime departTime, OffsetDateTime confirmAt, String originName,
-            String destinationName, Integer estDurationMin) {
-        return new Run(academyId, busId, scheduleId, serviceDate, direction, departTime, confirmAt, originName,
-                destinationName, estDurationMin);
+    public static Run forSchedule(RunPlan plan) {
+        return new Run(plan.academyId(), plan.busId(), plan.scheduleId(), plan.serviceDate(), plan.direction(),
+                plan.departTime(), plan.confirmAt(), plan.originName(), plan.destinationName(), plan.estDurationMin());
     }
 
     /**
-     * 특정일 회차를 임시로 취소한다(SCH-03, API_SPEC §5.10) — 행을 지우지 않고 {@code canceledAt} 을
-     * 채운다.
+     * 특정일 회차를 임시로 취소한다(SCH-03, API_SPEC §5.10) — 행을 지우지 않고 {@code canceledAt} 을 채운다.
      *
-     * <p>행을 남기는 이유는 정규 스케줄이 불변이기 때문이다 — 휴원·특강 같은 예외일은 <b>그날의
-     * 회차에만</b> 표시되어야 하고, 지우면 "오늘은 쉬기로 했다" 와 "회차가 아직 안 만들어졌다" 가
-     * 구별되지 않는다. 다음 배치가 지워진 회차를 그대로 다시 만들기까지 한다.
+     * <p>행을 남기는 이유는 정규 스케줄이 불변이기 때문이다 — 휴원·특강 같은 예외일은 <b>그날의 회차에만</b> 표시되어야 하고, 지우면 "오늘은 쉬기로 했다" 와
+     * "회차가 아직 안 만들어졌다" 가 구별되지 않는다. 다음 배치가 지워진 회차를 그대로 다시 만들기까지 한다.
      *
-     * <p>시각을 파라미터로 받는다(횡단 규칙 1) — 호출부가 주입된 {@code Clock} 에서 얻어 넘긴다. 취소 출처를 함께
-     * 기록해, 스케줄이 취소한 회차만 {@link #reinstate} 로 되살릴 수 있게 한다.
+     * <p>시각은 호출부가 주입된 {@code Clock} 에서 얻어 넘긴다(횡단 규칙 1). 취소 출처를 함께 기록해 스케줄이 취소한 회차만 {@link #reinstate} 로 되살린다.
      */
     public void cancel(OffsetDateTime canceledAt, RunCancelSource source) {
         this.canceledAt = canceledAt;
@@ -168,9 +159,11 @@ public class Run extends RunConfirmationState {
      * 기사의 운행 시작 처리로 {@code moving} 에 진입한다(API_SPEC §4.4, RUN-02·M-10).
      *
      * <p>±10분 창 판정·중복 시작 차단은 이 메서드가 아니라 호출부(커맨드 서비스)의 책임이다 —
-     * 엔티티는 "그 시각에 시작했다"는 사실만 기록하고, 그 시각이 유효한지는 판단하지 않는다.
+     * 엔티티는 "그 시각에 시작했다"는 사실만 기록하고, 그 시각이 유효한지는 판단하지 않는다. 확정되지 않았거나 이미 시작·종료된 회차는
+     * 상태를 바꾸지 않고 {@link IllegalStateException} 이다.
      */
     public void start(OffsetDateTime startedAt) {
+        requireStatus(RunStatus.CONFIRMED, "start");
         this.status = RunStatus.MOVING;
         this.startedAt = startedAt;
     }
@@ -190,11 +183,18 @@ public class Run extends RunConfirmationState {
      * 마지막 탑승자 하차 시점) 양쪽 모두 이 메서드로 수렴한다.
      *
      * <p>{@code finishPending} 을 함께 거둔다 — 보류 중이던 종료가 지금 이뤄지는 것이므로 보류
-     * 표시가 남아 있으면 안 된다.
+     * 표시가 남아 있으면 안 된다. 이동 중이 아닌 회차의 종료는 상태를 바꾸지 않고 {@link IllegalStateException} 이다.
      */
     public void finish(OffsetDateTime finishedAt) {
+        requireStatus(RunStatus.MOVING, "finish");
         this.status = RunStatus.FINISHED;
         this.finishedAt = finishedAt;
         this.finishPending = false;
+    }
+
+    private void requireStatus(RunStatus required, String transition) {
+        if (status != required) {
+            throw new IllegalStateException("회차 " + id + " 는 " + status + " 상태라 " + transition + " 할 수 없다");
+        }
     }
 }

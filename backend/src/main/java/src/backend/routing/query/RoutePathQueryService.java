@@ -94,7 +94,7 @@ public class RoutePathQueryService {
      */
     private CachedRoadRoute roadRouteOf(Long routeId, List<GeoPoint> points) {
         String key = routePathCache.keyOf(routeId, points);
-        return routePathCache.find(key).orElseGet(() -> {
+        return routePathCache.findOrCompute(key, () -> {
             RoadRoute road = mapRouteClient
                     .route(new RoadRouteRequest(points, ROUTE_PATH_MAP_TIMEOUT, CallerPolicy.ON_DEMAND));
             CachedRoadRoute computed = new CachedRoadRoute(road, clock.millis());

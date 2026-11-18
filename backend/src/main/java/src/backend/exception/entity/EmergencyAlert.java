@@ -18,6 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import src.backend.global.common.enums.ManagerRole;
+import src.backend.global.policy.PolicyConstants;
 
 /**
  * 비상 알림 — 위치·탑승자 수·발신 시각을 스냅샷으로 고정해 원본(run·account·academy)이 사라져도
@@ -39,7 +40,7 @@ public class EmergencyAlert {
      * src.backend.exception.command.EmergencyCommandService#cancel} 의 취소 판정과 {@link
      * #cancelableUntil()} 이 이 값 하나를 공유한다 — 두 곳이 다른 규칙으로 계산되게 두지 않는다.
      */
-    public static final Duration CANCEL_WINDOW = Duration.ofMinutes(1);
+    public static final Duration CANCEL_WINDOW = PolicyConstants.EMERGENCY_CANCEL_WINDOW;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

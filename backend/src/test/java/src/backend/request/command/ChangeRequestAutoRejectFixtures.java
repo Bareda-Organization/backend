@@ -31,6 +31,7 @@ import src.backend.routing.entity.RouteVersionSource;
 import src.backend.routing.repository.ConfirmedRouteRepository;
 import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Student;
 import src.backend.student.entity.StudentProfile;
@@ -112,8 +113,8 @@ public class ChangeRequestAutoRejectFixtures {
 
     /** idle 회차 1건 — {@code confirmAt} 은 자동 거절 폴링과 무관해 {@code departTime - 30분}으로 고정한다. */
     public long run(long academyId, long busId, OffsetDateTime departTime) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), Direction.TO_ACADEMY, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         return runRepository.save(run).getId();
     }
 

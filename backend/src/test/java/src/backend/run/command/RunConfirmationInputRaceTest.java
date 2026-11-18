@@ -108,7 +108,7 @@ class RunConfirmationInputRaceTest {
     @DisplayName("입력이 바뀌어 확정 저장이 물러나도 실패 횟수 · 재시도 시각 · 실패 지표는 그대로이고 다음 틱이 확정한다")
     void 입력이_바뀌어_물러나도_실패로_세지_않고_다음_틱이_확정한다() {
         try {
-            Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+            RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
             long academyId = fx.academyWithCoordinates();
             long busId = fx.bus(academyId);
             long stopId = fx.stop(academyId, "37.560000", "126.970000");
@@ -148,7 +148,7 @@ class RunConfirmationInputRaceTest {
     }
 
     private Fixture 준비한다() {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.560000", "126.970000");

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 
+import src.backend.global.policy.PolicyConstants;
 import src.backend.schedule.command.RunGenerationService;
 
 /**
@@ -54,7 +55,7 @@ public class DailyRunGenerator {
      * 점을 반영한 것이다 — 그래도 무기한으로 두지 않는 이유는 수동 재실행 운영 조작(API_SPEC §5.10)이
      * 그 안에서는 락에 막히지 않게 하려는 것이다.
      */
-    @Scheduled(cron = "${app.run.generation.cron:0 5 0 * * *}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${app.run.generation.cron:0 5 0 * * *}", zone = PolicyConstants.SERVICE_ZONE_NAME)
     @SchedulerLock(name = "daily-run-generator", lockAtMostFor = "PT30M")
     public void generateTodayAndTomorrow() {
         LocalDate today = LocalDate.now(clock);

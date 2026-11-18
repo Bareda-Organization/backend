@@ -22,7 +22,7 @@ import src.backend.schedule.dto.ScheduleResponse;
 import src.backend.schedule.dto.ScheduleUpdateRequest;
 import src.backend.schedule.entity.Schedule;
 import src.backend.schedule.entity.SchedulePlan;
-import src.backend.schedule.query.ScheduleRouteStopCounter;
+import src.backend.schedule.routestop.ScheduleRouteStopCounter;
 import src.backend.schedule.repository.ScheduleRepository;
 
 /** 운행 스케줄 등록·수정·삭제(SCH-01, API_SPEC §5.10). */

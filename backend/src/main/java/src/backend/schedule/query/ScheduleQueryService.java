@@ -21,6 +21,7 @@ import src.backend.global.security.AuthUser;
 import src.backend.schedule.dto.ScheduleResponse;
 import src.backend.schedule.entity.Schedule;
 import src.backend.schedule.repository.ScheduleRepository;
+import src.backend.schedule.routestop.ScheduleRouteStopCounter;
 
 /** 관계자 웹의 운행 스케줄 목록 조회(SCH-01, API_SPEC §5.10). */
 @Service

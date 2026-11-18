@@ -33,7 +33,7 @@ import src.backend.global.security.JwtTokenProvider;
 import src.backend.request.domain.ChangeWindow;
 import src.backend.request.entity.BoardingIntent;
 import src.backend.request.repository.BoardingIntentRepository;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.entity.Run;
 import src.backend.run.roster.ProjectedRosterReader;
 import testsupport.clock.FixedClock20300401Config;
@@ -61,7 +61,7 @@ class AdminRunForceConfirmInputsChangedTest {
     @Test
     @DisplayName("강제 확정 저장이 바뀐 명단 입력을 만나면 409 RUN_CONFIRM_INPUTS_CHANGED 이고 회차는 idle · 감사 행은 없다")
     void 명단이_바뀌면_409_이고_아무것도_쓰지_않는다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.560000", "126.970000");

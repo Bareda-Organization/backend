@@ -14,6 +14,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import src.backend.global.policy.PolicyConstants;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 
 /**
@@ -46,7 +47,7 @@ public class RunPositionPartitionScheduler {
      * 매일 오늘부터 {@link #LOOK_AHEAD_DAYS} 일 뒤까지 없는 파티션을 만든다 — 이미 있으면 건너뛰어 멱등이다. cron 을 설정으로
      * 받는 이유는 시험에서 배경 실행을 끄기 위함이다({@code build.gradle} 이 {@code -} 를 넣는다).
      */
-    @Scheduled(cron = "${app.location.partition.cron:0 10 0 * * *}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${app.location.partition.cron:0 10 0 * * *}", zone = PolicyConstants.SERVICE_ZONE_NAME)
     @SchedulerLock(name = "run-position-partition", lockAtMostFor = "PT10M")
     public void ensureAhead() {
         int created = partitionManager.ensureAhead(LocalDate.now(clock), LOOK_AHEAD_DAYS);

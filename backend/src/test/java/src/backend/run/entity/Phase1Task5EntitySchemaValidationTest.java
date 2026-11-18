@@ -112,8 +112,8 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
 
     private Run insertRun(Long academyId, Long busId, Long scheduleId) {
         OffsetDateTime departTime = OffsetDateTime.parse("2026-09-01T07:30:00+09:00");
-        Run run = Run.forSchedule(academyId, busId, scheduleId, LocalDate.of(2026, 9, 1), Direction.TO_ACADEMY,
-                departTime, departTime.minusMinutes(30), "정문", "학원", 40);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, scheduleId, LocalDate.of(2026, 9, 1), Direction.TO_ACADEMY,
+                departTime, departTime.minusMinutes(30), "정문", "학원", 40));
         entityManager.persist(run);
         entityManager.flush();
         return run;

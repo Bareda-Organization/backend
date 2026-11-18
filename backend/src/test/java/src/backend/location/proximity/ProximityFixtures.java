@@ -30,6 +30,7 @@ import src.backend.routing.repository.RouteVersionRepository;
 import src.backend.routing.repository.RunStopProximityRepository;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 import src.backend.student.entity.Guardian;
 import src.backend.student.entity.GuardianStudent;
@@ -45,7 +46,7 @@ import src.backend.student.repository.StudentRepository;
  * 근접 알림(NTF-04) 시험이 쓰는 실제 행 — {@code DriverRunFixtures}·
  * {@code RunConfirmationFixtures} 와 같은 이유로 정상 경로의 팩토리로 쌓는다.
  *
- * <p>{@code Phase9RosterFixtures} 의 지오코딩 확정 파이프라인을 타지 않는다 — 근접 판정은 이미
+ * <p>{@code RunRosterFixtures} 의 지오코딩 확정 파이프라인을 타지 않는다 — 근접 판정은 이미
  * 배포된 {@code run_stop}·{@code run_rider} 를 읽기만 하므로, {@code DriverRunFixtures} 가 도착
  * 처리 시험에 쓰는 것과 같은 형태로 그 행을 직접 심는 편이 노선 계산 스텁 설정 없이 더 좁다.
  */
@@ -168,8 +169,8 @@ public class ProximityFixtures {
      */
     public long movingRun(long academyId, long busId, Direction direction, OffsetDateTime departTime,
             OffsetDateTime confirmedAt, OffsetDateTime startedAt) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, confirmedAt);
         Run moving = runRepository.findById(runId).orElseThrow();

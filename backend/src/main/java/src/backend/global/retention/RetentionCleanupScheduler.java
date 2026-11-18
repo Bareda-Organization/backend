@@ -15,6 +15,7 @@ import src.backend.account.repository.RefreshTokenRepository;
 import src.backend.account.repository.VerificationCodeRepository;
 import src.backend.audit.entity.AuditCategory;
 import src.backend.audit.repository.AuditLogRepository;
+import src.backend.global.policy.PolicyConstants;
 import src.backend.location.infrastructure.RunPositionPartitionManager;
 import src.backend.notification.repository.NotificationLogRepository;
 import src.backend.observability.metrics.RefreshTokenRowsMetrics;
@@ -89,7 +90,7 @@ public class RetentionCleanupScheduler {
      * <p>잠금 최대 시간(6시간)은 정리가 끝나기 전에 풀려 두 인스턴스가 같은 정리를 돌지 않도록 첫 대량 정리(몇 달 쌓인 행을 5,000행씩 지우는 회차)를 덮는 값이다. 하루 한 번
      * 도는 작업이라 잠금을 쥔 인스턴스가 죽어도 다음 실행(24시간 뒤) 전에 풀린다.
      */
-    @Scheduled(cron = "${app.retention.cleanup.cron:0 15 0 * * *}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${app.retention.cleanup.cron:0 15 0 * * *}", zone = PolicyConstants.SERVICE_ZONE_NAME)
     @SchedulerLock(name = "retention-cleanup", lockAtMostFor = "PT6H")
     public void cleanUp() {
         OffsetDateTime now = OffsetDateTime.now(clock);

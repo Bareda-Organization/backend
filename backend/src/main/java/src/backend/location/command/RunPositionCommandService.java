@@ -21,7 +21,7 @@ import src.backend.location.event.RunPositionReceivedEvent;
 import src.backend.location.infrastructure.RunBroadcastCache;
 import src.backend.location.repository.RunPositionRepository;
 import src.backend.routing.dto.PositionStopView;
-import src.backend.routing.query.CurrentRunStopResolver;
+import src.backend.routing.stops.CurrentRunStopResolver;
 import src.backend.routing.repository.RunStopRepository;
 import src.backend.run.access.RunAssignmentAccess;
 import src.backend.run.entity.Run;

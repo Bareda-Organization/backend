@@ -10,6 +10,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import src.backend.global.common.enums.Direction;
 import src.backend.global.policy.PolicyConstants;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.entity.RunStatus;
 
 /**
@@ -26,8 +27,8 @@ class ChangeWindowPolicyTest {
     private static final OffsetDateTime CONFIRM_AT = DEPART.minusMinutes(30);
 
     private Run runOf(RunStatus status, OffsetDateTime departTime, OffsetDateTime confirmAt) {
-        Run run = Run.forSchedule(1L, 1L, 1L, departTime.toLocalDate(), Direction.TO_ACADEMY,
-                departTime, confirmAt, "출발지", "도착지", 30);
+        Run run = Run.forSchedule(new RunPlan(1L, 1L, 1L, departTime.toLocalDate(), Direction.TO_ACADEMY,
+                departTime, confirmAt, "출발지", "도착지", 30));
         ReflectionTestUtils.setField(run, "status", status);
         return run;
     }

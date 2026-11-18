@@ -30,7 +30,7 @@ import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.AuthUser;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.dto.ManagerRunResponse;
 
 /**
@@ -52,9 +52,9 @@ class ManagerRunListQueryCountTest {
     @Test
     @DisplayName("담당 회차가 1건에서 4건으로 늘어도 목록 조회의 SQL 수는 같다")
     void 회차가_늘어도_쿼리_수는_같다() {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
         배치한다(fx, academyId, manager, 0);
 
         long oneRun = 쿼리_수(academyId, manager);
@@ -69,9 +69,9 @@ class ManagerRunListQueryCountTest {
     @Test
     @DisplayName("차량 행이 조회되지 않는 회차가 있어도 목록은 예외 없이 회차를 돌려준다")
     void 차량이_없어도_예외가_나지_않는다() {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.ESCORT, "동승자");
         배치한다(fx, academyId, manager, 0);
         doReturn(List.of()).when(busRepository).findAllByAcademyIdAndIdIn(anyLong(), any());
 
@@ -81,7 +81,7 @@ class ManagerRunListQueryCountTest {
         }).doesNotThrowAnyException();
     }
 
-    private long 쿼리_수(long academyId, Phase9RosterFixtures.ManagerAccount manager) {
+    private long 쿼리_수(long academyId, RunRosterFixtures.ManagerAccount manager) {
         entityManager.flush();
         entityManager.clear();
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
@@ -90,7 +90,7 @@ class ManagerRunListQueryCountTest {
         return statistics.getPrepareStatementCount();
     }
 
-    private void 배치한다(Phase9RosterFixtures fx, long academyId, Phase9RosterFixtures.ManagerAccount manager,
+    private void 배치한다(RunRosterFixtures fx, long academyId, RunRosterFixtures.ManagerAccount manager,
             int index) {
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -101,7 +101,7 @@ class ManagerRunListQueryCountTest {
         fx.assign(runId, manager.managerId(), ManagerRole.ESCORT);
     }
 
-    private AuthUser escort(long academyId, Phase9RosterFixtures.ManagerAccount manager) {
+    private AuthUser escort(long academyId, RunRosterFixtures.ManagerAccount manager) {
         return new AuthUser(manager.accountId(), academyId, Role.ESCORT, AccountStatus.ACTIVE);
     }
 }

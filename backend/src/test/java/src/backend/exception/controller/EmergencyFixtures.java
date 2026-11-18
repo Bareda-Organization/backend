@@ -24,6 +24,7 @@ import src.backend.manager.entity.ManagerProfile;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.manager.repository.ManagerRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
 import src.backend.run.repository.RunRepository;
 
 /**
@@ -108,8 +109,8 @@ public class EmergencyFixtures {
      * to_academy 아닌 값이 필요하다).
      */
     public long confirmedRun(long academyId, long busId, OffsetDateTime departTime, Direction direction) {
-        Run run = Run.forSchedule(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
-                departTime.minusMinutes(30), "출발지", "도착지", null);
+        Run run = Run.forSchedule(new RunPlan(academyId, busId, null, LocalDate.of(2030, 4, 1), direction, departTime,
+                departTime.minusMinutes(30), "출발지", "도착지", null));
         long runId = runRepository.save(run).getId();
         runRepository.confirmIfIdle(runId, departTime.minusMinutes(30));
         return runId;

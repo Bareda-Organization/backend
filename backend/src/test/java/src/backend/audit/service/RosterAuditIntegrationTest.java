@@ -29,7 +29,7 @@ import src.backend.global.common.enums.ManagerRole;
 import src.backend.global.common.enums.Role;
 import src.backend.global.common.enums.Weekday;
 import src.backend.global.security.JwtTokenProvider;
-import src.backend.run.command.Phase9RosterFixtures;
+import src.backend.run.command.RunRosterFixtures;
 import src.backend.run.command.RunConfirmationFixtures;
 
 /**
@@ -66,7 +66,7 @@ class RosterAuditIntegrationTest {
 
     @Test
     void 매니저_명단_조회는_감사_로그_1건을_남기고_student_ids_와_L3_필드_목록을_담는다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -76,7 +76,7 @@ class RosterAuditIntegrationTest {
         OffsetDateTime departTime = OffsetDateTime.parse("2031-09-01T08:00:00+09:00");
         long runId = fx.confirmedRun(academyId, busId, LocalDate.parse(SERVICE_DATE), Direction.TO_ACADEMY,
                 departTime, departTime.minusMinutes(30));
-        Phase9RosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
+        RunRosterFixtures.ManagerAccount manager = fx.manager(academyId, ManagerRole.DRIVER, "기사");
         fx.assign(runId, manager.managerId(), ManagerRole.DRIVER);
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/roster").header("Authorization",
@@ -105,7 +105,7 @@ class RosterAuditIntegrationTest {
 
     @Test
     void 관계자_명단_조회는_감사_로그_1건을_남기고_보호자_연락처_원본을_L3_필드로_담는다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");
@@ -146,7 +146,7 @@ class RosterAuditIntegrationTest {
      */
     @Test
     void 확정_전_회차의_예정_명단_조회도_감사_로그_1건을_남긴다() throws Exception {
-        Phase9RosterFixtures fx = Phase9RosterFixtures.of(applicationContext);
+        RunRosterFixtures fx = RunRosterFixtures.of(applicationContext);
         long academyId = fx.academyWithCoordinates();
         long busId = fx.bus(academyId);
         long stopId = fx.stop(academyId, "37.500000", "127.000000");

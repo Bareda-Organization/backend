@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -39,6 +40,8 @@ import src.backend.manager.entity.Assignment;
 import src.backend.manager.entity.Manager;
 import src.backend.manager.repository.AssignmentRepository;
 import src.backend.run.entity.Run;
+import src.backend.run.entity.RunPlan;
+import src.backend.run.entity.RunStatus;
 
 /**
  * §5.13 {@code /staff/managers} — MGR-01·02·03·04 · A-12.
@@ -254,6 +257,7 @@ class StaffManagerControllerTest {
         배치한다(managerId, 회차를_만든다(busId, OffsetDateTime.now(clock).minusDays(1)));
         long finishedRunId = 회차를_만든다(busId, OffsetDateTime.now(clock).plusHours(3));
         Run finishedRun = entityManager.find(Run.class, finishedRunId);
+        ReflectionTestUtils.setField(finishedRun, "status", RunStatus.CONFIRMED);
         finishedRun.start(OffsetDateTime.now(clock).minusMinutes(30));
         finishedRun.finish(OffsetDateTime.now(clock));
         배치한다(managerId, finishedRunId);
@@ -541,9 +545,9 @@ class StaffManagerControllerTest {
     }
 
     private long 회차를_만든다(long busId, OffsetDateTime departAt) {
-        Run run = Run.forSchedule(ACADEMY_A_ID, busId, null, departAt.atZoneSameInstant(clock.getZone()).toLocalDate(),
+        Run run = Run.forSchedule(new RunPlan(ACADEMY_A_ID, busId, null, departAt.atZoneSameInstant(clock.getZone()).toLocalDate(),
                 Direction.TO_ACADEMY, departAt, departAt.minusMinutes(CONFIRM_LEAD_MINUTES), "중앙 집결지",
-                "바래다학원 A", null);
+                "바래다학원 A", null));
         entityManager.persist(run);
         entityManager.flush();
         return run.getId();
