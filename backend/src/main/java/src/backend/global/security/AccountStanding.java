@@ -14,6 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 
 /**
  * 계정이 <b>권한을 잃었는가</b>(Ruling 880) — 차단 · 퇴사한 관계자 · 삭제된 매니저면 그 계정이 이미 받은 access 토큰은
@@ -51,19 +55,34 @@ public class AccountStanding {
      * 비교와 보관은 같은 키의 {@code compute} 안에서 하고 {@link #evict} 의 {@code remove} 도 같은 키 잠금을 쓰므로, 비움은 비교 앞이거나 보관 뒤일 수밖에 없다.
      */
     private final AtomicLong evictions = new AtomicLong();
+    /** 보관 항목으로 답한 조회와 질의가 나간 조회의 횟수 — 보관 시간을 0 으로 둔 경우(보관을 쓰지 않는다)는 세지 않는다. */
+    private final Counter hits;
+    private final Counter misses;
 
     @Autowired
     public AccountStanding(LostStandingSource standingSource, Clock clock,
-            @Value("${app.security.account-standing-cache-ttl:5s}") Duration cacheTtl) {
-        this(standingSource, clock, cacheTtl, new ConcurrentHashMap<>());
+            @Value("${app.security.account-standing-cache-ttl:5s}") Duration cacheTtl, MeterRegistry meters) {
+        this(standingSource, clock, cacheTtl, new ConcurrentHashMap<>(), meters);
+    }
+
+    /** 지표를 따로 모으지 않는 생성자 — 시험이 쓴다. */
+    public AccountStanding(LostStandingSource standingSource, Clock clock, Duration cacheTtl) {
+        this(standingSource, clock, cacheTtl, new SimpleMeterRegistry());
     }
 
     /** 보관 맵을 바꿔 끼울 수 있는 생성자 — 시험이 비움이 보관 직전에 끼어드는 순간을 만들어 낸다. */
     AccountStanding(LostStandingSource standingSource, Clock clock, Duration cacheTtl, Map<Long, Cached> cache) {
+        this(standingSource, clock, cacheTtl, cache, new SimpleMeterRegistry());
+    }
+
+    private AccountStanding(LostStandingSource standingSource, Clock clock, Duration cacheTtl, Map<Long, Cached> cache,
+            MeterRegistry meters) {
         this.standingSource = standingSource;
         this.clock = clock;
         this.cacheTtl = cacheTtl;
         this.cache = cache;
+        this.hits = meters.counter("schoolbus.cache.account_standing.hit");
+        this.misses = meters.counter("schoolbus.cache.account_standing.miss");
     }
 
     /** 이 계정이 권한을 잃었으면 참 — 계정 행이 없으면 거짓(알 수 없는 것을 잃었다고 읽지 않는다). */
@@ -74,8 +93,10 @@ public class AccountStanding {
         long now = clock.millis();
         Cached hit = cache.get(accountId);
         if (hit != null && now < hit.expiresAtMillis()) {
+            hits.increment();
             return hit.lost();
         }
+        misses.increment();
         long epoch = evictions.get();
         boolean lost = queryLost(accountId);
         store(accountId, new Cached(lost, now + cacheTtl.toMillis()), now, epoch);

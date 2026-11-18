@@ -7,10 +7,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-import lombok.extern.slf4j.Slf4j;
-
+import src.backend.global.common.logging.RateLimitedWarn;
 import src.backend.global.redis.LocalFallbackMemory;
 
 /**
@@ -19,8 +20,10 @@ import src.backend.global.redis.LocalFallbackMemory;
  * 저장소는 Redis 이고, Redis 를 못 쓰는 동안은 이 인스턴스 안의 기억이 같은 창을 대신한다.
  * {@link AuditRecorder} 가 생성자에서 직접 만들어 쓰는 내부 협력 객체라 빈이 아니다.
  */
-@Slf4j(topic = "src.backend.audit.service.AuditRecorder")
 final class AuditDedupWindow {
+
+    /** 감사 기록의 로그는 {@link AuditRecorder} 이름으로 남긴다 — 운영에서 감사 로그를 한 이름으로 거른다. */
+    private static final Logger LOG = LoggerFactory.getLogger("src.backend.audit.service.AuditRecorder");
 
     /** {@code detail} 에서 응답에 실린 학생 id 를 담는 키 — 묶기 키(행위자·학생)의 학생 쪽이다. */
     private static final String STUDENT_IDS_KEY = "student_ids";
@@ -41,6 +44,11 @@ final class AuditDedupWindow {
 
     /** Redis 를 못 쓰는 동안의 묶기 기록 — 반복 조회가 조회마다 감사 행(새 트랜잭션 · 새 커넥션)을 쓰지 않게 한다. 인스턴스 1대 기준의 같은 창이다(Ruling 919 B ⑤). */
     private final LocalFallbackMemory<Boolean> whileRedisIsDown;
+
+    /** 판정과 되돌리기는 서로 다른 실패라 경고 제한을 따로 둔다 — 한쪽이 다른 쪽 로그를 가리지 않는다. */
+    private final RateLimitedWarn claimFailure = RateLimitedWarn.perMinute(LOG);
+
+    private final RateLimitedWarn releaseFailure = RateLimitedWarn.perMinute(LOG);
 
     AuditDedupWindow(Clock clock, StringRedisTemplate redis) {
         this.redis = redis;
@@ -103,8 +111,8 @@ final class AuditDedupWindow {
             redis.opsForValue().set(key, nowMillis, AuditRecorder.DATA_ACCESS_DEDUP_WINDOW);
             return true;
         } catch (RuntimeException e) {
-            log.warn("감사 묶기 기록을 Redis 에서 판정하지 못했다 — 이 인스턴스 안의 기억으로 판정한다. actor={} student={}", viewed.actorAccountId(),
-                    viewed.studentId(), e);
+            claimFailure.warn(e, "감사 묶기 기록을 Redis 에서 판정하지 못했다 — 이 인스턴스 안의 기억으로 판정한다. actor={} student={}",
+                    viewed.actorAccountId(), viewed.studentId());
             return whileRedisIsDown.claim(key, Boolean.TRUE, AuditRecorder.DATA_ACCESS_DEDUP_WINDOW);
         }
     }
@@ -115,8 +123,8 @@ final class AuditDedupWindow {
         try {
             redis.delete(keyOf(viewed));
         } catch (RuntimeException e) {
-            log.warn("감사 묶기 기록을 되돌리지 못했다 — 창이 끝날 때까지 같은 조회가 기록에서 빠질 수 있다. actor={} student={}",
-                    viewed.actorAccountId(), viewed.studentId(), e);
+            releaseFailure.warn(e, "감사 묶기 기록을 되돌리지 못했다 — 창이 끝날 때까지 같은 조회가 기록에서 빠질 수 있다. actor={} student={}",
+                    viewed.actorAccountId(), viewed.studentId());
         }
     }
 

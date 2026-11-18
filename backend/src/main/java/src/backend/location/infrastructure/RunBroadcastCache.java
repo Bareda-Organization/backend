@@ -9,9 +9,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import lombok.RequiredArgsConstructor;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import src.backend.routing.dto.PositionStopView;
 
@@ -24,7 +27,6 @@ import src.backend.routing.dto.PositionStopView;
  * 비교, 확인과 저장은 한 키의 {@code compute} 안에서 원자적으로). 놓친 이벤트가 있어도 {@value #BACKSTOP_MINUTES}분 뒤에는 스스로 다시 읽는다.
  */
 @Component
-@RequiredArgsConstructor
 public class RunBroadcastCache {
 
     private static final int BACKSTOP_MINUTES = 5;
@@ -37,11 +39,28 @@ public class RunBroadcastCache {
 
     private final Clock clock;
 
+    /** 보관 항목으로 답한 읽기와 목록을 새로 읽은 횟수 — 정차 목록과 학생 목록을 함께 센다. */
+    private final Counter hits;
+
+    private final Counter misses;
+
     private final AtomicLong evictions = new AtomicLong();
 
     private final Map<Long, Entry<List<PositionStopView>>> stops = new ConcurrentHashMap<>();
 
     private final Map<Long, Entry<List<Long>>> students = new ConcurrentHashMap<>();
+
+    /** 지표를 따로 모으지 않는 생성자 — 시험이 쓴다. */
+    public RunBroadcastCache(Clock clock) {
+        this(clock, new SimpleMeterRegistry());
+    }
+
+    @Autowired
+    public RunBroadcastCache(Clock clock, MeterRegistry meters) {
+        this.clock = clock;
+        this.hits = meters.counter("schoolbus.cache.run_broadcast.hit");
+        this.misses = meters.counter("schoolbus.cache.run_broadcast.miss");
+    }
 
     /** 회차의 정차 목록 — 없으면 {@code loader} 로 읽어 넣는다. */
     public List<PositionStopView> stops(Long runId, Supplier<List<PositionStopView>> loader) {
@@ -76,8 +95,10 @@ public class RunBroadcastCache {
         Instant now = clock.instant();
         Entry<T> hit = cache.get(runId);
         if (hit != null && hit.expiresAt().isAfter(now)) {
+            hits.increment();
             return hit.value();
         }
+        misses.increment();
         long evictionsBefore = evictions.get();
         T loaded = loader.get();
         if (cache.size() >= MAX_RUNS) {
