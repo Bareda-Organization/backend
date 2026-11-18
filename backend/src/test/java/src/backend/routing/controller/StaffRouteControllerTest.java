@@ -532,11 +532,11 @@ class StaffRouteControllerTest {
 
     /**
      * 정차지 하나가 다른 학원 소속으로 남아(데이터 정합 어긋남) {@code stop} 조인에서 빠져도
-     * {@code 500} 이 아니라 나머지 정차지로 응답한다 — {@code route_stop} 에 학원 컬럼이 없어
-     * (ERD §6.1) 이런 어긋남을 DB 가 막지 못한다({@code RoutePathQueryService.stopResponsesOf}).
+     * {@code 500} 이 아니라 나머지 정차지로 응답한다 — {@code route_stop} 은 학원 칸과 복합 FK 로 그런 행을 DB 가 막지만(ERD §4.1),
+     * 외래 키 검사를 끄고 적재한 데이터가 남아 있을 수 있어 조회 쪽도 같은 방어를 둔다({@code RoutePathQueryService.stopResponsesOf}).
      *
-     * <p>실제로 어긋난 행을 만들 수 없어(편성 API 가 학원 밖 정차지를 거부, §5.9) JDBC 로
-     * {@code route_stop} 을 직접 꽂아 그 상태를 재현한다.
+     * <p>편성 API 는 학원 밖 정차지를 거부하고(§5.9) DB 도 막으므로, 외래 키 검사를 끄고 {@code route_stop} 을
+     * 직접 꽂아 그 상태를 재현한다.
      */
     @Test
     void 좌표를_못_찾는_정차지가_섞여도_500이_아니라_나머지로_응답한다() throws Exception {
