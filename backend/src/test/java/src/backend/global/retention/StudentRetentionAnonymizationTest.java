@@ -244,8 +244,8 @@ class StudentRetentionAnonymizationTest {
                 RETURNING id
                 """, Long.class, academyId, accountId);
         for (long studentId : studentIds) {
-            jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at) VALUES (?, ?, now())",
-                    guardianId, studentId);
+            jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at, academy_id) VALUES (?, ?, now(), (SELECT academy_id FROM guardian WHERE id = ?))",
+                    guardianId, studentId, guardianId);
         }
         return guardianId;
     }
@@ -283,14 +283,15 @@ class StudentRetentionAnonymizationTest {
                 """, Long.class, academyId, name, photoUrl, deletedAt);
         jdbcTemplate.update("""
                 INSERT INTO weekly_address (student_id, weekday, direction, address, address_detail, lat, lng, verified,
-                                            updated_at)
-                VALUES (?, 'mon', 'to_academy', '서울시 어딘가 1', '101호', 37.5, 127.0, true, now())
-                """, studentId);
-        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status) VALUES (?, ?, ?, 'waiting')",
-                runId, studentId, stopId);
+                                            updated_at, academy_id)
+                VALUES (?, 'mon', 'to_academy', '서울시 어딘가 1', '101호', 37.5, 127.0, true, now(),
+                        (SELECT academy_id FROM student WHERE id = ?))
+                """, studentId, studentId);
+        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, academy_id) VALUES (?, ?, ?, 'waiting', (SELECT academy_id FROM run WHERE id = ?))",
+                runId, studentId, stopId, runId);
         // 아직 만료되지 않은 코드 — 만료된 행은 같은 cleanUp 의 일반 만료 정리가 먼저 지워 파기 서비스의 삭제 줄을 가려 버린다
         jdbcTemplate.update("INSERT INTO link_code (student_id, code, expires_at) "
-                + "VALUES (?, '123456', now() + interval '30 days')", studentId);
+                + "VALUES (?, substr(md5(random()::text), 1, 8), now() + interval '30 days')", studentId);
         return studentId;
     }
 

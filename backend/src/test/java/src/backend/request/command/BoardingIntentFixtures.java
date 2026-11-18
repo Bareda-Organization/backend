@@ -163,11 +163,11 @@ public class BoardingIntentFixtures {
                 Direction.TO_ACADEMY).orElseGet(() -> routeRepository.save(Route.register(academyId,
                         new RoutePlan(busId, Weekday.MON, Direction.TO_ACADEMY, "본선", true))));
         int seq = routeStopRepository.findAllOrderedByRouteIdAndAcademyId(route.getId(), academyId).size() + 1;
-        routeStopRepository.save(RouteStop.forRoute(route.getId(), stopId, seq));
+        routeStopRepository.save(RouteStop.forRoute(academyId, route.getId(), stopId, seq));
         VerifiedAddressEntry entry = new VerifiedAddressEntry(new VerifiedAddressEntry.AddressSlot(Weekday.MON,
                 Direction.TO_ACADEMY), new VerifiedAddressEntry.AddressText("서울시 어딘가", null),
                 new GeocodedPoint(new BigDecimal("37.5"), new BigDecimal("127.0"), "서울시 어딘가"));
-        weeklyAddressRepository.save(WeeklyAddress.verified(studentId, entry, stopId, OffsetDateTime.now()));
+        weeklyAddressRepository.save(WeeklyAddress.verified(academyId, studentId, entry, stopId, OffsetDateTime.now()));
     }
 
     public long academy() {
@@ -205,7 +205,8 @@ public class BoardingIntentFixtures {
     }
 
     public void linkChild(long guardianId, long studentId, OffsetDateTime linkedAt) {
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardianId, studentId, linkedAt));
+        long academyId = guardianRepository.findById(guardianId).orElseThrow().getAcademyId();
+        guardianStudentRepository.save(GuardianStudent.uponLink(academyId, guardianId, studentId, linkedAt));
     }
 
     /**
@@ -230,7 +231,7 @@ public class BoardingIntentFixtures {
                 "010-0000-0000", null, role == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT));
         manager.linkAccount(account.getId());
         managerRepository.save(manager);
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, assignedAt, null));
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, assignedAt, null));
         return account.getId();
     }
 
@@ -258,8 +259,9 @@ public class BoardingIntentFixtures {
                 Map.of(), false, List.of(), null, confirmedAt));
         confirmedRouteRepository.assignCurrentVersion(runId, version.getId());
 
-        RunStop runStop = runStopRepository.save(RunStop.forStop(version.getId(), stopId, 1, confirmedAt));
-        runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId));
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        RunStop runStop = runStopRepository.save(RunStop.forStop(academyId, version.getId(), stopId, 1, confirmedAt));
+        runRiderRepository.save(RunRider.uponConfirmation(academyId, runId, studentId, stopId));
         return runStop.getId();
     }
 }

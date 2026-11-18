@@ -18,6 +18,7 @@ import src.backend.global.error.ErrorCode;
 import src.backend.global.security.AuthUser;
 import src.backend.student.entity.Guardian;
 import src.backend.student.repository.LinkedChild;
+import testsupport.db.ForeignKeysOff;
 
 /**
  * Ruling 117 — 학부모 → {@code GuardianStudent} 연결 확인이 <b>한 지점</b>에서 나는지
@@ -182,9 +183,10 @@ class GuardianChildAccessTest {
      * <p>조회 API 로 대조군을 만들면 그 API 가 잘못돼도 대조군이 함께 틀려 아무것도 못 잡는다.
      */
     private void 학원을_넘는_연결을_심는다(long guardianAccountId, long studentId) {
-        jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at)"
-                        + " VALUES ((SELECT id FROM guardian WHERE account_id = ?), ?, now())",
-                guardianAccountId, studentId);
+        ForeignKeysOff.update(jdbcTemplate, "INSERT INTO guardian_student (guardian_id, student_id, linked_at, academy_id)"
+                        + " VALUES ((SELECT id FROM guardian WHERE account_id = ?), ?, now(),"
+                        + " (SELECT academy_id FROM guardian WHERE account_id = ?))",
+                guardianAccountId, studentId, guardianAccountId);
     }
 
     private void 연결을_해제한다(long guardianAccountId, long studentId) {

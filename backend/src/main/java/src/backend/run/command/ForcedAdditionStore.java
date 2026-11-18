@@ -70,8 +70,8 @@ public class ForcedAdditionStore {
         Long studentId = existingStudent != null ? existingStudent.getId()
                 : studentCommandService.registerMinimal(run.getAcademyId(), request.newStudent().name());
         Long stopId = stopMatcher.matchOrCreate(run.getAcademyId(), point).getId();
-        RunForcedAddition forcedAddition = RunForcedAddition.forRun(run.getId(), studentId, stopId, addedBy,
-                now, request.note());
+        RunForcedAddition forcedAddition = RunForcedAddition.forRun(run.getAcademyId(), run.getId(), studentId, stopId,
+                addedBy, now, request.note());
         return runForcedAdditionRepository.save(forcedAddition);
     }
 

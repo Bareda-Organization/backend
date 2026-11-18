@@ -143,7 +143,7 @@ class RunConfirmationAttendantAssignmentTest {
         long academyId = academyOf(runId);
         long manualId = escort(academyId, "수동동승자");
         escort(academyId, "다른동승자");
-        assignmentRepository.save(Assignment.uponAssignment(runId, manualId, ManagerRole.ESCORT,
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manualId, ManagerRole.ESCORT,
                 OffsetDateTime.now(clock), 1L));
 
         confirmationService.confirmOne(runId);

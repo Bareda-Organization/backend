@@ -144,7 +144,7 @@ public class ExceptionReportFixtures {
                 name, "010-0000-0000", null, accountRole));
         manager.linkAccount(account.getId());
         managerRepository.save(manager);
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, assignedAt, null));
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, assignedAt, null));
         return account.getId();
     }
 
@@ -176,7 +176,8 @@ public class ExceptionReportFixtures {
 
     /** 그 회차의 라이더 1건(보호자 부재 보고의 {@code rider_id} 대상) — 반환값은 {@code run_rider.id}. */
     public long rider(long runId, long studentId, long stopId) {
-        RunRider rider = RunRider.uponConfirmation(runId, studentId, stopId);
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        RunRider rider = RunRider.uponConfirmation(academyId, runId, studentId, stopId);
         return runRiderRepository.save(rider).getId();
     }
 

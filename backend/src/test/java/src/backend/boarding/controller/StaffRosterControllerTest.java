@@ -223,7 +223,7 @@ class StaffRosterControllerTest {
         fx.verifiedAddress(ridingId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
         fx.verifiedAddress(offId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
         long runId = 확정_전_회차(fx, academyId, busId);
-        BoardingIntent intent = BoardingIntent.forRun(runId, offId, OffsetDateTime.now());
+        BoardingIntent intent = BoardingIntent.forRun(academyId, runId, offId, OffsetDateTime.now());
         intent.applyRiding(false, ChangeWindow.IMMEDIATE, OffsetDateTime.now(), null);
         boardingIntentRepository.save(intent);
         long staffAccountId = 관계자_계정을_만든다(academyId);
@@ -251,7 +251,7 @@ class StaffRosterControllerTest {
         fx.verifiedAddress(studentId, stopId, Weekday.THU, Direction.TO_ACADEMY, "37.500000", "127.000000");
         long fromRunId = 확정_전_회차(fx, academyId, fromBusId);
         long toRunId = 확정_전_회차(fx, academyId, toBusId);
-        runTransferRepository.save(RunTransfer.stage(studentId, fromRunId, toRunId, toStopId, null, 1L,
+        runTransferRepository.save(RunTransfer.stage(academyId, studentId, fromRunId, toRunId, toStopId, null, 1L,
                 OffsetDateTime.now()));
         long staffAccountId = 관계자_계정을_만든다(academyId);
 

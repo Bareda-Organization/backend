@@ -105,7 +105,8 @@ public class NoShowEscalationFixtures {
     }
 
     public long runRider(long runId, long studentId, long stopId) {
-        return runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId)).getId();
+        long academyId = runRepository.findById(runId).orElseThrow().getAcademyId();
+        return runRiderRepository.save(RunRider.uponConfirmation(academyId, runId, studentId, stopId)).getId();
     }
 
     /** 대기 만료 시각을 직접 지정한 미승차 케이스 — 스케줄러가 그 시각으로 도래 여부를 가른다. */

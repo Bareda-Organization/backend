@@ -64,7 +64,7 @@ class AutoBoardingServiceTest {
         long riderNoShow = fixtures().runRider(runId, alreadyNoShowStudent, stopId);
         // 이미 미승차로 빠진 탑승자는 하원 시작 시점에도 그대로 둔다(AutoBoardingService 자바독) — 그
         // 판단을 검증 가능한 상태로 만들기 위해 이력 없이 직접 상태만 no_show 로 앞당겨 둔다.
-        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE id = ?", riderNoShow);
+        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show', changed_at = now() WHERE id = ?", riderNoShow);
         entityManager.clear();
 
         List<RunRider> boarded = autoBoardingService.boardAllForDropOff(runId, now);

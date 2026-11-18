@@ -17,8 +17,8 @@ import src.backend.boarding.entity.RunRider;
 import src.backend.global.security.access.AcademyScopeExempt;
 
 /**
- * {@link RunRider} 영속성 접근 — {@code run_rider} 는 {@code academy_id} 컬럼이 부재한 <b>부모 경유</b>
- * 자원이다(ERD §6.1). 확정 배치는 {@code saveAll()} 로 회차별 명단을 한 번에 쌓는다. 조회 메서드는 ②구간 승인 미리보기가 그 명단을 다시 읽기 위해 둔다.
+ * {@link RunRider} 영속성 접근 — {@code run_rider} 는 {@code academy_id} 를 가지며 회차·학생·승하차지를 같은 학원의 것만
+ * 가리키는 복합 FK 로 건다(ERD §4.1 · §6.1). 확정 배치는 {@code saveAll()} 로 회차별 명단을 한 번에 쌓는다. 조회 메서드는 ②구간 승인 미리보기가 그 명단을 다시 읽기 위해 둔다.
  * 인원 집계는 {@link RunRiderCountQueries}, 알림·방송 대상 조회는 {@link RunRiderRecipientQueries} 에 선언하고 이 저장소가 상속해 노출한다.
  */
 public interface RunRiderRepository
@@ -29,8 +29,7 @@ public interface RunRiderRepository
      * 뒤 그동안 승인된 변경까지 반영된 <b>지금</b> 상태를 읽는다({@code weekly_address} 가 아니라
      * 이쪽을 기준선으로 삼는 이유는 승인 미리보기 판단 근거 참조).
      *
-     * <p>{@code academy_id} 컬럼이 부재해 학원 조건을 붙일 자리가 <b>부모(Run) 조인뿐</b>이다
-     * (ERD §6.1 부모 경유 — {@code WeeklyAddressRepository} 와 같은 형태).
+     * <p>학원 조건은 부모(Run) 조인으로 건다 — 학원 칸이 있어도 이 조회의 형태는 {@code WeeklyAddressRepository} 와 같다.
      */
     @Query("""
             SELECT rr FROM RunRider rr
@@ -79,6 +78,10 @@ public interface RunRiderRepository
     List<RunRider> findAllByRunIdInAndAcademyId(@Param("runIds") Collection<Long> runIds,
             @Param("academyId") Long academyId);
 
+    /** 한 학생의 여러 회차 탑승자 행을 한 번에 읽는다 — 학원 칸으로 좁힌다. */
+    List<RunRider> findAllByAcademyIdAndStudentIdAndRunIdIn(Long academyId, Long studentId,
+            Collection<Long> runIds);
+
     /**
      * ③구간 미등원 토글(API_SPEC §3.6)이 상태를 옮길 그 학생의 명단 행 1건 —
      * {@code uk_run_rider_run_student} UNIQUE(암시)가 결과를 한 건으로 좁힌다.
@@ -88,8 +91,8 @@ public interface RunRiderRepository
      * #findByRunIdAndStudentId} 와 같은 근거(Ruling 153·180 {id} 지목 관례).
      */
     @AcademyScopeExempt(reason = "runId 는 호출부가 RunRepository.findByIdAndAcademyId 로 이미 학원 범위에 좁혀 얻은 "
-            + "회차의 식별자라는 전제다(BoardingIntentRepository.findByRunIdAndStudentId 와 같은 근거). run_rider 는 "
-            + "academy_id 컬럼이 부재해 부모(run) 조인 없이는 재확인할 수도 없다")
+            + "회차의 식별자라는 전제다(BoardingIntentRepository.findByRunIdAndStudentId 와 같은 근거). run_rider 의 "
+            + "학원은 회차와 같다(복합 FK)")
     Optional<RunRider> findByRunIdAndStudentId(Long runId, Long studentId);
 
     /**

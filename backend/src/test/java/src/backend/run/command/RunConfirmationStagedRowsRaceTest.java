@@ -99,14 +99,14 @@ class RunConfirmationStagedRowsRaceTest {
         long secondStudent = fixtures.student(academyId, "나중이동");
 
         RunTransfer first = runTransferRepository.saveAndFlush(
-                RunTransfer.stage(firstStudent, fromRun.getId(), toRun.getId(), stopId, null, STAFF_ACCOUNT_ID, now));
+                RunTransfer.stage(academyId, firstStudent, fromRun.getId(), toRun.getId(), stopId, null, STAFF_ACCOUNT_ID, now));
         // 확정 계산이 도착 회차 명단을 읽은 시점 — 이동 대기 1건이 보인다.
         ProjectedRoster stale = rosterReader.read(toRun);
 
         // 계산이 도는 사이 관계자가 그 대기 건을 취소하고 다른 학생을 새로 이동시킨다 — 행 수는 여전히 1.
         runTransferRepository.delete(first);
         runTransferRepository.saveAndFlush(
-                RunTransfer.stage(secondStudent, fromRun.getId(), toRun.getId(), stopId, null, STAFF_ACCOUNT_ID, now));
+                RunTransfer.stage(academyId, secondStudent, fromRun.getId(), toRun.getId(), stopId, null, STAFF_ACCOUNT_ID, now));
 
         assertThatThrownBy(() -> persistence.persist(toRun, null, null, Weekday.of(toRun.getServiceDate()), stale,
                 now)).isInstanceOf(ConfirmationInputsChangedException.class).hasMessageContaining("다음 틱");

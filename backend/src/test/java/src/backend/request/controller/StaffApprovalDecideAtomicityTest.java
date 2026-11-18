@@ -171,7 +171,7 @@ class StaffApprovalDecideAtomicityTest {
 
         // 이미 한도를 소진해 둔 상태로 시작한다 — 실패한 결정이 이 값을 건드리지 않아야 한다(그대로
         // 소진된 채 남아야 한다. 되돌리는 것은 오직 자동 거절 경로의 몫이다).
-        BoardingIntent intent = BoardingIntent.forRun(s.runId, s.studentId, OffsetDateTime.now(KST));
+        BoardingIntent intent = BoardingIntent.forRun(s.academyId, s.runId, s.studentId, OffsetDateTime.now(KST));
         intent.consumeChangeQuota();
         boardingIntentRepository.save(intent);
 

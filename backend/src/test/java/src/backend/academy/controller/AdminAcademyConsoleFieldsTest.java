@@ -191,7 +191,7 @@ class AdminAcademyConsoleFieldsTest {
      */
     @Test
     @Sql(statements = {
-            "UPDATE run SET status = 'moving' WHERE id = 4 AND bus_id = 2",
+            "UPDATE run SET status = 'moving', started_at = now() WHERE id = 4 AND bus_id = 2",
             "UPDATE run SET status = 'moving', confirmed_at = now(), started_at = now() WHERE id = 100 AND bus_id = 10"
     })
     void 학원_상세의_moving_bus_nos_는_운행_중_차량의_호차_이름을_중복_없이_싣는다() throws Exception {

@@ -107,7 +107,7 @@ class RunRouteConfirmedNotificationTest {
                 "010-0000-0000", null, role == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT));
         manager.linkAccount(account.getId());
         managerRepository.save(manager);
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, OffsetDateTime.now(clock),
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, OffsetDateTime.now(clock),
                 null));
     }
 
@@ -115,7 +115,7 @@ class RunRouteConfirmedNotificationTest {
     private void 계정_없는_매니저를_만든다(long academyId, long runId, ManagerRole role, String name) {
         Manager manager = managerRepository
                 .save(Manager.register(academyId, new ManagerProfile(name, "010-0000-0000", role, null)));
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, OffsetDateTime.now(clock),
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, OffsetDateTime.now(clock),
                 null));
     }
 
@@ -134,7 +134,7 @@ class RunRouteConfirmedNotificationTest {
                 "010-0000-0000", null, role == ManagerRole.DRIVER ? Role.DRIVER : Role.ESCORT));
         manager.linkAccount(account.getId());
         managerRepository.save(manager);
-        assignmentRepository.save(Assignment.uponAssignment(runId, manager.getId(), role, OffsetDateTime.now(clock),
+        assignmentRepository.save(Assignment.uponAssignment(academyId, runId, manager.getId(), role, OffsetDateTime.now(clock),
                 null));
         manager.delete(OffsetDateTime.now(clock));
         managerRepository.save(manager);

@@ -227,8 +227,8 @@ class StaffApprovalDecideControllerTest {
         // 실제 신청 경로(토글·변경 신청)는 접수 때 riding=true 행을 만든다 — 그 상태에서 승인한다.
         Long studentId = jdbcTemplate.queryForObject("SELECT student_id FROM change_request WHERE id = ?",
                 Long.class, s.approvalId);
-        jdbcTemplate.update("INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, created_at) "
-                + "VALUES (?, ?, true, 1, now())", s.runId, studentId);
+        jdbcTemplate.update("INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, created_at, academy_id) "
+                + "VALUES (?, ?, true, 1, now(), (SELECT academy_id FROM run WHERE id = ?))", s.runId, studentId, s.runId);
 
         결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
 
@@ -494,8 +494,9 @@ class StaffApprovalDecideControllerTest {
                 + "created_by) VALUES (?, '경유', 37.563000, 126.973000, true, 1) RETURNING id", Long.class, s.runId);
         Integer lastSeq = jdbcTemplate.queryForObject("SELECT max(seq) FROM run_stop WHERE route_version_id = ?",
                 Integer.class, versionId);
-        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, waypoint_id, seq) VALUES (?, ?, ?)", versionId,
-                waypointId, lastSeq + 1);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, waypoint_id, seq, academy_id) VALUES (?, ?, ?, "
+                + "(SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = ?))", versionId,
+                waypointId, lastSeq + 1, versionId);
         String token = 미리보기_토큰_조회(s);
 
         결정_요청(관계자_토큰(tokenProvider, s.academyId), s.approvalId, 승인_바디(token)).andExpect(status().isOk());
@@ -589,7 +590,7 @@ class StaffApprovalDecideControllerTest {
         driver.linkAccount(driverAccountId);
         long driverId = managerRepository.save(driver).getId();
         assignmentRepository.save(
-                Assignment.uponAssignment(runId, driverId, ManagerRole.DRIVER, OffsetDateTime.now(), driverAccountId));
+                Assignment.uponAssignment(academyId, runId, driverId, ManagerRole.DRIVER, OffsetDateTime.now(), driverAccountId));
 
         ChangeRequest changeRequest = ChangeRequest.forRequest(academyId, runId, 학생2,
                 ChangeRequestSource.CHANGE_REQUEST, ChangeRequestType.CANCEL, (short) 2, parentAccountId,

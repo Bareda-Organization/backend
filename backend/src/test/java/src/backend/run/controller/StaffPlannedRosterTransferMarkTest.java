@@ -159,12 +159,12 @@ class StaffPlannedRosterTransferMarkTest {
         long weeklyStudent = fixtures.student(academyId, "요일별학생");
         fixtures.verifiedAddress(weeklyStudent, routeStop, Weekday.THU, Direction.TO_ACADEMY, "37.560000", "126.970000");
         long forcedStudent = fixtures.student(academyId, "강제추가학생");
-        runForcedAdditionRepository.save(RunForcedAddition.forRun(toRunId, forcedStudent,
+        runForcedAdditionRepository.save(RunForcedAddition.forRun(academyId, toRunId, forcedStudent,
                 fixtures.stop(academyId, "37.561000", "126.971000"), STAFF_ACCOUNT_ID, OffsetDateTime.now(clock),
                 null));
         // 이동 학생은 출발 회차 명단에 있어야 이동을 등록할 수 있다 — 강제 추가 1건으로 올린다.
         long movedStudent = fixtures.student(academyId, "이동학생");
-        runForcedAdditionRepository.save(RunForcedAddition.forRun(fromRunId, movedStudent,
+        runForcedAdditionRepository.save(RunForcedAddition.forRun(academyId, fromRunId, movedStudent,
                 fixtures.stop(academyId, "37.563000", "126.973000"), STAFF_ACCOUNT_ID, OffsetDateTime.now(clock),
                 null));
         mockMvc.perform(post("/api/v1/staff/students/" + movedStudent + "/transfer")

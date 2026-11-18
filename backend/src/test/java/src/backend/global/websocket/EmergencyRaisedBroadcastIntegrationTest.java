@@ -154,7 +154,7 @@ class EmergencyRaisedBroadcastIntegrationTest {
                             new StudentProfile("학생" + System.nanoTime(), "010-0000-0000", null, null, null, null,
                                     null, null, null)))
                     .getId();
-            runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId));
+            runRiderRepository.save(RunRider.uponConfirmation(academyId, runId, studentId, stopId));
         }
 
         // EmergencyPositionRecordedAtIntegrationTest 의 예시값(37.512345/127.098765)과 다른 값 —

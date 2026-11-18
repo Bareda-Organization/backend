@@ -307,7 +307,7 @@ class AdminAcademyControllerTest {
      * 있어도 차량 수는 1이어야 해 회차 수와 가른다.
      */
     @Test
-    @Sql(statements = "UPDATE run SET status = 'moving' WHERE id = 4 AND bus_id = 2")
+    @Sql(statements = "UPDATE run SET status = 'moving', started_at = now() WHERE id = 4 AND bus_id = 2")
     void 학원_상세의_운행_중_차량_수는_moving_회차가_있는_차량_수다() throws Exception {
         mockMvc.perform(get("/api/v1/admin/academies/1").header("Authorization", 메인관리자_토큰(tokenProvider, 1L)))
                 .andExpect(status().isOk())

@@ -242,7 +242,7 @@ class StaffWaypointControllerTest {
     @Test
     void 운행_중인_회차는_403_이다() throws Exception {
         시나리오 s = 확정된_회차를_만든다();
-        jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", s.runId);
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", s.runId);
 
         경유_추가한다(s.runId, 경유_본문("새경유로 30", "정류장", false))
                 .andExpect(status().isForbidden())
@@ -620,7 +620,7 @@ class StaffWaypointControllerTest {
         String token = 미리보기_토큰(경유_요청한다(s.runId, 경유_본문("낡음경유로 1", "낡음", false))
                 .andExpect(status().isOk()).andReturn());
         int versionNo = 현재_버전_번호(s.runId);
-        assertThat(jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE id = "
+        assertThat(jdbcTemplate.update("UPDATE run_rider SET status = 'absent', changed_at = now() WHERE id = "
                 + "(SELECT min(id) FROM run_rider WHERE run_id = ?)", s.runId)).as("명단이 실제로 바뀌어야 한다").isEqualTo(1);
         entityManager.flush();
         entityManager.clear();
@@ -718,9 +718,11 @@ class StaffWaypointControllerTest {
                 SELECT confirmed_route_id, version_no + 1, 'approval', est_duration_min, est_distance_km, now(),
                     input_fingerprint, engine_name, policy_snapshot, fallback_used, road_path, created_by
                 FROM route_version WHERE id = ? RETURNING id""", Long.class, current);
-        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, stop_id, waypoint_id, destination, seq, eta) "
-                + "SELECT ?, stop_id, waypoint_id, destination, seq, eta FROM run_stop WHERE route_version_id = ?",
-                next, current);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, stop_id, waypoint_id, destination, seq, eta, academy_id) "
+                + "SELECT ?, stop_id, waypoint_id, destination, seq, eta, "
+                + "(SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = ?) "
+                + "FROM run_stop WHERE route_version_id = ?",
+                next, current, next);
         jdbcTemplate.update("UPDATE confirmed_route SET current_version_id = ? WHERE run_id = ?", next, runId);
         entityManager.flush();
         entityManager.clear();

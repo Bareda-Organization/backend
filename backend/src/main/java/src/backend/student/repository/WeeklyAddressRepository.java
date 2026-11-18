@@ -65,6 +65,10 @@ public interface WeeklyAddressRepository extends JpaRepository<WeeklyAddress, Lo
             @Param("studentIds") Collection<Long> studentIds, @Param("weekday") Weekday weekday,
             @Param("direction") Direction direction);
 
+    /** 한 학생의 그 요일 검증된 주소 — 방향 둘을 한 번에 읽는다(승하차지가 정해진 것만). */
+    List<WeeklyAddress> findAllByAcademyIdAndStudentIdAndWeekdayAndVerifiedTrueAndStopIdIsNotNull(Long academyId,
+            Long studentId, Weekday weekday);
+
     /**
      * {@link #findDailyStops} 의 역방향 — 학생 집합이 아니라 <b>편성된 노선의 정차지 집합</b>에서
      * 출발해 그 요일·방향에 실제로 그 정차지를 쓰는 학생을 되찾는다(확정 배치 RTE-08).

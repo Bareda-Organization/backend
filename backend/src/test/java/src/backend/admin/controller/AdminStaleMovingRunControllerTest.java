@@ -123,7 +123,7 @@ class AdminStaleMovingRunControllerTest {
     private void riders(long academyId, long runId, RiderStatus... statuses) {
         long stopId = fixtures().stop(academyId, "37.560000", "126.970000");
         for (RiderStatus riderStatus : statuses) {
-            RunRider rider = RunRider.uponConfirmation(runId, fixtures().student(academyId, "학생"), stopId);
+            RunRider rider = RunRider.uponConfirmation(academyId, runId, fixtures().student(academyId, "학생"), stopId);
             switch (riderStatus) {
                 case BOARDED -> rider.board(OffsetDateTime.now(clock));
                 case ALIGHTED -> rider.alight(OffsetDateTime.now(clock));

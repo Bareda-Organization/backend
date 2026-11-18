@@ -53,7 +53,8 @@ class LinkCodeConcurrentIssueTest {
                 + "JOIN account a ON a.id = s.account_id WHERE a.login_id IN (?, ?))",
                 SeedFixtures.STUDENT_A4_LOGIN_ID, SeedFixtures.STUDENT_B1_LOGIN_ID);
         if (originalRandom != null) {
-            ReflectionTestUtils.setField(AopTestUtils.getUltimateTargetObject(codeGenerator), "random", originalRandom);
+            LinkCodeGenerator target = AopTestUtils.getUltimateTargetObject(codeGenerator);
+            ReflectionTestUtils.setField(target, "random", originalRandom);
         }
     }
 

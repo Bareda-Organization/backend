@@ -124,7 +124,7 @@ class StudentRouteRoadPathTest {
     @Test
     void 운행이_끝난_회차도_같은_모양으로_도로_좌표를_싣는다() throws Exception {
         심는다(PLANTED_PATH, true);
-        jdbc.update("UPDATE run SET status = 'finished', finished_at = now() WHERE id = ?", MOVING_RUN);
+        jdbc.update("UPDATE run SET status = 'finished', finished_at = now(), started_at = COALESCE(started_at, now()) WHERE id = ?", MOVING_RUN);
 
         String body = 읽는다(5L, STUDENT_5_GUARDIAN_ACCOUNT);
 

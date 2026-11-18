@@ -69,12 +69,14 @@ class RoutingFixtures {
                 new VerifiedAddressEntry.AddressSlot(Weekday.MON, Direction.TO_ACADEMY),
                 new VerifiedAddressEntry.AddressText("서울시 어딘가 " + lat, null),
                 new GeocodedPoint(new BigDecimal(lat), new BigDecimal(lng), "서울시 어딘가"));
-        weeklyAddressRepository.save(WeeklyAddress.verified(studentId, entry, stopId, OffsetDateTime.now()));
+        long academyId = studentRepository.findById(studentId).orElseThrow().getAcademyId();
+        weeklyAddressRepository.save(WeeklyAddress.verified(academyId, studentId, entry, stopId, OffsetDateTime.now()));
     }
 
     /** 주소는 적었으나 검증 전이라 좌표·승하차지가 비어 있는 칸 — 이 학생이 분리 대상이다. */
     void unverifiedAddress(long studentId) {
-        weeklyAddressRepository.save(WeeklyAddress.register(studentId, Weekday.MON, Direction.TO_ACADEMY,
+        long academyId = studentRepository.findById(studentId).orElseThrow().getAcademyId();
+        weeklyAddressRepository.save(WeeklyAddress.register(academyId, studentId, Weekday.MON, Direction.TO_ACADEMY,
                 "서울시 검증전주소", null, OffsetDateTime.now()));
     }
 }

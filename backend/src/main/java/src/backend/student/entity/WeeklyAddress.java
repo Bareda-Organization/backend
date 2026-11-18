@@ -41,6 +41,9 @@ public class WeeklyAddress {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "academy_id", nullable = false)
+    private Long academyId;
+
     @Column(name = "student_id", nullable = false)
     private Long studentId;
 
@@ -73,8 +76,9 @@ public class WeeklyAddress {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
-    private WeeklyAddress(Long studentId, Weekday weekday, Direction direction, String address,
+    private WeeklyAddress(Long academyId, Long studentId, Weekday weekday, Direction direction, String address,
             String addressDetail, OffsetDateTime updatedAt) {
+        this.academyId = academyId;
         this.studentId = studentId;
         this.weekday = weekday;
         this.direction = direction;
@@ -88,9 +92,9 @@ public class WeeklyAddress {
      * 학부모·학생이 요일 × 방향 조합의 주소를 등록하는 시점에 생성한다(STU-05) — 검증 전이라
      * 좌표·승하차지는 아직 없다.
      */
-    public static WeeklyAddress register(Long studentId, Weekday weekday, Direction direction, String address,
-            String addressDetail, OffsetDateTime updatedAt) {
-        return new WeeklyAddress(studentId, weekday, direction, address, addressDetail, updatedAt);
+    public static WeeklyAddress register(Long academyId, Long studentId, Weekday weekday, Direction direction,
+            String address, String addressDetail, OffsetDateTime updatedAt) {
+        return new WeeklyAddress(academyId, studentId, weekday, direction, address, addressDetail, updatedAt);
     }
 
     /**
@@ -100,9 +104,9 @@ public class WeeklyAddress {
      * 정상 경로가 아니기 때문이다(ERD {@code weekly_address.verified}). 나중에 채우는 형태로 두면
      * 채우기 전에 커밋되는 경로가 생기고, 그 행은 노선 계산에서 조용히 빠진다.
      */
-    public static WeeklyAddress verified(Long studentId, VerifiedAddressEntry entry, Long stopId,
+    public static WeeklyAddress verified(Long academyId, Long studentId, VerifiedAddressEntry entry, Long stopId,
             OffsetDateTime updatedAt) {
-        WeeklyAddress created = new WeeklyAddress(studentId, entry.slot().weekday(), entry.slot().direction(),
+        WeeklyAddress created = new WeeklyAddress(academyId, studentId, entry.slot().weekday(), entry.slot().direction(),
                 entry.address().address(), entry.address().addressDetail(), updatedAt);
         created.reviseTo(entry, stopId, updatedAt);
         return created;

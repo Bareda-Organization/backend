@@ -901,7 +901,7 @@ class BoardingControllerTest {
         long escortAccountId = fixtures().assignedManager(managerRepository, assignmentRepository, academyId, runId,
                 ManagerRole.ESCORT, now);
         entityManager.flush(); // clear() 전 flush 필수 — assignedManager 의 계정 연결 UPDATE 가 아직 미반영 상태라 지우면 사라진다.
-        jdbcTemplate.update("UPDATE run_rider SET status = ? WHERE id = ?", fromStatus, riderId);
+        jdbcTemplate.update("UPDATE run_rider SET status = ?, changed_at = now() WHERE id = ?", fromStatus, riderId);
         entityManager.clear();
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))
@@ -938,7 +938,7 @@ class BoardingControllerTest {
                 ManagerRole.ESCORT, now);
         entityManager.flush();
         jdbcTemplate.update("UPDATE run SET direction = ? WHERE id = ?", direction, runId);
-        jdbcTemplate.update("UPDATE run_rider SET status = ? WHERE id = ?", fromStatus, riderId);
+        jdbcTemplate.update("UPDATE run_rider SET status = ?, changed_at = now() WHERE id = ?", fromStatus, riderId);
         entityManager.clear();
 
         mockMvc.perform(patch(UPDATE_STATUS.formatted(runId, riderId))

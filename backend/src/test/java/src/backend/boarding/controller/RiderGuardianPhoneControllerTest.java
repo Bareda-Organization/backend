@@ -177,8 +177,9 @@ class RiderGuardianPhoneControllerTest {
                 Direction.FROM_ACADEMY, depart, depart.minusMinutes(30));
         long otherStudentId = scene.fx().student(scene.academyId(), "다른회차학생");
         scene.fx().guardianWithPhone(scene.academyId(), otherStudentId, "010-9999-0000");
-        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status) VALUES (?, ?, ?, 'waiting')",
-                otherRunId, otherStudentId, scene.stopId());
+        jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, academy_id) "
+                + "VALUES (?, ?, ?, 'waiting', (SELECT academy_id FROM run WHERE id = ?))",
+                otherRunId, otherStudentId, scene.stopId(), otherRunId);
         long otherRiderId = jdbcTemplate.queryForObject("SELECT id FROM run_rider WHERE run_id = ?", Long.class,
                 otherRunId);
         String token = 토큰(scene.manager().accountId(), scene.academyId());

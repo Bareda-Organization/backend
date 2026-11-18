@@ -189,15 +189,15 @@ class StaffStudentListExtensionTest {
     }
 
     private void 주소를_심는다(long studentId, String weekday, String direction) {
-        jdbcTemplate.update("INSERT INTO weekly_address (student_id, weekday, direction, address) VALUES (?, ?, ?, '테스트 주소')",
-                studentId, weekday, direction);
+        jdbcTemplate.update("INSERT INTO weekly_address (student_id, weekday, direction, address, academy_id) VALUES (?, ?, ?, '테스트 주소', (SELECT academy_id FROM student WHERE id = ?))",
+                studentId, weekday, direction, studentId);
     }
 
     private void 보호자를_연결한다(long studentId) {
         long guardianId = jdbcTemplate.queryForObject("SELECT min(id) FROM guardian WHERE academy_id = ?", Long.class,
                 ACADEMY_A);
-        jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at) VALUES (?, ?, now())",
-                guardianId, studentId);
+        jdbcTemplate.update("INSERT INTO guardian_student (guardian_id, student_id, linked_at, academy_id) VALUES (?, ?, now(), (SELECT academy_id FROM guardian WHERE id = ?))",
+                guardianId, studentId, guardianId);
     }
 
     private String 목록(String query) throws Exception {

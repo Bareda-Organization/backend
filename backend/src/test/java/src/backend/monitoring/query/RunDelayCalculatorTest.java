@@ -26,7 +26,7 @@ class RunDelayCalculatorTest {
     }
 
     private static RunStop arrivedStop(int seq, OffsetDateTime eta, OffsetDateTime arrivedAt) {
-        RunStop stop = RunStop.forStop(1L, 100L + seq, seq, eta);
+        RunStop stop = RunStop.forStop(1L, 1L, 100L + seq, seq, eta);
         stop.markArrived(arrivedAt);
         return stop;
     }
@@ -38,7 +38,7 @@ class RunDelayCalculatorTest {
         List<RunStop> stops = List.of(
                 arrivedStop(1, DEPART.plusMinutes(5), DEPART.plusMinutes(5)),
                 arrivedStop(2, DEPART.plusMinutes(10), DEPART.plusMinutes(17)),
-                RunStop.forStop(1L, 103L, 3, DEPART.plusMinutes(15)));
+                RunStop.forStop(1L, 1L, 103L, 3, DEPART.plusMinutes(15)));
 
         assertThat(RunDelayCalculator.minutesOf(run, stops)).isEqualTo(7);
     }

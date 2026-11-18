@@ -59,7 +59,7 @@ class ApprovalRequestedBroadcastListenerTest {
         given(student.getName()).willReturn("이서연");
         given(studentRepository.findAllByAcademyIdAndIdIn(academyId, List.of(studentId))).willReturn(List.of(student));
 
-        RunRider rider = RunRider.uponConfirmation(runId, studentId, 7L);
+        RunRider rider = RunRider.uponConfirmation(academyId, runId, studentId, 7L);
         given(runRiderRepository.findByRunIdAndStudentId(runId, studentId)).willReturn(Optional.of(rider));
 
         Stop stop = mock(Stop.class);
@@ -101,7 +101,7 @@ class ApprovalRequestedBroadcastListenerTest {
         given(foreignStudent.getName()).willReturn("남의 학원 학생");
         given(studentRepository.findById(studentId)).willReturn(Optional.of(foreignStudent));
         given(runRiderRepository.findByRunIdAndStudentId(runId, studentId))
-                .willReturn(Optional.of(RunRider.uponConfirmation(runId, studentId, 7L)));
+                .willReturn(Optional.of(RunRider.uponConfirmation(academyId, runId, studentId, 7L)));
         Stop foreignStop = mock(Stop.class);
         given(foreignStop.getName()).willReturn("남의 학원 정차지");
         given(stopRepository.findById(7L)).willReturn(Optional.of(foreignStop));

@@ -93,7 +93,7 @@ class RoutePathTransactionTest {
             String lat = "37.51000" + seq;
             long stopId = stopRepository.save(Stop.forVerifiedAddress(academyId, "정차지" + seq, "서울시 어딘가 " + lat,
                     new BigDecimal(lat), new BigDecimal("127.010000"))).getId();
-            routeStopRepository.save(RouteStop.forRoute(route.getId(), stopId, seq));
+            routeStopRepository.save(RouteStop.forRoute(academyId, route.getId(), stopId, seq));
         }
 
         List<Boolean> transactionActiveAtCall = new ArrayList<>();

@@ -29,6 +29,9 @@ public class RouteStop {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "academy_id", nullable = false)
+    private Long academyId;
+
     @Column(name = "route_id", nullable = false)
     private Long routeId;
 
@@ -38,14 +41,15 @@ public class RouteStop {
     @Column(name = "seq", nullable = false)
     private int seq;
 
-    private RouteStop(Long routeId, Long stopId, int seq) {
+    private RouteStop(Long academyId, Long routeId, Long stopId, int seq) {
+        this.academyId = academyId;
         this.routeId = routeId;
         this.stopId = stopId;
         this.seq = seq;
     }
 
     /** 고정 노선에 정차 순번을 배정할 때 생성한다(RTE-01). */
-    public static RouteStop forRoute(Long routeId, Long stopId, int seq) {
-        return new RouteStop(routeId, stopId, seq);
+    public static RouteStop forRoute(Long academyId, Long routeId, Long stopId, int seq) {
+        return new RouteStop(academyId, routeId, stopId, seq);
     }
 }

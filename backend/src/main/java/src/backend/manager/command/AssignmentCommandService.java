@@ -151,7 +151,7 @@ public class AssignmentCommandService {
             Optional<Assignment> current, OffsetDateTime now) {
         current.ifPresentOrElse(
                 assignment -> assignment.reassign(manager.getId(), now, requester.accountId()),
-                () -> assignmentRepository.save(Assignment.uponAssignment(run.getId(), manager.getId(),
+                () -> assignmentRepository.save(Assignment.uponAssignment(run.getAcademyId(), run.getId(), manager.getId(),
                         role, now, requester.accountId())));
     }
 

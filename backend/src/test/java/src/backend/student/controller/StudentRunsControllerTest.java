@@ -226,7 +226,7 @@ class StudentRunsControllerTest {
 
     /** 그 회차 현재 노선의 학생 승하차지 항목에 출발 시각을 채우거나(출발 처리) 비운 채(출발 전) 학생을 미승차로 둔다. */
     private void 미승차로_표시한다(long runId, long studentId, boolean departed) {
-        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE run_id = ? AND student_id = ?", runId,
+        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show', changed_at = now() WHERE run_id = ? AND student_id = ?", runId,
                 studentId);
         jdbcTemplate.update("""
                 UPDATE run_stop SET departed_at = CASE WHEN ? THEN now() ELSE NULL END

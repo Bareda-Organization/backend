@@ -33,6 +33,9 @@ public class RunForcedAddition {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "academy_id", nullable = false)
+    private Long academyId;
+
     @Column(name = "run_id", nullable = false)
     private Long runId;
 
@@ -52,8 +55,9 @@ public class RunForcedAddition {
     @Column(name = "note", columnDefinition = "text")
     private String note;
 
-    private RunForcedAddition(Long runId, Long studentId, Long stopId, Long addedBy, OffsetDateTime addedAt,
-            String note) {
+    private RunForcedAddition(Long academyId, Long runId, Long studentId, Long stopId, Long addedBy,
+            OffsetDateTime addedAt, String note) {
+        this.academyId = academyId;
         this.runId = runId;
         this.studentId = studentId;
         this.stopId = stopId;
@@ -63,8 +67,8 @@ public class RunForcedAddition {
     }
 
     /** 관계자가 ①구간에서 회차에 학생을 강제로 얹을 때 생성한다(RTE-06). */
-    public static RunForcedAddition forRun(Long runId, Long studentId, Long stopId, Long addedBy,
+    public static RunForcedAddition forRun(Long academyId, Long runId, Long studentId, Long stopId, Long addedBy,
             OffsetDateTime addedAt, String note) {
-        return new RunForcedAddition(runId, studentId, stopId, addedBy, addedAt, note);
+        return new RunForcedAddition(academyId, runId, studentId, stopId, addedBy, addedAt, note);
     }
 }

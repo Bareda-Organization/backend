@@ -281,9 +281,9 @@ class BoardingIntentControllerTest {
         long runId = fixtures().run(academyId, busId, now.plusHours(3), now.plusMinutes(150));
         // ①구간 RELOCATE 는 즉시 approved 로 저장된다(Ruling 198)
         jdbcTemplate.update("INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, "
-                + "window_segment, new_address, new_stop_id, requested_by, requested_at) "
-                + "VALUES (?, ?, ?, 'change_request', 'relocate', 'approved', 1, '바뀐 주소', ?, ?, ?)",
-                academyId, runId, excludedStudentId, relocatedStop, guardian.accountId(), now);
+                + "window_segment, new_address, new_stop_id, requested_by, requested_at, decided_at) "
+                + "VALUES (?, ?, ?, 'change_request', 'relocate', 'approved', 1, '바뀐 주소', ?, ?, ?, ?)",
+                academyId, runId, excludedStudentId, relocatedStop, guardian.accountId(), now, now);
 
         mockMvc.perform(patch(INTENT.formatted(excludedStudentId, runId))
                         .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
@@ -468,7 +468,7 @@ class BoardingIntentControllerTest {
         long runId = fixtures().run(academyId, busId, now.plusMinutes(20), now.minusMinutes(10));
         fixtures().enrol(academyId, busId, studentId, fixtures().stop(academyId, "37.553000", "126.963000"));
         jdbcTemplate.update("INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, applied_segment, "
-                + "created_at) VALUES (?, ?, false, 0, 1, now())", runId, studentId);
+                + "created_at, academy_id) VALUES (?, ?, false, 0, 1, now(), (SELECT academy_id FROM run WHERE id = ?))", runId, studentId, runId);
 
         mockMvc.perform(patch(INTENT.formatted(studentId, runId))
                         .header("Authorization", 토큰(tokenProvider, guardian.accountId(), academyId, Role.PARENT))
@@ -674,7 +674,7 @@ class BoardingIntentControllerTest {
         fixtures().enrol(academyId, busId, studentId, stopId);
         long runStopId = fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
         entityManager.flush();
-        jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE run_id = ? AND student_id = ?", runId,
+        jdbcTemplate.update("UPDATE run_rider SET status = 'boarded', changed_at = now() WHERE run_id = ? AND student_id = ?", runId,
                 studentId);
         entityManager.clear();
 
@@ -734,7 +734,7 @@ class BoardingIntentControllerTest {
                         + "(SELECT id FROM run_rider WHERE run_id = ? AND student_id = ?)", Integer.class, runId,
                 studentId)).as("재전송은 새 이력을 만들지 않는다").isEqualTo(historyBefore);
 
-        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show' WHERE run_id = ? AND student_id = ?", runId,
+        jdbcTemplate.update("UPDATE run_rider SET status = 'no_show', changed_at = now() WHERE run_id = ? AND student_id = ?", runId,
                 studentId);
         entityManager.clear();
         mockMvc.perform(patch(INTENT.formatted(studentId, runId)).header("Authorization", 토큰)
@@ -798,7 +798,7 @@ class BoardingIntentControllerTest {
         fixtures().enrol(academyId, busId, studentId, stopId);
         fixtures().confirmedSingleRiderStop(runId, studentId, stopId, now.minusHours(1));
         entityManager.flush();
-        jdbcTemplate.update("UPDATE run_rider SET status = 'absent' WHERE run_id = ? AND student_id = ?", runId,
+        jdbcTemplate.update("UPDATE run_rider SET status = 'absent', changed_at = now() WHERE run_id = ? AND student_id = ?", runId,
                 studentId);
         entityManager.clear();
         long eventsBefore = applicationEvents.stream(IntentChangedEvent.class).count();

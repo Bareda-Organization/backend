@@ -191,9 +191,9 @@ class RunRouteControllerTest {
                 OffsetDateTime.now()));
         waypoint.apply();
         waypointRepository.save(waypoint);
-        runStopRepository.save(RunStop.forWaypoint(versionId, waypoint.getId(), 2, null));
-        runStopRepository.save(RunStop.forStop(versionId, stop2, 3, null));
-        runStopRepository.save(RunStop.forStop(versionId, stop3, 4, null));
+        runStopRepository.save(RunStop.forWaypoint(academyId, versionId, waypoint.getId(), 2, null));
+        runStopRepository.save(RunStop.forStop(academyId, versionId, stop2, 3, null));
+        runStopRepository.save(RunStop.forStop(academyId, versionId, stop3, 4, null));
         도착_처리한다(academyId, runId, stop1);
         도착_처리한다(academyId, runId, stop2);
 
@@ -232,7 +232,7 @@ class RunRouteControllerTest {
         waypoint.apply();
         waypointRepository.save(waypoint);
         // 등원 회차는 학원 항목이 순번 2 를 이미 차지한다 — 순번 유일 제약을 피해 3 에 둔다(순서는 이 시험의 관심 밖).
-        runStopRepository.save(RunStop.forWaypoint(versionId, waypoint.getId(), 3, null));
+        runStopRepository.save(RunStop.forWaypoint(academyId, versionId, waypoint.getId(), 3, null));
 
         mockMvc.perform(get("/api/v1/runs/" + runId + "/route").header("Authorization",
                         토큰(tokenProvider, manager.accountId(), academyId, Role.DRIVER)))
@@ -272,8 +272,8 @@ class RunRouteControllerTest {
         waypoint.apply();
         waypoint.markRemoved(OffsetDateTime.now());
         waypointRepository.save(waypoint);
-        runStopRepository.save(RunStop.forWaypoint(versionId, waypoint.getId(), 2, null));
-        runStopRepository.save(RunStop.forStop(versionId, stop2, 3, null));
+        runStopRepository.save(RunStop.forWaypoint(academyId, versionId, waypoint.getId(), 2, null));
+        runStopRepository.save(RunStop.forStop(academyId, versionId, stop2, 3, null));
         도착_처리한다(academyId, runId, stop1);
 
         MvcResult result = mockMvc

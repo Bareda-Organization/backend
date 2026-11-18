@@ -15,18 +15,18 @@ class CurrentRunStopResolverTest {
 
     @Test
     void 도착_처리된_정차_중_seq가_가장_큰_것을_고른다() {
-        RunStop first = RunStop.forStop(1L, 10L, 1, OffsetDateTime.now());
+        RunStop first = RunStop.forStop(1L, 1L, 10L, 1, OffsetDateTime.now());
         first.markArrived(OffsetDateTime.now());
-        RunStop second = RunStop.forStop(1L, 11L, 2, OffsetDateTime.now());
+        RunStop second = RunStop.forStop(1L, 1L, 11L, 2, OffsetDateTime.now());
         second.markArrived(OffsetDateTime.now());
-        RunStop notYetArrived = RunStop.forStop(1L, 12L, 3, OffsetDateTime.now());
+        RunStop notYetArrived = RunStop.forStop(1L, 1L, 12L, 3, OffsetDateTime.now());
 
         assertThat(CurrentRunStopResolver.resolve(List.of(first, second, notYetArrived))).contains(second);
     }
 
     @Test
     void 도착_처리된_정차가_없으면_빈다() {
-        RunStop notYetArrived = RunStop.forStop(1L, 10L, 1, OffsetDateTime.now());
+        RunStop notYetArrived = RunStop.forStop(1L, 1L, 10L, 1, OffsetDateTime.now());
 
         assertThat(CurrentRunStopResolver.resolve(List.of(notYetArrived))).isEmpty();
     }

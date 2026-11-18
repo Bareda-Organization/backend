@@ -57,7 +57,7 @@ public class RouteVersionDeploymentService {
                 computation.snapshot().fallbackUsed(), computation.roadPath(), null, confirmedAt);
         routeVersionRepository.save(version);
         confirmedRouteRepository.assignCurrentVersion(run.getId(), version.getId());
-        runStopRepository.saveAll(RunStop.listOf(version.getId(), computation, run.getDirection()));
+        runStopRepository.saveAll(RunStop.listOf(run.getAcademyId(), version.getId(), computation, run.getDirection()));
         return version;
     }
 
@@ -89,7 +89,7 @@ public class RouteVersionDeploymentService {
                 computation.snapshot().fallbackUsed(), computation.roadPath(), createdBy, now);
         routeVersionRepository.save(newVersion);
         confirmedRouteRepository.assignCurrentVersion(run.getId(), newVersion.getId());
-        runStopRepository.saveAll(RunStop.listOf(newVersion.getId(), computation, run.getDirection()));
+        runStopRepository.saveAll(RunStop.listOf(run.getAcademyId(), newVersion.getId(), computation, run.getDirection()));
         return new DeployedVersion(newVersion, stopRemoved);
     }
 

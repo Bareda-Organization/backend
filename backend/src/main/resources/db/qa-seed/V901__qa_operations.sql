@@ -113,9 +113,9 @@ BEGIN
             p_reject_reason)
     RETURNING id INTO v_id;
     IF p_segment = 2 THEN
-        INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, applied_segment, changed_at, changed_by, created_at)
+        INSERT INTO boarding_intent (academy_id, run_id, student_id, riding, change_used_count, applied_segment, changed_at, changed_by, created_at)
         -- 자동 거절은 한도를 되돌린다(횟수 미소진 — ChangeRequestAutoRejectionPersistence) · 승인·거절·대기는 소진
-        VALUES (p_run, p_student, NOT (p_type = 'cancel' AND p_status = 'approved'),
+        VALUES (v_run.academy_id, p_run, p_student, NOT (p_type = 'cancel' AND p_status = 'approved'),
                 CASE WHEN p_status = 'auto_rejected' THEN 0 ELSE 1 END, 2, p_requested_at, v_requester, p_requested_at)
         ON CONFLICT (run_id, student_id) DO UPDATE SET change_used_count = EXCLUDED.change_used_count, changed_at = EXCLUDED.changed_at;
         PERFORM pg_temp.qa_notify(v_staff, 'staff', p_student, p_run, 'approval_requested', '변경 승인 요청',
@@ -136,8 +136,8 @@ BEGIN
         END IF;
     ELSIF p_type = 'cancel' AND p_status = 'approved' THEN
         -- ①구간 취소는 즉시 반영 — 탑승 의사 OFF + 관계자 미탑승 통지
-        INSERT INTO boarding_intent (run_id, student_id, riding, change_used_count, applied_segment, changed_at, changed_by, created_at)
-        VALUES (p_run, p_student, false, 0, 1, p_requested_at, v_requester, p_requested_at)
+        INSERT INTO boarding_intent (academy_id, run_id, student_id, riding, change_used_count, applied_segment, changed_at, changed_by, created_at)
+        VALUES (v_run.academy_id, p_run, p_student, false, 0, 1, p_requested_at, v_requester, p_requested_at)
         ON CONFLICT (run_id, student_id) DO UPDATE SET riding = false, applied_segment = 1, changed_at = EXCLUDED.changed_at;
         PERFORM pg_temp.qa_notify(v_staff, 'staff', p_student, p_run, 'absent', '미탑승 안내',
                 '학생 한 명이 이 회차에 타지 않습니다. 명단에서 확인해 주세요.', p_requested_at,
@@ -206,11 +206,11 @@ BEGIN
         RETURN NULL;
     END IF;
     IF p_assign THEN
-        INSERT INTO assignment (run_id, manager_id, role, assigned_at, assigned_by)
-        VALUES (v_run, v_driver, 'driver', LEAST(now(), v_confirm - interval '3 hours'), v_staff);
+        INSERT INTO assignment (academy_id, run_id, manager_id, role, assigned_at, assigned_by)
+        VALUES (v_academy, v_run, v_driver, 'driver', LEAST(now(), v_confirm - interval '3 hours'), v_staff);
         IF v_escort IS NOT NULL THEN
-            INSERT INTO assignment (run_id, manager_id, role, assigned_at, assigned_by)
-            VALUES (v_run, v_escort, 'escort', LEAST(now(), v_confirm - interval '3 hours'), v_staff);
+            INSERT INTO assignment (academy_id, run_id, manager_id, role, assigned_at, assigned_by)
+            VALUES (v_academy, v_run, v_escort, 'escort', LEAST(now(), v_confirm - interval '3 hours'), v_staff);
         END IF;
     END IF;
     IF p_state = 'idle' THEN
@@ -242,16 +242,16 @@ BEGIN
     FOR r IN SELECT rs.seq, rs.stop_id FROM route_stop rs WHERE rs.route_id = v_route ORDER BY rs.seq LOOP
         v_eta := CASE WHEN p_dir = 'to_academy' THEN p_depart + v_step * (r.seq - 1) ELSE p_depart + v_step * r.seq END;
         v_passed := p_state = 'finished' OR (p_state = 'moving' AND r.seq <= p_progress);
-        INSERT INTO run_stop (route_version_id, stop_id, seq, eta, arrived_at, departed_at, proximity_notified_at)
-        VALUES (v_ver, r.stop_id, r.seq, v_eta,
+        INSERT INTO run_stop (academy_id, route_version_id, stop_id, seq, eta, arrived_at, departed_at, proximity_notified_at)
+        VALUES (v_academy, v_ver, r.stop_id, r.seq, v_eta,
                 CASE WHEN v_passed THEN v_eta + make_interval(secs => pg_temp.qa_h(v_run || 's' || r.seq) % 50) END,
                 CASE WHEN v_passed AND NOT (p_hold AND r.seq = 10)
                      THEN v_eta + make_interval(secs => 60 + pg_temp.qa_h(v_run || 's' || r.seq) % 50) END,
                 CASE WHEN v_passed THEN v_eta - interval '2 minutes' END);
     END LOOP;
     IF p_dir = 'to_academy' THEN
-        INSERT INTO run_stop (route_version_id, seq, eta, arrived_at, departed_at, destination)
-        VALUES (v_ver, 11, p_depart + make_interval(mins => v_est),
+        INSERT INTO run_stop (academy_id, route_version_id, seq, eta, arrived_at, departed_at, destination)
+        VALUES (v_academy, v_ver, 11, p_depart + make_interval(mins => v_est),
                 CASE WHEN p_state = 'finished' THEN v_finished - interval '1 minute' END,
                 CASE WHEN p_state = 'finished' THEN v_finished END, true);
     END IF;
@@ -303,8 +303,8 @@ BEGIN
             WHEN p_state = 'moving' AND p_dir = 'to_academy' THEN CASE WHEN v_passed THEN 'boarded' ELSE 'waiting' END
             WHEN p_state = 'moving' THEN CASE WHEN v_passed AND NOT (p_hold AND r.seq = 10) THEN 'alighted' ELSE 'boarded' END
             ELSE 'waiting' END;
-        INSERT INTO run_rider (run_id, student_id, stop_id, status, changed_at, created_at, updated_at)
-        VALUES (v_run, r.sid, r.stop_id, v_status,
+        INSERT INTO run_rider (academy_id, run_id, student_id, stop_id, status, changed_at, created_at, updated_at)
+        VALUES (v_academy, v_run, r.sid, r.stop_id, v_status,
                 CASE v_status WHEN 'absent' THEN v_confirmed WHEN 'boarded' THEN v_board_at WHEN 'alighted' THEN v_alight_at
                               WHEN 'no_show' THEN v_eta + interval '3 minutes' END,
                 v_confirmed, now())
@@ -424,12 +424,12 @@ BEGIN
            md5('qa-seed-waypoint-' || p_run), v.engine_name, '{}'::jsonb, true, NULL, v_staff, p_at
     FROM route_version v WHERE v.id = v_v1
     RETURNING id INTO v_v2;
-    INSERT INTO run_stop (route_version_id, stop_id, waypoint_id, seq, change, eta, destination)
-    SELECT v_v2, x.stop_id, x.waypoint_id, CASE WHEN x.seq > p_after THEN x.seq + 1 ELSE x.seq END, x.change,
+    INSERT INTO run_stop (academy_id, route_version_id, stop_id, waypoint_id, seq, change, eta, destination)
+    SELECT x.academy_id, v_v2, x.stop_id, x.waypoint_id, CASE WHEN x.seq > p_after THEN x.seq + 1 ELSE x.seq END, x.change,
            CASE WHEN x.seq > p_after THEN x.eta + interval '3 minutes' ELSE x.eta END, x.destination
     FROM run_stop x WHERE x.route_version_id = v_v1;
-    INSERT INTO run_stop (route_version_id, waypoint_id, seq, eta)
-    SELECT v_v2, v_wp, p_after + 1, x.eta + interval '90 seconds' FROM run_stop x WHERE x.route_version_id = v_v1 AND x.seq = p_after;
+    INSERT INTO run_stop (academy_id, route_version_id, waypoint_id, seq, eta)
+    SELECT x.academy_id, v_v2, v_wp, p_after + 1, x.eta + interval '90 seconds' FROM run_stop x WHERE x.route_version_id = v_v1 AND x.seq = p_after;
     UPDATE confirmed_route SET current_version_id = v_v2 WHERE run_id = p_run;
     UPDATE run SET est_duration_min = est_duration_min + 3 WHERE id = p_run;
     FOR a IN SELECT asg.role, asg.manager_id, m.account_id FROM assignment asg JOIN manager m ON m.id = asg.manager_id

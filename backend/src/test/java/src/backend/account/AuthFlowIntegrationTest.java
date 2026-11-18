@@ -303,6 +303,9 @@ class AuthFlowIntegrationTest {
      */
     private void forceRejected(Long accountId) {
         jdbcTemplate.update("UPDATE account SET status = 'rejected' WHERE id = ?", accountId);
+        // 거절은 대기 중이던 가입 요청도 거절로 끝낸다 — 대기 요청이 남은 채 재신청하면 계정당 대기 요청 하나(유일 인덱스)에 걸린다
+        jdbcTemplate.update("UPDATE signup_request SET status = 'rejected', decided_at = now(), "
+                + "reject_reason = '시험' WHERE account_id = ? AND status = 'pending'", accountId);
         entityManager.clear();
     }
 

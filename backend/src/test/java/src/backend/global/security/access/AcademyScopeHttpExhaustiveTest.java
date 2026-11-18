@@ -172,9 +172,9 @@ class AcademyScopeHttpExhaustiveTest {
 
         // 이동 대기 취소(§5.8.1)의 학원 조건은 출발 회차를 거친다 — 같은 회차를 출발·도착으로 두어도 조회는 성립한다.
         academyBTransferId = jdbcTemplate.queryForObject(
-                "INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id) "
-                        + "VALUES (?, ?, ?, 'staged', ?) RETURNING id",
-                Long.class, academyBStudentId, ACADEMY_B_RUN_ID, ACADEMY_B_RUN_ID, academyBAccountId);
+                "INSERT INTO run_transfer (student_id, from_run_id, to_run_id, status, requested_by_account_id, academy_id) "
+                        + "VALUES (?, ?, ?, 'staged', ?, (SELECT academy_id FROM student WHERE id = ?)) RETURNING id",
+                Long.class, academyBStudentId, ACADEMY_B_RUN_ID, ACADEMY_B_RUN_ID, academyBAccountId, academyBStudentId);
 
         // 사진 서빙(§5.11.1)은 photo_url 의 파일명으로 학원을 좁힌다 — B학원 학생에 사진 주소를 붙였다가 되돌린다.
         academyBStudentPhotoUrl = jdbcTemplate.queryForObject(

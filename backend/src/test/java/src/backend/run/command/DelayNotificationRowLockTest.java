@@ -115,7 +115,7 @@ class DelayNotificationRowLockTest {
         Future<String> result = 잠금을_쥔_채(s, () -> {
             Future<String> pending = executor.submit(() -> 신고한다(s));
             PgLockWait.awaitWaitersOr(jdbcTemplate, 1, pending::isDone);
-            jdbcTemplate.update("UPDATE run SET status = 'finished', finished_at = now() WHERE id = ?", s.runId);
+            jdbcTemplate.update("UPDATE run SET status = 'finished', finished_at = now(), started_at = COALESCE(started_at, now()) WHERE id = ?", s.runId);
             return pending;
         });
 
@@ -188,7 +188,7 @@ class DelayNotificationRowLockTest {
     @DisplayName("운행 중이 아닌 회차의 지연 신고는 잠금 없이도 RUN_NOT_MOVING 이다")
     void 운행_중이_아니면_거절된다() {
         Setup s = 운행_중_회차를_만든다();
-        jdbcTemplate.update("UPDATE run SET status = 'finished', finished_at = now() WHERE id = ?", s.runId);
+        jdbcTemplate.update("UPDATE run SET status = 'finished', finished_at = now(), started_at = COALESCE(started_at, now()) WHERE id = ?", s.runId);
 
         assertThatThrownBy(() -> delayService.notifyDelay(
                 new AuthUser(s.escortAccountId, s.academyId, Role.ESCORT, AccountStatus.ACTIVE), s.runId, SAME))

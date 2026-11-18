@@ -177,7 +177,7 @@ class ChangeRequestWindowRecheckTest {
                 "{noop}password", "보호자", "010-0000-0000", null, Role.PARENT));
         long guardianId = guardianRepository.save(Guardian.forSignup(academyId, account.getId(), "보호자",
                 "010-0000-0000")).getId();
-        guardianStudentRepository.save(GuardianStudent.uponLink(guardianId, studentId, now));
+        guardianStudentRepository.save(GuardianStudent.uponLink(academyId, guardianId, studentId, now));
         return account.getId();
     }
 }

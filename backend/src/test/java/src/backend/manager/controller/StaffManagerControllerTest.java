@@ -253,7 +253,9 @@ class StaffManagerControllerTest {
         long busId = 등록된_차량_id(관계자A_토큰(), "지난운행호차", "11나1112", 16);
         배치한다(managerId, 회차를_만든다(busId, OffsetDateTime.now(clock).minusDays(1)));
         long finishedRunId = 회차를_만든다(busId, OffsetDateTime.now(clock).plusHours(3));
-        entityManager.find(Run.class, finishedRunId).finish(OffsetDateTime.now(clock));
+        Run finishedRun = entityManager.find(Run.class, finishedRunId);
+        finishedRun.start(OffsetDateTime.now(clock).minusMinutes(30));
+        finishedRun.finish(OffsetDateTime.now(clock));
         배치한다(managerId, finishedRunId);
 
         삭제한다(관계자A_토큰(), managerId).andExpect(status().isNoContent());
@@ -582,7 +584,7 @@ class StaffManagerControllerTest {
 
     /** 매니저를 회차에 배치한다 — 배치 API(§5.14)를 거치지 않고 저장소와 정적 팩토리로 만든다. */
     private void 배치한다(long managerId, long runId) {
-        assignmentRepository.save(Assignment.uponAssignment(runId, managerId, ManagerRole.DRIVER,
+        assignmentRepository.save(Assignment.uponAssignment(ACADEMY_A_ID, runId, managerId, ManagerRole.DRIVER,
                 OffsetDateTime.now(clock), STAFF_A_ACCOUNT_ID));
         entityManager.flush();
     }

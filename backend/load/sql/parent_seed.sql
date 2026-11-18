@@ -22,8 +22,8 @@ FROM account ac
 WHERE ac.login_id LIKE 'loadcap-%-par'
   AND NOT EXISTS (SELECT 1 FROM guardian g WHERE g.account_id = ac.id);
 
-INSERT INTO guardian_student (guardian_id, student_id, linked_at)
-SELECT g.id, s.id, now()
+INSERT INTO guardian_student (academy_id, guardian_id, student_id, linked_at)
+SELECT g.academy_id, g.id, s.id, now()
 FROM guardian g
 JOIN account ac ON ac.id = g.account_id
 JOIN student s ON lower(s.name) || '-par' = ac.login_id

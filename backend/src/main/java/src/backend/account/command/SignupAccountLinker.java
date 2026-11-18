@@ -129,7 +129,7 @@ public class SignupAccountLinker {
                 account.getAcademyId(), account.getId(), account.getName(), account.getPhone())));
         OffsetDateTime linkedAt = OffsetDateTime.now(clock);
         students.forEach(student -> guardianStudentRepository.save(
-                GuardianStudent.uponLink(guardian.getId(), student.getId(), linkedAt)));
+                GuardianStudent.uponLink(guardian.getAcademyId(), guardian.getId(), student.getId(), linkedAt)));
     }
 
     private void assertNotLinked(Guardian guardian, List<Student> students) {

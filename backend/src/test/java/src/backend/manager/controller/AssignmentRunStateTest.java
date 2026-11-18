@@ -114,7 +114,8 @@ class AssignmentRunStateTest {
 
     private void 상태를_바꾼다(long runId, String state) {
         entityManager.flush();
-        jdbcTemplate.update("UPDATE run SET status = ? WHERE id = ?", state, runId);
+        jdbcTemplate.update("UPDATE run SET status = ?, started_at = CASE WHEN ? IN ('moving', 'finished') THEN now() END, "
+                + "finished_at = CASE WHEN ? = 'finished' THEN now() END WHERE id = ?", state, state, state, runId);
         entityManager.clear();
     }
 

@@ -184,7 +184,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.persist(route);
         entityManager.flush();
 
-        RouteStop routeStop = RouteStop.forRoute(route.getId(), stopId, 1);
+        RouteStop routeStop = RouteStop.forRoute(academyId, route.getId(), stopId, 1);
         entityManager.persist(routeStop);
         entityManager.flush();
         entityManager.clear();
@@ -299,8 +299,8 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.persist(waypoint);
         entityManager.flush();
 
-        RunStop viaStop = RunStop.forStop(routeVersion.getId(), stopId, 1, null);
-        RunStop viaWaypoint = RunStop.forWaypoint(routeVersion.getId(), waypoint.getId(), 2, null);
+        RunStop viaStop = RunStop.forStop(academyId, routeVersion.getId(), stopId, 1, null);
+        RunStop viaWaypoint = RunStop.forWaypoint(academyId, routeVersion.getId(), waypoint.getId(), 2, null);
         entityManager.persist(viaStop);
         entityManager.persist(viaWaypoint);
         entityManager.flush();
@@ -325,7 +325,7 @@ class Phase1Task5EntitySchemaValidationTest extends MigratedPostgresTestBase {
         entityManager.persist(manager);
         entityManager.flush();
 
-        Assignment assignment = Assignment.uponAssignment(run.getId(), manager.getId(), ManagerRole.DRIVER,
+        Assignment assignment = Assignment.uponAssignment(academyId, run.getId(), manager.getId(), ManagerRole.DRIVER,
                 OffsetDateTime.now(), null);
         entityManager.persist(assignment);
         entityManager.flush();

@@ -114,8 +114,8 @@ class RunConfirmationStagingRaceTest {
 
         doAnswer(invocation -> {
             Object computation = invocation.callRealMethod();
-            jdbcTemplate.update("INSERT INTO run_forced_addition (run_id, student_id, stop_id, added_by) "
-                    + "VALUES (?, ?, ?, 1)", runId, lateStudent, lastStop);
+            jdbcTemplate.update("INSERT INTO run_forced_addition (run_id, student_id, stop_id, added_by, academy_id) "
+                    + "VALUES (?, ?, ?, 1, (SELECT academy_id FROM run WHERE id = ?))", runId, lateStudent, lastStop, runId);
             return computation;
         }).when(pipeline).compute(any());
         try {

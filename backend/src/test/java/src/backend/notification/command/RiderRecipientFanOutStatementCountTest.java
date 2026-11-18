@@ -115,8 +115,8 @@ class RiderRecipientFanOutStatementCountTest {
             long stopId = fixtures.stop(academyId, "37.500000", "127.000000");
             for (int i = 0; i < riders; i++) {
                 long studentId = studentWithGuardians(fixtures, academyId, 1);
-                long riderId = runRiderRepository.save(RunRider.uponConfirmation(runId, studentId, stopId)).getId();
-                jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", riderId);
+                long riderId = runRiderRepository.save(RunRider.uponConfirmation(academyId, runId, studentId, stopId)).getId();
+                jdbcTemplate.update("UPDATE run_rider SET status = 'boarded', changed_at = now() WHERE id = ?", riderId);
             }
             return new StopDepartedEvent(runId, academyId, stopId, AT);
         });

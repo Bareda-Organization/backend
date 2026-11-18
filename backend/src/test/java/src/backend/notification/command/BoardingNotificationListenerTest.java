@@ -131,7 +131,7 @@ class BoardingNotificationListenerTest {
     @Test
     void 출발_묶음_경로의_하원_미승차는_하차_미확인_문구다() {
         long otherStopId = 21L;
-        RunRider noShow = RunRider.uponConfirmation(RUN_ID, 104L, otherStopId);
+        RunRider noShow = RunRider.uponConfirmation(ACADEMY_ID, RUN_ID, 104L, otherStopId);
         noShow.markNoShow(DEPARTED_AT);
         ReflectionTestUtils.setField(noShow, "id", 4L);
         given(runRiderRepository.findFinalizedByRunIdAndStopId(RUN_ID, otherStopId)).willReturn(List.of(noShow));
@@ -195,7 +195,7 @@ class BoardingNotificationListenerTest {
     }
 
     private static RunRider rider(long id, long studentId) {
-        RunRider rider = RunRider.uponConfirmation(RUN_ID, studentId, STOP_ID);
+        RunRider rider = RunRider.uponConfirmation(ACADEMY_ID, RUN_ID, studentId, STOP_ID);
         rider.board(DEPARTED_AT);
         ReflectionTestUtils.setField(rider, "id", id);
         return rider;

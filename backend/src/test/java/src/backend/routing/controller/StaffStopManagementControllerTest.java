@@ -188,7 +188,8 @@ class StaffStopManagementControllerTest {
             if (i < 14) {
                 편성[i] = 편성을_심는다(BUS_A_ID, 요일[i / 2], i % 2 == 0 ? "to_academy" : "from_academy", true, stopId);
             } else {
-                jdbcTemplate.update("INSERT INTO route_stop (route_id, stop_id, seq) VALUES (?, ?, 2)", 편성[i - 14], stopId);
+                jdbcTemplate.update("INSERT INTO route_stop (route_id, stop_id, seq, academy_id) "
+                        + "VALUES (?, ?, 2, (SELECT academy_id FROM route WHERE id = ?))", 편성[i - 14], stopId, 편성[i - 14]);
             }
             학생과_주소를_심는다("질의시험학생" + i, false, "mon", stopId);
         }
@@ -331,7 +332,8 @@ class StaffStopManagementControllerTest {
         long routeId = jdbcTemplate.queryForObject("INSERT INTO route (academy_id, bus_id, weekday, direction, name, active, "
                 + "created_at, updated_at) VALUES (?, ?, ?, ?, '시험 편성', ?, now(), now()) RETURNING id", Long.class,
                 ACADEMY_A_ID, busId, weekday, direction, active);
-        jdbcTemplate.update("INSERT INTO route_stop (route_id, stop_id, seq) VALUES (?, ?, 1)", routeId, stopId);
+        jdbcTemplate.update("INSERT INTO route_stop (route_id, stop_id, seq, academy_id) "
+                + "VALUES (?, ?, 1, (SELECT academy_id FROM route WHERE id = ?))", routeId, stopId, routeId);
         return routeId;
     }
 
@@ -339,8 +341,9 @@ class StaffStopManagementControllerTest {
         long studentId = jdbcTemplate.queryForObject(
                 "INSERT INTO student (academy_id, name, deleted_at) VALUES (?, ?, ?) RETURNING id", Long.class,
                 ACADEMY_A_ID, name, 퇴원 ? OffsetDateTime.now() : null);
-        jdbcTemplate.update("INSERT INTO weekly_address (student_id, weekday, direction, address, verified, stop_id) "
-                + "VALUES (?, ?, 'to_academy', '테스트 주소', true, ?)", studentId, weekday, stopId);
+        jdbcTemplate.update("INSERT INTO weekly_address (student_id, weekday, direction, address, verified, stop_id, lat, lng, academy_id) "
+                + "VALUES (?, ?, 'to_academy', '테스트 주소', true, ?, 37.5, 127.0, (SELECT academy_id FROM student WHERE id = ?))",
+                studentId, weekday, stopId, studentId);
     }
 
     private Map<String, Object> 승하차지_행(long stopId) {

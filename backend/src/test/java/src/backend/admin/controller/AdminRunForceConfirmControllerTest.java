@@ -272,7 +272,7 @@ class AdminRunForceConfirmControllerTest {
     @DisplayName("moving 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
     void moving_회차는_409_RUN_NOT_IDLE_다() throws Exception {
         long runId = dueIdleRunWithoutCoordinates();
-        int updated = jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
+        int updated = jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", runId);
         assertThat(updated).isEqualTo(1);
         동기화한다();
 
@@ -289,7 +289,7 @@ class AdminRunForceConfirmControllerTest {
     @DisplayName("finished 회차의 강제 확정은 409 RUN_NOT_IDLE 다")
     void finished_회차는_409_RUN_NOT_IDLE_다() throws Exception {
         long runId = dueIdleRunWithoutCoordinates();
-        int updated = jdbcTemplate.update("UPDATE run SET status = 'finished' WHERE id = ?", runId);
+        int updated = jdbcTemplate.update("UPDATE run SET status = 'finished', started_at = now(), finished_at = now() WHERE id = ?", runId);
         assertThat(updated).isEqualTo(1);
         동기화한다();
 

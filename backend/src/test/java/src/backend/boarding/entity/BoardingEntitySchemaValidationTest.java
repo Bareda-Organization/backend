@@ -99,7 +99,9 @@ class BoardingEntitySchemaValidationTest extends MigratedPostgresTestBase {
     @Test
     void runRider_가_저장되고_상태_enum_이_소문자로_왕복한다() {
         long[] chain = 회차_학생_승하차지_체인을_만든다();
-        RunRider runRider = RunRider.uponConfirmation(chain[0], chain[1], chain[2]);
+        long academyId = ((Number) entityManager.createNativeQuery("SELECT academy_id FROM run WHERE id = ?")
+                .setParameter(1, chain[0]).getSingleResult()).longValue();
+        RunRider runRider = RunRider.uponConfirmation(academyId, chain[0], chain[1], chain[2]);
         entityManager.persist(runRider);
         entityManager.flush();
         entityManager.clear();

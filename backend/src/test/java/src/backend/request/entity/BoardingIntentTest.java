@@ -21,14 +21,14 @@ class BoardingIntentTest {
 
     @Test
     void 생성_직후는_한도가_남아있다() {
-        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, NOW);
+        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, 1L, NOW);
 
         assertThat(intent.hasChangeQuota()).isTrue();
     }
 
     @Test
     void 한도_소비_1회는_성공하고_카운터가_1이_된다() {
-        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, NOW);
+        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, 1L, NOW);
 
         intent.consumeChangeQuota();
 
@@ -38,7 +38,7 @@ class BoardingIntentTest {
 
     @Test
     void 한도_소비_2회째는_403_CHANGE_LIMIT_REACHED_로_거부된다() {
-        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, NOW);
+        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, 1L, NOW);
         intent.consumeChangeQuota();
 
         assertThatThrownBy(intent::consumeChangeQuota)
@@ -53,7 +53,7 @@ class BoardingIntentTest {
 
     @Test
     void 복구_후_다시_1회_소비할_수_있다() {
-        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, NOW);
+        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, 1L, NOW);
         intent.consumeChangeQuota();
 
         intent.restoreChangeQuota();
@@ -66,7 +66,7 @@ class BoardingIntentTest {
 
     @Test
     void riding_적용이_구간_변경시각_처리자를_함께_기록한다() {
-        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, NOW);
+        BoardingIntent intent = BoardingIntent.forRun(1L, 1L, 1L, NOW);
         OffsetDateTime changedAt = NOW.plusMinutes(1);
 
         intent.applyRiding(false, ChangeWindow.APPROVAL_REQUIRED, changedAt, 99L);

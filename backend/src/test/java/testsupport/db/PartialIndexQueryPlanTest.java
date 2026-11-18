@@ -351,9 +351,9 @@ class PartialIndexQueryPlanTest {
      */
     private static final List<String> 운영_분포_SQL = List.of("""
             INSERT INTO run (academy_id, bus_id, service_date, direction, depart_time, confirm_at, status, origin_name,
-                             destination_name, finished_at)
+                             destination_name, started_at, finished_at)
             SELECT r.academy_id, r.bus_id, r.service_date - g, r.direction, r.depart_time, r.confirm_at, 'finished',
-                   r.origin_name, r.destination_name, now()
+                   r.origin_name, r.destination_name, r.depart_time, now()
             FROM (SELECT * FROM run ORDER BY id LIMIT 1) r, generate_series(1, 20000) g
             """, """
             INSERT INTO student (academy_id, name, can_go_alone, created_at, updated_at)

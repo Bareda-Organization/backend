@@ -169,8 +169,8 @@ class GuardianAppRedesignFieldsTest {
     /** 신청 한 건을 심고 id 를 돌려준다 — {@code deadlineAt} 이 {@code null} 이면 마감 없는 건이다. */
     private long 신청(long runId, String status, String deadlineAt) {
         return jdbc.queryForObject("INSERT INTO change_request (academy_id, run_id, student_id, source, type, status, "
-                + "window_segment, requested_by, requested_at, deadline_at) VALUES (?, ?, ?, 'change_request', 'cancel', "
-                + "?, 1, ?, now(), ?::timestamptz) RETURNING id", Long.class, ACADEMY_A, runId, STUDENT_1, status,
-                SIBLINGS_GUARDIAN_ACCOUNT, deadlineAt);
+                + "window_segment, requested_by, requested_at, deadline_at, decided_at) VALUES (?, ?, ?, 'change_request', "
+                + "'cancel', ?, 1, ?, now(), ?::timestamptz, CASE WHEN ? = 'pending' THEN NULL ELSE now() END) RETURNING id",
+                Long.class, ACADEMY_A, runId, STUDENT_1, status, SIBLINGS_GUARDIAN_ACCOUNT, deadlineAt, status);
     }
 }

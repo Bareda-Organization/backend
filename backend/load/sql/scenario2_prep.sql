@@ -82,8 +82,8 @@ new_route AS (
     RETURNING id AS route_id, bus_id
 ),
 new_route_stop AS (
-    INSERT INTO route_stop (route_id, stop_id, seq)
-    SELECT new_route.route_id, target_stop.stop_id, 1
+    INSERT INTO route_stop (academy_id, route_id, stop_id, seq)
+    SELECT :academy_id, new_route.route_id, target_stop.stop_id, 1
     FROM new_route, target_stop
     RETURNING route_id
 ),
@@ -106,8 +106,8 @@ new_run AS (
 -- i 는 new_bus 를 매개로만 옮긴다 — new_run·new_manager 어느 쪽도 자기 INSERT 대상 테이블을
 -- RETURNING 안에서 재상관 조회하지 않는다(그 형태는 이 저장소에서 검증되지 않아 피한다).
 new_assignment AS (
-    INSERT INTO assignment (run_id, manager_id, role, assigned_at)
-    SELECT new_run.run_id, new_manager.manager_id, 'driver', now() - interval '1 hour'
+    INSERT INTO assignment (academy_id, run_id, manager_id, role, assigned_at)
+    SELECT :academy_id, new_run.run_id, new_manager.manager_id, 'driver', now() - interval '1 hour'
     FROM new_run
     JOIN new_bus ON new_bus.bus_id = new_run.bus_id
     JOIN new_account ON new_account.i = new_bus.i

@@ -471,9 +471,10 @@ class AdminDashboardControllerTest {
     private void emergency(long academyId, long runId, OffsetDateTime ackedAt, OffsetDateTime canceledAt) {
         jdbcTemplate.update("""
                 INSERT INTO emergency_alert (academy_id, run_id, bus_no, raised_by, raised_by_role, type, rider_count,
-                                             occurred_at, received_at, client_key, acked_at, canceled_at)
-                VALUES (?, ?, '1호차', 1, 'driver', 'accident', 3, ?, ?, ?, ?, ?)
-                """, academyId, runId, NOW.minusMinutes(10), NOW.minusMinutes(10), UUID.randomUUID(), ackedAt, canceledAt);
+                                             occurred_at, received_at, client_key, acked_at, acked_by, canceled_at)
+                VALUES (?, ?, '1호차', 1, 'driver', 'accident', 3, ?, ?, ?, ?, ?, ?)
+                """, academyId, runId, NOW.minusMinutes(10), NOW.minusMinutes(10), UUID.randomUUID(), ackedAt,
+                ackedAt == null ? null : 1L, canceledAt);
     }
 
     // ── ⑩ today_runs ─────────────────────────────────────────────
@@ -490,7 +491,9 @@ class AdminDashboardControllerTest {
         long versionId = f.confirmedRouteWithVersion(movingId, NOW.minusMinutes(60));
         long arrived = f.runStopForStop(versionId, stopA, 1, NOW.minusMinutes(30));
         f.runStopForStop(versionId, stopB, 2, NOW.minusMinutes(20));
-        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, seq, destination) VALUES (?, 3, true)", versionId);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, seq, destination, academy_id) "
+                + "VALUES (?, 3, true, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = ?))",
+                versionId, versionId);
         f.markArrived(arrived, NOW.minusMinutes(26));
         var driver = f.manager(academyId, ManagerRole.DRIVER, "기사");
         f.assign(movingId, driver.managerId(), ManagerRole.DRIVER);

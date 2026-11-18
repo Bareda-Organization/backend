@@ -38,6 +38,9 @@ public class Assignment {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "academy_id", nullable = false)
+    private Long academyId;
+
     @Column(name = "run_id", nullable = false)
     private Long runId;
 
@@ -60,7 +63,9 @@ public class Assignment {
     @Column(name = "acked_at")
     private OffsetDateTime ackedAt;
 
-    private Assignment(Long runId, Long managerId, ManagerRole role, OffsetDateTime assignedAt, Long assignedBy) {
+    private Assignment(Long academyId, Long runId, Long managerId, ManagerRole role, OffsetDateTime assignedAt,
+            Long assignedBy) {
+        this.academyId = academyId;
         this.runId = runId;
         this.managerId = managerId;
         this.role = role;
@@ -69,9 +74,9 @@ public class Assignment {
     }
 
     /** 배치 담당자가 회차에 기사·동승자를 지정할 때 생성한다(MGR-05) — 확인 응답은 아직 미기록. */
-    public static Assignment uponAssignment(Long runId, Long managerId, ManagerRole role, OffsetDateTime assignedAt,
-            Long assignedBy) {
-        return new Assignment(runId, managerId, role, assignedAt, assignedBy);
+    public static Assignment uponAssignment(Long academyId, Long runId, Long managerId, ManagerRole role,
+            OffsetDateTime assignedAt, Long assignedBy) {
+        return new Assignment(academyId, runId, managerId, role, assignedAt, assignedBy);
     }
 
     /**

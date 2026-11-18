@@ -88,7 +88,7 @@ class RequestEntitySchemaValidationTest extends MigratedPostgresTestBase {
         long[] chain = 학원_회차_학생_체인을_만든다();
         OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.of("+09:00"));
 
-        BoardingIntent intent = BoardingIntent.forRun(chain[1], chain[2], createdAt);
+        BoardingIntent intent = BoardingIntent.forRun(chain[0], chain[1], chain[2], createdAt);
         entityManager.persist(intent);
         entityManager.flush();
         entityManager.clear();

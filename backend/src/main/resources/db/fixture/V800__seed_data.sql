@@ -125,15 +125,15 @@ VALUES
     (3, 1, 7, '한부모', '010-1000-0003', now(), now()),
     (4, 2, 9, '윤부모', '010-2000-0001', now(), now());
 
-INSERT INTO guardian_student (id, guardian_id, student_id, linked_at, unlinked_at)
+INSERT INTO guardian_student (id, guardian_id, student_id, linked_at, unlinked_at, academy_id)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 1, now(), NULL),
-    (2, 1, 2, now(), NULL),
-    (3, 2, 3, now(), NULL),
-    (4, 2, 4, now(), NULL),
-    (5, 3, 5, now(), NULL),
-    (6, 4, 6, now(), NULL);
+    (1, 1, 1, now(), NULL, (SELECT academy_id FROM guardian WHERE id = 1)),
+    (2, 1, 2, now(), NULL, (SELECT academy_id FROM guardian WHERE id = 1)),
+    (3, 2, 3, now(), NULL, (SELECT academy_id FROM guardian WHERE id = 2)),
+    (4, 2, 4, now(), NULL, (SELECT academy_id FROM guardian WHERE id = 2)),
+    (5, 3, 5, now(), NULL, (SELECT academy_id FROM guardian WHERE id = 3)),
+    (6, 4, 6, now(), NULL, (SELECT academy_id FROM guardian WHERE id = 4));
 
 -- 학생(S5)이 발급한 연결 코드 1건(유효, 미사용) — G1 이 이 코드를 입력하면 추가 연결이 성립한다(Ruling 324).
 INSERT INTO link_code (id, student_id, code, expires_at, used_at)
@@ -147,7 +147,8 @@ VALUES (1, '010-9999-0000', '123456', 'password', now() + interval '5 minutes', 
 
 -- 주간 주소: A 학생 5명 × 요일7 × 방향2 = 70행(§3.4 명시). B 학생은 격리 검증 최소 범위라 미포함(판단).
 -- S4(id=4)는 사전 승인된 이전으로 그린빌라(stop 3)를 쓴다 — 아래 change_request(CR2)와 짝을 이룬다.
-INSERT INTO weekly_address (id, student_id, weekday, direction, address, verified, stop_id, lat, lng, updated_at)
+INSERT INTO weekly_address (id, student_id, weekday, direction, address, verified, stop_id, lat, lng, updated_at,
+                            academy_id)
 OVERRIDING SYSTEM VALUE
 SELECT (row_number() OVER (ORDER BY s.id, wd.ord, dir.ord)),
        s.id,
@@ -158,7 +159,8 @@ SELECT (row_number() OVER (ORDER BY s.id, wd.ord, dir.ord)),
        s.stop_id,
        37.500000 + s.id * 0.001,
        127.000000 + s.id * 0.001,
-       now()
+       now(),
+       (SELECT academy_id FROM student WHERE id = s.id)
 FROM (VALUES (1, 1), (2, 2), (3, 3), (4, 3), (5, 4)) AS s(id, stop_id)
 CROSS JOIN (VALUES ('mon', 1), ('tue', 2), ('wed', 3), ('thu', 4), ('fri', 5), ('sat', 6), ('sun', 7)) AS wd(weekday, ord)
 CROSS JOIN (VALUES ('to_academy', 1), ('from_academy', 2)) AS dir(direction, ord);
@@ -240,11 +242,11 @@ INSERT INTO route (id, academy_id, bus_id, weekday, direction, name, active, cre
 OVERRIDING SYSTEM VALUE
 VALUES (1, 1, 1, (ARRAY['sun','mon','tue','wed','thu','fri','sat'])[extract(dow from (now() AT TIME ZONE 'Asia/Seoul'))::int + 1], 'to_academy', '본선(등원)', true, now(), now());
 
-INSERT INTO route_stop (id, route_id, stop_id, seq)
+INSERT INTO route_stop (id, route_id, stop_id, seq, academy_id)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 1, 1),
-    (2, 1, 2, 2);
+    (1, 1, 1, 1, (SELECT academy_id FROM route WHERE id = 1)),
+    (2, 1, 2, 2, (SELECT academy_id FROM route WHERE id = 1));
 
 -- 회차 5건 — 3구간 전수: R1 idle(출발 3시간 전) · R2 confirmed(20분 전, 이미 확정 지남) ·
 -- R3 moving(10분 전 출발) · R4 finished(3시간 전 출발, 종료) · R5 confirmed(B 학원, 격리 검증용).
@@ -361,76 +363,76 @@ UPDATE confirmed_route SET current_version_id = 6 WHERE run_id = 8;
 -- 정차 항목: v1(R2)=2, v2(R2)=2(S4 재배치로 stop3 추가), v1(R3)=4+경유지1, v1(R5)=1, v1(R8)=2(고정
 -- 노선 route id=1 과 같은 두 정차지 — 아래 run_rider 의 명단과 일치시켜 preview 의 "전"과 실제
 -- 명단 기준선이 어긋나지 않게 한다). v1(R4)=2(R20 A 목표 2 — R2 v1 과 같은 두 정차지 재사용).
-INSERT INTO run_stop (id, route_version_id, stop_id, waypoint_id, seq, change)
+INSERT INTO run_stop (id, route_version_id, stop_id, waypoint_id, seq, change, academy_id)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 1, NULL, 1, NULL),
-    (2, 1, 2, NULL, 2, NULL),
-    (3, 2, 1, NULL, 1, NULL),
-    (4, 2, 3, NULL, 2, 'added'),
-    (5, 3, 2, NULL, 1, NULL),
-    (6, 3, 3, NULL, 2, NULL),
-    (7, 3, 1, NULL, 3, NULL),
-    (8, 3, 4, NULL, 4, NULL),
-    (9, 3, NULL, 1, 5, 'added'),
-    (10, 4, 5, NULL, 1, NULL),
-    (11, 5, 1, NULL, 1, NULL),
-    (12, 6, 1, NULL, 1, NULL),
-    (13, 6, 2, NULL, 2, NULL),
-    (14, 7, 1, NULL, 1, NULL),
-    (15, 7, 2, NULL, 2, NULL);
+    (1, 1, 1, NULL, 1, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 1)),
+    (2, 1, 2, NULL, 2, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 1)),
+    (3, 2, 1, NULL, 1, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 2)),
+    (4, 2, 3, NULL, 2, 'added', (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 2)),
+    (5, 3, 2, NULL, 1, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 3)),
+    (6, 3, 3, NULL, 2, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 3)),
+    (7, 3, 1, NULL, 3, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 3)),
+    (8, 3, 4, NULL, 4, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 3)),
+    (9, 3, NULL, 1, 5, 'added', (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 3)),
+    (10, 4, 5, NULL, 1, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 4)),
+    (11, 5, 1, NULL, 1, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 5)),
+    (12, 6, 1, NULL, 1, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 6)),
+    (13, 6, 2, NULL, 2, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 6)),
+    (14, 7, 1, NULL, 1, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 7)),
+    (15, 7, 2, NULL, 2, NULL, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 7));
 
 -- 등원 확정 노선의 도착지(학원) 항목 — 마지막 순번 1행(Ruling 327). 확정 배치는 이 행을 스스로 붙이지만
 -- 시드는 행을 직접 넣으므로 손으로 붙인다. 없으면 매니저 앱 명단에 학원 도착 버튼이 없어 등원 운행이
 -- 끝나지 않는다. 대상은 등원 회차의 현재 버전 v1(R3)=3 · v1(R5)=4 · v1(R8)=6.
-INSERT INTO run_stop (id, route_version_id, seq, destination)
+INSERT INTO run_stop (id, route_version_id, seq, destination, academy_id)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (16, 3, 6, true),
-    (17, 4, 2, true),
-    (18, 6, 3, true);
+    (16, 3, 6, true, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 3)),
+    (17, 4, 2, true, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 4)),
+    (18, 6, 3, true, (SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = 6));
 
 -- 탑승 상태 5종 전수(waiting/boarded/alighted/absent/no_show) — R2 에 waiting 2, R3 에 나머지 4.
-INSERT INTO run_rider (id, run_id, student_id, stop_id, status)
+INSERT INTO run_rider (id, run_id, student_id, stop_id, status, changed_at, academy_id)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 2, 1, 1, 'waiting'),
-    (2, 2, 4, 3, 'waiting'),
-    (3, 3, 2, 2, 'boarded'),
-    (4, 3, 3, 3, 'alighted'),
-    (5, 3, 1, 1, 'absent'),
-    (6, 3, 5, 4, 'no_show'),
-    (7, 5, 6, 5, 'waiting'),
-    (8, 7, 1, 1, 'waiting'),
+    (1, 2, 1, 1, 'waiting', NULL, (SELECT academy_id FROM run WHERE id = 2)),
+    (2, 2, 4, 3, 'waiting', NULL, (SELECT academy_id FROM run WHERE id = 2)),
+    (3, 3, 2, 2, 'boarded', now() - interval '5 minutes', (SELECT academy_id FROM run WHERE id = 3)),
+    (4, 3, 3, 3, 'alighted', now() - interval '5 minutes', (SELECT academy_id FROM run WHERE id = 3)),
+    (5, 3, 1, 1, 'absent', now() - interval '5 minutes', (SELECT academy_id FROM run WHERE id = 3)),
+    (6, 3, 5, 4, 'no_show', now() - interval '5 minutes', (SELECT academy_id FROM run WHERE id = 3)),
+    (7, 5, 6, 5, 'waiting', NULL, (SELECT academy_id FROM run WHERE id = 5)),
+    (8, 7, 1, 1, 'waiting', NULL, (SELECT academy_id FROM run WHERE id = 7)),
     -- R8 명단(R14-T3) — 위 run_stop(v1, id=12·13)의 stop1·stop2 와 같은 두 학생을 태워, 경유지
     -- 미리보기의 "전" 표시(2곳)와 실제 명단 기준선이 어긋나지 않게 한다.
-    (9, 8, 1, 1, 'waiting'),
-    (10, 8, 2, 2, 'waiting');
+    (9, 8, 1, 1, 'waiting', NULL, (SELECT academy_id FROM run WHERE id = 8)),
+    (10, 8, 2, 2, 'waiting', NULL, (SELECT academy_id FROM run WHERE id = 8));
 
 -- 배차: 회차 5건 × (기사·동승자) 각 1 — R2 는 v2 미확인(acked=v1) 상태로 배지 시연.
-INSERT INTO assignment (id, run_id, manager_id, role, assigned_at, assigned_by, acked_route_version_id, acked_at)
+INSERT INTO assignment (id, run_id, manager_id, role, assigned_at, assigned_by, acked_route_version_id, acked_at, academy_id)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 1, 1, 'driver', now() - interval '1 day', 2, NULL, NULL),
-    (2, 1, 3, 'escort', now() - interval '1 day', 2, NULL, NULL),
-    (3, 2, 1, 'driver', now() - interval '1 day', 2, 1, now() - interval '15 minutes'),
-    (4, 2, 3, 'escort', now() - interval '1 day', 2, 1, now() - interval '15 minutes'),
-    (5, 3, 2, 'driver', now() - interval '1 day', 2, 3, now() - interval '9 minutes'),
-    (6, 3, 4, 'escort', now() - interval '1 day', 2, 3, now() - interval '9 minutes'),
-    (7, 4, 2, 'driver', now() - interval '1 day', 2, NULL, NULL),
-    (8, 4, 4, 'escort', now() - interval '1 day', 2, NULL, NULL),
-    (9, 5, 5, 'driver', now() - interval '1 day', 3, 4, now() - interval '10 minutes'),
-    (10, 5, 6, 'escort', now() - interval '1 day', 3, 4, now() - interval '10 minutes'),
-    (11, 7, 1, 'driver', now() - interval '1 day', 2, NULL, NULL),
-    (12, 7, 3, 'escort', now() - interval '1 day', 2, NULL, NULL);
+    (1, 1, 1, 'driver', now() - interval '1 day', 2, NULL, NULL, (SELECT academy_id FROM run WHERE id = 1)),
+    (2, 1, 3, 'escort', now() - interval '1 day', 2, NULL, NULL, (SELECT academy_id FROM run WHERE id = 1)),
+    (3, 2, 1, 'driver', now() - interval '1 day', 2, 1, now() - interval '15 minutes', (SELECT academy_id FROM run WHERE id = 2)),
+    (4, 2, 3, 'escort', now() - interval '1 day', 2, 1, now() - interval '15 minutes', (SELECT academy_id FROM run WHERE id = 2)),
+    (5, 3, 2, 'driver', now() - interval '1 day', 2, 3, now() - interval '9 minutes', (SELECT academy_id FROM run WHERE id = 3)),
+    (6, 3, 4, 'escort', now() - interval '1 day', 2, 3, now() - interval '9 minutes', (SELECT academy_id FROM run WHERE id = 3)),
+    (7, 4, 2, 'driver', now() - interval '1 day', 2, NULL, NULL, (SELECT academy_id FROM run WHERE id = 4)),
+    (8, 4, 4, 'escort', now() - interval '1 day', 2, NULL, NULL, (SELECT academy_id FROM run WHERE id = 4)),
+    (9, 5, 5, 'driver', now() - interval '1 day', 3, 4, now() - interval '10 minutes', (SELECT academy_id FROM run WHERE id = 5)),
+    (10, 5, 6, 'escort', now() - interval '1 day', 3, 4, now() - interval '10 minutes', (SELECT academy_id FROM run WHERE id = 5)),
+    (11, 7, 1, 'driver', now() - interval '1 day', 2, NULL, NULL, (SELECT academy_id FROM run WHERE id = 7)),
+    (12, 7, 3, 'escort', now() - interval '1 day', 2, NULL, NULL, (SELECT academy_id FROM run WHERE id = 7));
 
 -- ── 그룹④ 요청 · 예외 · 알림 · 이력 ──────────────────────────────────────────
 -- 탑승 의사 토글 2건(R2) — 한도 미소진(0) 1 · 소진(1) 1.
-INSERT INTO boarding_intent (id, run_id, student_id, riding, change_used_count, applied_segment, changed_at, changed_by)
+INSERT INTO boarding_intent (id, run_id, student_id, riding, change_used_count, applied_segment, changed_at, changed_by, academy_id)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (1, 2, 1, true, 0, 2, now() - interval '20 minutes', 5),
-    (2, 2, 4, false, 1, 2, now() - interval '15 minutes', 6);
+    (1, 2, 1, true, 0, 2, now() - interval '20 minutes', 5, (SELECT academy_id FROM run WHERE id = 2)),
+    (2, 2, 4, false, 1, 2, now() - interval '15 minutes', 6, (SELECT academy_id FROM run WHERE id = 2));
 
 -- 변경요청 4종 전수(pending/approved/rejected/auto_rejected) — R2, ②구간.
 -- CR2(승인)는 S4 를 stop3 로 재배치한 실제 변경이며 route_version v2 배포의 계기다.

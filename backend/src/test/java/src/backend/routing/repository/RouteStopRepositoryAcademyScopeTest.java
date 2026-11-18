@@ -100,7 +100,7 @@ class RouteStopRepositoryAcademyScopeTest {
     }
 
     private void 정차행을_만든다(long routeId, long stopId, int seq) {
-        jdbcTemplate.update("INSERT INTO route_stop (route_id, stop_id, seq) VALUES (?, ?, ?)",
-                routeId, stopId, seq);
+        jdbcTemplate.update("INSERT INTO route_stop (route_id, stop_id, seq, academy_id) "
+                + "VALUES (?, ?, ?, (SELECT academy_id FROM route WHERE id = ?))", routeId, stopId, seq, routeId);
     }
 }

@@ -176,8 +176,9 @@ class StaffBusControllerTest {
                 + "'confirmed', '출발', '학원') RETURNING id", Long.class, ACADEMY_A_ID, busId, depart.toLocalDate(),
                 depart, depart.minusMinutes(30));
         for (long studentId : new long[] { 1L, 2L, 3L }) {
-            jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status) VALUES (?, ?, 1, ?)", runId,
-                    studentId, studentId == 3L ? "absent" : "waiting");
+            jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, changed_at, academy_id) VALUES (?, ?, 1, ?, "
+                    + "CASE WHEN ? = 'waiting' THEN NULL ELSE now() END, (SELECT academy_id FROM run WHERE id = ?))", runId,
+                    studentId, studentId == 3L ? "absent" : "waiting", studentId == 3L ? "absent" : "waiting", runId);
         }
 
         // capacity 4 → student_capacity 2 : 배정 2명(absent 제외)이라 경고 없음, 3 이면 1 이라 경고
@@ -203,8 +204,8 @@ class StaffBusControllerTest {
                 + "'confirmed', '출발', '학원') RETURNING id", Long.class, ACADEMY_A_ID, busId, depart.toLocalDate(),
                 depart, depart.minusMinutes(30));
         for (long studentId : new long[] { 1L, 2L }) {
-            jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status) VALUES (?, ?, 1, 'waiting')",
-                    runId, studentId);
+            jdbcTemplate.update("INSERT INTO run_rider (run_id, student_id, stop_id, status, academy_id) VALUES (?, ?, 1, 'waiting', (SELECT academy_id FROM run WHERE id = ?))",
+                    runId, studentId, runId);
         }
 
         String body = 본문(수정한다(관계자A_토큰(), busId, "{\"capacity\":3}")

@@ -7,10 +7,10 @@ WHERE n.nspname = 'public' AND relkind = 'r';
 
 -- uk_run_rider_run_student(run_id, student_id) 때문에 같은 조합을 반복할 수 없다 — 회차 50개 ×
 -- 학생 2,000명 조합으로 10만 행을 만든다.
-INSERT INTO run_rider (run_id, student_id, stop_id, status, seat_no, boarded_at, alighted_at)
-SELECT r.id, s.id, (SELECT id FROM stop ORDER BY id LIMIT 1), 'alighted', 12, now(), now()
+INSERT INTO run_rider (academy_id, run_id, student_id, stop_id, status, seat_no, boarded_at, alighted_at)
+SELECT s.academy_id, r.id, s.id, (SELECT id FROM stop ORDER BY id LIMIT 1), 'alighted', 12, now(), now()
 FROM (SELECT id FROM run ORDER BY id LIMIT 50) r
-CROSS JOIN (SELECT id FROM student ORDER BY id LIMIT 2000) s;
+CROSS JOIN (SELECT id, academy_id FROM student ORDER BY id LIMIT 2000) s;
 
 ANALYZE run_rider;
 

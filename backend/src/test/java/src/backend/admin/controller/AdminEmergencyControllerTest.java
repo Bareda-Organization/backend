@@ -516,7 +516,7 @@ class AdminEmergencyControllerTest {
     }
 
     private void 확인시각을_옮긴다(long emergencyId, OffsetDateTime ackedAt) {
-        jdbcTemplate.update("UPDATE emergency_alert SET acked_at = ? WHERE id = ?", ackedAt, emergencyId);
+        jdbcTemplate.update("UPDATE emergency_alert SET acked_at = ?, acked_by = 1 WHERE id = ?", ackedAt, emergencyId);
         entityManager.clear();
     }
 

@@ -131,7 +131,8 @@ class NavigationControllerTest {
         long runId = 회차_생성("confirmed");
         long versionId = 노선버전_생성(runId);
         도착_처리(정차_추가(versionId, 1, 정차지_생성(1)));
-        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, seq, destination) VALUES (?, 2, true)", versionId);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, seq, destination, academy_id) VALUES (?, 2, true, "
+                + "(SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = ?))", versionId, versionId);
 
         조회한다(기사_토큰(), runId, "next")
                 .andExpect(status().isOk())
@@ -224,7 +225,7 @@ class NavigationControllerTest {
         long runId = 회차_생성("confirmed");
         long versionId = 노선버전_생성(runId);
         정차_추가(versionId, 1, 정차지_생성(1));
-        jdbcTemplate.update("UPDATE run SET status = 'moving' WHERE id = ?", runId);
+        jdbcTemplate.update("UPDATE run SET status = 'moving', started_at = now() WHERE id = ?", runId);
 
         조회한다(기사_토큰(), runId, "next")
                 .andExpect(status().isOk())
@@ -315,8 +316,9 @@ class NavigationControllerTest {
                         + "RETURNING id",
                 Long.class, ACADEMY_A_ID, BUS_A_ID, direction, status);
         jdbcTemplate.update(
-                "INSERT INTO assignment (run_id, manager_id, role, assigned_at) VALUES (?, ?, 'driver', now())",
-                runId, DRIVER_MANAGER_ID);
+                "INSERT INTO assignment (run_id, manager_id, role, assigned_at, academy_id) VALUES (?, ?, 'driver', now(), "
+                        + "(SELECT academy_id FROM run WHERE id = ?))",
+                runId, DRIVER_MANAGER_ID, runId);
         return runId;
     }
 
@@ -340,8 +342,9 @@ class NavigationControllerTest {
 
     private long 정차_추가(long routeVersionId, int seq, long stopId) {
         return jdbcTemplate.queryForObject(
-                "INSERT INTO run_stop (route_version_id, stop_id, seq) VALUES (?, ?, ?) RETURNING id", Long.class,
-                routeVersionId, stopId, seq);
+                "INSERT INTO run_stop (route_version_id, stop_id, seq, academy_id) VALUES (?, ?, ?, "
+                        + "(SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = ?)) RETURNING id", Long.class,
+                routeVersionId, stopId, seq, routeVersionId);
     }
 
     private void 경유_지점_추가(long routeVersionId, int seq, long runId) {
@@ -349,8 +352,9 @@ class NavigationControllerTest {
                 "INSERT INTO waypoint (run_id, label, lat, lng, applied, created_by) "
                         + "VALUES (?, '주유소', 37.401500, 127.001500, true, ?) RETURNING id",
                 Long.class, runId, DRIVER_ACCOUNT_ID);
-        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, waypoint_id, seq) VALUES (?, ?, ?)",
-                routeVersionId, waypointId, seq);
+        jdbcTemplate.update("INSERT INTO run_stop (route_version_id, waypoint_id, seq, academy_id) VALUES (?, ?, ?, "
+                        + "(SELECT r.academy_id FROM route_version v JOIN run r ON r.id = v.confirmed_route_id WHERE v.id = ?))",
+                routeVersionId, waypointId, seq, routeVersionId);
     }
 
     private void 도착_처리(long runStopId) {

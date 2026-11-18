@@ -367,7 +367,7 @@ class BoardingConcurrencyTest {
 
     private void toFromAcademyWithBoardedRider(Stage stage, long riderId) {
         jdbcTemplate.update("UPDATE run SET direction = 'from_academy' WHERE id = ?", stage.runId());
-        jdbcTemplate.update("UPDATE run_rider SET status = 'boarded' WHERE id = ?", riderId);
+        jdbcTemplate.update("UPDATE run_rider SET status = 'boarded', changed_at = now() WHERE id = ?", riderId);
         entityManager.clear();
     }
 

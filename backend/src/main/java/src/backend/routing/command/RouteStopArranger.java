@@ -87,7 +87,7 @@ public class RouteStopArranger {
 
         List<RouteStop> replacement = new ArrayList<>(stopIdsInOrder.size());
         for (int index = 0; index < stopIdsInOrder.size(); index++) {
-            replacement.add(RouteStop.forRoute(routeId, stopIdsInOrder.get(index), index + 1));
+            replacement.add(RouteStop.forRoute(academyId, routeId, stopIdsInOrder.get(index), index + 1));
         }
         routeStopRepository.saveAll(replacement);
     }

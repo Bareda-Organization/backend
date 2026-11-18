@@ -92,7 +92,7 @@ class StaffStudentWithdrawalPreviewTest {
         long afterTomorrowRun = fx.idleRun(academyId, busId, AFTER_TOMORROW, Direction.TO_ACADEMY, at(AFTER_TOMORROW, 8),
                 at(AFTER_TOMORROW, 8).minusMinutes(30));
         jdbcTemplate.update("UPDATE run SET canceled_at = now(), cancel_source = 'staff' WHERE id = ?", canceledRun);
-        jdbcTemplate.update("UPDATE run SET status = 'finished' WHERE id = ?", finishedRun);
+        jdbcTemplate.update("UPDATE run SET status = 'finished', started_at = now(), finished_at = now() WHERE id = ?", finishedRun);
         // JDBC 로 바꾼 값이 같은 트랜잭션의 JPA 캐시에 가려지지 않게 비운다
         entityManager.flush();
         entityManager.clear();

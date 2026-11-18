@@ -75,9 +75,9 @@ class WeeklyAddressRepositoryTest {
     @Test
     void 직접_심은_행도_학생의_소속_학원으로만_조회된다() {
         jdbcTemplate.update("""
-                INSERT INTO weekly_address (student_id, weekday, direction, address, verified)
-                VALUES (?, 'mon', 'to_academy', ?, true)
-                """, ACADEMY_B_STUDENT_ID, "서울시 격리시험로 100");
+                INSERT INTO weekly_address (student_id, weekday, direction, address, verified, lat, lng, academy_id)
+                VALUES (?, 'mon', 'to_academy', ?, true, 37.5, 127.0, (SELECT academy_id FROM student WHERE id = ?))
+                """, ACADEMY_B_STUDENT_ID, "서울시 격리시험로 100", ACADEMY_B_STUDENT_ID);
 
         assertThat(weeklyAddressRepository.findAllByStudentIdAndAcademyId(ACADEMY_B_STUDENT_ID, ACADEMY_B))
                 .as("심은 행이 소속 학원으로도 보이지 않는다 — 조인 조건이 학생을 못 찾고 있다")

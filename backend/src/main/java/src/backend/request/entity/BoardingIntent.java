@@ -41,6 +41,9 @@ public class BoardingIntent {
     @Column(name = "id")
     private Long id;
 
+    @Column(name = "academy_id", nullable = false)
+    private Long academyId;
+
     @Column(name = "run_id", nullable = false)
     private Long runId;
 
@@ -65,7 +68,8 @@ public class BoardingIntent {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
-    private BoardingIntent(Long runId, Long studentId, OffsetDateTime createdAt) {
+    private BoardingIntent(Long academyId, Long runId, Long studentId, OffsetDateTime createdAt) {
+        this.academyId = academyId;
         this.runId = runId;
         this.studentId = studentId;
         this.riding = true;
@@ -74,8 +78,8 @@ public class BoardingIntent {
     }
 
     /** 회차가 만들어질 때(또는 학생이 그 회차에 처음 등장할 때) 기본값(탑승 ON·한도 미사용)으로 생성한다. */
-    public static BoardingIntent forRun(Long runId, Long studentId, OffsetDateTime createdAt) {
-        return new BoardingIntent(runId, studentId, createdAt);
+    public static BoardingIntent forRun(Long academyId, Long runId, Long studentId, OffsetDateTime createdAt) {
+        return new BoardingIntent(academyId, runId, studentId, createdAt);
     }
 
     /** ②구간 변경 한도가 아직 남아 있는가 — 한도 단위는 이 행 자체(회차 1개). */
